@@ -19,9 +19,18 @@
       ],
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Novori to access your photos so you can choose a profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {
+            "deploymentTarget": "16.4",
             "enableSceneSupport": true
           }
         }

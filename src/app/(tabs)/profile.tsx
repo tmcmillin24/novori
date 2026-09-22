@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -12,6 +13,7 @@ import {
 
 import { TabScreen } from '../../components/tab-screen';
 import { COLORS } from '../../constants/novori-theme';
+import { supabase } from '../../lib/supabase';
 
 type ProfileTab = 'books' | 'reviews' | 'clubs';
 
@@ -21,9 +23,19 @@ type CurrentlyReadingBook = {
   coverUrl?: string;
 };
 
+type Profile = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+};
+
 export default function ProfileScreen() {
   const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<ProfileTab>('books');
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   // This is intentionally empty for now.
   // Once Supabase reading-status data is connected, populate this array
@@ -33,11 +45,79 @@ export default function ProfileScreen() {
   const previewBooks = currentlyReadingBooks.slice(0, 3);
   const remainingCount = Math.max(currentlyReadingBooks.length - 3, 0);
 
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+
+      async function loadProfile() {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          await supabase.auth.signOut();
+          router.replace('/auth');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, bio, avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Could not load profile:', error.message);
+          return;
+        }
+
+        if (isMounted) {
+          setProfile(data);
+        }
+      }
+
+      loadProfile();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [router])
+  );
+
+  const rawUsername = profile?.username?.trim() || 'reader';
+  const username = `@${rawUsername}`;
+
+  const displayName =
+    profile?.display_name?.trim() ||
+    rawUsername;
+
+  const bio =
+    profile?.bio?.trim() ||
+    'Add a bio to tell other readers a little about yourself.';
+
+  const avatarInitial =
+    displayName.charAt(0).toUpperCase() || 'N';
+
   function handleEditProfile() {
-    Alert.alert(
-      'Edit Profile',
-      'Profile editing will be connected here next.'
-    );
+    router.push('/edit-profile');
+  }
+
+  function openSettings() {
+    router.push('/settings');
+  }
+
+  async function handleShareProfile() {
+    try {
+      await Share.share({
+        message: `Check out ${username} on Novori.`,
+      });
+    } catch {
+      Alert.alert(
+        'Could not share profile',
+        'Please try again.'
+      );
+    }
   }
 
   function openCurrentlyReading() {
@@ -88,23 +168,49 @@ export default function ProfileScreen() {
 
   return (
     <TabScreen scroll>
+      <View style={styles.topBar}>
+        <View style={styles.topBarSpacer} />
+
+        <Pressable
+          onPress={openSettings}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.settingsButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name="settings-outline"
+            size={23}
+            color={COLORS.text}
+          />
+        </Pressable>
+      </View>
+
       <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            N
-          </Text>
-        </View>
+        {profile?.avatar_url ? (
+          <Image
+            source={{ uri: profile.avatar_url }}
+            style={styles.avatarImage}
+          />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {avatarInitial}
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.name}>
-          Novori Reader
+          {displayName}
         </Text>
 
         <Text style={styles.username}>
-          @reader
+          {username}
         </Text>
 
         <Text style={styles.bio}>
-          Reader, reviewer, and professional TBR collector.
+          {bio}
         </Text>
       </View>
 
@@ -168,23 +274,31 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <Pressable
-        onPress={handleEditProfile}
-        style={({ pressed }) => [
-          styles.editButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <Ionicons
-          name="pencil-outline"
-          size={16}
-          color={COLORS.text}
-        />
+      <View style={styles.profileActions}>
+        <Pressable
+          onPress={handleEditProfile}
+          style={({ pressed }) => [
+            styles.actionButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.actionButtonText}>
+            Edit Profile
+          </Text>
+        </Pressable>
 
-        <Text style={styles.editButtonText}>
-          Edit Profile
-        </Text>
-      </Pressable>
+        <Pressable
+          onPress={handleShareProfile}
+          style={({ pressed }) => [
+            styles.actionButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.actionButtonText}>
+            Share Profile
+          </Text>
+        </Pressable>
+      </View>
 
       <View style={styles.divider} />
 
@@ -378,6 +492,26 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    minHeight: 34,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+
+  topBarSpacer: {
+    width: 36,
+  },
+
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   profileHeader: {
     alignItems: 'center',
   },
@@ -391,6 +525,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  avatarImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.elevated,
   },
 
   avatarText: {
@@ -447,19 +590,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  editButton: {
+  profileActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  actionButton: {
+    flex: 1,
     minHeight: 44,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
 
-  editButtonText: {
+  actionButtonText: {
     color: COLORS.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,

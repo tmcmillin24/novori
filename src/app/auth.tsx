@@ -20,11 +20,15 @@ type AuthMode = 'sign-in' | 'sign-up';
 
 const EMAIL_CONFIRM_REDIRECT = 'novori://auth-confirm';
 
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 20;
+const USERNAME_PATTERN = /^[a-z0-9._]+$/;
+
 export default function AuthScreen() {
   const router = useRouter();
 
   const [mode, setMode] = useState<AuthMode>('sign-in');
-  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +37,7 @@ export default function AuthScreen() {
 
   async function handleSubmit() {
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedName = displayName.trim();
+    const normalizedUsername = username.trim().toLowerCase();
 
     if (!trimmedEmail || !password) {
       Alert.alert(
@@ -43,25 +47,92 @@ export default function AuthScreen() {
       return;
     }
 
-    if (isSignUp && !trimmedName) {
-      Alert.alert(
-        'Missing name',
-        'Enter the name you want displayed on Novori.'
-      );
-      return;
+    if (isSignUp) {
+      if (!normalizedUsername) {
+        Alert.alert(
+          'Choose a username',
+          'Enter the username you want to use on Novori.'
+        );
+        return;
+      }
+
+      if (
+        normalizedUsername.length < USERNAME_MIN_LENGTH ||
+        normalizedUsername.length > USERNAME_MAX_LENGTH
+      ) {
+        Alert.alert(
+          'Username length',
+          `Your username must be ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} characters.`
+        );
+        return;
+      }
+
+      if (!USERNAME_PATTERN.test(normalizedUsername)) {
+        Alert.alert(
+          'Invalid username',
+          'Usernames can only contain lowercase letters, numbers, periods, and underscores.'
+        );
+        return;
+      }
+
+      if (
+        normalizedUsername.startsWith('.') ||
+        normalizedUsername.endsWith('.')
+      ) {
+        Alert.alert(
+          'Invalid username',
+          'Your username cannot start or end with a period.'
+        );
+        return;
+      }
+
+      if (normalizedUsername.includes('..')) {
+        Alert.alert(
+          'Invalid username',
+          'Your username cannot contain two periods in a row.'
+        );
+        return;
+      }
+
+      if (password.length < 6) {
+        Alert.alert(
+          'Password too short',
+          'Your password must be at least 6 characters.'
+        );
+        return;
+      }
     }
 
     try {
       setLoading(true);
 
       if (isSignUp) {
+        const { data: existingProfile, error: usernameCheckError } =
+          await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', normalizedUsername)
+            .maybeSingle();
+
+        if (usernameCheckError) {
+          throw usernameCheckError;
+        }
+
+        if (existingProfile) {
+          Alert.alert(
+            'Username unavailable',
+            `@${normalizedUsername} is already taken. Choose another username.`
+          );
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password,
           options: {
             emailRedirectTo: EMAIL_CONFIRM_REDIRECT,
             data: {
-              display_name: trimmedName,
+              username: normalizedUsername,
             },
           },
         });
@@ -75,12 +146,13 @@ export default function AuthScreen() {
           return;
         }
 
-        Alert.alert(
-          'Check your email',
-          'We sent you a confirmation link. Tap it to verify your email and return to Novori.'
-        );
+        router.push({
+          pathname: '/confirm-email',
+          params: {
+            email: trimmedEmail,
+          },
+        });
 
-        setMode('sign-in');
         setPassword('');
         return;
       }
@@ -110,6 +182,11 @@ export default function AuthScreen() {
     }
   }
 
+  function switchMode() {
+    setMode(isSignUp ? 'sign-in' : 'sign-up');
+    setPassword('');
+  }
+
   return (
     <SafeAreaView
       style={styles.safeArea}
@@ -137,21 +214,41 @@ export default function AuthScreen() {
 
             <Text style={styles.subtitle}>
               {isSignUp
-                ? 'Build your reading profile and join the community.'
+                ? 'Choose your permanent Novori username and join the community.'
                 : 'Sign in to continue to your reading world.'}
             </Text>
 
             {isSignUp ? (
-              <TextInput
-                style={styles.input}
-                placeholder="Display name"
-                placeholderTextColor={COLORS.mutedText}
-                value={displayName}
-                onChangeText={setDisplayName}
-                autoCapitalize="words"
-                autoCorrect={false}
-                textContentType="name"
-              />
+              <>
+                <View style={styles.usernameInputRow}>
+                  <Text style={styles.atSymbol}>
+                    @
+                  </Text>
+
+                  <TextInput
+                    style={styles.usernameInput}
+                    placeholder="username"
+                    placeholderTextColor={COLORS.mutedText}
+                    value={username}
+                    onChangeText={(value) =>
+                      setUsername(
+                        value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9._]/g, '')
+                          .slice(0, USERNAME_MAX_LENGTH)
+                      )
+                    }
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="username"
+                    maxLength={USERNAME_MAX_LENGTH}
+                  />
+                </View>
+
+                <Text style={styles.usernameHelp}>
+                  3-20 characters. Letters, numbers, periods, and underscores only. Your username cannot be changed later.
+                </Text>
+              </>
             ) : null}
 
             <TextInput
@@ -201,10 +298,7 @@ export default function AuthScreen() {
 
             <Pressable
               disabled={loading}
-              onPress={() => {
-                setMode(isSignUp ? 'sign-in' : 'sign-up');
-                setPassword('');
-              }}
+              onPress={switchMode}
               style={({ pressed }) => [
                 styles.switchButton,
                 pressed && styles.pressed,
@@ -297,6 +391,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
     marginBottom: 12,
+  },
+
+  usernameInputRow: {
+    minHeight: 52,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+
+  atSymbol: {
+    color: COLORS.gold,
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    marginRight: 2,
+  },
+
+  usernameInput: {
+    flex: 1,
+    minHeight: 50,
+    color: COLORS.text,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+    paddingVertical: 0,
+  },
+
+  usernameHelp: {
+    color: COLORS.mutedText,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 7,
+    marginBottom: 12,
+    paddingHorizontal: 2,
   },
 
   primaryButton: {
