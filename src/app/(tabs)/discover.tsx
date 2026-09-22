@@ -6,13 +6,13 @@ import {
   Image,
   Keyboard,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 
+import { TabScreen } from '../../components/tab-screen';
 import { COLORS } from '../../constants/novori-theme';
 
 type GoogleBookItem = {
@@ -62,9 +62,7 @@ export default function DiscoverScreen() {
       setError('');
 
       const encodedQuery = encodeURIComponent(trimmedQuery);
-
-      const apiKey =
-        process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
       if (!apiKey) {
         throw new Error(
@@ -157,8 +155,7 @@ export default function DiscoverScreen() {
             style={styles.author}
             numberOfLines={1}
           >
-            {info.authors?.join(', ') ??
-              'Unknown author'}
+            {info.authors?.join(', ') ?? 'Unknown author'}
           </Text>
 
           {info.publishedDate ? (
@@ -182,7 +179,7 @@ export default function DiscoverScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <TabScreen>
       <View style={styles.header}>
         <Text style={styles.heading}>
           Discover
@@ -237,13 +234,14 @@ export default function DiscoverScreen() {
       ) : null}
 
       <FlatList
+        style={styles.list}
         data={books}
         keyExtractor={(item) => item.id}
         renderItem={renderBook}
-        contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           !loading && !error ? (
             <View style={styles.emptyState}>
@@ -258,38 +256,31 @@ export default function DiscoverScreen() {
           ) : null
         }
       />
-    </SafeAreaView>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 18,
+    marginBottom: 18,
   },
 
   heading: {
     color: COLORS.gold,
-    fontSize: 34,
+    fontSize: 43,
     fontFamily: 'PlayfairDisplay_700Bold',
+    letterSpacing: 0.2,
   },
 
   subheading: {
     color: COLORS.secondaryText,
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
-    marginTop: 3,
+    marginTop: 5,
   },
 
   searchRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 10,
   },
 
@@ -325,20 +316,22 @@ const styles = StyleSheet.create({
   },
 
   loader: {
-    marginTop: 30,
+    marginTop: 24,
   },
 
   error: {
     color: COLORS.danger,
-    paddingHorizontal: 20,
     marginTop: 20,
     fontFamily: 'Inter_400Regular',
   },
 
   list: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
+    flex: 1,
+    marginTop: 20,
+  },
+
+  listContent: {
+    paddingBottom: 20,
     flexGrow: 1,
   },
 

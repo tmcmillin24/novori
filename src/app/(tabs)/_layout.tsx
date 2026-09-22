@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Pressable, View } from 'react-native';
 
 import { COLORS } from '../../constants/novori-theme';
 
@@ -7,15 +8,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: {
+        headerShown: false,
+
+        sceneStyle: {
           backgroundColor: COLORS.background,
-        },
-
-        headerTintColor: COLORS.text,
-
-        headerTitleStyle: {
-          fontFamily: 'PlayfairDisplay_600SemiBold',
-          fontSize: 20,
         },
 
         tabBarStyle: {
@@ -39,9 +35,9 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name="home-outline"
+              name={focused ? 'home' : 'home-outline'}
               size={size}
               color={color}
             />
@@ -53,9 +49,9 @@ export default function TabLayout() {
         name="discover"
         options={{
           title: 'Discover',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name="search-outline"
+              name={focused ? 'compass' : 'compass-outline'}
               size={size}
               color={color}
             />
@@ -66,24 +62,45 @@ export default function TabLayout() {
       <Tabs.Screen
         name="post"
         options={{
-          title: 'Post',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons
-              name="add-circle-outline"
-              size={size + 2}
-              color={color}
-            />
+          title: '',
+          tabBarButton: ({ children: _children, ref: _ref, ...props }) => (
+            <Pressable
+              {...props}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <View
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 27,
+                  backgroundColor: COLORS.gold,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: -18,
+                }}
+              >
+                <Ionicons
+                  name="add"
+                  size={30}
+                  color={COLORS.background}
+                />
+              </View>
+            </Pressable>
           ),
         }}
       />
 
       <Tabs.Screen
-        name="notifications"
+        name="library"
         options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color, size }) => (
+          title: 'Library',
+          tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name="notifications-outline"
+              name={focused ? 'library' : 'library-outline'}
               size={size}
               color={color}
             />
@@ -95,13 +112,20 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name="person-outline"
+              name={focused ? 'person' : 'person-outline'}
               size={size}
               color={color}
             />
           ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { TabScreen } from '../../components/tab-screen';
 import { COLORS } from '../../constants/novori-theme';
 
 export default function HomeScreen() {
   return (
-    <View style={styles.container}>
+    <TabScreen scroll>
       <View style={styles.brandBlock}>
         <Text style={styles.logo}>
           Novori
@@ -31,20 +32,13 @@ export default function HomeScreen() {
           people and books you care about will appear here.
         </Text>
       </View>
-    </View>
+    </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 22,
-    paddingTop: 28,
-  },
-
   brandBlock: {
-    marginTop: 8,
+    marginTop: 2,
   },
 
   logo: {
