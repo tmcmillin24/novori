@@ -1,30 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-    useLocalSearchParams,
-    useRouter,
+  useLocalSearchParams,
+  useRouter,
 } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import { COLORS } from '../../../constants/novori-theme';
 import { supabase } from '../../../lib/supabase';
-
-type ReadingStatus =
-  | 'TBR'
-  | 'Reading'
-  | 'Finished'
-  | 'DNF'
-  | null;
+import {
+  getUserBook,
+  removeUserBook,
+  saveUserBook,
+  UserBookStatus,
+} from '../../../lib/user-books';
 
 type GoogleBook = {
   id: string;
@@ -154,8 +153,9 @@ function getDisplayTitle(
 export default function BookDetailsScreen() {
   const router = useRouter();
 
-  const { id } = useLocalSearchParams<{
+  const { id, source } = useLocalSearchParams<{
     id: string;
+    source?: string;
   }>();
 
   const [book, setBook] = useState<GoogleBook | null>(null);
@@ -164,15 +164,61 @@ export default function BookDetailsScreen() {
   const [descriptionExpanded, setDescriptionExpanded] =
     useState(false);
   const [readingStatus, setReadingStatus] =
-    useState<ReadingStatus>(null);
+    useState<UserBookStatus | null>(null);
+  const [savingStatus, setSavingStatus] =
+    useState<UserBookStatus | null>(null);
+  const [removingBook, setRemovingBook] =
+    useState(false);
   const [series, setSeries] =
     useState<HardcoverSeries | null>(null);
   const [seriesBooks, setSeriesBooks] =
     useState<HardcoverSeriesBook[]>([]);
   const [seriesLoading, setSeriesLoading] =
     useState(false);
+  const [seriesExpanded, setSeriesExpanded] =
+    useState(false);
   const [openingSeriesBookId, setOpeningSeriesBookId] =
     useState<number | null>(null);
+
+  const backLabel =
+    source === 'library'
+      ? 'Library'
+      : source === 'currently-reading'
+      ? 'Currently Reading'
+      : source === 'profile'
+      ? 'Profile'
+      : source === 'discover'
+      ? 'Discover'
+      : 'Back';
+
+  function handleBack() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    if (source === 'library') {
+      router.replace('/(tabs)/library');
+      return;
+    }
+
+    if (source === 'currently-reading') {
+      router.replace('/currently-reading');
+      return;
+    }
+
+    if (source === 'profile') {
+      router.replace('/(tabs)/profile');
+      return;
+    }
+
+    if (source === 'discover') {
+      router.replace('/(tabs)/discover');
+      return;
+    }
+
+    router.replace('/(tabs)/discover');
+  }
 
   useEffect(() => {
     async function loadBook() {
@@ -185,6 +231,7 @@ export default function BookDetailsScreen() {
         setError('');
         setSeries(null);
         setSeriesBooks([]);
+        setSeriesExpanded(false);
 
         const apiKey =
           process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
@@ -206,6 +253,18 @@ export default function BookDetailsScreen() {
         const data: GoogleBook = await response.json();
 
         setBook(data);
+
+        try {
+          const savedBook = await getUserBook(data.id);
+          setReadingStatus(savedBook?.status ?? null);
+        } catch (statusError) {
+          console.error(
+            'Could not load saved reading status:',
+            statusError
+          );
+          setReadingStatus(null);
+        }
+
         await loadSeries(data);
       } catch (err) {
         console.error('Book loading error:', err);
@@ -341,6 +400,121 @@ export default function BookDetailsScreen() {
     return results[0]?.id ?? null;
   }
 
+  async function saveReadingStatus(
+    status: UserBookStatus
+  ) {
+    if (!book || savingStatus) {
+      return;
+    }
+
+    const info = book.volumeInfo;
+
+    const coverUrl =
+      info.imageLinks?.extraLarge?.replace('http://', 'https://') ||
+      info.imageLinks?.large?.replace('http://', 'https://') ||
+      info.imageLinks?.medium?.replace('http://', 'https://') ||
+      info.imageLinks?.thumbnail?.replace('http://', 'https://') ||
+      null;
+
+    try {
+      setSavingStatus(status);
+
+      await saveUserBook({
+        googleBookId: book.id,
+        title: info.title ?? 'Untitled',
+        authors: info.authors ?? [],
+        coverUrl,
+        isbn: getBookISBN(book) ?? null,
+        publishedDate: info.publishedDate ?? null,
+        status,
+      });
+
+      setReadingStatus(status);
+
+      if (
+        status === 'read' ||
+        status === 'dnf'
+      ) {
+        router.push({
+          pathname: '/rate-review',
+          params: {
+            googleBookId: book.id,
+          },
+        });
+      }
+    } catch (saveError) {
+      console.error(
+        'Could not save book status:',
+        saveError
+      );
+
+      Alert.alert(
+        'Could not save book',
+        'Novori had trouble updating your library. Please try again.'
+      );
+    } finally {
+      setSavingStatus(null);
+    }
+  }
+
+  function confirmRemoveFromLibrary() {
+    if (
+      !book ||
+      !readingStatus ||
+      savingStatus ||
+      removingBook
+    ) {
+      return;
+    }
+
+    Alert.alert(
+      'Remove from Library?',
+      `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: removeFromLibrary,
+        },
+      ]
+    );
+  }
+
+  async function removeFromLibrary() {
+    if (
+      !book ||
+      removingBook
+    ) {
+      return;
+    }
+
+    try {
+      setRemovingBook(true);
+
+      await removeUserBook(
+        book.id
+      );
+
+      setReadingStatus(null);
+    } catch (removeError) {
+      console.error(
+        'Could not remove book from library:',
+        removeError
+      );
+
+      Alert.alert(
+        'Could not remove book',
+        'Novori had trouble removing this book from your library. Please try again.'
+      );
+    } finally {
+      setRemovingBook(false);
+    }
+  }
+
   async function openSeriesBook(
     seriesBook: HardcoverSeriesBook
   ) {
@@ -377,6 +551,11 @@ export default function BookDetailsScreen() {
         pathname: '/book/[id]',
         params: {
           id: googleBookId,
+          ...(source
+            ? {
+                source,
+              }
+            : {}),
         },
       });
     } catch (err) {
@@ -410,7 +589,7 @@ export default function BookDetailsScreen() {
 
         <Pressable
           style={styles.backButtonLarge}
-          onPress={() => router.back()}
+          onPress={handleBack}
         >
           <Text style={styles.backButtonLargeText}>Go Back</Text>
         </Pressable>
@@ -429,26 +608,46 @@ export default function BookDetailsScreen() {
   const categories = info.categories?.join(' • ');
   const description = cleanDescription(info.description);
 
-  const statuses: Exclude<ReadingStatus, null>[] = [
-    'TBR',
-    'Reading',
-    'Finished',
-    'DNF',
+  const statuses: {
+    value: UserBookStatus;
+    label: string;
+  }[] = [
+    {
+      value: 'want_to_read',
+      label: 'Want to Read',
+    },
+    {
+      value: 'reading',
+      label: 'Reading',
+    },
+    {
+      value: 'read',
+      label: 'Read',
+    },
+    {
+      value: 'dnf',
+      label: 'DNF',
+    },
   ];
+
+  const selectedStatusLabel =
+    statuses.find(
+      (status) => status.value === readingStatus
+    )?.label ?? null;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={handleBack}
         >
           <Ionicons
             name="chevron-back"
             size={25}
             color={COLORS.text}
           />
-          <Text style={styles.backText}>Discover</Text>
+          <Text style={styles.backText}>{backLabel}</Text>
         </Pressable>
       </View>
 
@@ -505,35 +704,94 @@ export default function BookDetailsScreen() {
 
           <View style={styles.statusGrid}>
             {statuses.map((status) => {
-              const selected = readingStatus === status;
+              const selected =
+                readingStatus === status.value;
+
+              const saving =
+                savingStatus === status.value;
 
               return (
                 <Pressable
-                  key={status}
-                  onPress={() => setReadingStatus(status)}
+                  key={status.value}
+                  disabled={savingStatus !== null}
+                  onPress={() =>
+                    saveReadingStatus(status.value)
+                  }
                   style={[
                     styles.statusButton,
-                    selected && styles.statusButtonSelected,
+                    selected &&
+                      styles.statusButtonSelected,
+                    savingStatus !== null &&
+                      !saving &&
+                      styles.statusButtonDisabled,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.statusButtonText,
-                      selected &&
-                        styles.statusButtonTextSelected,
-                    ]}
-                  >
-                    {status}
-                  </Text>
+                  {saving ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        selected
+                          ? COLORS.background
+                          : COLORS.gold
+                      }
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.statusButtonText,
+                        selected &&
+                          styles.statusButtonTextSelected,
+                      ]}
+                    >
+                      {status.label}
+                    </Text>
+                  )}
                 </Pressable>
               );
             })}
           </View>
 
-          {readingStatus ? (
-            <Text style={styles.statusConfirmation}>
-              Added to {readingStatus}
-            </Text>
+          {selectedStatusLabel ? (
+            <View style={styles.statusFooterRow}>
+              <Text style={styles.statusConfirmation}>
+                Saved as {selectedStatusLabel}
+              </Text>
+
+              {readingStatus ? (
+                <Pressable
+                  accessibilityLabel="Remove from Library"
+                  disabled={
+                    savingStatus !== null ||
+                    removingBook
+                  }
+                  onPress={
+                    confirmRemoveFromLibrary
+                  }
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.removeLibraryIconButton,
+                    pressed &&
+                      styles.removeLibraryIconButtonPressed,
+                    (savingStatus !== null ||
+                      removingBook) &&
+                      styles.removeLibraryIconButtonDisabled,
+                  ]}
+                >
+                  {removingBook ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={COLORS.mutedText}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="trash-outline"
+                      size={17}
+                      color={COLORS.mutedText}
+                    />
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -576,118 +834,163 @@ export default function BookDetailsScreen() {
         ) : series && seriesBooks.length > 0 ? (
           <View style={styles.seriesSection}>
             <Text style={styles.sectionHeading}>Series</Text>
-            <Text style={styles.seriesNameHeading}>
-              {series.name}
-            </Text>
 
-            <View style={styles.seriesCard}>
-              {seriesBooks.map((seriesBook, index) => {
-                const isCurrent =
-                  series.currentPosition ===
-                  seriesBook.position;
+            <Pressable
+              onPress={() =>
+                setSeriesExpanded((current) => !current)
+              }
+              style={({ pressed }) => [
+                styles.seriesToggle,
+                pressed && styles.seriesTogglePressed,
+              ]}
+            >
+              <View style={styles.seriesToggleIcon}>
+                <Ionicons
+                  name="library-outline"
+                  size={21}
+                  color={COLORS.gold}
+                />
+              </View>
 
-                const isOpening =
-                  openingSeriesBookId === seriesBook.id;
+              <View style={styles.seriesToggleText}>
+                <Text style={styles.seriesToggleName}>
+                  {series.name}
+                </Text>
 
-                const year = getYear(seriesBook.releaseDate);
+                <Text style={styles.seriesToggleMeta}>
+                  {seriesBooks.length}{' '}
+                  {seriesBooks.length === 1 ? 'book' : 'books'}
+                  {series.currentPosition
+                    ? ` • Current: Book ${series.currentPosition}`
+                    : ''}
+                </Text>
+              </View>
 
-                const displayTitle = getDisplayTitle(
-                  seriesBook.title
-                );
+              <Ionicons
+                name={
+                  seriesExpanded
+                    ? 'chevron-up'
+                    : 'chevron-down'
+                }
+                size={20}
+                color={COLORS.softGold}
+              />
+            </Pressable>
 
-                const hasUsableTitle =
-                  displayTitle !== 'Unannounced';
+            {seriesExpanded ? (
+              <View style={styles.seriesCard}>
+                {seriesBooks.map((seriesBook, index) => {
+                  const isCurrent =
+                    series.currentPosition ===
+                    seriesBook.position;
 
-                return (
-                  <Pressable
-                    key={seriesBook.id}
-                    disabled={
-                      isCurrent ||
-                      isOpening ||
-                      !hasUsableTitle
-                    }
-                    onPress={() => openSeriesBook(seriesBook)}
-                    style={({ pressed }) => [
-                      styles.seriesRow,
-                      index === seriesBooks.length - 1 &&
-                        styles.seriesRowLast,
-                      pressed &&
-                        !isCurrent &&
-                        hasUsableTitle &&
-                        styles.seriesRowPressed,
-                    ]}
-                  >
-                    {seriesBook.imageUrl ? (
-                      <Image
-                        source={{ uri: seriesBook.imageUrl }}
-                        style={styles.seriesCover}
-                      />
-                    ) : (
-                      <View
-                        style={styles.seriesCoverPlaceholder}
-                      >
-                        <Ionicons
-                          name="book-outline"
-                          size={20}
-                          color={COLORS.mutedText}
+                  const isOpening =
+                    openingSeriesBookId === seriesBook.id;
+
+                  const year = getYear(seriesBook.releaseDate);
+
+                  const displayTitle = getDisplayTitle(
+                    seriesBook.title
+                  );
+
+                  const hasUsableTitle =
+                    displayTitle !== 'Unannounced';
+
+                  return (
+                    <Pressable
+                      key={seriesBook.id}
+                      disabled={
+                        isCurrent ||
+                        isOpening ||
+                        !hasUsableTitle
+                      }
+                      onPress={() => openSeriesBook(seriesBook)}
+                      style={({ pressed }) => [
+                        styles.seriesRow,
+                        index === seriesBooks.length - 1 &&
+                          styles.seriesRowLast,
+                        pressed &&
+                          !isCurrent &&
+                          hasUsableTitle &&
+                          styles.seriesRowPressed,
+                      ]}
+                    >
+                      {seriesBook.imageUrl ? (
+                        <Image
+                          source={{ uri: seriesBook.imageUrl }}
+                          style={styles.seriesCover}
                         />
-                      </View>
-                    )}
-
-                    <View style={styles.seriesBookText}>
-                      <View style={styles.seriesTitleRow}>
-                        <Text style={styles.seriesNumber}>
-                          {seriesBook.position}.
-                        </Text>
-
-                        <Text
-                          style={[
-                            styles.seriesBookTitle,
-                            isCurrent &&
-                              styles.seriesBookTitleCurrent,
-                            !hasUsableTitle &&
-                              styles.seriesBookTitleUnavailable,
-                          ]}
-                          numberOfLines={2}
+                      ) : (
+                        <View
+                          style={styles.seriesCoverPlaceholder}
                         >
-                          {displayTitle}
-                        </Text>
-                      </View>
-
-                      {isCurrent ? (
-                        <View style={styles.currentBookRow}>
                           <Ionicons
-                            name="eye-outline"
-                            size={13}
-                            color={COLORS.softGold}
+                            name="book-outline"
+                            size={20}
+                            color={COLORS.mutedText}
                           />
-                          <Text style={styles.currentBookLabel}>
-                            Currently viewing
+                        </View>
+                      )}
+
+                      <View style={styles.seriesBookText}>
+                        <View style={styles.seriesTitleRow}>
+                          <Text style={styles.seriesNumber}>
+                            {seriesBook.position}.
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.seriesBookTitle,
+                              isCurrent &&
+                                styles.seriesBookTitleCurrent,
+                              !hasUsableTitle &&
+                                styles.seriesBookTitleUnavailable,
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {displayTitle}
                           </Text>
                         </View>
-                      ) : year ? (
-                        <Text style={styles.seriesBookMeta}>
-                          {year}
-                        </Text>
-                      ) : null}
-                    </View>
 
-                    {isOpening ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={COLORS.gold}
-                      />
-                    ) : !isCurrent && hasUsableTitle ? (
-                      <Ionicons
-                        name="chevron-forward"
-                        size={19}
-                        color={COLORS.mutedText}
-                      />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </View>
+                        {isCurrent ? (
+                          <View style={styles.currentBookRow}>
+                            <Ionicons
+                              name="eye-outline"
+                              size={13}
+                              color={COLORS.softGold}
+                            />
+                            <Text style={styles.currentBookLabel}>
+                              Currently viewing
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.seriesBookMeta}>
+                            {year
+                              ? year
+                              : hasUsableTitle
+                              ? 'View book'
+                              : 'Details not announced'}
+                          </Text>
+                        )}
+                      </View>
+
+                      {isOpening ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={COLORS.gold}
+                        />
+                      ) : !isCurrent && hasUsableTitle ? (
+                        <Ionicons
+                          name="chevron-forward"
+                          size={19}
+                          color={COLORS.mutedText}
+                        />
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -931,6 +1234,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
   },
 
+  statusButtonDisabled: {
+    opacity: 0.5,
+  },
+
   statusButtonText: {
     color: COLORS.text,
     fontFamily: 'Inter_600SemiBold',
@@ -941,11 +1248,33 @@ const styles = StyleSheet.create({
     color: COLORS.background,
   },
 
+  statusFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+
   statusConfirmation: {
     color: COLORS.softGold,
     fontFamily: 'Inter_500Medium',
     fontSize: 12,
-    marginTop: 10,
+  },
+
+  removeLibraryIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  removeLibraryIconButtonPressed: {
+    backgroundColor: COLORS.elevated,
+  },
+
+  removeLibraryIconButtonDisabled: {
+    opacity: 0.4,
   },
 
   divider: {
@@ -1006,12 +1335,46 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  seriesNameHeading: {
-    color: COLORS.softGold,
+  seriesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: 14,
+  },
+
+  seriesTogglePressed: {
+    opacity: 0.72,
+  },
+
+  seriesToggleIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  seriesToggleText: {
+    flex: 1,
+    marginRight: 10,
+  },
+
+  seriesToggleName: {
+    color: COLORS.text,
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    marginTop: -4,
-    marginBottom: 12,
+    fontSize: 15,
+  },
+
+  seriesToggleMeta: {
+    color: COLORS.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    marginTop: 4,
   },
 
   seriesCard: {
@@ -1020,6 +1383,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 16,
     overflow: 'hidden',
+    marginTop: 10,
   },
 
   seriesRow: {

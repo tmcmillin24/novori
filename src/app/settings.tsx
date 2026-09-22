@@ -1,6 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+
+import {
+    useEffect,
+    useState,
+} from 'react';
+
 import {
     Alert,
     Pressable,
@@ -9,13 +14,27 @@ import {
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
-import { supabase } from '../lib/supabase';
+import {
+    SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+    NovoriColors,
+} from '../constants/novori-theme';
+
+import {
+    useNovoriTheme,
+} from '../context/theme-context';
+
+import {
+    supabase,
+} from '../lib/supabase';
 
 type SettingsRowProps = {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon:
+    keyof typeof Ionicons.glyphMap;
+
   title: string;
   subtitle?: string;
   value?: string;
@@ -31,24 +50,36 @@ function SettingsRow({
   danger = false,
   onPress,
 }: SettingsRowProps) {
+  const { colors } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(colors);
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        pressed && styles.pressed,
+        pressed &&
+          styles.pressed,
       ]}
     >
       <View
         style={[
           styles.iconWrap,
-          danger && styles.dangerIconWrap,
+          danger &&
+            styles.dangerIconWrap,
         ]}
       >
         <Ionicons
           name={icon}
           size={19}
-          color={danger ? COLORS.danger : COLORS.gold}
+          color={
+            danger
+              ? colors.danger
+              : colors.gold
+          }
         />
       </View>
 
@@ -56,21 +87,29 @@ function SettingsRow({
         <Text
           style={[
             styles.rowTitle,
-            danger && styles.dangerText,
+            danger &&
+              styles.dangerText,
           ]}
         >
           {title}
         </Text>
 
         {subtitle ? (
-          <Text style={styles.rowSubtitle}>
+          <Text
+            style={
+              styles.rowSubtitle
+            }
+          >
             {subtitle}
           </Text>
         ) : null}
       </View>
 
       {value ? (
-        <Text style={styles.rowValue}>
+        <Text
+          style={styles.rowValue}
+          numberOfLines={1}
+        >
           {value}
         </Text>
       ) : null}
@@ -78,7 +117,7 @@ function SettingsRow({
       <Ionicons
         name="chevron-forward"
         size={18}
-        color={COLORS.mutedText}
+        color={colors.mutedText}
       />
     </Pressable>
   );
@@ -86,32 +125,57 @@ function SettingsRow({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+
+  const {
+    colors,
+    theme,
+  } = useNovoriTheme();
+
+  const styles =
+    createStyles(colors);
+
+  const [
+    email,
+    setEmail,
+  ] = useState('');
 
   useEffect(() => {
     async function loadEmail() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth
+          .getUser();
 
-      setEmail(user?.email ?? '');
+      setEmail(
+        user?.email ?? ''
+      );
     }
 
     loadEmail();
   }, []);
 
-  function placeholder(title: string, message: string) {
-    Alert.alert(title, message);
+  function placeholder(
+    title: string,
+    message: string
+  ) {
+    Alert.alert(
+      title,
+      message
+    );
   }
 
   async function handleSignOut() {
-    const { error } = await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth
+        .signOut();
 
     if (error) {
       Alert.alert(
         'Could not sign out',
         error.message
       );
+
       return;
     }
 
@@ -130,7 +194,8 @@ export default function SettingsScreen() {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: handleSignOut,
+          onPress:
+            handleSignOut,
         },
       ]
     );
@@ -146,36 +211,54 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={['top', 'bottom']}
+      edges={[
+        'top',
+        'bottom',
+      ]}
     >
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() =>
+            router.back()
+          }
           hitSlop={10}
           style={({ pressed }) => [
             styles.backButton,
-            pressed && styles.pressed,
+            pressed &&
+              styles.pressed,
           ]}
         >
           <Ionicons
             name="chevron-back"
             size={24}
-            color={COLORS.text}
+            color={colors.text}
           />
         </Pressable>
 
-        <Text style={styles.headerTitle}>
+        <Text
+          style={styles.headerTitle}
+        >
           Settings
         </Text>
 
-        <View style={styles.headerSpacer} />
+        <View
+          style={
+            styles.headerSpacer
+          }
+        />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
-        <Text style={styles.sectionLabel}>
+        <Text
+          style={styles.sectionLabel}
+        >
           ACCOUNT & SECURITY
         </Text>
 
@@ -192,7 +275,9 @@ export default function SettingsScreen() {
             }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
             icon="call-outline"
@@ -202,26 +287,30 @@ export default function SettingsScreen() {
             onPress={() =>
               placeholder(
                 'Recovery Phone',
-                'Phone recovery is a placeholder for now. Later, users will be able to optionally add a verified phone number for account recovery.'
+                'Phone recovery will be available later.'
               )
             }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
             icon="lock-closed-outline"
             title="Password & Security"
+            subtitle="Password recovery and account security"
             onPress={() =>
-              placeholder(
-                'Password & Security',
-                'Password changes and additional security controls will live here.'
+              router.push(
+                '/password-security'
               )
             }
           />
         </View>
 
-        <Text style={styles.sectionLabel}>
+        <Text
+          style={styles.sectionLabel}
+        >
           PREFERENCES
         </Text>
 
@@ -231,43 +320,55 @@ export default function SettingsScreen() {
             title="Notifications"
             subtitle="Push and activity notifications"
             onPress={() =>
-              placeholder(
-                'Notifications',
-                'Notification preferences will be connected here.'
+              router.push(
+                '/notification-settings'
               )
             }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
             icon="shield-checkmark-outline"
             title="Privacy"
             subtitle="Profile, activity, clubs, and Nearby controls"
             onPress={() =>
-              placeholder(
-                'Privacy',
-                'Privacy controls will live here, including profile visibility, activity visibility, clubs, and Nearby settings.'
+              router.push(
+                '/privacy-settings'
               )
             }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
-            icon="moon-outline"
+            icon={
+              theme === 'dark'
+                ? 'moon-outline'
+                : 'sunny-outline'
+            }
             title="Appearance"
             subtitle="Theme and display preferences"
+            value={
+              theme === 'dark'
+                ? 'Dark'
+                : 'Light'
+            }
             onPress={() =>
-              placeholder(
-                'Appearance',
-                'Appearance preferences will be connected here.'
+              router.push(
+                '/appearance'
               )
             }
           />
         </View>
 
-        <Text style={styles.sectionLabel}>
+        <Text
+          style={styles.sectionLabel}
+        >
           SUPPORT
         </Text>
 
@@ -276,28 +377,30 @@ export default function SettingsScreen() {
             icon="help-circle-outline"
             title="Help & Support"
             onPress={() =>
-              placeholder(
-                'Help & Support',
-                'Help resources and support contact options will live here.'
+              router.push(
+                '/help-support'
               )
             }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
             icon="information-circle-outline"
             title="About Novori"
             onPress={() =>
-              placeholder(
-                'About Novori',
-                'Read. Discuss. Belong.'
+              router.push(
+                '/about-novori'
               )
             }
           />
         </View>
 
-        <Text style={styles.sectionLabel}>
+        <Text
+          style={styles.sectionLabel}
+        >
           ACCOUNT ACTIONS
         </Text>
 
@@ -305,158 +408,189 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="log-out-outline"
             title="Sign Out"
-            onPress={confirmSignOut}
+            onPress={
+              confirmSignOut
+            }
           />
 
-          <View style={styles.rowDivider} />
+          <View
+            style={styles.rowDivider}
+          />
 
           <SettingsRow
             icon="person-remove-outline"
             title="Deactivate Account"
             danger
-            onPress={handleDeactivate}
+            onPress={
+              handleDeactivate
+            }
           />
         </View>
 
-        <Text style={styles.footerText}>
-          Your username is permanent and is managed separately from your editable profile information.
+        <Text
+          style={styles.footerText}
+        >
+          Your username is permanent
+          and is managed separately
+          from your editable profile
+          information.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+function createStyles(
+  colors: NovoriColors
+) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
 
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
+    header: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
 
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  headerTitle: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 20,
-    fontFamily: 'PlayfairDisplay_700Bold',
-    textAlign: 'center',
-  },
+    headerTitle: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 20,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      textAlign: 'center',
+    },
 
-  headerSpacer: {
-    width: 40,
-  },
+    headerSpacer: {
+      width: 40,
+    },
 
-  content: {
-    width: '100%',
-    maxWidth: 720,
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 44,
-  },
+    content: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 22,
+      paddingBottom: 44,
+    },
 
-  sectionLabel: {
-    color: COLORS.mutedText,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    fontFamily: 'Inter_600SemiBold',
-    marginTop: 18,
-    marginBottom: 9,
-    paddingHorizontal: 4,
-  },
+    sectionLabel: {
+      color: colors.mutedText,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 18,
+      marginBottom: 9,
+      paddingHorizontal: 4,
+    },
 
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
+    card: {
+      backgroundColor:
+        colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      overflow: 'hidden',
+    },
 
-  row: {
-    minHeight: 68,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
+    row: {
+      minHeight: 68,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+    },
 
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.elevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    iconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor:
+        colors.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  dangerIconWrap: {
-    backgroundColor: COLORS.elevated,
-  },
+    dangerIconWrap: {
+      backgroundColor:
+        colors.elevated,
+    },
 
-  rowText: {
-    flex: 1,
-  },
+    rowText: {
+      flex: 1,
+    },
 
-  rowTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-  },
+    rowTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
 
-  rowSubtitle: {
-    color: COLORS.mutedText,
-    fontSize: 12,
-    lineHeight: 17,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 3,
-  },
+    rowSubtitle: {
+      color:
+        colors.mutedText,
+      fontSize: 12,
+      lineHeight: 17,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 3,
+    },
 
-  rowValue: {
-    color: COLORS.mutedText,
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    maxWidth: 150,
-    marginRight: 6,
-  },
+    rowValue: {
+      color:
+        colors.mutedText,
+      fontSize: 12,
+      fontFamily:
+        'Inter_400Regular',
+      maxWidth: 145,
+      marginRight: 6,
+    },
 
-  rowDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginLeft: 62,
-  },
+    rowDivider: {
+      height: 1,
+      backgroundColor:
+        colors.border,
+      marginLeft: 62,
+    },
 
-  dangerText: {
-    color: COLORS.danger,
-  },
+    dangerText: {
+      color: colors.danger,
+    },
 
-  footerText: {
-    color: COLORS.mutedText,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    marginTop: 22,
-    paddingHorizontal: 18,
-  },
+    footerText: {
+      color:
+        colors.mutedText,
+      fontSize: 12,
+      lineHeight: 18,
+      fontFamily:
+        'Inter_400Regular',
+      textAlign: 'center',
+      marginTop: 22,
+      paddingHorizontal: 18,
+    },
 
-  pressed: {
-    opacity: 0.68,
-  },
-});
+    pressed: {
+      opacity: 0.68,
+    },
+  });
+}
