@@ -262,11 +262,10 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="shield-checkmark-outline"
             title="Privacy"
-            subtitle="Profile, activity, clubs, and Nearby controls"
+            subtitle="Public profile and activity visibility"
             onPress={() =>
-              placeholder(
-                'Privacy',
-                'Privacy controls will live here, including profile visibility, activity visibility, clubs, and Nearby settings.'
+              router.push(
+                '/privacy'
               )
             }
           />

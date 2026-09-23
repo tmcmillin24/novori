@@ -1,0 +1,2236 @@
+import { Ionicons } from '@expo/vector-icons';
+import {
+    useFocusEffect,
+    useLocalSearchParams,
+    useRouter,
+} from 'expo-router';
+import {
+    useCallback,
+    useState,
+} from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+    NovoriColors,
+} from '../../constants/novori-theme';
+import {
+    useNovoriTheme,
+} from '../../context/theme-context';
+import {
+    ClubWithMembership,
+} from '../../lib/clubs';
+import {
+    FeedPost,
+    followReader,
+    unfollowReader,
+} from '../../lib/feed';
+import {
+    getReaderProfile,
+    getReaderProfilePosts,
+    getReaderPublicBooks,
+    getReaderPublicClubs,
+    getReaderPublicReviews,
+    PublicReaderBook,
+    PublicReaderReview,
+    ReaderSocialProfile,
+} from '../../lib/social';
+
+type ReaderTab =
+  | 'books'
+  | 'reviews'
+  | 'posts'
+  | 'clubs';
+
+export default function ReaderProfileScreen() {
+  const router =
+    useRouter();
+
+  const params =
+    useLocalSearchParams<{
+      id: string;
+    }>();
+
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
+  const readerId =
+    typeof params.id ===
+    'string'
+      ? params.id
+      : '';
+
+  const [
+    profile,
+    setProfile,
+  ] =
+    useState<ReaderSocialProfile | null>(
+      null
+    );
+
+  const [
+    books,
+    setBooks,
+  ] =
+    useState<PublicReaderBook[]>(
+      []
+    );
+
+  const [
+    reviews,
+    setReviews,
+  ] =
+    useState<PublicReaderReview[]>(
+      []
+    );
+
+  const [
+    posts,
+    setPosts,
+  ] =
+    useState<FeedPost[]>(
+      []
+    );
+
+  const [
+    clubs,
+    setClubs,
+  ] =
+    useState<ClubWithMembership[]>(
+      []
+    );
+
+  const [
+    activeTab,
+    setActiveTab,
+  ] =
+    useState<ReaderTab>(
+      'books'
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    followLoading,
+    setFollowLoading,
+  ] =
+    useState(false);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState('');
+
+  const loadReader =
+    useCallback(
+      async () => {
+        if (!readerId) {
+          setError(
+            'Reader profile not found.'
+          );
+          setLoading(
+            false
+          );
+          return;
+        }
+
+        try {
+          setError(
+            ''
+          );
+
+          const [
+            profileData,
+            bookData,
+            reviewData,
+            postData,
+            clubData,
+          ] =
+            await Promise.all([
+              getReaderProfile(
+                readerId
+              ),
+              getReaderPublicBooks(
+                readerId
+              ),
+              getReaderPublicReviews(
+                readerId
+              ),
+              getReaderProfilePosts(
+                readerId
+              ),
+              getReaderPublicClubs(
+                readerId
+              ),
+            ]);
+
+          setProfile(
+            profileData
+          );
+          setBooks(
+            bookData
+          );
+          setReviews(
+            reviewData
+          );
+          setPosts(
+            postData
+          );
+          setClubs(
+            clubData
+          );
+        } catch (
+          loadError
+        ) {
+          console.error(
+            'Could not load reader profile:',
+            loadError
+          );
+
+          setError(
+            'This reader profile could not be loaded.'
+          );
+        } finally {
+          setLoading(
+            false
+          );
+        }
+      },
+      [
+        readerId,
+      ]
+    );
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(
+        true
+      );
+
+      loadReader();
+    }, [
+      loadReader,
+    ])
+  );
+
+  async function toggleFollow() {
+    if (
+      !profile ||
+      profile.is_self
+    ) {
+      return;
+    }
+
+    try {
+      setFollowLoading(
+        true
+      );
+
+      if (
+        profile.is_following
+      ) {
+        await unfollowReader(
+          profile.id
+        );
+      } else {
+        await followReader(
+          profile.id
+        );
+      }
+
+      await loadReader();
+    } catch (
+      followError
+    ) {
+      console.error(
+        'Could not update follow:',
+        followError
+      );
+
+      Alert.alert(
+        'Could not update follow',
+        'Please try again.'
+      );
+    } finally {
+      setFollowLoading(
+        false
+      );
+    }
+  }
+
+  function openConnections(
+    mode:
+      | 'followers'
+      | 'following'
+  ) {
+    if (!profile) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/reader-connections',
+      params: {
+        readerId:
+          profile.id,
+        mode,
+        name:
+          profile.display_name ??
+          profile.username ??
+          'Reader',
+      },
+    });
+  }
+
+  function openClub(
+    clubId: string
+  ) {
+    router.push({
+      pathname:
+        '/club/[id]',
+      params: {
+        id:
+          clubId,
+      },
+    });
+  }
+
+  function openBook(
+    googleBookId: string
+  ) {
+    router.push({
+      pathname:
+        '/book/[id]',
+      params: {
+        id:
+          googleBookId,
+      },
+    });
+  }
+
+  function formatTime(
+    createdAt: string
+  ) {
+    const created =
+      new Date(
+        createdAt
+      );
+
+    const minutes =
+      Math.max(
+        0,
+        Math.floor(
+          (
+            Date.now() -
+            created.getTime()
+          ) /
+            60000
+        )
+      );
+
+    if (
+      minutes < 1
+    ) {
+      return 'now';
+    }
+
+    if (
+      minutes < 60
+    ) {
+      return `${minutes}m`;
+    }
+
+    const hours =
+      Math.floor(
+        minutes /
+          60
+      );
+
+    if (
+      hours < 24
+    ) {
+      return `${hours}h`;
+    }
+
+    const days =
+      Math.floor(
+        hours /
+          24
+      );
+
+    if (
+      days < 7
+    ) {
+      return `${days}d`;
+    }
+
+    return created.toLocaleDateString(
+      undefined,
+      {
+        month:
+          'short',
+        day:
+          'numeric',
+      }
+    );
+  }
+
+  function renderPost(
+    post: FeedPost
+  ) {
+    return (
+      <View
+        key={
+          post.id
+        }
+        style={
+          styles.postCard
+        }
+      >
+        <View
+          style={
+            styles.postMetaRow
+          }
+        >
+          <Ionicons
+            name={
+              post.post_type ===
+              'review'
+                ? 'star-outline'
+                : post.post_type ===
+                  'reading_update'
+                ? 'book-outline'
+                : 'chatbubble-ellipses-outline'
+            }
+            size={
+              14
+            }
+            color={
+              colors.gold
+            }
+          />
+
+          <Text
+            style={
+              styles.postMetaText
+            }
+          >
+            {post.post_type ===
+            'review'
+              ? 'Review'
+              : post.post_type ===
+                'reading_update'
+              ? 'Reading update'
+              : 'Post'}
+          </Text>
+
+          <Text
+            style={
+              styles.postTime
+            }
+          >
+            ·{' '}
+            {formatTime(
+              post.created_at
+            )}
+          </Text>
+        </View>
+
+        <Text
+          style={
+            styles.postBody
+          }
+        >
+          {post.body}
+        </Text>
+
+        {post.book_title ? (
+          <View
+            style={
+              styles.bookCard
+            }
+          >
+            {post.book_cover_url ? (
+              <Image
+                source={{
+                  uri:
+                    post.book_cover_url,
+                }}
+                style={
+                  styles.bookCover
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.bookCoverFallback
+                }
+              >
+                <Ionicons
+                  name="book-outline"
+                  size={
+                    18
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+            )}
+
+            <View
+              style={
+                styles.bookCopy
+              }
+            >
+              <Text
+                style={
+                  styles.bookTitle
+                }
+                numberOfLines={
+                  2
+                }
+              >
+                {
+                  post.book_title
+                }
+              </Text>
+
+              {post.rating ? (
+                <Text
+                  style={
+                    styles.bookRating
+                  }
+                >
+                  ★{' '}
+                  {
+                    post.rating
+                  }
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  function renderBook(
+    book:
+      PublicReaderBook
+  ) {
+    const statusLabel =
+      book.status ===
+      'reading'
+        ? 'Reading'
+        : book.status ===
+          'dnf'
+        ? 'DNF'
+        : 'Read';
+
+    return (
+      <Pressable
+        key={
+          book.id
+        }
+        onPress={() =>
+          openBook(
+            book.google_book_id
+          )
+        }
+        style={({ pressed }) => [
+          styles.publicBookCard,
+          pressed &&
+            styles.pressed,
+        ]}
+      >
+        <View
+          style={
+            styles.publicBookCoverWrap
+          }
+        >
+          {book.cover_url ? (
+            <Image
+              source={{
+                uri:
+                  book.cover_url,
+              }}
+              style={
+                styles.publicBookCover
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.publicBookCoverFallback
+              }
+            >
+              <Ionicons
+                name="book-outline"
+                size={
+                  24
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </View>
+          )}
+
+          <View
+            style={
+              styles.publicBookStatus
+            }
+          >
+            <Text
+              style={
+                styles.publicBookStatusText
+              }
+            >
+              {statusLabel}
+            </Text>
+          </View>
+        </View>
+
+        <Text
+          style={
+            styles.publicBookTitle
+          }
+          numberOfLines={
+            2
+          }
+        >
+          {book.title}
+        </Text>
+
+        <Text
+          style={
+            styles.publicBookAuthor
+          }
+          numberOfLines={
+            1
+          }
+        >
+          {book.authors?.[0] ??
+            'Unknown author'}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  function renderReview(
+    review:
+      PublicReaderReview
+  ) {
+    return (
+      <Pressable
+        key={
+          review.id
+        }
+        onPress={() =>
+          openBook(
+            review.google_book_id
+          )
+        }
+        style={({ pressed }) => [
+          styles.reviewCard,
+          pressed &&
+            styles.pressed,
+        ]}
+      >
+        <View
+          style={
+            styles.reviewHeader
+          }
+        >
+          {review.cover_url ? (
+            <Image
+              source={{
+                uri:
+                  review.cover_url,
+              }}
+              style={
+                styles.reviewCover
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.reviewCoverFallback
+              }
+            >
+              <Ionicons
+                name="book-outline"
+                size={
+                  19
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </View>
+          )}
+
+          <View
+            style={
+              styles.reviewBookCopy
+            }
+          >
+            <Text
+              style={
+                styles.reviewTitle
+              }
+              numberOfLines={
+                2
+              }
+            >
+              {review.title}
+            </Text>
+
+            <Text
+              style={
+                styles.reviewAuthor
+              }
+              numberOfLines={
+                1
+              }
+            >
+              {review.authors?.[0] ??
+                'Unknown author'}
+            </Text>
+
+            {review.rating !==
+            null ? (
+              <View
+                style={
+                  styles.reviewRatingRow
+                }
+              >
+                <Ionicons
+                  name="star"
+                  size={
+                    13
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.reviewRatingText
+                  }
+                >
+                  {review.rating.toFixed(
+                    1
+                  )}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={
+              18
+            }
+            color={
+              colors.mutedText
+            }
+          />
+        </View>
+
+        {review.review_text
+          ?.trim() ? (
+          <Text
+            style={
+              styles.reviewText
+            }
+          >
+            {review.review_text.trim()}
+          </Text>
+        ) : null}
+      </Pressable>
+    );
+  }
+
+  function renderClub(
+    club:
+      ClubWithMembership
+  ) {
+    const initial =
+      club.name
+        .charAt(0)
+        .toUpperCase();
+
+    return (
+      <Pressable
+        key={
+          club.id
+        }
+        onPress={() =>
+          openClub(
+            club.id
+          )
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.clubCard,
+          pressed &&
+            styles.pressed,
+        ]}
+      >
+        {club.cover_url ? (
+          <Image
+            source={{
+              uri:
+                club.cover_url,
+            }}
+            style={
+              styles.clubImage
+            }
+          />
+        ) : (
+          <View
+            style={
+              styles.clubImageFallback
+            }
+          >
+            <Text
+              style={
+                styles.clubInitial
+              }
+            >
+              {initial}
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={
+            styles.clubCopy
+          }
+        >
+          <Text
+            style={
+              styles.clubName
+            }
+            numberOfLines={
+              1
+            }
+          >
+            {club.name}
+          </Text>
+
+          <Text
+            style={
+              styles.clubMeta
+            }
+          >
+            {club.member_count}{' '}
+            {club.member_count ===
+            1
+              ? 'member'
+              : 'members'}
+            {' · '}
+            {club.membership_role ===
+            'owner'
+              ? 'Owner'
+              : club.membership_role ===
+                'admin'
+              ? 'Admin'
+              : 'Member'}
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={
+            18
+          }
+          color={
+            colors.mutedText
+          }
+        />
+      </Pressable>
+    );
+  }
+
+  if (
+    loading
+  ) {
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+        edges={[
+          'top',
+          'bottom',
+        ]}
+      >
+        <View
+          style={
+            styles.centered
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              colors.gold
+            }
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (
+    !profile ||
+    error
+  ) {
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+        edges={[
+          'top',
+          'bottom',
+        ]}
+      >
+        <View
+          style={
+            styles.header
+          }
+        >
+          <Pressable
+            onPress={() =>
+              router.back()
+            }
+            style={
+              styles.headerButton
+            }
+          >
+            <Ionicons
+              name="chevron-back"
+              size={
+                24
+              }
+              color={
+                colors.text
+              }
+            />
+          </Pressable>
+
+          <Text
+            style={
+              styles.headerTitle
+            }
+          >
+            Reader
+          </Text>
+
+          <View
+            style={
+              styles.headerSpacer
+            }
+          />
+        </View>
+
+        <View
+          style={
+            styles.centered
+          }
+        >
+          <Text
+            style={
+              styles.errorTitle
+            }
+          >
+            Reader unavailable
+          </Text>
+
+          <Text
+            style={
+              styles.errorText
+            }
+          >
+            {error}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const displayName =
+    profile.display_name
+      ?.trim() ||
+    profile.username
+      ?.trim() ||
+    'Novori Reader';
+
+  const username =
+    profile.username
+      ?.trim()
+      ? `@${profile.username.trim()}`
+      : '';
+
+  const bio =
+    profile.bio
+      ?.trim() ||
+    'No bio yet.';
+
+  const initial =
+    displayName
+      .charAt(0)
+      .toUpperCase();
+
+  return (
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+      edges={[
+        'top',
+      ]}
+    >
+      <View
+        style={
+          styles.header
+        }
+      >
+        <Pressable
+          onPress={() =>
+            router.back()
+          }
+          hitSlop={
+            10
+          }
+          style={({ pressed }) => [
+            styles.headerButton,
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={
+              24
+            }
+            color={
+              colors.text
+            }
+          />
+        </Pressable>
+
+        <Text
+          style={
+            styles.headerTitle
+          }
+          numberOfLines={
+            1
+          }
+        >
+          Reader
+        </Text>
+
+        <View
+          style={
+            styles.headerSpacer
+          }
+        />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
+        <View
+          style={
+            styles.profileHeader
+          }
+        >
+          {profile.avatar_url ? (
+            <Image
+              source={{
+                uri:
+                  profile.avatar_url,
+              }}
+              style={
+                styles.avatar
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.avatarFallback
+              }
+            >
+              <Text
+                style={
+                  styles.avatarText
+                }
+              >
+                {initial}
+              </Text>
+            </View>
+          )}
+
+          <Text
+            style={
+              styles.name
+            }
+          >
+            {displayName}
+          </Text>
+
+          {username ? (
+            <Text
+              style={
+                styles.username
+              }
+            >
+              {username}
+            </Text>
+          ) : null}
+
+          <Text
+            style={
+              styles.bio
+            }
+          >
+            {bio}
+          </Text>
+        </View>
+
+        <View
+          style={
+            styles.statsRow
+          }
+        >
+          <Pressable
+            onPress={() =>
+              openConnections(
+                'followers'
+              )
+            }
+            style={({ pressed }) => [
+              styles.stat,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Text
+              style={
+                styles.statNumber
+              }
+            >
+              {
+                profile.follower_count
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              Followers
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              openConnections(
+                'following'
+              )
+            }
+            style={({ pressed }) => [
+              styles.stat,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Text
+              style={
+                styles.statNumber
+              }
+            >
+              {
+                profile.following_count
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              Following
+            </Text>
+          </Pressable>
+
+          <View
+            style={
+              styles.stat
+            }
+          >
+            <Text
+              style={
+                styles.statNumber
+              }
+            >
+              {
+                books.length
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              Books
+            </Text>
+          </View>
+        </View>
+
+        {profile.is_self ? (
+          <Pressable
+            onPress={() =>
+              router.replace(
+                '/(tabs)/profile'
+              )
+            }
+            style={({ pressed }) => [
+              styles.followButtonSecondary,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Text
+              style={
+                styles.followButtonSecondaryText
+              }
+            >
+              Open My Profile
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            disabled={
+              followLoading
+            }
+            onPress={
+              toggleFollow
+            }
+            style={({ pressed }) => [
+              profile.is_following
+                ? styles.followButtonSecondary
+                : styles.followButton,
+              pressed &&
+                !followLoading &&
+                styles.pressed,
+            ]}
+          >
+            {followLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  profile.is_following
+                    ? colors.text
+                    : colors.background
+                }
+              />
+            ) : (
+              <>
+                <Ionicons
+                  name={
+                    profile.is_following
+                      ? 'checkmark'
+                      : 'person-add-outline'
+                  }
+                  size={
+                    17
+                  }
+                  color={
+                    profile.is_following
+                      ? colors.text
+                      : colors.background
+                  }
+                />
+
+                <Text
+                  style={
+                    profile.is_following
+                      ? styles.followButtonSecondaryText
+                      : styles.followButtonText
+                  }
+                >
+                  {profile.is_following
+                    ? 'Following'
+                    : 'Follow'}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        <View
+          style={
+            styles.tabRow
+          }
+        >
+          {(
+            [
+              {
+                key:
+                  'books',
+                label:
+                  'Books',
+              },
+              {
+                key:
+                  'reviews',
+                label:
+                  'Reviews',
+              },
+              {
+                key:
+                  'posts',
+                label:
+                  'Posts',
+              },
+              {
+                key:
+                  'clubs',
+                label:
+                  'Clubs',
+              },
+            ] as {
+              key:
+                ReaderTab;
+              label:
+                string;
+            }[]
+          ).map(
+            (tab) => (
+              <Pressable
+                key={
+                  tab.key
+                }
+                onPress={() =>
+                  setActiveTab(
+                    tab.key
+                  )
+                }
+                style={[
+                  styles.tabButton,
+                  activeTab ===
+                    tab.key &&
+                    styles.tabButtonActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab ===
+                      tab.key &&
+                      styles.tabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            )
+          )}
+        </View>
+
+        {activeTab ===
+        'books' ? (
+          !profile.show_books &&
+          !profile.is_self ? (
+            <View
+              style={
+                styles.emptyCard
+              }
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={
+                  26
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                Books are private.
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                This reader has chosen not to show their reading history publicly.
+              </Text>
+            </View>
+          ) : books.length >
+            0 ? (
+            <View
+              style={
+                styles.publicBookGrid
+              }
+            >
+              {books.map(
+                renderBook
+              )}
+            </View>
+          ) : (
+            <View
+              style={
+                styles.emptyCard
+              }
+            >
+              <Ionicons
+                name="library-outline"
+                size={
+                  26
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No books to show yet.
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                Reading, Read, and DNF books will appear here. TBR books stay private.
+              </Text>
+            </View>
+          )
+        ) : activeTab ===
+          'reviews' ? (
+          !profile.show_reviews &&
+          !profile.is_self ? (
+            <View
+              style={
+                styles.emptyCard
+              }
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={
+                  26
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                Reviews are private.
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                This reader has chosen not to show ratings and reviews publicly.
+              </Text>
+            </View>
+          ) : reviews.length >
+            0 ? (
+            <View
+              style={
+                styles.list
+              }
+            >
+              {reviews.map(
+                renderReview
+              )}
+            </View>
+          ) : (
+            <View
+              style={
+                styles.emptyCard
+              }
+            >
+              <Ionicons
+                name="star-outline"
+                size={
+                  26
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No reviews yet.
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                Ratings and written reviews will appear here.
+              </Text>
+            </View>
+          )
+        ) : activeTab ===
+          'posts' ? (
+          posts.length >
+          0 ? (
+            <View
+              style={
+                styles.list
+              }
+            >
+              {posts.map(
+                renderPost
+              )}
+            </View>
+          ) : (
+            <View
+              style={
+                styles.emptyCard
+              }
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={
+                  26
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No profile posts yet.
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                Posts shared to this reader’s profile will appear here.
+              </Text>
+            </View>
+          )
+        ) : clubs.length >
+          0 ? (
+          <View
+            style={
+              styles.list
+            }
+          >
+            {clubs.map(
+              renderClub
+            )}
+          </View>
+        ) : (
+          <View
+            style={
+              styles.emptyCard
+            }
+          >
+            <Ionicons
+              name="people-outline"
+              size={
+                26
+              }
+              color={
+                colors.gold
+              }
+            />
+
+            <Text
+              style={
+                styles.emptyTitle
+              }
+            >
+              No public clubs yet.
+            </Text>
+
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              Public clubs this reader belongs to will appear here. Private memberships stay private.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function createStyles(
+  colors:
+    NovoriColors
+) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
+    header: {
+      height: 56,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        14,
+      borderBottomWidth:
+        1,
+      borderBottomColor:
+        colors.border,
+    },
+    headerButton: {
+      width: 40,
+      height: 40,
+      borderRadius:
+        20,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    headerTitle: {
+      flex: 1,
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+      textAlign:
+        'center',
+    },
+    headerSpacer: {
+      width: 40,
+    },
+    content: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf:
+        'center',
+      paddingHorizontal:
+        20,
+      paddingTop: 24,
+      paddingBottom:
+        90,
+    },
+    profileHeader: {
+      alignItems:
+        'center',
+    },
+    avatar: {
+      width: 104,
+      height: 104,
+      borderRadius: 52,
+      backgroundColor:
+        colors.elevated,
+    },
+    avatarFallback: {
+      width: 104,
+      height: 104,
+      borderRadius: 52,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    avatarText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 40,
+    },
+    name: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 27,
+      marginTop: 14,
+      textAlign:
+        'center',
+    },
+    username: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 13,
+      marginTop: 4,
+    },
+    bio: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 20,
+      textAlign:
+        'center',
+      maxWidth: 520,
+      marginTop: 12,
+    },
+    statsRow: {
+      flexDirection:
+        'row',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      marginTop: 22,
+      overflow:
+        'hidden',
+    },
+    stat: {
+      flex: 1,
+      minHeight: 70,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    statNumber: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 16,
+    },
+    statLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10,
+      marginTop: 4,
+    },
+    followButton: {
+      minHeight: 46,
+      backgroundColor:
+        colors.gold,
+      borderRadius: 14,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap: 7,
+      marginTop: 14,
+    },
+    followButtonText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13,
+    },
+    followButtonSecondary: {
+      minHeight: 46,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 14,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap: 7,
+      marginTop: 14,
+    },
+    followButtonSecondaryText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13,
+    },
+    tabRow: {
+      flexDirection:
+        'row',
+      borderBottomWidth:
+        1,
+      borderBottomColor:
+        colors.border,
+      marginTop: 28,
+      marginBottom: 14,
+    },
+    tabButton: {
+      flex: 1,
+      alignItems:
+        'center',
+      paddingVertical:
+        12,
+      borderBottomWidth:
+        2,
+      borderBottomColor:
+        'transparent',
+    },
+    tabButtonActive: {
+      borderBottomColor:
+        colors.gold,
+    },
+    tabText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10,
+    },
+    tabTextActive: {
+      color:
+        colors.text,
+    },
+    list: {
+      gap: 11,
+    },
+    publicBookGrid: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      gap: 12,
+    },
+    publicBookCard: {
+      width: '31%',
+      minWidth: 96,
+    },
+    publicBookCoverWrap: {
+      width: '100%',
+      aspectRatio: 0.66,
+      borderRadius: 11,
+      overflow:
+        'hidden',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      position:
+        'relative',
+    },
+    publicBookCover: {
+      width: '100%',
+      height: '100%',
+    },
+    publicBookCoverFallback: {
+      width: '100%',
+      height: '100%',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+    },
+    publicBookStatus: {
+      position:
+        'absolute',
+      left: 6,
+      bottom: 6,
+      backgroundColor:
+        colors.background,
+      borderRadius: 7,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+    },
+    publicBookStatusText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 8,
+    },
+    publicBookTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 15,
+      marginTop: 6,
+    },
+    publicBookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 9,
+      marginTop: 2,
+    },
+    reviewCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      padding: 13,
+    },
+    reviewHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+    },
+    reviewCover: {
+      width: 46,
+      height: 68,
+      borderRadius: 7,
+      backgroundColor:
+        colors.elevated,
+      marginRight: 11,
+    },
+    reviewCoverFallback: {
+      width: 46,
+      height: 68,
+      borderRadius: 7,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+    reviewBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    reviewTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    reviewAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      marginTop: 3,
+    },
+    reviewRatingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      marginTop: 6,
+    },
+    reviewRatingText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11,
+    },
+    reviewText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 18,
+      marginTop: 12,
+    },
+    postCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      padding: 15,
+    },
+    postMetaRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 5,
+    },
+    postMetaText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10,
+    },
+    postTime: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+    },
+    postBody: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: 11,
+    },
+    bookCard: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      borderRadius: 12,
+      padding: 9,
+      marginTop: 12,
+    },
+    bookCover: {
+      width: 36,
+      height: 52,
+      borderRadius: 5,
+      backgroundColor:
+        colors.surface,
+      marginRight: 9,
+    },
+    bookCoverFallback: {
+      width: 36,
+      height: 52,
+      borderRadius: 5,
+      backgroundColor:
+        colors.surface,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 9,
+    },
+    bookCopy: {
+      flex: 1,
+    },
+    bookTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    bookRating: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11,
+      marginTop: 4,
+    },
+    clubCard: {
+      minHeight: 72,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      padding: 11,
+    },
+    clubImage: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor:
+        colors.elevated,
+      marginRight: 11,
+    },
+    clubImageFallback: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+    clubInitial: {
+      color:
+        colors.gold,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+    },
+    clubCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    clubName: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13,
+    },
+    clubMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      marginTop: 4,
+    },
+    emptyCard: {
+      minHeight: 190,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      padding: 24,
+    },
+    emptyTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 18,
+      marginTop: 10,
+      textAlign:
+        'center',
+    },
+    emptyText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 17,
+      textAlign:
+        'center',
+      marginTop: 6,
+      maxWidth: 430,
+    },
+    centered: {
+      flex: 1,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        30,
+    },
+    errorTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 22,
+    },
+    errorText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13,
+      marginTop: 7,
+      textAlign:
+        'center',
+    },
+    pressed: {
+      opacity: 0.68,
+    },
+  });
+}

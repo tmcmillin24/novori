@@ -50,6 +50,50 @@ export const LIGHT_COLORS: NovoriColors = {
   danger: '#B94F4F',
 };
 
+// Shared component tokens use the same palettes as Novori's screens.
+function componentColors(colors: NovoriColors) {
+  return {
+    ...colors,
+    backgroundElement: colors.surface,
+    backgroundSelected: colors.elevated,
+    textSecondary: colors.secondaryText,
+  };
+}
+
+export const Colors = {
+  light: componentColors(LIGHT_COLORS),
+  dark: componentColors(DARK_COLORS),
+};
+
+export type ThemeColor = keyof typeof Colors.light;
+
+export const Fonts = Platform.select({
+  ios: {
+    sans: 'system-ui',
+    serif: 'ui-serif',
+    rounded: 'ui-rounded',
+    mono: 'ui-monospace',
+  },
+  default: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'normal',
+    mono: 'monospace',
+  },
+});
+
+export const Spacing = {
+  half: 2,
+  one: 4,
+  two: 8,
+  three: 16,
+  four: 24,
+  five: 32,
+  six: 64,
+} as const;
+
+export const MaxContentWidth = 800;
+
 function adaptiveColor(
   light: string,
   dark: string

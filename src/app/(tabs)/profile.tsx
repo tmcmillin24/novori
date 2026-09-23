@@ -24,6 +24,13 @@ import {
   COLORS,
 } from '../../constants/novori-theme';
 import {
+  ClubWithMembership,
+  getMyClubs,
+} from '../../lib/clubs';
+import {
+  getFollowCounts,
+} from '../../lib/feed';
+import {
   supabase,
 } from '../../lib/supabase';
 import {
@@ -70,6 +77,26 @@ export default function ProfileScreen() {
     useState<UserBook[]>(
       []
     );
+
+  const [
+    clubs,
+    setClubs,
+  ] =
+    useState<ClubWithMembership[]>(
+      []
+    );
+
+  const [
+    followerCount,
+    setFollowerCount,
+  ] =
+    useState(0);
+
+  const [
+    followingCount,
+    setFollowingCount,
+  ] =
+    useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -129,6 +156,42 @@ export default function ProfileScreen() {
         }
 
         try {
+          const counts =
+            await getFollowCounts(
+              user.id
+            );
+
+          if (
+            isMounted
+          ) {
+            setFollowerCount(
+              counts.followers
+            );
+            setFollowingCount(
+              counts.following
+            );
+          }
+        } catch (
+          followError
+        ) {
+          console.error(
+            'Could not load follow counts:',
+            followError
+          );
+
+          if (
+            isMounted
+          ) {
+            setFollowerCount(
+              0
+            );
+            setFollowingCount(
+              0
+            );
+          }
+        }
+
+        try {
           const savedBooks =
             await getUserBooks();
 
@@ -151,6 +214,34 @@ export default function ProfileScreen() {
             isMounted
           ) {
             setBooks(
+              []
+            );
+          }
+        }
+
+        try {
+          const joinedClubs =
+            await getMyClubs();
+
+          if (
+            isMounted
+          ) {
+            setClubs(
+              joinedClubs
+            );
+          }
+        } catch (
+          clubError
+        ) {
+          console.error(
+            'Could not load profile clubs:',
+            clubError
+          );
+
+          if (
+            isMounted
+          ) {
+            setClubs(
               []
             );
           }
@@ -314,6 +405,43 @@ export default function ProfileScreen() {
           googleBookId,
         source:
           'profile',
+      },
+    });
+  }
+
+  function openClub(
+    clubId: string
+  ) {
+    router.push({
+      pathname:
+        '/club/[id]',
+      params: {
+        id:
+          clubId,
+      },
+    });
+  }
+
+  function openConnections(
+    mode:
+      | 'followers'
+      | 'following'
+  ) {
+    if (
+      !profile
+    ) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/reader-connections',
+      params: {
+        readerId:
+          profile.id,
+        mode,
+        name:
+          displayName,
       },
     });
   }
@@ -945,24 +1073,40 @@ export default function ProfileScreen() {
     );
   }
 
-  function renderTabContent() {
+  function renderClubsTab() {
     if (
-      activeTab ===
-      'reviews'
-    ) {
-      return renderReviewsTab();
-    }
-
-    if (
-      activeTab ===
-      'clubs'
+      clubs.length ===
+      0
     ) {
       return (
-        <View
-          style={
-            styles.emptyActivity
+        <Pressable
+          onPress={() =>
+            router.push(
+              '/create-club'
+            )
           }
+          style={({ pressed }) => [
+            styles.emptyActivity,
+            pressed &&
+              styles.pressed,
+          ]}
         >
+          <View
+            style={
+              styles.emptyClubIcon
+            }
+          >
+            <Ionicons
+              name="people-outline"
+              size={
+                24
+              }
+              color={
+                COLORS.gold
+              }
+            />
+          </View>
+
           <Text
             style={
               styles.emptyActivityTitle
@@ -976,10 +1120,181 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Clubs you join or create will appear on your profile.
+            Join a public club or create your own reading community.
           </Text>
-        </View>
+
+          <Text
+            style={
+              styles.emptyClubAction
+            }
+          >
+            Create a Club
+          </Text>
+        </Pressable>
       );
+    }
+
+    return (
+      <View
+        style={
+          styles.profileClubList
+        }
+      >
+        {clubs.map(
+          (
+            club
+          ) => {
+            const initial =
+              club.name
+                .charAt(0)
+                .toUpperCase();
+
+            return (
+              <Pressable
+                key={
+                  club.id
+                }
+                onPress={() =>
+                  openClub(
+                    club.id
+                  )
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.profileClubCard,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                {club.cover_url ? (
+                  <Image
+                    source={{
+                      uri:
+                        club.cover_url,
+                    }}
+                    style={
+                      styles.profileClubImage
+                    }
+                  />
+                ) : (
+                  <View
+                    style={
+                      styles.profileClubImageFallback
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.profileClubInitial
+                      }
+                    >
+                      {initial}
+                    </Text>
+                  </View>
+                )}
+
+                <View
+                  style={
+                    styles.profileClubCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.profileClubName
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    {club.name}
+                  </Text>
+
+                  <View
+                    style={
+                      styles.profileClubMeta
+                    }
+                  >
+                    <Ionicons
+                      name={
+                        club.privacy ===
+                        'public'
+                          ? 'earth-outline'
+                          : 'lock-closed-outline'
+                      }
+                      size={
+                        11
+                      }
+                      color={
+                        COLORS.mutedText
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.profileClubMetaText
+                      }
+                    >
+                      {club.member_count}{' '}
+                      {club.member_count ===
+                      1
+                        ? 'member'
+                        : 'members'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.profileClubMetaText
+                      }
+                    >
+                      •
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.profileClubRole
+                      }
+                    >
+                      {club.membership_role ===
+                      'owner'
+                        ? 'Owner'
+                        : club.membership_role ===
+                          'admin'
+                        ? 'Admin'
+                        : 'Member'}
+                    </Text>
+                  </View>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={
+                    18
+                  }
+                  color={
+                    COLORS.mutedText
+                  }
+                />
+              </Pressable>
+            );
+          }
+        )}
+      </View>
+    );
+  }
+
+  function renderTabContent() {
+    if (
+      activeTab ===
+      'reviews'
+    ) {
+      return renderReviewsTab();
+    }
+
+    if (
+      activeTab ===
+      'clubs'
+    ) {
+      return renderClubsTab();
     }
 
     return renderBooksTab();
@@ -1132,9 +1447,8 @@ export default function ProfileScreen() {
               styles.pressed,
           ]}
           onPress={() =>
-            Alert.alert(
-              'Followers',
-              'Your followers list will open here.'
+            openConnections(
+              'followers'
             )
           }
         >
@@ -1143,7 +1457,9 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            0
+            {
+              followerCount
+            }
           </Text>
 
           <Text
@@ -1164,9 +1480,8 @@ export default function ProfileScreen() {
               styles.pressed,
           ]}
           onPress={() =>
-            Alert.alert(
-              'Following',
-              'The readers you follow will open here.'
+            openConnections(
+              'following'
             )
           }
         >
@@ -1175,7 +1490,9 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            0
+            {
+              followingCount
+            }
           </Text>
 
           <Text
@@ -1785,6 +2102,117 @@ const styles =
       textAlign:
         'center',
       marginTop: 7,
+    },
+
+    emptyClubIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginBottom: 13,
+    },
+
+    emptyClubAction: {
+      color:
+        COLORS.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+      marginTop: 13,
+    },
+
+    profileClubList: {
+      gap: 10,
+      marginTop: 18,
+    },
+
+    profileClubCard: {
+      minHeight: 76,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        COLORS.surface,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 16,
+      padding: 11,
+    },
+
+    profileClubImage: {
+      width: 52,
+      height: 52,
+      borderRadius: 14,
+      backgroundColor:
+        COLORS.elevated,
+      marginRight: 12,
+    },
+
+    profileClubImageFallback: {
+      width: 52,
+      height: 52,
+      borderRadius: 14,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 12,
+    },
+
+    profileClubInitial: {
+      color:
+        COLORS.gold,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 22,
+    },
+
+    profileClubCopy: {
+      flex: 1,
+      minWidth: 0,
+      paddingRight: 8,
+    },
+
+    profileClubName: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 14,
+    },
+
+    profileClubMeta: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      marginTop: 5,
+    },
+
+    profileClubMetaText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+    },
+
+    profileClubRole: {
+      color:
+        COLORS.softGold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10,
     },
 
     bookGrid: {

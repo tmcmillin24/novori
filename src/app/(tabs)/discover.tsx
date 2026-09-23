@@ -22,6 +22,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../constants/novori-theme';
+import {
+  followReader,
+  unfollowReader,
+} from '../../lib/feed';
+import {
+  ReaderConnection,
+  searchReaders,
+} from '../../lib/social';
 import { supabase } from '../../lib/supabase';
 
 type GoogleBookItem = {
@@ -99,6 +107,12 @@ const SEARCH_DELAY_MS = 350;
 const MIN_SEARCH_LENGTH = 2;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
+const READER_SEARCH_DELAY_MS = 300;
+const MIN_READER_SEARCH_LENGTH = 2;
+
+type DiscoverMode =
+  | 'books'
+  | 'readers';
 
 type GenreNode = {
   key: string;
@@ -528,10 +542,48 @@ function normalizeTitle(value?: string) {
 export default function DiscoverScreen() {
   const router = useRouter();
 
+  const [
+    discoverMode,
+    setDiscoverMode,
+  ] =
+    useState<DiscoverMode>(
+      'books'
+    );
+
   const [query, setQuery] = useState('');
   const [books, setBooks] = useState<GoogleBookItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [
+    readerQuery,
+    setReaderQuery,
+  ] =
+    useState('');
+  const [
+    readerResults,
+    setReaderResults,
+  ] =
+    useState<ReaderConnection[]>(
+      []
+    );
+  const [
+    readerLoading,
+    setReaderLoading,
+  ] =
+    useState(false);
+  const [
+    readerError,
+    setReaderError,
+  ] =
+    useState('');
+  const [
+    readerFollowBusyId,
+    setReaderFollowBusyId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
   const [trendingBooks, setTrendingBooks] =
     useState<TrendingBook[]>([]);
@@ -566,6 +618,14 @@ export default function DiscoverScreen() {
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const latestRequestRef =
+    useRef(0);
+
+  const readerDebounceTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+  const latestReaderRequestRef =
     useRef(0);
 
   const trendingListRef =
@@ -687,6 +747,60 @@ export default function DiscoverScreen() {
       }
     };
   }, [query]);
+
+  useEffect(() => {
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    const trimmedQuery =
+      readerQuery
+        .trim();
+
+    if (
+      trimmedQuery.length <
+      MIN_READER_SEARCH_LENGTH
+    ) {
+      latestReaderRequestRef.current += 1;
+      setReaderResults(
+        []
+      );
+      setReaderError(
+        ''
+      );
+      setReaderLoading(
+        false
+      );
+      return;
+    }
+
+    const requestId =
+      ++latestReaderRequestRef.current;
+
+    readerDebounceTimerRef.current =
+      setTimeout(() => {
+        performReaderSearch(
+          trimmedQuery,
+          requestId
+        );
+      }, READER_SEARCH_DELAY_MS);
+
+    return () => {
+      if (
+        readerDebounceTimerRef.current
+      ) {
+        clearTimeout(
+          readerDebounceTimerRef.current
+        );
+      }
+    };
+  }, [
+    readerQuery,
+  ]);
 
   async function loadTrendingBooks(
     silent = false,
@@ -858,6 +972,95 @@ export default function DiscoverScreen() {
     );
   }
 
+  async function performReaderSearch(
+    searchTerm: string,
+    requestId: number
+  ) {
+    try {
+      setReaderLoading(
+        true
+      );
+      setReaderError(
+        ''
+      );
+
+      const results =
+        await searchReaders(
+          searchTerm
+        );
+
+      if (
+        requestId !==
+        latestReaderRequestRef.current
+      ) {
+        return;
+      }
+
+      setReaderResults(
+        results
+      );
+    } catch (
+      err
+    ) {
+      if (
+        requestId !==
+        latestReaderRequestRef.current
+      ) {
+        return;
+      }
+
+      console.error(
+        'Reader search error:',
+        err
+      );
+
+      setReaderError(
+        'Could not search readers. Please try again.'
+      );
+      setReaderResults(
+        []
+      );
+    } finally {
+      if (
+        requestId ===
+        latestReaderRequestRef.current
+      ) {
+        setReaderLoading(
+          false
+        );
+      }
+    }
+  }
+
+  function searchReadersImmediately() {
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    const trimmedQuery =
+      readerQuery
+        .trim();
+
+    if (
+      trimmedQuery.length <
+      MIN_READER_SEARCH_LENGTH
+    ) {
+      return;
+    }
+
+    const requestId =
+      ++latestReaderRequestRef.current;
+
+    performReaderSearch(
+      trimmedQuery,
+      requestId
+    );
+  }
+
   async function performSearch(
     searchTerm: string,
     requestId: number
@@ -959,6 +1162,79 @@ export default function DiscoverScreen() {
       trimmedQuery,
       requestId
     );
+  }
+
+  function openReader(
+    readerId: string
+  ) {
+    router.push({
+      pathname:
+        '/reader/[id]',
+      params: {
+        id:
+          readerId,
+      },
+    });
+  }
+
+  async function toggleReaderFollow(
+    reader:
+      ReaderConnection
+  ) {
+    if (
+      reader.is_self
+    ) {
+      return;
+    }
+
+    try {
+      setReaderFollowBusyId(
+        reader.id
+      );
+
+      if (
+        reader.is_following
+      ) {
+        await unfollowReader(
+          reader.id
+        );
+      } else {
+        await followReader(
+          reader.id
+        );
+      }
+
+      setReaderResults(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              reader.id
+                ? {
+                    ...item,
+                    is_following:
+                      !reader.is_following,
+                  }
+                : item
+          )
+      );
+    } catch (
+      followError
+    ) {
+      console.error(
+        'Could not update follow from Discover:',
+        followError
+      );
+
+      Alert.alert(
+        'Could not update follow',
+        'Please try again.'
+      );
+    } finally {
+      setReaderFollowBusyId(
+        null
+      );
+    }
   }
 
   function openBook(
@@ -1348,6 +1624,178 @@ export default function DiscoverScreen() {
     );
   }
 
+  function renderReader({
+    item,
+  }: {
+    item:
+      ReaderConnection;
+  }) {
+    const displayName =
+      item.display_name
+        ?.trim() ||
+      item.username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      item.username
+        ?.trim()
+        ? `@${item.username.trim()}`
+        : '';
+
+    const initial =
+      displayName
+        .charAt(0)
+        .toUpperCase();
+
+    const isBusy =
+      readerFollowBusyId ===
+      item.id;
+
+    return (
+      <View
+        style={
+          styles.readerCard
+        }
+      >
+        <Pressable
+          onPress={() =>
+            openReader(
+              item.id
+            )
+          }
+          style={({ pressed }) => [
+            styles.readerMain,
+            pressed &&
+              styles.readerPressed,
+          ]}
+        >
+          {item.avatar_url ? (
+            <Image
+              source={{
+                uri:
+                  item.avatar_url,
+              }}
+              style={
+                styles.readerAvatar
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.readerAvatarFallback
+              }
+            >
+              <Text
+                style={
+                  styles.readerAvatarText
+                }
+              >
+                {initial}
+              </Text>
+            </View>
+          )}
+
+          <View
+            style={
+              styles.readerCopy
+            }
+          >
+            <Text
+              style={
+                styles.readerName
+              }
+              numberOfLines={
+                1
+              }
+            >
+              {displayName}
+            </Text>
+
+            {username ? (
+              <Text
+                style={
+                  styles.readerUsername
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {username}
+              </Text>
+            ) : null}
+
+            <Text
+              style={
+                styles.readerViewProfile
+              }
+            >
+              View profile
+            </Text>
+          </View>
+        </Pressable>
+
+        {item.is_self ? (
+          <View
+            style={
+              styles.readerYouBadge
+            }
+          >
+            <Text
+              style={
+                styles.readerYouBadgeText
+              }
+            >
+              You
+            </Text>
+          </View>
+        ) : (
+          <Pressable
+            disabled={
+              isBusy
+            }
+            onPress={() =>
+              toggleReaderFollow(
+                item
+              )
+            }
+            style={({ pressed }) => [
+              item.is_following
+                ? styles.readerFollowingButton
+                : styles.readerFollowButton,
+              pressed &&
+                !isBusy &&
+                styles.readerPressed,
+            ]}
+          >
+            {isBusy ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  item.is_following
+                    ? COLORS.text
+                    : COLORS.background
+                }
+              />
+            ) : (
+              <Text
+                style={
+                  item.is_following
+                    ? styles.readerFollowingButtonText
+                    : styles.readerFollowButtonText
+                }
+              >
+                {item.is_following
+                  ? 'Following'
+                  : 'Follow'}
+              </Text>
+            )}
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
   function renderTrendingBook({
     item,
   }: {
@@ -1543,6 +1991,14 @@ export default function DiscoverScreen() {
 
   const trimmedQuery =
     query.trim();
+
+  const trimmedReaderQuery =
+    readerQuery
+      .trim();
+
+  const hasReaderSearchText =
+    trimmedReaderQuery.length >=
+    MIN_READER_SEARCH_LENGTH;
 
   const hasSearchText =
     trimmedQuery.length >=
@@ -1863,6 +2319,94 @@ export default function DiscoverScreen() {
 
           <View
             style={
+              styles.discoverModeRow
+            }
+          >
+            <Pressable
+              onPress={() => {
+                setDiscoverMode(
+                  'books'
+                );
+                setGenreMenuVisible(
+                  false
+                );
+              }}
+              style={[
+                styles.discoverModeButton,
+                discoverMode ===
+                  'books' &&
+                  styles.discoverModeButtonActive,
+              ]}
+            >
+              <Ionicons
+                name="book-outline"
+                size={
+                  15
+                }
+                color={
+                  discoverMode ===
+                  'books'
+                    ? COLORS.gold
+                    : COLORS.mutedText
+                }
+              />
+
+              <Text
+                style={[
+                  styles.discoverModeText,
+                  discoverMode ===
+                    'books' &&
+                    styles.discoverModeTextActive,
+                ]}
+              >
+                Books
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setDiscoverMode(
+                  'readers'
+                );
+                setGenreMenuVisible(
+                  false
+                );
+              }}
+              style={[
+                styles.discoverModeButton,
+                discoverMode ===
+                  'readers' &&
+                  styles.discoverModeButtonActive,
+              ]}
+            >
+              <Ionicons
+                name="people-outline"
+                size={
+                  15
+                }
+                color={
+                  discoverMode ===
+                  'readers'
+                    ? COLORS.gold
+                    : COLORS.mutedText
+                }
+              />
+
+              <Text
+                style={[
+                  styles.discoverModeText,
+                  discoverMode ===
+                    'readers' &&
+                    styles.discoverModeTextActive,
+                ]}
+              >
+                Readers
+              </Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={
               styles.searchContainer
             }
           >
@@ -1870,17 +2414,33 @@ export default function DiscoverScreen() {
               style={
                 styles.input
               }
-              placeholder="Title, author, or ISBN"
+              placeholder={
+                discoverMode ===
+                'books'
+                  ? 'Title, author, or ISBN'
+                  : 'Name or @username'
+              }
               placeholderTextColor={
                 COLORS.mutedText
               }
-              value={query}
+              value={
+                discoverMode ===
+                'books'
+                  ? query
+                  : readerQuery
+              }
               onChangeText={
-                setQuery
+                discoverMode ===
+                'books'
+                  ? setQuery
+                  : setReaderQuery
               }
               returnKeyType="search"
               onSubmitEditing={
-                searchImmediately
+                discoverMode ===
+                'books'
+                  ? searchImmediately
+                  : searchReadersImmediately
               }
               autoCapitalize="none"
               autoCorrect={false}
@@ -1888,7 +2448,10 @@ export default function DiscoverScreen() {
               blurOnSubmit={false}
             />
 
-            {loading ? (
+            {(discoverMode ===
+              'books'
+                ? loading
+                : readerLoading) ? (
               <ActivityIndicator
                 size="small"
                 color={
@@ -1901,18 +2464,131 @@ export default function DiscoverScreen() {
             ) : null}
           </View>
 
-          {error ? (
+          {(discoverMode ===
+          'books'
+            ? error
+            : readerError) ? (
             <Text
               style={
                 styles.error
               }
             >
-              {error}
+              {discoverMode ===
+              'books'
+                ? error
+                : readerError}
             </Text>
           ) : null}
         </View>
 
-        {showDiscoverHome ? (
+        {discoverMode ===
+        'readers' ? (
+          <View
+            style={
+              styles.resultsArea
+            }
+          >
+            <FlatList
+              style={
+                styles.list
+              }
+              data={
+                readerResults
+              }
+              keyExtractor={(
+                item
+              ) => item.id}
+              renderItem={
+                renderReader
+              }
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={[
+                styles.readerListContent,
+                readerResults.length ===
+                  0 &&
+                  styles.listContentEmpty,
+              ]}
+              ListHeaderComponent={
+                trimmedReaderQuery.length ===
+                  0 ? (
+                  <View
+                    style={
+                      styles.readerIntro
+                    }
+                  >
+                    <View
+                      style={
+                        styles.readerIntroIcon
+                      }
+                    >
+                      <Ionicons
+                        name="people-outline"
+                        size={
+                          25
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.readerIntroTitle
+                      }
+                    >
+                      Find your people.
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.readerIntroText
+                      }
+                    >
+                      Search Novori by display name or @username, then open a reader’s profile or follow them directly.
+                    </Text>
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                !readerLoading &&
+                !readerError &&
+                trimmedReaderQuery.length >
+                  0 ? (
+                  <View
+                    style={
+                      styles.emptyState
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.emptyTitle
+                      }
+                    >
+                      {hasReaderSearchText
+                        ? 'No readers found'
+                        : 'Keep typing'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emptyText
+                      }
+                    >
+                      {hasReaderSearchText
+                        ? 'Try a different name or @username.'
+                        : 'Enter at least two characters to search.'}
+                    </Text>
+                  </View>
+                ) : null
+              }
+            />
+          </View>
+        ) : showDiscoverHome ? (
           <ScrollView
             style={
               styles.discoverHome
@@ -2412,7 +3088,6 @@ export default function DiscoverScreen() {
                 nestedScrollEnabled
                 directionalLockEnabled
                 canCancelContentTouches
-                delaysContentTouches={false}
                 alwaysBounceHorizontal
                 decelerationRate="fast"
                 showsHorizontalScrollIndicator={
@@ -2504,7 +3179,6 @@ export default function DiscoverScreen() {
                   nestedScrollEnabled
                   directionalLockEnabled
                   canCancelContentTouches
-                  delaysContentTouches={false}
                   alwaysBounceHorizontal
                   decelerationRate="fast"
                   showsHorizontalScrollIndicator={
@@ -2660,6 +3334,56 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       marginTop: 3,
+    },
+
+    discoverModeRow: {
+      flexDirection:
+        'row',
+      alignSelf:
+        'flex-start',
+      backgroundColor:
+        COLORS.surface,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 13,
+      padding: 3,
+      marginBottom: 10,
+      gap: 2,
+    },
+
+    discoverModeButton: {
+      minHeight: 34,
+      minWidth: 92,
+      borderRadius: 10,
+      paddingHorizontal: 13,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap: 6,
+    },
+
+    discoverModeButtonActive: {
+      backgroundColor:
+        COLORS.elevated,
+    },
+
+    discoverModeText: {
+      color:
+        COLORS.mutedText,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    discoverModeTextActive: {
+      color:
+        COLORS.gold,
+      fontFamily:
+        'Inter_700Bold',
     },
 
     searchContainer: {
@@ -3249,6 +3973,220 @@ const styles =
       color: COLORS.mutedText,
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
+    },
+
+    readerListContent: {
+      paddingHorizontal:
+        20,
+      paddingBottom:
+        28,
+    },
+
+    readerIntro: {
+      alignItems:
+        'center',
+      paddingHorizontal:
+        22,
+      paddingTop: 34,
+      paddingBottom: 28,
+    },
+
+    readerIntroIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor:
+        COLORS.surface,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    readerIntroTitle: {
+      color:
+        COLORS.text,
+      fontSize: 22,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      marginTop: 14,
+      textAlign:
+        'center',
+    },
+
+    readerIntroText: {
+      color:
+        COLORS.mutedText,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily:
+        'Inter_400Regular',
+      textAlign:
+        'center',
+      marginTop: 7,
+      maxWidth: 430,
+    },
+
+    readerCard: {
+      width: '100%',
+      minHeight: 76,
+      backgroundColor:
+        COLORS.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      marginBottom: 10,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 10,
+    },
+
+    readerMain: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+    },
+
+    readerAvatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor:
+        COLORS.elevated,
+      marginRight: 11,
+    },
+
+    readerAvatarFallback: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+
+    readerAvatarText: {
+      color:
+        COLORS.gold,
+      fontSize: 19,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+    },
+
+    readerCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    readerName: {
+      color:
+        COLORS.text,
+      fontSize: 14,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerUsername: {
+      color:
+        COLORS.mutedText,
+      fontSize: 11,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 2,
+    },
+
+    readerViewProfile: {
+      color:
+        COLORS.softGold,
+      fontSize: 10,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 5,
+    },
+
+    readerFollowButton: {
+      minWidth: 76,
+      minHeight: 34,
+      borderRadius: 11,
+      backgroundColor:
+        COLORS.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 10,
+    },
+
+    readerFollowButtonText: {
+      color:
+        COLORS.background,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerFollowingButton: {
+      minWidth: 76,
+      minHeight: 34,
+      borderRadius: 11,
+      backgroundColor:
+        COLORS.elevated,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 10,
+    },
+
+    readerFollowingButtonText: {
+      color:
+        COLORS.text,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerYouBadge: {
+      minWidth: 54,
+      minHeight: 30,
+      borderRadius: 10,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 9,
+    },
+
+    readerYouBadgeText: {
+      color:
+        COLORS.mutedText,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerPressed: {
+      opacity: 0.68,
     },
 
     resultsArea: {

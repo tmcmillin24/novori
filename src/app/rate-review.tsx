@@ -188,13 +188,11 @@ export default function RateReviewScreen() {
     try {
       setSaving(true);
 
-      await updateBookReview(
+      await updateBookReview({
         googleBookId,
         rating,
-        review.trim()
-          ? review.trim()
-          : null
-      );
+        reviewText: review.trim() || null,
+      });
 
       router.back();
     } catch (

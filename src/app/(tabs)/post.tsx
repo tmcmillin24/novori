@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,6 +54,8 @@ function CreateOption({
 }
 
 export default function PostScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView
       style={styles.safeArea}
@@ -79,6 +82,11 @@ export default function PostScreen() {
               icon="chatbubble-ellipses-outline"
               title="Create Post"
               subtitle="Share a thought, question, or discussion."
+              onPress={() =>
+                router.push(
+                  '/create-post'
+                )
+              }
             />
 
             <CreateOption
@@ -97,6 +105,11 @@ export default function PostScreen() {
               icon="people-outline"
               title="Create Club"
               subtitle="Start a reading community around shared interests."
+              onPress={() =>
+                router.push(
+                  '/create-club'
+                )
+              }
             />
 
             <CreateOption
