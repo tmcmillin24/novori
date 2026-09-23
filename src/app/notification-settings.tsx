@@ -4,31 +4,39 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 
 import {
-    SafeAreaView,
+  SafeAreaView,
 } from 'react-native-safe-area-context';
 
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../constants/novori-theme';
 
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../context/theme-context';
+
+import {
+  getNotificationPreferences,
+  NotificationPreferenceKey,
+  NotificationPreferences as ServerNotificationPreferences,
+  updateNotificationPreference,
+} from '../lib/notifications';
 
 const STORAGE_KEY =
   'novori-notification-display-preferences';
 
-type NotificationPreferences = {
+type DisplayNotificationPreferences = {
   pushEnabled: boolean;
   soundsEnabled: boolean;
   badgesEnabled: boolean;
@@ -39,7 +47,7 @@ type NotificationPreferences = {
   markReadOnOpen: boolean;
 };
 
-const DEFAULT_PREFERENCES: NotificationPreferences = {
+const DEFAULT_PREFERENCES: DisplayNotificationPreferences = {
   pushEnabled: true,
   soundsEnabled: true,
   badgesEnabled: true,
@@ -170,7 +178,7 @@ export default function NotificationSettingsScreen() {
     preferences,
     setPreferences,
   ] =
-    useState<NotificationPreferences>(
+    useState<DisplayNotificationPreferences>(
       DEFAULT_PREFERENCES
     );
 
@@ -180,21 +188,42 @@ export default function NotificationSettingsScreen() {
   ] =
     useState(true);
 
+  const [
+    activityPreferences,
+    setActivityPreferences,
+  ] =
+    useState<ServerNotificationPreferences | null>(
+      null
+    );
+
+  const [
+    savingActivityKey,
+    setSavingActivityKey,
+  ] =
+    useState<NotificationPreferenceKey | null>(
+      null
+    );
+
   useEffect(() => {
     let mounted = true;
 
     async function loadPreferences() {
       try {
-        const saved =
-          await AsyncStorage
-            .getItem(
-              STORAGE_KEY
-            );
+        const [
+          saved,
+          serverPreferences,
+        ] = await Promise.all([
+          AsyncStorage.getItem(
+            STORAGE_KEY
+          ),
+          getNotificationPreferences(),
+        ]);
 
-        if (
-          saved &&
-          mounted
-        ) {
+        if (!mounted) {
+          return;
+        }
+
+        if (saved) {
           const parsed =
             JSON.parse(
               saved
@@ -205,11 +234,36 @@ export default function NotificationSettingsScreen() {
             ...parsed,
           });
         }
-      } catch {
+
+        setActivityPreferences(
+          serverPreferences
+        );
+      } catch (error) {
+        console.error(
+          'Could not load notification settings:',
+          error
+        );
+
         if (mounted) {
           setPreferences(
             DEFAULT_PREFERENCES
           );
+
+          try {
+            const serverPreferences =
+              await getNotificationPreferences();
+
+            if (mounted) {
+              setActivityPreferences(
+                serverPreferences
+              );
+            }
+          } catch (serverError) {
+            console.error(
+              'Could not load activity notification preferences:',
+              serverError
+            );
+          }
         }
       } finally {
         if (mounted) {
@@ -225,9 +279,10 @@ export default function NotificationSettingsScreen() {
     };
   }, []);
 
+
   async function updatePreference(
     key:
-      keyof NotificationPreferences,
+      keyof DisplayNotificationPreferences,
 
     value:
       boolean
@@ -253,7 +308,69 @@ export default function NotificationSettingsScreen() {
       );
   }
 
-  if (loading) {
+  async function updateActivityPreference(
+    key:
+      NotificationPreferenceKey,
+
+    value:
+      boolean
+  ) {
+    if (
+      !activityPreferences ||
+      savingActivityKey
+    ) {
+      return;
+    }
+
+    const previous =
+      activityPreferences;
+
+    setActivityPreferences({
+      ...activityPreferences,
+
+      [key]:
+        value,
+    });
+
+    setSavingActivityKey(
+      key
+    );
+
+    try {
+      const updated =
+        await updateNotificationPreference(
+          key,
+          value
+        );
+
+      setActivityPreferences(
+        updated
+      );
+    } catch (error) {
+      console.error(
+        'Could not save activity notification preference:',
+        error
+      );
+
+      setActivityPreferences(
+        previous
+      );
+
+      Alert.alert(
+        'Could not save',
+        'That notification preference was not changed. Please try again.'
+      );
+    } finally {
+      setSavingActivityKey(
+        null
+      );
+    }
+  }
+
+  if (
+    loading ||
+    !activityPreferences
+  ) {
     return (
       <SafeAreaView
         style={
@@ -576,6 +693,210 @@ export default function NotificationSettingsScreen() {
           />
         </View>
 
+        <Text
+          style={
+            styles.sectionLabel
+          }
+        >
+          NOTIFY ME ABOUT
+        </Text>
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <PreferenceRow
+            icon="person-add-outline"
+            title="New Followers"
+            subtitle="When another reader follows you"
+            value={
+              activityPreferences.new_followers
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'new_followers',
+                value
+              )
+            }
+          />
+
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          <PreferenceRow
+            icon="heart-outline"
+            title="Likes & Replies"
+            subtitle="Likes, comments, and replies to your posts or reviews"
+            value={
+              activityPreferences.reactions_and_replies
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'reactions_and_replies',
+                value
+              )
+            }
+          />
+        </View>
+
+        <Text
+          style={
+            styles.sectionLabel
+          }
+        >
+          CLUBS
+        </Text>
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <PreferenceRow
+            icon="people-outline"
+            title="Club Invites"
+            subtitle="Invitations to join a club or reading circle"
+            value={
+              activityPreferences.club_invites
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'club_invites',
+                value
+              )
+            }
+          />
+
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          <PreferenceRow
+            icon="megaphone-outline"
+            title="Club Activity"
+            subtitle="New posts, events, and important activity in your clubs"
+            value={
+              activityPreferences.club_activity
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'club_activity',
+                value
+              )
+            }
+          />
+        </View>
+
+        <Text
+          style={
+            styles.sectionLabel
+          }
+        >
+          READING ACTIVITY
+        </Text>
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <PreferenceRow
+            icon="book-outline"
+            title="Started Reading"
+            subtitle="When readers you follow start a book"
+            value={
+              activityPreferences.reading_started
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'reading_started',
+                value
+              )
+            }
+          />
+
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          <PreferenceRow
+            icon="checkmark-circle-outline"
+            title="Finished Reading"
+            subtitle="When readers you follow finish a book"
+            value={
+              activityPreferences.reading_finished
+            }
+            disabled={
+              savingActivityKey !==
+              null
+            }
+            colors={
+              colors
+            }
+            onValueChange={(
+              value
+            ) =>
+              updateActivityPreference(
+                'reading_finished',
+                value
+              )
+            }
+          />
+        </View>
+
         <View
           style={
             styles.infoBox
@@ -594,11 +915,12 @@ export default function NotificationSettingsScreen() {
               styles.infoText
             }
           >
-            These settings only
-            control how notifications
-            and activity are displayed.
-            They do not create
-            notifications themselves.
+            Display settings control
+            how notifications behave
+            on this device. The options
+            above control which kinds
+            of Novori activity you want
+            to receive.
           </Text>
         </View>
       </ScrollView>
