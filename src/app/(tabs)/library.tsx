@@ -68,7 +68,7 @@ const FILTERS: FilterOption[] = [
   },
   {
     value: 'want_to_read',
-    label: 'Want to Read',
+    label: 'TBR',
   },
   {
     value: 'read',
@@ -83,7 +83,7 @@ const FILTERS: FilterOption[] = [
 const STATUS_LABELS:
   Record<UserBookStatus, string> = {
     reading: 'Reading',
-    want_to_read: 'Want to Read',
+    want_to_read: 'TBR',
     read: 'Read',
     dnf: 'DNF',
   };
@@ -492,21 +492,22 @@ export default function LibraryScreen() {
         book.id
       );
 
-      await saveUserBook({
-        googleBookId:
-          book.google_book_id,
-        title:
-          book.title,
-        authors:
-          book.authors ?? [],
-        coverUrl:
-          book.cover_url,
-        isbn:
-          book.isbn,
-        publishedDate:
-          book.published_date,
-        status,
-      });
+      const updatedBook =
+        await saveUserBook({
+          googleBookId:
+            book.google_book_id,
+          title:
+            book.title,
+          authors:
+            book.authors ?? [],
+          coverUrl:
+            book.cover_url,
+          isbn:
+            book.isbn,
+          publishedDate:
+            book.published_date,
+          status,
+        });
 
       setBooks(
         (current) =>
@@ -514,26 +515,7 @@ export default function LibraryScreen() {
             (item) =>
               item.id ===
               book.id
-                ? {
-                    ...item,
-                    status,
-                    updated_at:
-                      new Date().toISOString(),
-                    finished_at:
-                      status ===
-                      'read'
-                        ? item.finished_at ??
-                          new Date().toISOString()
-                        : null,
-                    started_at:
-                      status ===
-                        'reading' ||
-                      status ===
-                        'read'
-                        ? item.started_at ??
-                          new Date().toISOString()
-                        : item.started_at,
-                  }
+                ? updatedBook
                 : item
           )
       );
@@ -646,6 +628,13 @@ export default function LibraryScreen() {
       'all'
     ) {
       return 'Your library is empty.';
+    }
+
+    if (
+      activeFilter ===
+      'want_to_read'
+    ) {
+      return 'No TBR books yet.';
     }
 
     return `No ${STATUS_LABELS[

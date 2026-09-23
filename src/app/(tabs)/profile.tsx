@@ -211,7 +211,38 @@ export default function ProfileScreen() {
   const publicBooks = [
     ...readBooks,
     ...dnfBooks,
-  ];
+  ].sort(
+    (a, b) => {
+      const aDate =
+        a.status ===
+        'dnf'
+          ? a.dnf_at ??
+            a.updated_at ??
+            a.created_at
+          : a.finished_at ??
+            a.updated_at ??
+            a.created_at;
+
+      const bDate =
+        b.status ===
+        'dnf'
+          ? b.dnf_at ??
+            b.updated_at ??
+            b.created_at
+          : b.finished_at ??
+            b.updated_at ??
+            b.created_at;
+
+      return (
+        new Date(
+          bDate
+        ).getTime() -
+        new Date(
+          aDate
+        ).getTime()
+      );
+    }
+  );
 
   const reviewedBooks =
     books.filter(
@@ -319,7 +350,7 @@ export default function ProfileScreen() {
       return 'Reading';
     }
 
-    return 'Want to Read';
+    return 'TBR';
   }
 
   function renderCurrentlyReading() {

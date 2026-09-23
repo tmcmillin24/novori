@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -22,6 +24,8 @@ import {
   getUserBook,
   removeUserBook,
   saveUserBook,
+  updateBookReadingDates,
+  UserBook,
   UserBookStatus,
 } from '../../../lib/user-books';
 
@@ -136,6 +140,230 @@ function getYear(date?: string | null) {
   return year;
 }
 
+function formatPublishedDate(date?: string) {
+  if (!date) {
+    return undefined;
+  }
+
+  if (/^\d{4}$/.test(date)) {
+    return date;
+  }
+
+  if (/^\d{4}-\d{2}$/.test(date)) {
+    const [year, month] = date.split('-');
+    const monthIndex = Number(month) - 1;
+
+    if (monthIndex >= 0 && monthIndex <= 11) {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        year: 'numeric',
+      }).format(
+        new Date(
+          Number(year),
+          monthIndex,
+          1
+        )
+      );
+    }
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] =
+      date.split('-');
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(
+      new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day)
+      )
+    );
+  }
+
+  return date;
+}
+
+
+function formatReadingDate(
+  value?: string | null
+) {
+  if (!value) {
+    return 'Not recorded';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return 'Not recorded';
+  }
+
+  return new Intl.DateTimeFormat(
+    'en-US',
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }
+  ).format(date);
+}
+
+function dateInputFromIso(
+  value?: string | null
+) {
+  if (!value) {
+    return '';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '';
+  }
+
+  const month =
+    `${date.getMonth() + 1}`.padStart(
+      2,
+      '0'
+    );
+
+  const day =
+    `${date.getDate()}`.padStart(
+      2,
+      '0'
+    );
+
+  return `${month}/${day}/${date.getFullYear()}`;
+}
+
+function formatDateInput(
+  nextValue: string,
+  previousValue: string
+) {
+  if (
+    nextValue.length <
+      previousValue.length &&
+    previousValue.endsWith(
+      '/'
+    ) &&
+    nextValue ===
+      previousValue.slice(
+        0,
+        -1
+      )
+  ) {
+    return nextValue;
+  }
+
+  const digits =
+    nextValue
+      .replace(
+        /\D/g,
+        ''
+      )
+      .slice(
+        0,
+        8
+      );
+
+  if (
+    digits.length <= 2
+  ) {
+    return digits;
+  }
+
+  if (
+    digits.length <= 4
+  ) {
+    return `${digits.slice(
+      0,
+      2
+    )}/${digits.slice(
+      2
+    )}`;
+  }
+
+  return `${digits.slice(
+    0,
+    2
+  )}/${digits.slice(
+    2,
+    4
+  )}/${digits.slice(
+    4
+  )}`;
+}
+
+function parseDateInput(
+  value: string
+) {
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const match =
+    trimmed.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+    );
+
+  if (!match) {
+    throw new Error(
+      'Use MM/DD/YYYY for reading dates.'
+    );
+  }
+
+  const month =
+    Number(match[1]);
+
+  const day =
+    Number(match[2]);
+
+  const year =
+    Number(match[3]);
+
+  const date =
+    new Date(
+      year,
+      month - 1,
+      day,
+      12,
+      0,
+      0,
+      0
+    );
+
+  if (
+    date.getFullYear() !==
+      year ||
+    date.getMonth() !==
+      month - 1 ||
+    date.getDate() !==
+      day
+  ) {
+    throw new Error(
+      'Enter a valid calendar date.'
+    );
+  }
+
+  return date.toISOString();
+}
+
 function getDisplayTitle(
   title?: string
 ) {
@@ -165,6 +393,16 @@ export default function BookDetailsScreen() {
     useState(false);
   const [readingStatus, setReadingStatus] =
     useState<UserBookStatus | null>(null);
+  const [savedBook, setSavedBook] =
+    useState<UserBook | null>(null);
+  const [dateEditorVisible, setDateEditorVisible] =
+    useState(false);
+  const [startedDateInput, setStartedDateInput] =
+    useState('');
+  const [endedDateInput, setEndedDateInput] =
+    useState('');
+  const [savingDates, setSavingDates] =
+    useState(false);
   const [savingStatus, setSavingStatus] =
     useState<UserBookStatus | null>(null);
   const [removingBook, setRemovingBook] =
@@ -256,12 +494,14 @@ export default function BookDetailsScreen() {
 
         try {
           const savedBook = await getUserBook(data.id);
+          setSavedBook(savedBook);
           setReadingStatus(savedBook?.status ?? null);
         } catch (statusError) {
           console.error(
             'Could not load saved reading status:',
             statusError
           );
+          setSavedBook(null);
           setReadingStatus(null);
         }
 
@@ -419,17 +659,19 @@ export default function BookDetailsScreen() {
     try {
       setSavingStatus(status);
 
-      await saveUserBook({
-        googleBookId: book.id,
-        title: info.title ?? 'Untitled',
-        authors: info.authors ?? [],
-        coverUrl,
-        isbn: getBookISBN(book) ?? null,
-        publishedDate: info.publishedDate ?? null,
-        status,
-      });
+      const updatedBook =
+        await saveUserBook({
+          googleBookId: book.id,
+          title: info.title ?? 'Untitled',
+          authors: info.authors ?? [],
+          coverUrl,
+          isbn: getBookISBN(book) ?? null,
+          publishedDate: info.publishedDate ?? null,
+          status,
+        });
 
-      setReadingStatus(status);
+      setSavedBook(updatedBook);
+      setReadingStatus(updatedBook.status);
 
       if (
         status === 'read' ||
@@ -499,6 +741,7 @@ export default function BookDetailsScreen() {
         book.id
       );
 
+      setSavedBook(null);
       setReadingStatus(null);
     } catch (removeError) {
       console.error(
@@ -512,6 +755,186 @@ export default function BookDetailsScreen() {
       );
     } finally {
       setRemovingBook(false);
+    }
+  }
+
+  function openReadingDateEditor() {
+    if (
+      !savedBook ||
+      savedBook.status ===
+        'want_to_read'
+    ) {
+      return;
+    }
+
+    setStartedDateInput(
+      dateInputFromIso(
+        savedBook.started_at
+      )
+    );
+
+    if (
+      savedBook.status ===
+      'read'
+    ) {
+      setEndedDateInput(
+        dateInputFromIso(
+          savedBook.finished_at
+        )
+      );
+    } else if (
+      savedBook.status ===
+      'dnf'
+    ) {
+      setEndedDateInput(
+        dateInputFromIso(
+          savedBook.dnf_at
+        )
+      );
+    } else {
+      setEndedDateInput(
+        ''
+      );
+    }
+
+    setDateEditorVisible(
+      true
+    );
+  }
+
+  function closeReadingDateEditor() {
+    if (savingDates) {
+      return;
+    }
+
+    setDateEditorVisible(
+      false
+    );
+  }
+
+  async function saveReadingDates() {
+    if (
+      !book ||
+      !savedBook ||
+      savingDates
+    ) {
+      return;
+    }
+
+    try {
+      const startedAt =
+        parseDateInput(
+          startedDateInput
+        );
+
+      let finishedAt =
+        savedBook.finished_at;
+
+      let dnfAt =
+        savedBook.dnf_at;
+
+      if (
+        savedBook.status ===
+        'reading'
+      ) {
+        finishedAt =
+          null;
+        dnfAt =
+          null;
+      }
+
+      if (
+        savedBook.status ===
+        'read'
+      ) {
+        finishedAt =
+          parseDateInput(
+            endedDateInput
+          );
+
+        if (!finishedAt) {
+          throw new Error(
+            'A finished date is required for a book marked Read.'
+          );
+        }
+
+        dnfAt =
+          null;
+      }
+
+      if (
+        savedBook.status ===
+        'dnf'
+      ) {
+        dnfAt =
+          parseDateInput(
+            endedDateInput
+          );
+
+        if (!dnfAt) {
+          throw new Error(
+            'A stopped date is required for a DNF book.'
+          );
+        }
+
+        finishedAt =
+          null;
+      }
+
+      const endDate =
+        savedBook.status ===
+        'read'
+          ? finishedAt
+          : savedBook.status ===
+            'dnf'
+          ? dnfAt
+          : null;
+
+      if (
+        startedAt &&
+        endDate &&
+        new Date(endDate).getTime() <
+          new Date(startedAt).getTime()
+      ) {
+        throw new Error(
+          'The ending date cannot be before the started date.'
+        );
+      }
+
+      setSavingDates(
+        true
+      );
+
+      const updatedBook =
+        await updateBookReadingDates({
+          googleBookId:
+            book.id,
+          startedAt,
+          finishedAt,
+          dnfAt,
+        });
+
+      setSavedBook(
+        updatedBook
+      );
+
+      setDateEditorVisible(
+        false
+      );
+    } catch (dateError) {
+      const message =
+        dateError instanceof Error
+          ? dateError.message
+          : 'Novori could not update these dates.';
+
+      Alert.alert(
+        'Check reading dates',
+        message
+      );
+    } finally {
+      setSavingDates(
+        false
+      );
     }
   }
 
@@ -605,28 +1028,46 @@ export default function BookDetailsScreen() {
     info.imageLinks?.medium?.replace('http://', 'https://') ||
     info.imageLinks?.thumbnail?.replace('http://', 'https://');
 
-  const categories = info.categories?.join(' • ');
-  const description = cleanDescription(info.description);
+  const categories =
+    info.categories
+      ?.slice(0, 2)
+      .join(' • ');
+
+  const publishedDate =
+    formatPublishedDate(
+      info.publishedDate
+    );
+
+  const description =
+    cleanDescription(
+      info.description
+    );
 
   const statuses: {
     value: UserBookStatus;
     label: string;
+    icon:
+      keyof typeof Ionicons.glyphMap;
   }[] = [
     {
       value: 'want_to_read',
-      label: 'Want to Read',
+      label: 'TBR',
+      icon: 'bookmark-outline',
     },
     {
       value: 'reading',
       label: 'Reading',
+      icon: 'book-outline',
     },
     {
       value: 'read',
       label: 'Read',
+      icon: 'checkmark-circle-outline',
     },
     {
       value: 'dnf',
       label: 'DNF',
+      icon: 'close-circle-outline',
     },
   ];
 
@@ -698,9 +1139,16 @@ export default function BookDetailsScreen() {
         </View>
 
         <View style={styles.statusSection}>
-          <Text style={styles.sectionLabel}>
-            ADD TO YOUR BOOKS
-          </Text>
+          <View style={styles.statusHeadingRow}>
+            <View>
+              <Text style={styles.statusHeading}>
+                Your Reading Status
+              </Text>
+              <Text style={styles.statusSubheading}>
+                Keep this book organized in your library.
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.statusGrid}>
             {statuses.map((status) => {
@@ -717,10 +1165,13 @@ export default function BookDetailsScreen() {
                   onPress={() =>
                     saveReadingStatus(status.value)
                   }
-                  style={[
+                  style={({ pressed }) => [
                     styles.statusButton,
                     selected &&
                       styles.statusButtonSelected,
+                    pressed &&
+                      savingStatus === null &&
+                      styles.statusButtonPressed,
                     savingStatus !== null &&
                       !saving &&
                       styles.statusButtonDisabled,
@@ -729,22 +1180,39 @@ export default function BookDetailsScreen() {
                   {saving ? (
                     <ActivityIndicator
                       size="small"
-                      color={
-                        selected
-                          ? COLORS.background
-                          : COLORS.gold
-                      }
+                      color={COLORS.gold}
                     />
                   ) : (
-                    <Text
-                      style={[
-                        styles.statusButtonText,
-                        selected &&
-                          styles.statusButtonTextSelected,
-                      ]}
-                    >
-                      {status.label}
-                    </Text>
+                    <>
+                      <View
+                        style={[
+                          styles.statusIconWrap,
+                          selected &&
+                            styles.statusIconWrapSelected,
+                        ]}
+                      >
+                        <Ionicons
+                          name={status.icon}
+                          size={18}
+                          color={
+                            selected
+                              ? COLORS.gold
+                              : COLORS.secondaryText
+                          }
+                        />
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.statusButtonText,
+                          selected &&
+                            styles.statusButtonTextSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {status.label}
+                      </Text>
+                    </>
                   )}
                 </Pressable>
               );
@@ -753,9 +1221,16 @@ export default function BookDetailsScreen() {
 
           {selectedStatusLabel ? (
             <View style={styles.statusFooterRow}>
-              <Text style={styles.statusConfirmation}>
-                Saved as {selectedStatusLabel}
-              </Text>
+              <View style={styles.savedStatusRow}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={14}
+                  color={COLORS.softGold}
+                />
+                <Text style={styles.statusConfirmation}>
+                  Saved to your library
+                </Text>
+              </View>
 
               {readingStatus ? (
                 <Pressable
@@ -785,7 +1260,7 @@ export default function BookDetailsScreen() {
                   ) : (
                     <Ionicons
                       name="trash-outline"
-                      size={17}
+                      size={16}
                       color={COLORS.mutedText}
                     />
                   )}
@@ -795,30 +1270,184 @@ export default function BookDetailsScreen() {
           ) : null}
         </View>
 
-        <View style={styles.divider} />
+        {savedBook &&
+        savedBook.status !==
+          'want_to_read' ? (
+          <View style={styles.readingDatesSection}>
+            <View style={styles.readingDatesHeader}>
+              <Text style={styles.sectionLabel}>
+                READING DATES
+              </Text>
 
-        <View style={styles.metadataCard}>
-          <MetadataRow
-            label="Published"
-            value={info.publishedDate}
-          />
-          <MetadataRow
-            label="Pages"
-            value={
-              info.pageCount
-                ? `${info.pageCount}`
-                : undefined
-            }
-          />
-          <MetadataRow
-            label="Publisher"
-            value={info.publisher}
-          />
-          <MetadataRow
-            label="Genres"
-            value={categories}
-            last
-          />
+              <Pressable
+                onPress={
+                  openReadingDateEditor
+                }
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.editDatesButton,
+                  pressed &&
+                    styles.editDatesButtonPressed,
+                ]}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={14}
+                  color={COLORS.gold}
+                />
+
+                <Text style={styles.editDatesText}>
+                  Edit
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.readingDatesCard}>
+              <View style={styles.readingDateCompactItem}>
+                <Text style={styles.readingDateLabel}>
+                  Started
+                </Text>
+
+                <Text
+                  style={styles.readingDateValue}
+                  numberOfLines={1}
+                >
+                  {formatReadingDate(
+                    savedBook.started_at
+                  )}
+                </Text>
+              </View>
+
+              {savedBook.status ===
+              'read' ? (
+                <>
+                  <View style={styles.readingDateVerticalDivider} />
+
+                  <View style={styles.readingDateCompactItem}>
+                    <Text style={styles.readingDateLabel}>
+                      Finished
+                    </Text>
+
+                    <Text
+                      style={styles.readingDateValue}
+                      numberOfLines={1}
+                    >
+                      {formatReadingDate(
+                        savedBook.finished_at
+                      )}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
+
+              {savedBook.status ===
+              'dnf' ? (
+                <>
+                  <View style={styles.readingDateVerticalDivider} />
+
+                  <View style={styles.readingDateCompactItem}>
+                    <Text style={styles.readingDateLabel}>
+                      Stopped
+                    </Text>
+
+                    <Text
+                      style={styles.readingDateValue}
+                      numberOfLines={1}
+                    >
+                      {formatReadingDate(
+                        savedBook.dnf_at
+                      )}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.detailsSection}>
+          <Text style={styles.sectionLabel}>
+            BOOK DETAILS
+          </Text>
+
+          <View style={styles.metadataCard}>
+            <View style={styles.metadataTopRow}>
+              <View style={styles.metadataStat}>
+                <View style={styles.metadataIconWrap}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={17}
+                    color={COLORS.gold}
+                  />
+                </View>
+
+                <Text style={styles.metadataLabel}>
+                  Published
+                </Text>
+
+                <Text
+                  style={styles.metadataStatValue}
+                  numberOfLines={1}
+                >
+                  {publishedDate ?? '—'}
+                </Text>
+              </View>
+
+              <View style={styles.metadataVerticalDivider} />
+
+              <View style={styles.metadataStat}>
+                <View style={styles.metadataIconWrap}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={17}
+                    color={COLORS.gold}
+                  />
+                </View>
+
+                <Text style={styles.metadataLabel}>
+                  Pages
+                </Text>
+
+                <Text
+                  style={styles.metadataStatValue}
+                  numberOfLines={1}
+                >
+                  {info.pageCount
+                    ? `${info.pageCount}`
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+
+            {categories ? (
+              <>
+                <View style={styles.metadataHorizontalDivider} />
+
+                <View style={styles.genreRow}>
+                  <View style={styles.genreIconWrap}>
+                    <Ionicons
+                      name="pricetag-outline"
+                      size={17}
+                      color={COLORS.gold}
+                    />
+                  </View>
+
+                  <View style={styles.genreTextWrap}>
+                    <Text style={styles.metadataLabel}>
+                      Genre
+                    </Text>
+
+                    <Text
+                      style={styles.genreValue}
+                      numberOfLines={2}
+                    >
+                      {categories}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : null}
+          </View>
         </View>
 
         {seriesLoading ? (
@@ -1052,33 +1681,159 @@ export default function BookDetailsScreen() {
           />
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={dateEditorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={
+          closeReadingDateEditor
+        }
+      >
+        <View style={styles.dateModalBackdrop}>
+          <View style={styles.dateModalCard}>
+            <View style={styles.dateModalHeader}>
+              <View style={styles.dateModalHeaderText}>
+                <Text style={styles.dateModalTitle}>
+                  Edit Reading Dates
+                </Text>
+
+                <Text
+                  style={styles.dateModalSubtitle}
+                  numberOfLines={2}
+                >
+                  {book?.volumeInfo.title ??
+                    'Book'}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={
+                  closeReadingDateEditor
+                }
+                hitSlop={8}
+                disabled={savingDates}
+                style={({ pressed }) => [
+                  styles.dateModalClose,
+                  pressed &&
+                    styles.dateModalClosePressed,
+                ]}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={COLORS.mutedText}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.dateField}>
+              <Text style={styles.dateFieldLabel}>
+                Started
+              </Text>
+
+              <TextInput
+                value={startedDateInput}
+                onChangeText={(value) =>
+                  setStartedDateInput(
+                    formatDateInput(
+                      value,
+                      startedDateInput
+                    )
+                  )
+                }
+                placeholder="MM/DD/YYYY"
+                placeholderTextColor={
+                  COLORS.mutedText
+                }
+                keyboardType="number-pad"
+                maxLength={10}
+                autoCorrect={false}
+                style={styles.dateInput}
+              />
+
+            </View>
+
+            {savedBook?.status ===
+              'read' ||
+            savedBook?.status ===
+              'dnf' ? (
+              <View style={styles.dateField}>
+                <Text style={styles.dateFieldLabel}>
+                  {savedBook.status ===
+                  'read'
+                    ? 'Finished'
+                    : 'Stopped'}
+                </Text>
+
+                <TextInput
+                  value={endedDateInput}
+                  onChangeText={(value) =>
+                    setEndedDateInput(
+                      formatDateInput(
+                        value,
+                        endedDateInput
+                      )
+                    )
+                  }
+                  placeholder="MM/DD/YYYY"
+                  placeholderTextColor={
+                    COLORS.mutedText
+                  }
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  autoCorrect={false}
+                  style={styles.dateInput}
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.dateModalActions}>
+              <Pressable
+                onPress={
+                  closeReadingDateEditor
+                }
+                disabled={savingDates}
+                style={({ pressed }) => [
+                  styles.dateCancelButton,
+                  pressed &&
+                    styles.dateActionPressed,
+                ]}
+              >
+                <Text style={styles.dateCancelText}>
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={
+                  saveReadingDates
+                }
+                disabled={savingDates}
+                style={({ pressed }) => [
+                  styles.dateSaveButton,
+                  pressed &&
+                    styles.dateActionPressed,
+                  savingDates &&
+                    styles.dateSaveButtonDisabled,
+                ]}
+              >
+                {savingDates ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={COLORS.background}
+                  />
+                ) : (
+                  <Text style={styles.dateSaveText}>
+                    Save Dates
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
-  );
-}
-
-function MetadataRow({
-  label,
-  value,
-  last = false,
-}: {
-  label: string;
-  value?: string;
-  last?: boolean;
-}) {
-  if (!value) {
-    return null;
-  }
-
-  return (
-    <View
-      style={[
-        styles.metadataRow,
-        last && styles.metadataRowLast,
-      ]}
-    >
-      <Text style={styles.metadataLabel}>{label}</Text>
-      <Text style={styles.metadataValue}>{value}</Text>
-    </View>
   );
 }
 
@@ -1200,7 +1955,28 @@ const styles = StyleSheet.create({
   },
 
   statusSection: {
-    marginTop: 32,
+    marginTop: 30,
+  },
+
+  statusHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
+  statusHeading: {
+    color: COLORS.text,
+    fontFamily: 'PlayfairDisplay_600SemiBold',
+    fontSize: 20,
+  },
+
+  statusSubheading: {
+    color: COLORS.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
   },
 
   sectionLabel: {
@@ -1208,63 +1984,89 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
     letterSpacing: 1.5,
-    marginBottom: 12,
+    marginBottom: 11,
   },
 
   statusGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 9,
+    gap: 7,
   },
 
   statusButton: {
-    flexGrow: 1,
-    minWidth: '45%',
+    flex: 1,
+    minHeight: 74,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 9,
   },
 
   statusButtonSelected: {
-    backgroundColor: COLORS.gold,
+    backgroundColor: COLORS.elevated,
     borderColor: COLORS.gold,
+    borderWidth: 1.5,
+  },
+
+  statusButtonPressed: {
+    opacity: 0.72,
   },
 
   statusButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.42,
+  },
+
+  statusIconWrap: {
+    width: 31,
+    height: 31,
+    borderRadius: 10,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
+  },
+
+  statusIconWrapSelected: {
+    backgroundColor: COLORS.background,
   },
 
   statusButtonText: {
-    color: COLORS.text,
+    color: COLORS.secondaryText,
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
+    fontSize: 10,
   },
 
   statusButtonTextSelected: {
-    color: COLORS.background,
+    color: COLORS.softGold,
   },
 
   statusFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    minHeight: 32,
+    marginTop: 7,
+  },
+
+  savedStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   statusConfirmation: {
     color: COLORS.softGold,
     fontFamily: 'Inter_500Medium',
-    fontSize: 12,
+    fontSize: 11,
+    marginLeft: 5,
   },
 
   removeLibraryIconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1283,40 +2085,287 @@ const styles = StyleSheet.create({
     marginVertical: 28,
   },
 
+  readingDatesSection: {
+    marginTop: 21,
+  },
+
+  readingDatesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 7,
+  },
+
+  editDatesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    marginTop: -3,
+  },
+
+  editDatesButtonPressed: {
+    backgroundColor: COLORS.elevated,
+  },
+
+  editDatesText: {
+    color: COLORS.gold,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    marginLeft: 4,
+  },
+
+  readingDatesCard: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 13,
+    minHeight: 52,
+    paddingHorizontal: 5,
+  },
+
+  readingDateCompactItem: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+
+  readingDateLabel: {
+    color: COLORS.mutedText,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 9,
+  },
+
+  readingDateValue: {
+    color: COLORS.text,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  readingDateVerticalDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 9,
+  },
+
+  dateModalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+  },
+
+  dateModalCard: {
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    padding: 18,
+  },
+
+  dateModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 19,
+  },
+
+  dateModalHeaderText: {
+    flex: 1,
+    marginRight: 12,
+  },
+
+  dateModalTitle: {
+    color: COLORS.text,
+    fontFamily: 'PlayfairDisplay_600SemiBold',
+    fontSize: 21,
+  },
+
+  dateModalSubtitle: {
+    color: COLORS.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  dateModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dateModalClosePressed: {
+    backgroundColor: COLORS.elevated,
+  },
+
+  dateField: {
+    marginBottom: 15,
+  },
+
+  dateFieldLabel: {
+    color: COLORS.secondaryText,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    marginBottom: 7,
+  },
+
+  dateInput: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    backgroundColor: COLORS.background,
+    color: COLORS.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    paddingHorizontal: 13,
+  },
+
+  dateModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 9,
+    marginTop: 2,
+  },
+
+  dateCancelButton: {
+    minWidth: 88,
+    height: 42,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  dateSaveButton: {
+    minWidth: 110,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: COLORS.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  dateSaveButtonDisabled: {
+    opacity: 0.55,
+  },
+
+  dateActionPressed: {
+    opacity: 0.72,
+  },
+
+  dateCancelText: {
+    color: COLORS.secondaryText,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+  dateSaveText: {
+    color: COLORS.background,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+  },
+
+  detailsSection: {
+    marginTop: 24,
+  },
+
   metadataCard: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 16,
-    paddingHorizontal: 17,
+    borderRadius: 17,
+    padding: 15,
   },
 
-  metadataRow: {
+  metadataTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingVertical: 14,
-    gap: 20,
+    alignItems: 'stretch',
   },
 
-  metadataRowLast: {
-    borderBottomWidth: 0,
+  metadataStat: {
+    flex: 1,
+    alignItems: 'center',
+    minHeight: 76,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  metadataIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
+  },
+
+  metadataVerticalDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 4,
+  },
+
+  metadataHorizontalDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 13,
   },
 
   metadataLabel: {
     color: COLORS.mutedText,
     fontFamily: 'Inter_500Medium',
-    fontSize: 13,
+    fontSize: 10,
+    letterSpacing: 0.25,
   },
 
-  metadataValue: {
+  metadataStatValue: {
+    color: COLORS.text,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  genreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  genreIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  genreTextWrap: {
     flex: 1,
+  },
+
+  genreValue: {
     color: COLORS.text,
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
-    textAlign: 'right',
+    lineHeight: 18,
+    marginTop: 3,
   },
 
   seriesSection: {
