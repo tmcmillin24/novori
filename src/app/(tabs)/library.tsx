@@ -1,46 +1,50 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-    useFocusEffect,
-    useRouter,
+  useFocusEffect,
+  useRouter,
 } from 'expo-router';
 import {
-    useCallback,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import {
-    SafeAreaView,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../../constants/novori-theme';
 
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../../context/theme-context';
 
 import {
-    getUserBooks,
-    removeUserBook,
-    saveUserBook,
-    UserBook,
-    UserBookStatus,
+  getUserBooks,
+  removeUserBook,
+  saveUserBook,
+  UserBook,
+  UserBookStatus,
 } from '../../lib/user-books';
 
 type LibraryFilter =
@@ -175,6 +179,65 @@ export default function LibraryScreen() {
     useState<
       'actions' | 'status'
     >('actions');
+
+  const insets = useSafeAreaInsets();
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetHeight = useRef(0);
+  const sheetShown = useRef(false);
+  const sheetStarted = useRef(false);
+  const sheetClosing = useRef(false);
+  const afterSheetDismiss = useRef<(() => void) | null>(null);
+
+  function animateBookSheetIn() {
+    if (!sheetShown.current || !sheetHeight.current || sheetStarted.current || sheetClosing.current) return;
+    sheetStarted.current = true;
+    sheetTranslateY.setValue(sheetHeight.current + 24);
+    sheetOpacity.setValue(1);
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, {
+        toValue: 0, duration: 320,
+        easing: Easing.bezier(0.22, 0.68, 0.30, 1), useNativeDriver: true,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 1, duration: 320,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function handleBookSheetDismiss() {
+    sheetShown.current = false;
+    sheetClosing.current = false;
+    setActionSheetMode('actions');
+    const action = afterSheetDismiss.current;
+    afterSheetDismiss.current = null;
+    action?.();
+  }
+
+  function dismissBookSheet(afterDismiss?: () => void) {
+    if (sheetClosing.current) return;
+    sheetClosing.current = true;
+    afterSheetDismiss.current = afterDismiss ?? null;
+    sheetTranslateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    Animated.parallel([
+      Animated.timing(sheetTranslateY, {
+        toValue: sheetHeight.current + 24, duration: 245,
+        easing: Easing.bezier(0.32, 0, 0.67, 1), useNativeDriver: true,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0, duration: 245,
+        easing: Easing.in(Easing.cubic), useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      // Keep the sheet offscreen until the native modal finishes dismissing.
+      setSelectedBook(null);
+      if (Platform.OS !== 'ios') handleBookSheetDismiss();
+    });
+  }
 
   const filterScrollRef =
     useRef<ScrollView | null>(
@@ -414,6 +477,12 @@ export default function LibraryScreen() {
   function showBookActions(
     book: UserBook
   ) {
+    if (selectedBook || sheetClosing.current) return;
+    sheetShown.current = false;
+    sheetStarted.current = false;
+    sheetHeight.current = 0;
+    sheetOpacity.setValue(0);
+    backdropOpacity.setValue(0);
     setSelectedBook(
       book
     );
@@ -428,13 +497,7 @@ export default function LibraryScreen() {
       return;
     }
 
-    setSelectedBook(
-      null
-    );
-
-    setActionSheetMode(
-      'actions'
-    );
+    dismissBookSheet();
   }
 
   function openSelectedBook() {
@@ -445,17 +508,7 @@ export default function LibraryScreen() {
     const googleBookId =
       selectedBook.google_book_id;
 
-    setSelectedBook(
-      null
-    );
-
-    requestAnimationFrame(
-      () => {
-        openBook(
-          googleBookId
-        );
-      }
-    );
+    dismissBookSheet(() => openBook(googleBookId));
   }
 
   function removeSelectedBook() {
@@ -466,17 +519,7 @@ export default function LibraryScreen() {
     const book =
       selectedBook;
 
-    setSelectedBook(
-      null
-    );
-
-    requestAnimationFrame(
-      () => {
-        confirmRemove(
-          book
-        );
-      }
-    );
+    dismissBookSheet(() => confirmRemove(book));
   }
 
   async function changeBookStatus(
@@ -520,27 +563,11 @@ export default function LibraryScreen() {
           )
       );
 
-      setSelectedBook(
-        null
-      );
-
-      setActionSheetMode(
-        'actions'
-      );
-
-      if (
-        status === 'read' ||
-        status === 'dnf'
-      ) {
-        router.push({
-          pathname:
-            '/rate-review',
-          params: {
-            googleBookId:
-              book.google_book_id,
-          },
-        });
-      }
+      dismissBookSheet(() => {
+        if (status === 'read' || status === 'dnf') {
+          router.push({ pathname: '/rate-review', params: { googleBookId: book.google_book_id } });
+        }
+      });
     } catch (updateError) {
       console.error(
         'Could not update book status:',
@@ -1191,7 +1218,12 @@ export default function LibraryScreen() {
           null
         }
         transparent
-        animationType="slide"
+        animationType="none"
+        onShow={() => {
+          sheetShown.current = true;
+          animateBookSheetIn();
+        }}
+        onDismiss={handleBookSheetDismiss}
         onRequestClose={
           closeBookActions
         }
@@ -1204,10 +1236,22 @@ export default function LibraryScreen() {
             closeBookActions
           }
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.sheetBackdropVisual, { opacity: backdropOpacity }]}
+          />
+          <Animated.View
+            onLayout={(event) => {
+              sheetHeight.current = event.nativeEvent.layout.height;
+              animateBookSheetIn();
+            }}
+            style={[styles.actionSheet, {
+              paddingBottom: Math.max(18, insets.bottom + 12),
+              opacity: sheetOpacity,
+              transform: [{ translateY: sheetTranslateY }],
+            }]}
+          >
           <Pressable
-            style={
-              styles.actionSheet
-            }
             onPress={(
               event
             ) =>
@@ -1627,6 +1671,7 @@ export default function LibraryScreen() {
               </>
             ) : null}
           </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
     </>
@@ -2000,22 +2045,21 @@ function createStyles(
     sheetBackdrop: {
       flex: 1,
       justifyContent: 'flex-end',
-      backgroundColor:
-        'rgba(0, 0, 0, 0.52)',
+      backgroundColor: 'transparent',
+    },
+    sheetBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: 'rgba(0, 0, 0, 0.52)',
     },
 
     actionSheet: {
       width: '100%',
-      maxWidth: 720,
       alignSelf: 'center',
       backgroundColor:
         colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      borderWidth: 1,
-      borderBottomWidth: 0,
-      borderColor:
-        colors.border,
+      overflow: 'hidden',
       paddingHorizontal: 18,
       paddingTop: 9,
       paddingBottom: 34,

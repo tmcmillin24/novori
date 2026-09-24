@@ -1,40 +1,45 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-    useLocalSearchParams,
-    useRouter,
+  useLocalSearchParams,
+  useRouter,
 } from 'expo-router';
 import {
-    useEffect,
-    useState,
+  useEffect,
+  useState,
 } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../constants/novori-theme';
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../context/theme-context';
 import {
-    ClubWithMembership,
-    getMyClubs,
+  ClubWithMembership,
+  getMyClubs,
 } from '../lib/clubs';
 import {
-    createPost,
+  createPost,
+  getPostDetail,
+  updatePost,
 } from '../lib/feed';
+import {
+  supabase,
+} from '../lib/supabase';
 
 type Destination =
   | {
@@ -53,6 +58,7 @@ export default function CreatePostScreen() {
   const params =
     useLocalSearchParams<{
       clubId?: string;
+      editPostId?: string;
     }>();
 
   const requestedClubId =
@@ -60,6 +66,17 @@ export default function CreatePostScreen() {
     'string'
       ? params.clubId
       : '';
+
+  const editPostId =
+    typeof params.editPostId ===
+    'string'
+      ? params.editPostId
+      : '';
+
+  const isEditing =
+    Boolean(
+      editPostId
+    );
 
   const {
     colors,
@@ -98,6 +115,16 @@ export default function CreatePostScreen() {
     useState(false);
 
   const [
+    loadingEditPost,
+    setLoadingEditPost,
+  ] =
+    useState(
+      Boolean(
+        editPostId
+      )
+    );
+
+  const [
     destination,
     setDestination,
   ] =
@@ -114,39 +141,130 @@ export default function CreatePostScreen() {
 
     async function load() {
       try {
-        const myClubs =
-          await getMyClubs();
+        const [
+          myClubs,
+          editingPost,
+          authResult,
+        ] =
+          await Promise.all([
+            getMyClubs(),
+            editPostId
+              ? getPostDetail(
+                  editPostId
+                )
+              : Promise.resolve(
+                  null
+                ),
+            editPostId
+              ? supabase.auth.getUser()
+              : Promise.resolve(
+                  {
+                    data: {
+                      user: null,
+                    },
+                    error: null,
+                  }
+                ),
+          ]);
 
         if (
-          active
+          !active
         ) {
-          setClubs(
-            myClubs
+          return;
+        }
+
+        setClubs(
+          myClubs
+        );
+
+        if (
+          editingPost
+        ) {
+          const user =
+            authResult.data.user;
+
+          if (
+            authResult.error ||
+            !user ||
+            editingPost.author_id !==
+              user.id
+          ) {
+            Alert.alert(
+              'Cannot edit post',
+              'You can only edit your own posts.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () =>
+                    router.back(),
+                },
+              ]
+            );
+            return;
+          }
+
+          setBody(
+            editingPost.body
           );
 
           if (
-            requestedClubId &&
-            myClubs.some(
-              (club) =>
-                club.id ===
-                requestedClubId
-            )
+            editingPost.club_id
           ) {
             setDestination({
               type:
                 'club',
               clubId:
-                requestedClubId,
+                editingPost.club_id,
+            });
+          } else {
+            setDestination({
+              type:
+                'profile',
+              clubId:
+                null,
             });
           }
+        } else if (
+          requestedClubId &&
+          myClubs.some(
+            (club) =>
+              club.id ===
+              requestedClubId
+          )
+        ) {
+          setDestination({
+            type:
+              'club',
+            clubId:
+              requestedClubId,
+          });
         }
       } catch (
         error
       ) {
         console.error(
-          'Could not load post destinations:',
+          isEditing
+            ? 'Could not load post for editing:'
+            : 'Could not load post destinations:',
           error
         );
+
+        if (
+          active &&
+          isEditing
+        ) {
+          Alert.alert(
+            'Could not load post',
+            'Please try again.',
+            [
+              {
+                text: 'OK',
+                onPress: () =>
+                  router.back(),
+              },
+            ]
+          );
+        }
       } finally {
         if (
           active
@@ -154,18 +272,24 @@ export default function CreatePostScreen() {
           setLoadingClubs(
             false
           );
+          setLoadingEditPost(
+            false
+          );
         }
       }
     }
 
-    load();
+    void load();
 
     return () => {
       active =
         false;
     };
   }, [
+    editPostId,
+    isEditing,
     requestedClubId,
+    router,
   ]);
 
   const trimmedBody =
@@ -176,7 +300,8 @@ export default function CreatePostScreen() {
       0 &&
     trimmedBody.length <=
       4000 &&
-    !saving;
+    !saving &&
+    !loadingEditPost;
 
   async function handlePost() {
     if (
@@ -190,17 +315,38 @@ export default function CreatePostScreen() {
         true
       );
 
-      await createPost({
-        body:
-          trimmedBody,
-        clubId:
-          destination.type ===
-          'club'
-            ? destination.clubId
-            : null,
-      });
+      const clubId =
+        destination.type ===
+        'club'
+          ? destination.clubId
+          : null;
 
       if (
+        isEditing
+      ) {
+        await updatePost(
+          editPostId,
+          {
+            body:
+              trimmedBody,
+            clubId,
+          }
+        );
+      } else {
+        await createPost({
+          body:
+            trimmedBody,
+          clubId,
+        });
+      }
+
+      if (
+        isEditing
+      ) {
+        router.replace(
+          '/(tabs)'
+        );
+      } else if (
         destination.type ===
         'club' &&
         requestedClubId
@@ -222,12 +368,16 @@ export default function CreatePostScreen() {
       error
     ) {
       console.error(
-        'Could not create post:',
+        isEditing
+          ? 'Could not update post:'
+          : 'Could not create post:',
         error
       );
 
       Alert.alert(
-        'Could not post',
+        isEditing
+          ? 'Could not save changes'
+          : 'Could not post',
         error instanceof Error
           ? error.message
           : 'Please try again.'
@@ -408,7 +558,9 @@ export default function CreatePostScreen() {
               styles.headerTitle
             }
           >
-            Create Post
+            {isEditing
+              ? 'Edit Post'
+              : 'Create Post'}
           </Text>
 
           <Pressable
@@ -442,7 +594,9 @@ export default function CreatePostScreen() {
                   styles.headerPostButtonText
                 }
               >
-                Post
+                {isEditing
+                  ? 'Save'
+                  : 'Post'}
               </Text>
             )}
           </Pressable>

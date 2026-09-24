@@ -285,6 +285,90 @@ export async function createPost(input: {
   return data;
 }
 
+
+export async function updatePost(
+  postId: string,
+  input: {
+    body: string;
+    clubId?: string | null;
+  }
+) {
+  const userId =
+    await getCurrentUserId();
+
+  const body =
+    input.body.trim();
+
+  if (
+    body.length < 1 ||
+    body.length > 4000
+  ) {
+    throw new Error(
+      'Posts must be between 1 and 4,000 characters.'
+    );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from('posts')
+      .update({
+        body,
+        club_id:
+          input.clubId ??
+          null,
+      })
+      .eq(
+        'id',
+        postId
+      )
+      .eq(
+        'author_id',
+        userId
+      )
+      .select('*')
+      .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function deletePost(
+  postId: string
+) {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from('posts')
+      .delete()
+      .eq(
+        'id',
+        postId
+      )
+      .eq(
+        'author_id',
+        userId
+      )
+      .select('id')
+      .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data.id as string;
+}
+
 export type FollowActionResult =
   | 'following'
   | 'requested';

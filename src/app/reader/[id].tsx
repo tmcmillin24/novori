@@ -1,51 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-    useFocusEffect,
-    useLocalSearchParams,
-    useRouter,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
 } from 'expo-router';
 import {
-    useCallback,
-    useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
+  Image,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../../constants/novori-theme';
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../../context/theme-context';
 import {
-    ClubWithMembership,
+  ClubWithMembership,
 } from '../../lib/clubs';
 import {
-    cancelFollowRequest,
-    FeedPost,
-    followReader,
-    PostVoteValue,
-    togglePostVote,
-    unfollowReader,
+  cancelFollowRequest,
+  FeedPost,
+  followReader,
+  PostVoteValue,
+  togglePostVote,
+  unfollowReader,
 } from '../../lib/feed';
 import {
-    getReaderProfile,
-    getReaderProfilePosts,
-    getReaderPublicBooks,
-    getReaderPublicClubs,
-    getReaderPublicReviews,
-    PublicReaderBook,
-    PublicReaderReview,
-    ReaderSocialProfile,
+  ReportReason,
+  submitProfileReport,
+} from '../../lib/reports';
+import {
+  getReaderProfile,
+  getReaderProfilePosts,
+  getReaderPublicBooks,
+  getReaderPublicClubs,
+  getReaderPublicReviews,
+  PublicReaderBook,
+  PublicReaderReview,
+  ReaderSocialProfile,
 } from '../../lib/social';
 
 type ReaderTab =
@@ -53,6 +66,63 @@ type ReaderTab =
   | 'reviews'
   | 'posts'
   | 'clubs';
+
+const PROFILE_REPORT_REASONS:
+  Array<{
+    value: ReportReason;
+    label: string;
+    icon:
+      keyof typeof Ionicons.glyphMap;
+  }> = [
+    {
+      value:
+        'explicit_content',
+      label:
+        'Graphic or inappropriate content',
+      icon:
+        'eye-off-outline',
+    },
+    {
+      value:
+        'hate',
+      label:
+        'Violence, hate, or discrimination',
+      icon:
+        'warning-outline',
+    },
+    {
+      value:
+        'harassment',
+      label:
+        'Bullying or unwanted contact',
+      icon:
+        'person-remove-outline',
+    },
+    {
+      value:
+        'spam',
+      label:
+        'Scam, fraud, or spam',
+      icon:
+        'megaphone-outline',
+    },
+    {
+      value:
+        'impersonation',
+      label:
+        'Impersonation',
+      icon:
+        'people-outline',
+    },
+    {
+      value:
+        'other',
+      label:
+        'Other',
+      icon:
+        'ellipsis-horizontal-circle-outline',
+    },
+  ];
 
 export default function ReaderProfileScreen() {
   const router =
@@ -67,6 +137,9 @@ export default function ReaderProfileScreen() {
     colors,
   } =
     useNovoriTheme();
+
+  const insets =
+    useSafeAreaInsets();
 
   const styles =
     createStyles(
@@ -152,6 +225,53 @@ export default function ReaderProfileScreen() {
     setError,
   ] =
     useState('');
+
+  const [
+    reportTargetProfile,
+    setReportTargetProfile,
+  ] =
+    useState<ReaderSocialProfile | null>(
+      null
+    );
+
+  const [
+    reportSubmitting,
+    setReportSubmitting,
+  ] =
+    useState(false);
+
+  const reportTranslateY =
+    useRef(
+      new Animated.Value(
+        900
+      )
+    ).current;
+
+  const reportBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const reportSheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const reportSheetHeight =
+    useRef(0);
+
+  const reportSheetAnimating =
+    useRef(false);
+
+  const reportSheetClosing =
+    useRef(false);
+
+  const reportEntranceStarted =
+    useRef(false);
 
   const loadReader =
     useCallback(
@@ -244,6 +364,380 @@ export default function ReaderProfileScreen() {
       loadReader,
     ])
   );
+
+  function openProfileReport() {
+    if (
+      !profile ||
+      profile.is_self ||
+      reportSubmitting ||
+      reportTargetProfile ||
+      reportSheetClosing.current
+    ) {
+      return;
+    }
+
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+    reportSheetOpacity.stopAnimation();
+
+    reportSheetHeight.current =
+      0;
+    reportEntranceStarted.current =
+      false;
+    reportSheetAnimating.current =
+      false;
+    reportSheetClosing.current =
+      false;
+
+    reportTranslateY.setValue(
+      900
+    );
+    reportBackdropOpacity.setValue(
+      0
+    );
+    reportSheetOpacity.setValue(
+      0
+    );
+
+    setReportTargetProfile(
+      profile
+    );
+  }
+
+  function animateProfileReportIn() {
+    if (
+      !reportTargetProfile ||
+      reportEntranceStarted.current ||
+      !reportSheetHeight.current ||
+      reportSheetAnimating.current ||
+      reportSheetClosing.current
+    ) {
+      return;
+    }
+
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+    reportSheetOpacity.stopAnimation();
+
+    reportSheetAnimating.current =
+      true;
+    reportEntranceStarted.current =
+      true;
+
+    reportTranslateY.setValue(
+      reportSheetHeight.current +
+        24
+    );
+    reportSheetOpacity.setValue(
+      1
+    );
+
+    Animated.parallel([
+      Animated.timing(
+        reportTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            320,
+          easing:
+            Easing.bezier(
+              0.22,
+              0.68,
+              0.30,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportBackdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            320,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(() => {
+      reportSheetAnimating.current =
+        false;
+    });
+  }
+
+  function closeProfileReport() {
+    if (
+      reportSubmitting ||
+      reportSheetClosing.current
+    ) {
+      return;
+    }
+
+    dismissProfileReport();
+  }
+
+  function dismissProfileReport(
+    afterClose?: () => void
+  ) {
+    if (
+      reportSheetClosing.current
+    ) {
+      return;
+    }
+
+    reportSheetClosing.current =
+      true;
+
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+
+    reportSheetAnimating.current =
+      true;
+
+    Animated.parallel([
+      Animated.timing(
+        reportTranslateY,
+        {
+          toValue:
+            reportSheetHeight.current +
+            24,
+          duration:
+            245,
+          easing:
+            Easing.bezier(
+              0.32,
+              0,
+              0.67,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportBackdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            245,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      reportSheetAnimating.current =
+        false;
+
+      if (
+        !finished
+      ) {
+        reportSheetClosing.current =
+          false;
+        return;
+      }
+
+      setReportTargetProfile(
+        null
+      );
+
+      reportSheetClosing.current =
+        false;
+      reportEntranceStarted.current =
+        false;
+      reportSheetHeight.current =
+        0;
+
+      afterClose?.();
+    });
+  }
+
+  async function handleProfileReport(
+    reason: ReportReason
+  ) {
+    if (
+      !reportTargetProfile ||
+      reportSubmitting
+    ) {
+      return;
+    }
+
+    try {
+      setReportSubmitting(
+        true
+      );
+
+      await submitProfileReport(
+        reportTargetProfile.id,
+        reason
+      );
+
+      dismissProfileReport(
+        () => {
+          Alert.alert(
+            'Report submitted',
+            'Thanks for letting us know. The profile has been added to the moderation queue.'
+          );
+        }
+      );
+    } catch (
+      reportError
+    ) {
+      console.error(
+        'Could not report profile:',
+        reportError
+      );
+
+      Alert.alert(
+        'Could not submit report',
+        'Please try again.'
+      );
+    } finally {
+      setReportSubmitting(
+        false
+      );
+    }
+  }
+
+  const reportPanResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) =>
+            Boolean(
+              reportTargetProfile
+            ) &&
+            !reportSubmitting &&
+            !reportSheetAnimating.current &&
+            gesture.dy >
+              6 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.05,
+
+          onMoveShouldSetPanResponderCapture: (
+            _event,
+            gesture
+          ) =>
+            Boolean(
+              reportTargetProfile
+            ) &&
+            !reportSubmitting &&
+            !reportSheetAnimating.current &&
+            gesture.dy >
+              9 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.12,
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            reportTranslateY.setValue(
+              Math.max(
+                0,
+                gesture.dy
+              )
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            if (
+              gesture.dy >
+                92 ||
+              gesture.vy >
+                0.72
+            ) {
+              closeProfileReport();
+              return;
+            }
+
+            reportSheetAnimating.current =
+              true;
+
+            Animated.spring(
+              reportTranslateY,
+              {
+                toValue:
+                  0,
+                damping:
+                  25,
+                stiffness:
+                  205,
+                mass:
+                  0.92,
+                useNativeDriver:
+                  true,
+              }
+            ).start(() => {
+              reportSheetAnimating.current =
+                false;
+            });
+          },
+
+          onPanResponderTerminationRequest:
+            () =>
+              false,
+
+          onPanResponderTerminate:
+            () => {
+              reportSheetAnimating.current =
+                true;
+
+              Animated.spring(
+                reportTranslateY,
+                {
+                  toValue:
+                    0,
+                  damping:
+                    25,
+                  stiffness:
+                    205,
+                  mass:
+                    0.92,
+                  useNativeDriver:
+                    true,
+                }
+              ).start(() => {
+                reportSheetAnimating.current =
+                  false;
+              });
+            },
+        }),
+      [
+        reportSubmitting,
+        reportTargetProfile,
+        reportTranslateY,
+      ]
+    );
 
   async function toggleFollow() {
     if (
@@ -1252,11 +1746,37 @@ export default function ReaderProfileScreen() {
           Reader
         </Text>
 
-        <View
-          style={
-            styles.headerSpacer
-          }
-        />
+        {profile.is_self ? (
+          <View
+            style={
+              styles.headerSpacer
+            }
+          />
+        ) : (
+          <Pressable
+            onPress={
+              openProfileReport
+            }
+            hitSlop={
+              10
+            }
+            style={({ pressed }) => [
+              styles.headerButton,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={
+                23
+              }
+              color={
+                colors.text
+              }
+            />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -1907,6 +2427,229 @@ export default function ReaderProfileScreen() {
           </>
         )}
       </ScrollView>
+      <Modal
+        visible={
+          Boolean(
+            reportTargetProfile
+          )
+        }
+        transparent
+        animationType="none"
+        onShow={
+          animateProfileReportIn
+        }
+        onRequestClose={
+          closeProfileReport
+        }
+      >
+        <Pressable
+          style={
+            styles.reportBackdrop
+          }
+          onPress={
+            closeProfileReport
+          }
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.reportBackdropVisual,
+              {
+                opacity:
+                  reportBackdropOpacity,
+              },
+            ]}
+          />
+
+          <Animated.View
+            {...reportPanResponder.panHandlers}
+            onLayout={(event) => {
+              reportSheetHeight.current =
+                event.nativeEvent.layout.height;
+
+              if (
+                !reportSheetAnimating.current &&
+                !reportSheetClosing.current
+              ) {
+                animateProfileReportIn();
+              }
+            }}
+            style={[
+              styles.reportSheet,
+              {
+                paddingBottom:
+                  Math.max(
+                    18,
+                    insets.bottom +
+                      12
+                  ),
+                opacity:
+                  reportSheetOpacity,
+                transform: [
+                  {
+                    translateY:
+                      reportTranslateY,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) =>
+                event.stopPropagation()
+              }
+            >
+              <View
+                style={
+                  styles.reportHandle
+                }
+              />
+
+              <View
+                style={
+                  styles.reportHeadingRow
+                }
+              >
+                <View
+                  style={
+                    styles.reportHeadingCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.reportTitle
+                    }
+                  >
+                    Report profile
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.reportSubtitle
+                    }
+                  >
+                    Why are you reporting this profile?
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={
+                    closeProfileReport
+                  }
+                  hitSlop={
+                    10
+                  }
+                  style={({ pressed }) => [
+                    styles.reportCloseButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="close"
+                    size={
+                      21
+                    }
+                    color={
+                      colors.text
+                    }
+                  />
+                </Pressable>
+              </View>
+
+              <View
+                style={
+                  styles.reportReasonList
+                }
+              >
+                {PROFILE_REPORT_REASONS.map(
+                  (
+                    reason
+                  ) => (
+                    <Pressable
+                      key={
+                        reason.value
+                      }
+                      disabled={
+                        reportSubmitting
+                      }
+                      onPress={() =>
+                        void handleProfileReport(
+                          reason.value
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.reportReasonButton,
+                        pressed &&
+                          styles.reportReasonButtonPressed,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.reportReasonIcon
+                        }
+                      >
+                        <Ionicons
+                          name={
+                            reason.icon
+                          }
+                          size={
+                            18
+                          }
+                          color={
+                            colors.gold
+                          }
+                        />
+                      </View>
+
+                      <Text
+                        style={
+                          styles.reportReasonText
+                        }
+                      >
+                        {reason.label}
+                      </Text>
+
+                      <Ionicons
+                        name="chevron-forward"
+                        size={
+                          17
+                        }
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    </Pressable>
+                  )
+                )}
+              </View>
+
+              <Text
+                style={
+                  styles.reportPrivacyText
+                }
+              >
+                Reports are private. This reader won’t be told who reported them.
+              </Text>
+
+              {reportSubmitting ? (
+                <View
+                  style={
+                    styles.reportSubmitting
+                  }
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2610,6 +3353,143 @@ function createStyles(
       fontSize: 13,
       marginTop: 7,
       textAlign:
+        'center',
+    },
+    reportBackdrop: {
+      flex: 1,
+      backgroundColor:
+        'transparent',
+      justifyContent:
+        'flex-end',
+    },
+    reportBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.52)',
+    },
+    reportSheet: {
+      width: '100%',
+      alignSelf:
+        'center',
+      backgroundColor:
+        colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      overflow: 'hidden',
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 18,
+    },
+    reportHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor:
+        colors.border,
+      alignSelf:
+        'center',
+      marginBottom: 13,
+    },
+    reportHeadingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      marginBottom: 14,
+    },
+    reportHeadingCopy: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    reportTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+    },
+    reportSubtitle: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 3,
+    },
+    reportCloseButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    reportReasonList: {
+      borderRadius: 16,
+      overflow:
+        'hidden',
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+    reportReasonButton: {
+      minHeight: 54,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal: 12,
+      backgroundColor:
+        colors.background,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+      borderBottomColor:
+        colors.border,
+    },
+    reportReasonButtonPressed: {
+      backgroundColor:
+        colors.elevated,
+    },
+    reportReasonIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+    reportReasonText: {
+      flex: 1,
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 13,
+    },
+    reportPrivacyText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      lineHeight: 15,
+      marginTop: 12,
+      paddingHorizontal: 3,
+    },
+    reportSubmitting: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.28)',
+      alignItems:
+        'center',
+      justifyContent:
         'center',
     },
     pressed: {

@@ -56,6 +56,7 @@ import {
   toggleCommentVote,
 } from '../../lib/comments';
 import {
+  deletePost,
   FeedPost,
   getHomeFeed,
   PostVoteValue,
@@ -64,6 +65,11 @@ import {
 import {
   getNotificationAttentionCount,
 } from '../../lib/notifications';
+import {
+  ReportReason,
+  submitCommentReport,
+  submitPostReport,
+} from '../../lib/reports';
 import {
   supabase,
 } from '../../lib/supabase';
@@ -80,6 +86,63 @@ type ComposerProfile = {
   avatar_url:
     string | null;
 };
+
+const POST_REPORT_REASONS:
+  Array<{
+    value: ReportReason;
+    label: string;
+    icon:
+      keyof typeof Ionicons.glyphMap;
+  }> = [
+    {
+      value:
+        'explicit_content',
+      label:
+        'Graphic or inappropriate content',
+      icon:
+        'eye-off-outline',
+    },
+    {
+      value:
+        'hate',
+      label:
+        'Violence, hate, or discrimination',
+      icon:
+        'warning-outline',
+    },
+    {
+      value:
+        'harassment',
+      label:
+        'Bullying or unwanted contact',
+      icon:
+        'person-remove-outline',
+    },
+    {
+      value:
+        'spam',
+      label:
+        'Scam, fraud, or spam',
+      icon:
+        'megaphone-outline',
+    },
+    {
+      value:
+        'impersonation',
+      label:
+        'Impersonation',
+      icon:
+        'people-outline',
+    },
+    {
+      value:
+        'other',
+      label:
+        'Other',
+      icon:
+        'ellipsis-horizontal-circle-outline',
+    },
+  ];
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -118,6 +181,54 @@ export default function HomeScreen() {
     attentionCount,
     setAttentionCount,
   ] = useState(0);
+
+  const [
+    currentUserId,
+    setCurrentUserId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    reportTargetPost,
+    setReportTargetPost,
+  ] =
+    useState<FeedPost | null>(
+      null
+    );
+
+  const [
+    reportSubmitting,
+    setReportSubmitting,
+  ] =
+    useState(false);
+
+  // Keep the sheet fully offscreen until the native modal is presented.
+  const reportEntranceOffset = windowHeight + 80;
+
+  const reportTranslateY =
+    useRef(
+      new Animated.Value(
+        reportEntranceOffset
+      )
+    ).current;
+
+  const reportBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const reportSheetAnimating =
+    useRef(false);
+  const reportSheetOpacity = useRef(new Animated.Value(0)).current;
+  const reportSheetHeight = useRef(0);
+  const reportModalShown = useRef(false);
+  const reportEntranceStarted = useRef(false);
+  const reportSheetClosing = useRef(false);
+  const reportSubmitted = useRef(false);
 
   const [
     composerProfile,
@@ -176,6 +287,36 @@ export default function HomeScreen() {
     useState<
       string | null
     >(null);
+
+  const [
+    deletingPostId,
+    setDeletingPostId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    ownPostOptionsTarget,
+    setOwnPostOptionsTarget,
+  ] =
+    useState<FeedPost | null>(
+      null
+    );
+
+  const ownPostOptionsTranslateY =
+    useRef(
+      new Animated.Value(
+        260
+      )
+    ).current;
+
+  const ownPostOptionsBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
 
   const [
     commentsPost,
@@ -250,6 +391,53 @@ export default function HomeScreen() {
     useState<
       string | null
     >(null);
+
+  const [
+    commentReportTarget,
+    setCommentReportTarget,
+  ] =
+    useState<PostComment | null>(
+      null
+    );
+
+  const [
+    commentReportSubmitting,
+    setCommentReportSubmitting,
+  ] =
+    useState(false);
+
+  const commentReportTranslateY =
+    useRef(
+      new Animated.Value(
+        windowHeight + 80
+      )
+    ).current;
+
+  const commentReportBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentReportSheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentReportSheetHeight =
+    useRef(0);
+
+  const commentReportSheetAnimating =
+    useRef(false);
+
+  const commentReportSheetClosing =
+    useRef(false);
+
+  const commentReportEntranceStarted =
+    useRef(false);
 
   const [
     expandedReplyThreads,
@@ -412,6 +600,10 @@ export default function HomeScreen() {
         ) {
           return;
         }
+
+        setCurrentUserId(
+          user.id
+        );
 
         const {
           data,
@@ -937,7 +1129,9 @@ export default function HomeScreen() {
       channel =
         supabase
           .channel(
-            `home-notification-count-${user.id}`
+            `home-notification-count-${user.id}-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`
           )
           .on(
             'postgres_changes',
@@ -2372,6 +2566,386 @@ export default function HomeScreen() {
     }
   }
 
+  function openCommentReport(
+    comment: PostComment
+  ) {
+    if (
+      comment.is_own ||
+      commentReportSubmitting ||
+      commentReportTarget ||
+      commentReportSheetClosing.current
+    ) {
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    commentReportTranslateY.stopAnimation();
+    commentReportBackdropOpacity.stopAnimation();
+    commentReportSheetOpacity.stopAnimation();
+
+    commentReportSheetHeight.current =
+      0;
+    commentReportEntranceStarted.current =
+      false;
+    commentReportSheetAnimating.current =
+      false;
+    commentReportSheetClosing.current =
+      false;
+
+    commentReportTranslateY.setValue(
+      windowHeight + 80
+    );
+    commentReportBackdropOpacity.setValue(
+      0
+    );
+    commentReportSheetOpacity.setValue(
+      0
+    );
+
+    setCommentReportTarget(
+      comment
+    );
+  }
+
+  function animateCommentReportIn() {
+    if (
+      !commentReportTarget ||
+      commentReportEntranceStarted.current ||
+      !commentReportSheetHeight.current ||
+      commentReportSheetAnimating.current ||
+      commentReportSheetClosing.current
+    ) {
+      return;
+    }
+
+    commentReportTranslateY.stopAnimation();
+    commentReportBackdropOpacity.stopAnimation();
+    commentReportSheetOpacity.stopAnimation();
+
+    commentReportSheetAnimating.current =
+      true;
+    commentReportEntranceStarted.current =
+      true;
+
+    commentReportTranslateY.setValue(
+      commentReportSheetHeight.current +
+        24
+    );
+    commentReportSheetOpacity.setValue(
+      1
+    );
+
+    Animated.parallel([
+      Animated.timing(
+        commentReportTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            320,
+          easing:
+            Easing.bezier(
+              0.22,
+              0.68,
+              0.30,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentReportBackdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            320,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(() => {
+      commentReportSheetAnimating.current =
+        false;
+    });
+  }
+
+  function closeCommentReport() {
+    if (
+      commentReportSubmitting ||
+      commentReportSheetClosing.current
+    ) {
+      return;
+    }
+
+    dismissCommentReport();
+  }
+
+  function dismissCommentReport(
+    afterClose?: () => void
+  ) {
+    if (
+      commentReportSheetClosing.current
+    ) {
+      return;
+    }
+
+    commentReportSheetClosing.current =
+      true;
+
+    commentReportTranslateY.stopAnimation();
+    commentReportBackdropOpacity.stopAnimation();
+
+    commentReportSheetAnimating.current =
+      true;
+
+    Animated.parallel([
+      Animated.timing(
+        commentReportTranslateY,
+        {
+          toValue:
+            commentReportSheetHeight.current +
+            24,
+          duration:
+            245,
+          easing:
+            Easing.bezier(
+              0.32,
+              0,
+              0.67,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentReportBackdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            245,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      commentReportSheetAnimating.current =
+        false;
+
+      if (
+        !finished
+      ) {
+        commentReportSheetClosing.current =
+          false;
+        return;
+      }
+
+      setCommentReportTarget(
+        null
+      );
+
+      commentReportSheetClosing.current =
+        false;
+      commentReportEntranceStarted.current =
+        false;
+      commentReportSheetHeight.current =
+        0;
+
+      afterClose?.();
+    });
+  }
+
+  const commentReportPanResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) =>
+            Boolean(
+              commentReportTarget
+            ) &&
+            !commentReportSubmitting &&
+            !commentReportSheetAnimating.current &&
+            gesture.dy >
+              6 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.05,
+
+          onMoveShouldSetPanResponderCapture: (
+            _event,
+            gesture
+          ) =>
+            Boolean(
+              commentReportTarget
+            ) &&
+            !commentReportSubmitting &&
+            !commentReportSheetAnimating.current &&
+            gesture.dy >
+              9 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.12,
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            commentReportTranslateY.setValue(
+              Math.max(
+                0,
+                gesture.dy
+              )
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            const shouldDismiss =
+              gesture.dy >
+                92 ||
+              gesture.vy >
+                0.72;
+
+            if (
+              shouldDismiss
+            ) {
+              closeCommentReport();
+              return;
+            }
+
+            commentReportSheetAnimating.current =
+              true;
+
+            Animated.spring(
+              commentReportTranslateY,
+              {
+                toValue:
+                  0,
+                damping:
+                  25,
+                stiffness:
+                  205,
+                mass:
+                  0.92,
+                useNativeDriver:
+                  true,
+              }
+            ).start(() => {
+              commentReportSheetAnimating.current =
+                false;
+            });
+          },
+
+          onPanResponderTerminationRequest:
+            () =>
+              false,
+
+          onPanResponderTerminate:
+            () => {
+              commentReportSheetAnimating.current =
+                true;
+
+              Animated.spring(
+                commentReportTranslateY,
+                {
+                  toValue:
+                    0,
+                  damping:
+                    25,
+                  stiffness:
+                    205,
+                  mass:
+                    0.92,
+                  useNativeDriver:
+                    true,
+                }
+              ).start(() => {
+                commentReportSheetAnimating.current =
+                  false;
+              });
+            },
+        }),
+      [
+        commentReportSubmitting,
+        commentReportTarget,
+        commentReportTranslateY,
+      ]
+    );
+
+  async function handleCommentReport(
+    reason: ReportReason
+  ) {
+    if (
+      !commentReportTarget ||
+      commentReportSubmitting
+    ) {
+      return;
+    }
+
+    try {
+      setCommentReportSubmitting(
+        true
+      );
+
+      await submitCommentReport(
+        commentReportTarget.id,
+        reason
+      );
+
+      dismissCommentReport(
+        () => {
+          Alert.alert(
+            'Report submitted',
+            'Thanks for letting us know. The comment has been added to the moderation queue.'
+          );
+        }
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not report comment:',
+        error
+      );
+
+      Alert.alert(
+        'Could not submit report',
+        'Please try again.'
+      );
+    } finally {
+      setCommentReportSubmitting(
+        false
+      );
+    }
+  }
+
   function renderSheetComment(
     comment:
       PostComment,
@@ -2444,7 +3018,7 @@ export default function HomeScreen() {
           {
             marginLeft:
               visualDepth *
-              16,
+              14,
           },
         ]}
       >
@@ -2504,16 +3078,34 @@ export default function HomeScreen() {
                 styles.sheetCommentIdentity
               }
             >
-              <Text
-                style={
-                  styles.sheetCommentName
+              <Pressable
+                onPress={() => {
+                  closeCommentsSheet();
+
+                  openReader(
+                    comment.author_id
+                  );
+                }}
+                hitSlop={
+                  6
                 }
-                numberOfLines={
-                  1
-                }
+                style={({ pressed }) => [
+                  styles.sheetCommentNameButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
               >
-                {displayName}
-              </Text>
+                <Text
+                  style={
+                    styles.sheetCommentName
+                  }
+                  numberOfLines={
+                    1
+                  }
+                >
+                  {displayName}
+                </Text>
+              </Pressable>
 
               {username ? (
                 <Text
@@ -2592,7 +3184,7 @@ export default function HomeScreen() {
                         : 'arrow-up-circle-outline'
                     }
                     size={
-                      16
+                      19
                     }
                     color={
                       comment.viewer_vote ===
@@ -2649,7 +3241,7 @@ export default function HomeScreen() {
                         : 'arrow-down-circle-outline'
                     }
                     size={
-                      16
+                      19
                     }
                     color={
                       comment.viewer_vote ===
@@ -2723,7 +3315,31 @@ export default function HomeScreen() {
                     </Text>
                   )}
                 </Pressable>
-              ) : null}
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    openCommentReport(
+                      comment
+                    )
+                  }
+                  hitSlop={
+                    8
+                  }
+                  style={({ pressed }) => [
+                    styles.sheetReportButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.sheetReportText
+                    }
+                  >
+                    Report
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -3136,6 +3752,577 @@ export default function HomeScreen() {
     return value;
   }
 
+  function openPostReport(
+    post: FeedPost
+  ) {
+    if (
+      !currentUserId ||
+      post.author_id ===
+        currentUserId
+    ) {
+      return;
+    }
+
+    if (reportTargetPost || reportSheetClosing.current) {
+      return;
+    }
+
+    reportSubmitted.current = false;
+    reportModalShown.current = false;
+    reportEntranceStarted.current = false;
+    reportSheetHeight.current = 0;
+    reportSheetOpacity.setValue(0);
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+
+    reportTranslateY.setValue(
+      reportEntranceOffset
+    );
+    reportBackdropOpacity.setValue(
+      0
+    );
+
+    reportSheetAnimating.current =
+      false;
+
+    setReportTargetPost(
+      post
+    );
+  }
+
+  function animatePostReportIn() {
+    // onShow and onLayout may arrive in either order. Wait for both.
+    if (reportEntranceStarted.current || !reportModalShown.current || !reportSheetHeight.current ||
+        reportSheetAnimating.current || reportSheetClosing.current) {
+      return;
+    }
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+
+    reportSheetAnimating.current =
+      true;
+
+    reportEntranceStarted.current = true;
+    reportTranslateY.setValue(reportSheetHeight.current + 24);
+    reportSheetOpacity.setValue(1);
+
+    Animated.parallel([
+      Animated.timing(
+        reportTranslateY,
+        {
+          toValue: 0,
+          duration: 320,
+          easing:
+            Easing.bezier(
+              0.22,
+              0.68,
+              0.30,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportBackdropOpacity,
+        {
+          toValue: 1,
+          duration: 320,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(() => {
+      reportSheetAnimating.current =
+        false;
+    });
+  }
+
+  function handleReportDismiss() {
+    reportModalShown.current = false;
+    reportSheetClosing.current = false;
+    if (reportSubmitted.current) {
+      reportSubmitted.current = false;
+      Alert.alert(
+        'Report submitted',
+        'Thanks for letting us know. The report has been added to the moderation queue.'
+      );
+    }
+  }
+
+  function closePostReport() {
+    if (reportSubmitting) {
+      return;
+    }
+    dismissPostReport();
+  }
+
+  function dismissPostReport() {
+    if (reportSheetClosing.current) {
+      return;
+    }
+    reportSheetClosing.current = true;
+
+    reportTranslateY.stopAnimation();
+    reportBackdropOpacity.stopAnimation();
+
+    reportSheetAnimating.current =
+      true;
+
+    Animated.parallel([
+      Animated.timing(
+        reportTranslateY,
+        {
+          toValue:
+            reportSheetHeight.current + 24,
+          duration: 245,
+          easing:
+            Easing.bezier(
+              0.32,
+              0,
+              0.67,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportBackdropOpacity,
+        {
+          toValue: 0,
+          duration: 245,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      reportSheetAnimating.current =
+        false;
+
+      if (
+        finished
+      ) {
+        setReportTargetPost(
+          null
+        );
+
+        // Do not reset the translation while the native modal is dismissing:
+        // doing so briefly exposes the sheet again over the undimmed feed.
+        if (Platform.OS !== 'ios') {
+          handleReportDismiss();
+        }
+      }
+    });
+  }
+
+  const reportPanResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) =>
+            !reportSubmitting &&
+            !reportSheetAnimating.current &&
+            gesture.dy >
+              6 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.05,
+
+          onMoveShouldSetPanResponderCapture: (
+            _event,
+            gesture
+          ) =>
+            !reportSubmitting &&
+            !reportSheetAnimating.current &&
+            gesture.dy >
+              9 &&
+            Math.abs(
+              gesture.dy
+            ) >
+              Math.abs(
+                gesture.dx
+              ) *
+                1.12,
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            reportTranslateY.setValue(
+              Math.max(
+                0,
+                gesture.dy
+              )
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            const shouldDismiss =
+              gesture.dy >
+                92 ||
+              gesture.vy >
+                0.72;
+
+            if (
+              shouldDismiss
+            ) {
+              closePostReport();
+              return;
+            }
+
+            reportSheetAnimating.current =
+              true;
+
+            Animated.spring(
+              reportTranslateY,
+              {
+                toValue: 0,
+                damping: 25,
+                stiffness: 205,
+                mass: 0.92,
+                useNativeDriver:
+                  true,
+              }
+            ).start(() => {
+              reportSheetAnimating.current =
+                false;
+            });
+          },
+
+          onPanResponderTerminationRequest:
+            () =>
+              false,
+
+          onPanResponderTerminate:
+            () => {
+              reportSheetAnimating.current =
+                true;
+
+              Animated.spring(
+                reportTranslateY,
+                {
+                  toValue: 0,
+                  damping: 25,
+                  stiffness: 205,
+                  mass: 0.92,
+                  useNativeDriver:
+                    true,
+                }
+              ).start(() => {
+                reportSheetAnimating.current =
+                  false;
+              });
+            },
+        }),
+      [
+        reportSubmitting,
+        reportTranslateY,
+        reportEntranceOffset,
+        windowHeight,
+      ]
+    );
+
+  async function handlePostReport(
+    reason: ReportReason
+  ) {
+    if (
+      !reportTargetPost ||
+      reportSubmitting
+    ) {
+      return;
+    }
+
+    try {
+      setReportSubmitting(
+        true
+      );
+
+      await submitPostReport(
+        reportTargetPost.id,
+        reason
+      );
+
+      reportSubmitted.current = true;
+      dismissPostReport();
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not report post:',
+        error
+      );
+
+      Alert.alert(
+        'Could not submit report',
+        'Please try again.'
+      );
+    } finally {
+      setReportSubmitting(
+        false
+      );
+    }
+  }
+
+  function editOwnPost(
+    post: FeedPost
+  ) {
+    router.push({
+      pathname:
+        '/create-post',
+      params: {
+        editPostId:
+          post.id,
+      },
+    });
+  }
+
+  function confirmDeleteOwnPost(
+    post: FeedPost
+  ) {
+    Alert.alert(
+      'Delete post?',
+      'This post and its comments will be permanently deleted.',
+      [
+        {
+          text:
+            'Cancel',
+          style:
+            'cancel',
+        },
+        {
+          text:
+            'Delete',
+          style:
+            'destructive',
+          onPress: () =>
+            void removeOwnPost(
+              post
+            ),
+        },
+      ]
+    );
+  }
+
+  async function removeOwnPost(
+    post: FeedPost
+  ) {
+    if (
+      deletingPostId
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingPostId(
+        post.id
+      );
+
+      await deletePost(
+        post.id
+      );
+
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              item
+            ) =>
+              item.id !==
+              post.id
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not delete post:',
+        error
+      );
+
+      Alert.alert(
+        'Could not delete post',
+        error instanceof Error
+          ? error.message
+          : 'Please try again.'
+      );
+    } finally {
+      setDeletingPostId(
+        null
+      );
+    }
+  }
+
+  function openOwnPostOptions(
+    post: FeedPost
+  ) {
+    if (
+      deletingPostId ||
+      ownPostOptionsTarget
+    ) {
+      return;
+    }
+
+    ownPostOptionsTranslateY.stopAnimation();
+    ownPostOptionsBackdropOpacity.stopAnimation();
+
+    ownPostOptionsTranslateY.setValue(
+      260
+    );
+    ownPostOptionsBackdropOpacity.setValue(
+      0
+    );
+
+    setOwnPostOptionsTarget(
+      post
+    );
+  }
+
+  function animateOwnPostOptionsIn() {
+    Animated.parallel([
+      Animated.timing(
+        ownPostOptionsTranslateY,
+        {
+          toValue: 0,
+          duration: 260,
+          easing:
+            Easing.bezier(
+              0.22,
+              1,
+              0.36,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        ownPostOptionsBackdropOpacity,
+        {
+          toValue: 1,
+          duration: 180,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  function closeOwnPostOptions(
+    afterClose?: () => void
+  ) {
+    ownPostOptionsTranslateY.stopAnimation();
+    ownPostOptionsBackdropOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        ownPostOptionsTranslateY,
+        {
+          toValue: 260,
+          duration: 210,
+          easing:
+            Easing.bezier(
+              0.32,
+              0,
+              0.67,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        ownPostOptionsBackdropOpacity,
+        {
+          toValue: 0,
+          duration: 170,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      if (
+        !finished
+      ) {
+        return;
+      }
+
+      setOwnPostOptionsTarget(
+        null
+      );
+
+      afterClose?.();
+    });
+  }
+
+  function editSelectedOwnPost() {
+    if (
+      !ownPostOptionsTarget
+    ) {
+      return;
+    }
+
+    const post =
+      ownPostOptionsTarget;
+
+    closeOwnPostOptions(
+      () =>
+        editOwnPost(
+          post
+        )
+    );
+  }
+
+  function deleteSelectedOwnPost() {
+    if (
+      !ownPostOptionsTarget
+    ) {
+      return;
+    }
+
+    const post =
+      ownPostOptionsTarget;
+
+    closeOwnPostOptions(
+      () =>
+        confirmDeleteOwnPost(
+          post
+        )
+    );
+  }
+
   async function handlePostVote(
     postId: string,
     voteValue:
@@ -3419,6 +4606,61 @@ export default function HomeScreen() {
               </Text>
             )}
           </View>
+
+          {currentUserId ? (
+            <Pressable
+              disabled={
+                deletingPostId ===
+                post.id
+              }
+              onPress={(event) => {
+                event.stopPropagation();
+
+                if (
+                  post.author_id ===
+                  currentUserId
+                ) {
+                  openOwnPostOptions(
+                    post
+                  );
+                } else {
+                  openPostReport(
+                    post
+                  );
+                }
+              }}
+              hitSlop={
+                10
+              }
+              accessibilityRole="button"
+              accessibilityLabel="More post options"
+              style={({ pressed }) => [
+                styles.feedMoreButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              {deletingPostId ===
+              post.id ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    COLORS.mutedText
+                  }
+                />
+              ) : (
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={
+                    20
+                  }
+                  color={
+                    COLORS.mutedText
+                  }
+                />
+              )}
+            </Pressable>
+          ) : null}
         </View>
 
         <Text
@@ -4617,6 +5859,464 @@ export default function HomeScreen() {
 
       <Modal
         visible={
+          Boolean(
+            ownPostOptionsTarget
+          )
+        }
+        transparent
+        animationType="none"
+        onShow={
+          animateOwnPostOptionsIn
+        }
+        onRequestClose={() =>
+          closeOwnPostOptions()
+        }
+      >
+        <Pressable
+          style={
+            styles.ownPostOptionsBackdrop
+          }
+          onPress={() =>
+            closeOwnPostOptions()
+          }
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.ownPostOptionsBackdropVisual,
+              {
+                opacity:
+                  ownPostOptionsBackdropOpacity,
+              },
+            ]}
+          />
+
+          <Animated.View
+            style={[
+              styles.ownPostOptionsSheet,
+              {
+                paddingBottom:
+                  Math.max(
+                    18,
+                    insets.bottom +
+                      12
+                  ),
+                transform: [
+                  {
+                    translateY:
+                      ownPostOptionsTranslateY,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) =>
+                event.stopPropagation()
+              }
+            >
+              <View
+                style={
+                  styles.ownPostOptionsHandle
+                }
+              />
+
+              <View
+                style={
+                  styles.ownPostOptionsHeader
+                }
+              >
+                <View
+                  style={
+                    styles.ownPostOptionsHeaderIcon
+                  }
+                >
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={
+                      19
+                    }
+                    color={
+                      COLORS.gold
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.ownPostOptionsHeaderCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.ownPostOptionsTitle
+                    }
+                  >
+                    Post options
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.ownPostOptionsSubtitle
+                    }
+                  >
+                    Manage your post.
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.ownPostOptionsList
+                }
+              >
+                <Pressable
+                  onPress={
+                    editSelectedOwnPost
+                  }
+                  style={({ pressed }) => [
+                    styles.ownPostOptionsRow,
+                    pressed &&
+                      styles.ownPostOptionsRowPressed,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.ownPostOptionsRowIcon
+                    }
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={
+                        20
+                      }
+                      color={
+                        COLORS.gold
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.ownPostOptionsRowCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.ownPostOptionsRowTitle
+                      }
+                    >
+                      Edit Post
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.ownPostOptionsRowSubtitle
+                      }
+                    >
+                      Update what you shared.
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={
+                      18
+                    }
+                    color={
+                      COLORS.mutedText
+                    }
+                  />
+                </Pressable>
+
+                <View
+                  style={
+                    styles.ownPostOptionsDivider
+                  }
+                />
+
+                <Pressable
+                  onPress={
+                    deleteSelectedOwnPost
+                  }
+                  style={({ pressed }) => [
+                    styles.ownPostOptionsRow,
+                    pressed &&
+                      styles.ownPostOptionsRowPressed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.ownPostOptionsRowIcon,
+                      styles.ownPostOptionsDangerIcon,
+                    ]}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={
+                        20
+                      }
+                      color={
+                        COLORS.danger
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.ownPostOptionsRowCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.ownPostOptionsDangerTitle
+                      }
+                    >
+                      Delete Post
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.ownPostOptionsRowSubtitle
+                      }
+                    >
+                      Permanently remove this post.
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+
+              <Text
+                style={
+                  styles.ownPostOptionsHint
+                }
+              >
+                Tap outside to cancel
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={
+          Boolean(
+            reportTargetPost
+          )
+        }
+        transparent
+        animationType="none"
+        onShow={() => {
+          reportModalShown.current = true;
+          animatePostReportIn();
+        }}
+        onDismiss={handleReportDismiss}
+        onRequestClose={
+          closePostReport
+        }
+      >
+        <Pressable
+          style={
+            styles.reportBackdrop
+          }
+          onPress={
+            closePostReport
+          }
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.reportBackdropVisual,
+              {
+                opacity:
+                  reportBackdropOpacity,
+              },
+            ]}
+          />
+
+          <Animated.View
+            {...reportPanResponder.panHandlers}
+            onLayout={(event) => {
+              reportSheetHeight.current = event.nativeEvent.layout.height;
+              if (!reportSheetAnimating.current && !reportSheetClosing.current) {
+                animatePostReportIn();
+              }
+            }}
+            style={[
+              styles.reportSheet,
+              {
+                paddingBottom: Math.max(18, insets.bottom + 12),
+                opacity: reportSheetOpacity,
+                transform: [
+                  {
+                    translateY:
+                      reportTranslateY,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) =>
+                event.stopPropagation()
+              }
+            >
+            <View
+              style={
+                styles.reportHandle
+              }
+            />
+
+            <View
+              style={
+                styles.reportHeadingRow
+              }
+            >
+              <View
+                style={
+                  styles.reportHeadingCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.reportTitle
+                  }
+                >
+                  Report post
+                </Text>
+
+                <Text
+                  style={
+                    styles.reportSubtitle
+                  }
+                >
+                  Why are you reporting this post?
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={
+                  closePostReport
+                }
+                hitSlop={
+                  10
+                }
+                style={({ pressed }) => [
+                  styles.reportCloseButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="close"
+                  size={
+                    21
+                  }
+                  color={
+                    COLORS.text
+                  }
+                />
+              </Pressable>
+            </View>
+
+            <View
+              style={
+                styles.reportReasonList
+              }
+            >
+              {POST_REPORT_REASONS.map(
+                (
+                  reason
+                ) => (
+                  <Pressable
+                    key={
+                      reason.value
+                    }
+                    disabled={
+                      reportSubmitting
+                    }
+                    onPress={() =>
+                      handlePostReport(
+                        reason.value
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.reportReasonButton,
+                      pressed &&
+                        styles.reportReasonButtonPressed,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.reportReasonIcon
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          reason.icon
+                        }
+                        size={
+                          18
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.reportReasonText
+                      }
+                    >
+                      {
+                        reason.label
+                      }
+                    </Text>
+
+                    <Ionicons
+                      name="chevron-forward"
+                      size={
+                        17
+                      }
+                      color={
+                        COLORS.mutedText
+                      }
+                    />
+                  </Pressable>
+                )
+              )}
+            </View>
+
+            <Text
+              style={
+                styles.reportPrivacyText
+              }
+            >
+              Reports are private. The post author won’t be told who reported them.
+            </Text>
+
+            {reportSubmitting ? (
+              <View
+                style={
+                  styles.reportSubmitting
+                }
+              >
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    COLORS.gold
+                  }
+                />
+              </View>
+            ) : null}
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={
           commentsModalVisible
         }
         transparent
@@ -5117,6 +6817,217 @@ export default function HomeScreen() {
                 </View>
               </Animated.View>
                 </Animated.View>
+              {commentReportTarget ? (
+                <View
+                  style={
+                    styles.commentReportOverlay
+                  }
+                >
+                  <Pressable
+                    style={
+                      StyleSheet.absoluteFill
+                    }
+                    onPress={
+                      closeCommentReport
+                    }
+                  >
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.reportBackdropVisual,
+                        {
+                          opacity:
+                            commentReportBackdropOpacity,
+                        },
+                      ]}
+                    />
+                  </Pressable>
+
+                  <Animated.View
+                    {...commentReportPanResponder.panHandlers}
+                    onLayout={(event) => {
+                      commentReportSheetHeight.current =
+                        event.nativeEvent.layout.height;
+
+                      animateCommentReportIn();
+                    }}
+                    style={[
+                      styles.reportSheet,
+                      {
+                        paddingBottom:
+                          Math.max(
+                            18,
+                            insets.bottom +
+                              12
+                          ),
+                        opacity:
+                          commentReportSheetOpacity,
+                        transform: [
+                          {
+                            translateY:
+                              commentReportTranslateY,
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Pressable
+                      onPress={(event) =>
+                        event.stopPropagation()
+                      }
+                    >
+                      <View
+                        style={
+                          styles.reportHandle
+                        }
+                      />
+
+                      <View
+                        style={
+                          styles.reportHeadingRow
+                        }
+                      >
+                        <View
+                          style={
+                            styles.reportHeadingCopy
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.reportTitle
+                            }
+                          >
+                            Report comment
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.reportSubtitle
+                            }
+                          >
+                            Why are you reporting this comment?
+                          </Text>
+                        </View>
+
+                        <Pressable
+                          onPress={
+                            closeCommentReport
+                          }
+                          hitSlop={
+                            10
+                          }
+                          style={({ pressed }) => [
+                            styles.reportCloseButton,
+                            pressed &&
+                              styles.pressed,
+                          ]}
+                        >
+                          <Ionicons
+                            name="close"
+                            size={
+                              21
+                            }
+                            color={
+                              COLORS.text
+                            }
+                          />
+                        </Pressable>
+                      </View>
+
+                      <View
+                        style={
+                          styles.reportReasonList
+                        }
+                      >
+                        {POST_REPORT_REASONS.map(
+                          (
+                            reason
+                          ) => (
+                            <Pressable
+                              key={
+                                reason.value
+                              }
+                              disabled={
+                                commentReportSubmitting
+                              }
+                              onPress={() =>
+                                void handleCommentReport(
+                                  reason.value
+                                )
+                              }
+                              style={({ pressed }) => [
+                                styles.reportReasonButton,
+                                pressed &&
+                                  styles.reportReasonButtonPressed,
+                              ]}
+                            >
+                              <View
+                                style={
+                                  styles.reportReasonIcon
+                                }
+                              >
+                                <Ionicons
+                                  name={
+                                    reason.icon
+                                  }
+                                  size={
+                                    18
+                                  }
+                                  color={
+                                    COLORS.gold
+                                  }
+                                />
+                              </View>
+
+                              <Text
+                                style={
+                                  styles.reportReasonText
+                                }
+                              >
+                                {reason.label}
+                              </Text>
+
+                              <Ionicons
+                                name="chevron-forward"
+                                size={
+                                  17
+                                }
+                                color={
+                                  COLORS.mutedText
+                                }
+                              />
+                            </Pressable>
+                          )
+                        )}
+                      </View>
+
+                      <Text
+                        style={
+                          styles.reportPrivacyText
+                        }
+                      >
+                        Reports are private. The comment author won’t be told who reported them.
+                      </Text>
+
+                      {commentReportSubmitting ? (
+                        <View
+                          style={
+                            styles.reportSubmitting
+                          }
+                        >
+                          <ActivityIndicator
+                            size="small"
+                            color={
+                              COLORS.gold
+                            }
+                          />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  </Animated.View>
+                </View>
+              ) : null}
+
               </Animated.View>
             </Animated.View>
           </View>
@@ -5518,6 +7429,17 @@ const styles =
         'row',
       alignItems:
         'flex-start',
+    },
+    feedMoreButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginLeft: 4,
+      marginTop: -3,
     },
     feedAvatar: {
       width: 44,
@@ -6116,6 +8038,311 @@ const styles =
         'center',
       marginTop: 4,
     },
+    ownPostOptionsBackdrop: {
+      flex: 1,
+      backgroundColor:
+        'transparent',
+      justifyContent:
+        'flex-end',
+    },
+    ownPostOptionsBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+    ownPostOptionsSheet: {
+      width: '100%',
+      alignSelf:
+        'center',
+      backgroundColor:
+        COLORS.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 18,
+      overflow:
+        'hidden',
+    },
+    ownPostOptionsHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor:
+        COLORS.border,
+      alignSelf:
+        'center',
+      marginBottom: 16,
+    },
+    ownPostOptionsHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      marginBottom: 14,
+      paddingHorizontal: 2,
+    },
+    ownPostOptionsHeaderIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+    ownPostOptionsHeaderCopy: {
+      flex: 1,
+    },
+    ownPostOptionsTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+    },
+    ownPostOptionsSubtitle: {
+      color:
+        COLORS.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 2,
+    },
+    ownPostOptionsList: {
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 16,
+      overflow:
+        'hidden',
+      backgroundColor:
+        COLORS.background,
+    },
+    ownPostOptionsRow: {
+      minHeight: 66,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      backgroundColor:
+        COLORS.background,
+    },
+    ownPostOptionsRowPressed: {
+      backgroundColor:
+        COLORS.elevated,
+    },
+    ownPostOptionsRowIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 12,
+    },
+    ownPostOptionsDangerIcon: {
+      backgroundColor:
+        'rgba(220, 80, 80, 0.10)',
+    },
+    ownPostOptionsRowCopy: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    ownPostOptionsRowTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 14,
+    },
+    ownPostOptionsDangerTitle: {
+      color:
+        COLORS.danger,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 14,
+    },
+    ownPostOptionsRowSubtitle: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 16,
+      marginTop: 2,
+    },
+    ownPostOptionsDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      backgroundColor:
+        COLORS.border,
+      marginLeft: 61,
+    },
+    ownPostOptionsHint: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      textAlign:
+        'center',
+      marginTop: 11,
+    },
+    commentReportOverlay: {
+      ...StyleSheet.absoluteFill,
+      zIndex:
+        200,
+      justifyContent:
+        'flex-end',
+      overflow:
+        'hidden',
+    },
+    reportBackdrop: {
+      flex: 1,
+      backgroundColor:
+        'transparent',
+      justifyContent:
+        'flex-end',
+    },
+    reportBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.52)',
+    },
+    reportSheet: {
+      width: '100%',
+      alignSelf:
+        'center',
+      backgroundColor:
+        COLORS.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      overflow: 'hidden',
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 18,
+    },
+    reportHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor:
+        COLORS.border,
+      alignSelf:
+        'center',
+      marginBottom: 13,
+    },
+    reportHeadingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      marginBottom: 14,
+    },
+    reportHeadingCopy: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    reportTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+    },
+    reportSubtitle: {
+      color:
+        COLORS.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 3,
+    },
+    reportCloseButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    reportReasonList: {
+      borderRadius: 16,
+      overflow:
+        'hidden',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+    reportReasonButton: {
+      minHeight: 54,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal: 12,
+      backgroundColor:
+        COLORS.background,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+      borderBottomColor:
+        COLORS.border,
+    },
+    reportReasonButtonPressed: {
+      backgroundColor:
+        COLORS.elevated,
+    },
+    reportReasonIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+    reportReasonText: {
+      flex: 1,
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 13,
+    },
+    reportPrivacyText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      lineHeight: 15,
+      marginTop: 12,
+      paddingHorizontal: 3,
+    },
+    reportSubmitting: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.28)',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
     commentsModalRoot: {
       flex:
         1,
@@ -6228,9 +8455,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        12.5,
+        14,
       lineHeight:
-        18,
+        20,
     },
     commentsIdentityName: {
       color:
@@ -6238,7 +8465,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        13,
+        14.5,
     },
     commentsSortWrap: {
       position:
@@ -6358,11 +8585,9 @@ const styles =
       position:
         'absolute',
       top:
-        78,
+        72,
       bottom:
-        92,
-      width:
-        38,
+        78,
       zIndex:
         60,
       backgroundColor:
@@ -6371,10 +8596,14 @@ const styles =
     commentsSideRailLeft: {
       left:
         0,
+      width:
+        38,
     },
     commentsSideRailRight: {
       right:
         0,
+      width:
+        38,
     },
     commentsListWrap: {
       flex:
@@ -6393,7 +8622,9 @@ const styles =
         1,
     },
     commentsListContent: {
-      paddingHorizontal:
+      paddingLeft:
+        24,
+      paddingRight:
         38,
       paddingTop:
         14,
@@ -6502,13 +8733,21 @@ const styles =
       minWidth:
         0,
     },
+    sheetCommentNameButton: {
+      flexShrink:
+        1,
+      minHeight:
+        24,
+      justifyContent:
+        'center',
+    },
     sheetCommentName: {
       color:
         COLORS.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
-        11,
+        13,
       flexShrink:
         1,
     },
@@ -6518,7 +8757,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        10,
+        11.5,
       flexShrink:
         1,
     },
@@ -6528,7 +8767,7 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        9,
+        10.5,
       flexShrink:
         0,
     },
@@ -6538,9 +8777,9 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        12,
+        14,
       lineHeight:
-        18,
+        20,
       marginTop:
         3,
     },
@@ -6550,9 +8789,9 @@ const styles =
       alignItems:
         'center',
       gap:
-        14,
+        16,
       marginTop:
-        5,
+        6,
     },
     commentVoteControl: {
       flexDirection:
@@ -6564,11 +8803,11 @@ const styles =
     },
     commentVoteButton: {
       width:
-        22,
+        28,
       height:
-        24,
+        28,
       borderRadius:
-        12,
+        14,
       alignItems:
         'center',
       justifyContent:
@@ -6580,13 +8819,13 @@ const styles =
     },
     commentVoteScore: {
       minWidth:
-        14,
+        18,
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        9,
+        12,
       textAlign:
         'center',
     },
@@ -6596,7 +8835,7 @@ const styles =
     },
     sheetReplyButton: {
       minHeight:
-        22,
+        28,
       justifyContent:
         'center',
     },
@@ -6606,7 +8845,7 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        9,
+        12.5,
     },
     sheetDeleteButton: {
       minHeight:
@@ -6620,7 +8859,23 @@ const styles =
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        9,
+        10.5,
+    },
+    sheetReportButton: {
+      minHeight:
+        28,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    sheetReportText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
     },
     sheetReplies: {
       gap:
