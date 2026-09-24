@@ -696,6 +696,8 @@ function createStyles(
         1,
       borderBottomColor:
         colors.border,
+      position:
+        'relative',
     },
     headerButton: {
       width: 40,
@@ -708,7 +710,10 @@ function createStyles(
         'center',
     },
     headerTitle: {
-      flex: 1,
+      position:
+        'absolute',
+      left: 76,
+      right: 76,
       color:
         colors.text,
       fontFamily:
@@ -720,6 +725,8 @@ function createStyles(
     headerPostButton: {
       minWidth: 58,
       height: 36,
+      marginLeft:
+        'auto',
       borderRadius:
         12,
       backgroundColor:

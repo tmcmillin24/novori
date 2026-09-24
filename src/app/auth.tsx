@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,17 +27,39 @@ const USERNAME_PATTERN = /^[a-z0-9._]+$/;
 export default function AuthScreen() {
   const router = useRouter();
 
-  const [mode, setMode] = useState<AuthMode>('sign-in');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode] =
+    useState<AuthMode>('sign-in');
+  const [
+    displayName,
+    setDisplayName,
+  ] =
+    useState('');
+  const [username, setUsername] =
+    useState('');
+  const [email, setEmail] =
+    useState('');
+  const [password, setPassword] =
+    useState('');
+  const [
+    confirmPassword,
+    setConfirmPassword,
+  ] =
+    useState('');
+  const [loading, setLoading] =
+    useState(false);
 
-  const isSignUp = mode === 'sign-up';
+  const isSignUp =
+    mode === 'sign-up';
 
   async function handleSubmit() {
-    const trimmedEmail = email.trim().toLowerCase();
-    const normalizedUsername = username.trim().toLowerCase();
+    const trimmedEmail =
+      email.trim().toLowerCase();
+
+    const normalizedUsername =
+      username.trim().toLowerCase();
+
+    const trimmedDisplayName =
+      displayName.trim();
 
     if (!trimmedEmail || !password) {
       Alert.alert(
@@ -48,6 +70,25 @@ export default function AuthScreen() {
     }
 
     if (isSignUp) {
+      if (!trimmedDisplayName) {
+        Alert.alert(
+          'Enter a display name',
+          'Enter the name you want other readers to see on Novori.'
+        );
+        return;
+      }
+
+      if (
+        trimmedDisplayName.length >
+        50
+      ) {
+        Alert.alert(
+          'Display name too long',
+          'Your display name must be 50 characters or fewer.'
+        );
+        return;
+      }
+
       if (!normalizedUsername) {
         Alert.alert(
           'Choose a username',
@@ -57,8 +98,10 @@ export default function AuthScreen() {
       }
 
       if (
-        normalizedUsername.length < USERNAME_MIN_LENGTH ||
-        normalizedUsername.length > USERNAME_MAX_LENGTH
+        normalizedUsername.length <
+          USERNAME_MIN_LENGTH ||
+        normalizedUsername.length >
+          USERNAME_MAX_LENGTH
       ) {
         Alert.alert(
           'Username length',
@@ -67,7 +110,11 @@ export default function AuthScreen() {
         return;
       }
 
-      if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      if (
+        !USERNAME_PATTERN.test(
+          normalizedUsername
+        )
+      ) {
         Alert.alert(
           'Invalid username',
           'Usernames can only contain lowercase letters, numbers, periods, and underscores.'
@@ -86,7 +133,9 @@ export default function AuthScreen() {
         return;
       }
 
-      if (normalizedUsername.includes('..')) {
+      if (
+        normalizedUsername.includes('..')
+      ) {
         Alert.alert(
           'Invalid username',
           'Your username cannot contain two periods in a row.'
@@ -101,17 +150,34 @@ export default function AuthScreen() {
         );
         return;
       }
+
+      if (
+        password !==
+        confirmPassword
+      ) {
+        Alert.alert(
+          'Passwords do not match',
+          'Enter the same password in both password fields.'
+        );
+        return;
+      }
     }
 
     try {
       setLoading(true);
 
       if (isSignUp) {
-        const { data: existingProfile, error: usernameCheckError } =
+        const {
+          data: existingProfile,
+          error: usernameCheckError,
+        } =
           await supabase
             .from('profiles')
             .select('id')
-            .eq('username', normalizedUsername)
+            .eq(
+              'username',
+              normalizedUsername
+            )
             .maybeSingle();
 
         if (usernameCheckError) {
@@ -126,16 +192,25 @@ export default function AuthScreen() {
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password,
-          options: {
-            emailRedirectTo: EMAIL_CONFIRM_REDIRECT,
-            data: {
-              username: normalizedUsername,
+        const {
+          data,
+          error,
+        } =
+          await supabase.auth.signUp({
+            email:
+              trimmedEmail,
+            password,
+            options: {
+              emailRedirectTo:
+                EMAIL_CONFIRM_REDIRECT,
+              data: {
+                username:
+                  normalizedUsername,
+                display_name:
+                  trimmedDisplayName,
+              },
             },
-          },
-        });
+          });
 
         if (error) {
           throw error;
@@ -147,20 +222,28 @@ export default function AuthScreen() {
         }
 
         router.push({
-          pathname: '/confirm-email',
+          pathname:
+            '/confirm-email',
           params: {
-            email: trimmedEmail,
+            email:
+              trimmedEmail,
           },
         });
 
         setPassword('');
+        setConfirmPassword('');
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
+      const {
+        error,
+      } =
+        await supabase.auth
+          .signInWithPassword({
+            email:
+              trimmedEmail,
+            password,
+          });
 
       if (error) {
         throw error;
@@ -174,7 +257,9 @@ export default function AuthScreen() {
           : 'Something went wrong. Please try again.';
 
       Alert.alert(
-        isSignUp ? 'Could not create account' : 'Could not sign in',
+        isSignUp
+          ? 'Could not create account'
+          : 'Could not sign in',
         message
       );
     } finally {
@@ -183,133 +268,373 @@ export default function AuthScreen() {
   }
 
   function switchMode() {
-    setMode(isSignUp ? 'sign-in' : 'sign-up');
+    setMode(
+      isSignUp
+        ? 'sign-in'
+        : 'sign-up'
+    );
     setPassword('');
+    setConfirmPassword('');
+
+    if (isSignUp) {
+      setDisplayName('');
+      setUsername('');
+    }
+  }
+
+  function openForgotPassword() {
+    const trimmedEmail =
+      email.trim().toLowerCase();
+
+    router.push({
+      pathname:
+        '/forgot-password',
+      params:
+        trimmedEmail
+          ? {
+              email:
+                trimmedEmail,
+            }
+          : {},
+    });
   }
 
   return (
     <SafeAreaView
-      style={styles.safeArea}
-      edges={['top', 'bottom']}
+      style={
+        styles.safeArea
+      }
+      edges={[
+        'top',
+        'bottom',
+      ]}
     >
       <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={
+          styles.keyboardView
+        }
+        behavior={
+          Platform.OS ===
+          'ios'
+            ? 'padding'
+            : undefined
+        }
       >
-        <View style={styles.content}>
-          <View style={styles.brandBlock}>
-            <Text style={styles.logo}>
+        <View
+          style={
+            styles.content
+          }
+        >
+          <View
+            style={
+              styles.brandBlock
+            }
+          >
+            <Text
+              style={
+                styles.logo
+              }
+            >
               Novori
             </Text>
 
-            <Text style={styles.slogan}>
+            <Text
+              style={
+                styles.slogan
+              }
+            >
               Read. Discuss. Belong.
             </Text>
           </View>
 
-          <View style={styles.authBlock}>
-            <Text style={styles.title}>
-              {isSignUp ? 'Create your account' : 'Welcome back'}
+          <View
+            style={
+              styles.authBlock
+            }
+          >
+            <Text
+              style={
+                styles.title
+              }
+            >
+              {isSignUp
+                ? 'Create your account'
+                : 'Welcome back'}
             </Text>
 
-            <Text style={styles.subtitle}>
+            <Text
+              style={
+                styles.subtitle
+              }
+            >
               {isSignUp
-                ? 'Choose your permanent Novori username and join the community.'
+                ? 'Choose how you’ll appear on Novori and create your account.'
                 : 'Sign in to continue to your reading world.'}
             </Text>
 
             {isSignUp ? (
               <>
-                <View style={styles.usernameInputRow}>
-                  <Text style={styles.atSymbol}>
+                <TextInput
+                  style={
+                    styles.input
+                  }
+                  placeholder="Display name"
+                  placeholderTextColor={
+                    COLORS.mutedText
+                  }
+                  value={
+                    displayName
+                  }
+                  onChangeText={(
+                    value
+                  ) =>
+                    setDisplayName(
+                      value.slice(
+                        0,
+                        50
+                      )
+                    )
+                  }
+                  autoCapitalize="words"
+                  autoCorrect
+                  textContentType="name"
+                  maxLength={
+                    50
+                  }
+                />
+
+                <View
+                  style={
+                    styles.usernameInputRow
+                  }
+                >
+                  <Text
+                    style={
+                      styles.atSymbol
+                    }
+                  >
                     @
                   </Text>
 
                   <TextInput
-                    style={styles.usernameInput}
+                    style={
+                      styles.usernameInput
+                    }
                     placeholder="username"
-                    placeholderTextColor={COLORS.mutedText}
-                    value={username}
-                    onChangeText={(value) =>
+                    placeholderTextColor={
+                      COLORS.mutedText
+                    }
+                    value={
+                      username
+                    }
+                    onChangeText={(
+                      value
+                    ) =>
                       setUsername(
                         value
                           .toLowerCase()
-                          .replace(/[^a-z0-9._]/g, '')
-                          .slice(0, USERNAME_MAX_LENGTH)
+                          .replace(
+                            /[^a-z0-9._]/g,
+                            ''
+                          )
+                          .slice(
+                            0,
+                            USERNAME_MAX_LENGTH
+                          )
                       )
                     }
                     autoCapitalize="none"
-                    autoCorrect={false}
+                    autoCorrect={
+                      false
+                    }
                     textContentType="username"
-                    maxLength={USERNAME_MAX_LENGTH}
+                    maxLength={
+                      USERNAME_MAX_LENGTH
+                    }
                   />
                 </View>
 
-                <Text style={styles.usernameHelp}>
+                <Text
+                  style={
+                    styles.usernameHelp
+                  }
+                >
                   3-20 characters. Letters, numbers, periods, and underscores only. Your username cannot be changed later.
                 </Text>
               </>
             ) : null}
 
             <TextInput
-              style={styles.input}
+              style={
+                styles.input
+              }
               placeholder="Email"
-              placeholderTextColor={COLORS.mutedText}
-              value={email}
-              onChangeText={setEmail}
+              placeholderTextColor={
+                COLORS.mutedText
+              }
+              value={
+                email
+              }
+              onChangeText={
+                setEmail
+              }
               autoCapitalize="none"
-              autoCorrect={false}
+              autoCorrect={
+                false
+              }
               keyboardType="email-address"
               textContentType="emailAddress"
             />
 
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                !isSignUp &&
+                  styles.passwordInputSignIn,
+              ]}
               placeholder="Password"
-              placeholderTextColor={COLORS.mutedText}
-              value={password}
-              onChangeText={setPassword}
+              placeholderTextColor={
+                COLORS.mutedText
+              }
+              value={
+                password
+              }
+              onChangeText={
+                setPassword
+              }
               secureTextEntry
               autoCapitalize="none"
-              autoCorrect={false}
-              textContentType={isSignUp ? 'newPassword' : 'password'}
+              autoCorrect={
+                false
+              }
+              textContentType={
+                isSignUp
+                  ? 'newPassword'
+                  : 'password'
+              }
             />
 
+            {isSignUp ? (
+              <TextInput
+                style={
+                  styles.input
+                }
+                placeholder="Confirm password"
+                placeholderTextColor={
+                  COLORS.mutedText
+                }
+                value={
+                  confirmPassword
+                }
+                onChangeText={
+                  setConfirmPassword
+                }
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={
+                  false
+                }
+                textContentType="newPassword"
+                returnKeyType="done"
+                onSubmitEditing={
+                  handleSubmit
+                }
+              />
+            ) : null}
+
+            {!isSignUp ? (
+              <Pressable
+                disabled={
+                  loading
+                }
+                onPress={
+                  openForgotPassword
+                }
+                hitSlop={
+                  8
+                }
+                style={({ pressed }) => [
+                  styles.forgotButton,
+                  pressed &&
+                    !loading &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.forgotText
+                  }
+                >
+                  Forgot password?
+                </Text>
+              </Pressable>
+            ) : null}
+
             <Pressable
-              disabled={loading}
-              onPress={handleSubmit}
+              disabled={
+                loading
+              }
+              onPress={
+                handleSubmit
+              }
               style={({ pressed }) => [
                 styles.primaryButton,
-                pressed && !loading && styles.pressed,
-                loading && styles.disabled,
+                pressed &&
+                  !loading &&
+                  styles.pressed,
+                loading &&
+                  styles.disabled,
               ]}
             >
               {loading ? (
                 <ActivityIndicator
                   size="small"
-                  color={COLORS.background}
+                  color={
+                    COLORS.background
+                  }
                 />
               ) : (
-                <Text style={styles.primaryButtonText}>
-                  {isSignUp ? 'Create Account' : 'Sign In'}
+                <Text
+                  style={
+                    styles.primaryButtonText
+                  }
+                >
+                  {isSignUp
+                    ? 'Create Account'
+                    : 'Sign In'}
                 </Text>
               )}
             </Pressable>
 
             <Pressable
-              disabled={loading}
-              onPress={switchMode}
+              disabled={
+                loading
+              }
+              onPress={
+                switchMode
+              }
               style={({ pressed }) => [
                 styles.switchButton,
-                pressed && styles.pressed,
+                pressed &&
+                  styles.pressed,
               ]}
             >
-              <Text style={styles.switchText}>
+              <Text
+                style={
+                  styles.switchText
+                }
+              >
                 {isSignUp
                   ? 'Already have an account? '
                   : 'New to Novori? '}
-                <Text style={styles.switchTextGold}>
-                  {isSignUp ? 'Sign in' : 'Create one'}
+                <Text
+                  style={
+                    styles.switchTextGold
+                  }
+                >
+                  {isSignUp
+                    ? 'Sign in'
+                    : 'Create one'}
                 </Text>
               </Text>
             </Pressable>
@@ -320,154 +645,263 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        COLORS.background,
+    },
 
-  keyboardView: {
-    flex: 1,
-  },
+    keyboardView: {
+      flex: 1,
+    },
 
-  content: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
+    content: {
+      flex: 1,
+      width: '100%',
+      maxWidth: 520,
+      alignSelf:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        24,
+      paddingBottom:
+        40,
+    },
 
-  brandBlock: {
-    alignItems: 'center',
-    marginBottom: 42,
-  },
+    brandBlock: {
+      alignItems:
+        'center',
+      marginBottom:
+        42,
+    },
 
-  logo: {
-    color: COLORS.gold,
-    fontSize: 46,
-    fontFamily: 'PlayfairDisplay_700Bold',
-    letterSpacing: 0.2,
-  },
+    logo: {
+      color:
+        COLORS.gold,
+      fontSize:
+        46,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      letterSpacing:
+        0.2,
+    },
 
-  slogan: {
-    color: COLORS.secondaryText,
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    marginTop: 6,
-  },
+    slogan: {
+      color:
+        COLORS.secondaryText,
+      fontSize:
+        15,
+      fontFamily:
+        'Inter_500Medium',
+      marginTop:
+        6,
+    },
 
-  authBlock: {
-    width: '100%',
-  },
+    authBlock: {
+      width:
+        '100%',
+    },
 
-  title: {
-    color: COLORS.text,
-    fontSize: 28,
-    fontFamily: 'PlayfairDisplay_700Bold',
-    textAlign: 'center',
-  },
+    title: {
+      color:
+        COLORS.text,
+      fontSize:
+        28,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      textAlign:
+        'center',
+    },
 
-  subtitle: {
-    color: COLORS.secondaryText,
-    fontSize: 14,
-    lineHeight: 21,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-  },
+    subtitle: {
+      color:
+        COLORS.secondaryText,
+      fontSize:
+        14,
+      lineHeight:
+        21,
+      fontFamily:
+        'Inter_400Regular',
+      textAlign:
+        'center',
+      marginTop:
+        8,
+      marginBottom:
+        24,
+    },
 
-  input: {
-    minHeight: 52,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    marginBottom: 12,
-  },
+    input: {
+      minHeight:
+        52,
+      backgroundColor:
+        COLORS.surface,
+      color:
+        COLORS.text,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        14,
+      paddingHorizontal:
+        16,
+      fontSize:
+        15,
+      fontFamily:
+        'Inter_400Regular',
+      marginBottom:
+        12,
+    },
 
-  usernameInputRow: {
-    minHeight: 52,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
+    passwordInputSignIn: {
+      marginBottom:
+        4,
+    },
 
-  atSymbol: {
-    color: COLORS.gold,
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-    marginRight: 2,
-  },
+    forgotButton: {
+      alignSelf:
+        'flex-end',
+      minHeight:
+        34,
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        2,
+      marginBottom:
+        6,
+    },
 
-  usernameInput: {
-    flex: 1,
-    minHeight: 50,
-    color: COLORS.text,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    paddingVertical: 0,
-  },
+    forgotText: {
+      color:
+        COLORS.softGold,
+      fontSize:
+        12,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
 
-  usernameHelp: {
-    color: COLORS.mutedText,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 7,
-    marginBottom: 12,
-    paddingHorizontal: 2,
-  },
+    usernameInputRow: {
+      minHeight:
+        52,
+      backgroundColor:
+        COLORS.surface,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        14,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        16,
+    },
 
-  primaryButton: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: COLORS.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
+    atSymbol: {
+      color:
+        COLORS.gold,
+      fontSize:
+        15,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginRight:
+        2,
+    },
 
-  primaryButtonText: {
-    color: COLORS.background,
-    fontSize: 15,
-    fontFamily: 'Inter_700Bold',
-  },
+    usernameInput: {
+      flex: 1,
+      minHeight:
+        50,
+      color:
+        COLORS.text,
+      fontSize:
+        15,
+      fontFamily:
+        'Inter_400Regular',
+      paddingVertical:
+        0,
+    },
 
-  switchButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    marginTop: 12,
-  },
+    usernameHelp: {
+      color:
+        COLORS.mutedText,
+      fontSize:
+        12,
+      lineHeight:
+        18,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop:
+        7,
+      marginBottom:
+        12,
+      paddingHorizontal:
+        2,
+    },
 
-  switchText: {
-    color: COLORS.secondaryText,
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-  },
+    primaryButton: {
+      minHeight:
+        52,
+      borderRadius:
+        14,
+      backgroundColor:
+        COLORS.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginTop:
+        4,
+    },
 
-  switchTextGold: {
-    color: COLORS.softGold,
-    fontFamily: 'Inter_600SemiBold',
-  },
+    primaryButtonText: {
+      color:
+        COLORS.background,
+      fontSize:
+        15,
+      fontFamily:
+        'Inter_700Bold',
+    },
 
-  pressed: {
-    opacity: 0.72,
-  },
+    switchButton: {
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      minHeight:
+        48,
+      marginTop:
+        12,
+    },
 
-  disabled: {
-    opacity: 0.6,
-  },
-});
+    switchText: {
+      color:
+        COLORS.secondaryText,
+      fontSize:
+        14,
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    switchTextGold: {
+      color:
+        COLORS.softGold,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    pressed: {
+      opacity:
+        0.72,
+    },
+
+    disabled: {
+      opacity:
+        0.6,
+    },
+  });

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import {
   useFocusEffect,
   useRouter,
@@ -6,20 +7,33 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
   Image,
+  Keyboard,
+  Modal,
+  PanResponder,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import {
   CLUB_GENRES,
@@ -34,27 +48,84 @@ import {
   searchClubs,
 } from '../../lib/clubs';
 import {
+  CommentVoteValue,
+  createPostComment,
+  deletePostComment,
+  getPostComments,
+  PostComment,
+  toggleCommentVote,
+} from '../../lib/comments';
+import {
   FeedPost,
   getHomeFeed,
+  PostVoteValue,
+  togglePostVote,
 } from '../../lib/feed';
 import {
-  getUnreadNotificationCount,
+  getNotificationAttentionCount,
 } from '../../lib/notifications';
+import {
+  supabase,
+} from '../../lib/supabase';
 
 type HomeSection =
   | 'feed'
   | 'clubs';
 
+type ComposerProfile = {
+  display_name:
+    string | null;
+  username:
+    string | null;
+  avatar_url:
+    string | null;
+};
+
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const {
+    height: windowHeight,
+  } = useWindowDimensions();
+
+  const commentsFullHeight =
+    Math.max(
+      320,
+      windowHeight -
+        insets.top
+    );
+
+  const commentsPartialHeight =
+    Math.max(
+      360,
+      Math.round(
+        windowHeight * 0.82
+      )
+    );
+
+  const commentsEntranceStartHeight =
+    Math.max(
+      320,
+      Math.round(
+        windowHeight * 0.50
+      )
+    );
 
   const [activeSection, setActiveSection] =
     useState<HomeSection>('feed');
 
   const [
-    unreadCount,
-    setUnreadCount,
+    attentionCount,
+    setAttentionCount,
   ] = useState(0);
+
+  const [
+    composerProfile,
+    setComposerProfile,
+  ] =
+    useState<ComposerProfile | null>(
+      null
+    );
 
   const [
     myClubs,
@@ -99,6 +170,199 @@ export default function HomeScreen() {
     useState(false);
 
   const [
+    votingPostId,
+    setVotingPostId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    commentsPost,
+    setCommentsPost,
+  ] =
+    useState<
+      FeedPost | null
+    >(null);
+
+  const [
+    commentsModalVisible,
+    setCommentsModalVisible,
+  ] =
+    useState(false);
+
+  const [
+    sheetComments,
+    setSheetComments,
+  ] =
+    useState<
+      PostComment[]
+    >([]);
+
+  const [
+    commentsLoading,
+    setCommentsLoading,
+  ] =
+    useState(false);
+
+  const [
+    commentsInitialLoadReady,
+    setCommentsInitialLoadReady,
+  ] =
+    useState(false);
+
+  const [
+    commentsSheetEntranceReady,
+    setCommentsSheetEntranceReady,
+  ] =
+    useState(false);
+
+  const [
+    commentsKeyboardVisible,
+    setCommentsKeyboardVisible,
+  ] =
+    useState(false);
+
+  const [
+    commentBody,
+    setCommentBody,
+  ] =
+    useState('');
+
+  const [
+    replyTarget,
+    setReplyTarget,
+  ] =
+    useState<
+      PostComment | null
+    >(null);
+
+  const [
+    submittingComment,
+    setSubmittingComment,
+  ] =
+    useState(false);
+
+  const [
+    deletingCommentId,
+    setDeletingCommentId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    expandedReplyThreads,
+    setExpandedReplyThreads,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const [
+    commentSort,
+    setCommentSort,
+  ] =
+    useState<
+      'top' | 'newest'
+    >('top');
+
+  const [
+    votingCommentIds,
+    setVotingCommentIds,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const commentInputRef =
+    useRef<TextInput>(
+      null
+    );
+
+  const commentsSheetHeight =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentsEntranceTranslateY =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentsBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        1
+      )
+    ).current;
+
+  const commentsKeyboardTranslateY =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const [
+    commentsKeyboardInset,
+    setCommentsKeyboardInset,
+  ] =
+    useState(0);
+
+  const commentsEmptyOpacity =
+    useRef(
+      new Animated.Value(
+        1
+      )
+    ).current;
+
+  const commentsContentOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentsResultOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentsSheetCurrentHeight =
+    useRef(
+      0
+    );
+
+  const commentsSheetGestureStartHeight =
+    useRef(
+      0
+    );
+
+  const commentsSheetSnap =
+    useRef<
+      'partial' | 'full'
+    >('partial');
+
+  const commentsSheetAnimating =
+    useRef(false);
+
+  const commentsKeyboardGestureLock =
+    useRef(false);
+
+  const [
     clubSearch,
     setClubSearch,
   ] =
@@ -130,6 +394,57 @@ export default function HomeScreen() {
       ClubGenreKey | 'all'
     >('all');
 
+  const loadComposerProfile =
+    useCallback(
+      async () => {
+        const {
+          data: {
+            user,
+          },
+          error:
+            userError,
+        } =
+          await supabase.auth.getUser();
+
+        if (
+          userError ||
+          !user
+        ) {
+          return;
+        }
+
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              'profiles'
+            )
+            .select(
+              'display_name, username, avatar_url'
+            )
+            .eq(
+              'id',
+              user.id
+            )
+            .single();
+
+        if (error) {
+          console.error(
+            'Could not load comment composer profile:',
+            error.message
+          );
+          return;
+        }
+
+        setComposerProfile(
+          data
+        );
+      },
+      []
+    );
+
   const loadHomeData =
     useCallback(
       async (
@@ -143,30 +458,30 @@ export default function HomeScreen() {
 
         const results =
           await Promise.allSettled([
-            getUnreadNotificationCount(),
+            getNotificationAttentionCount(),
             getMyClubs(),
             getDiscoverClubs(),
             getHomeFeed(),
           ]);
 
         const [
-          unreadResult,
+          attentionResult,
           myClubsResult,
           discoverResult,
           feedResult,
         ] = results;
 
         if (
-          unreadResult.status ===
+          attentionResult.status ===
           'fulfilled'
         ) {
-          setUnreadCount(
-            unreadResult.value
+          setAttentionCount(
+            attentionResult.value
           );
         } else {
           console.error(
-            'Could not load unread notification count:',
-            unreadResult.reason
+            'Could not load notification attention count:',
+            attentionResult.reason
           );
         }
 
@@ -225,6 +540,248 @@ export default function HomeScreen() {
       },
       []
     );
+
+  useEffect(
+    () => {
+      if (
+        Platform.OS !==
+        'ios'
+      ) {
+        return;
+      }
+
+      const changeFrame =
+        Keyboard.addListener(
+          'keyboardWillChangeFrame',
+          (
+            event
+          ) => {
+            const overlap =
+              Math.max(
+                0,
+                windowHeight -
+                  event.endCoordinates
+                    .screenY
+              );
+
+            setCommentsKeyboardVisible(
+              overlap >
+                0
+            );
+
+            Animated.timing(
+              commentsKeyboardTranslateY,
+              {
+                toValue:
+                  -overlap,
+                duration:
+                  Math.max(
+                    120,
+                    event.duration ??
+                      250
+                  ),
+                easing:
+                  Easing.bezier(
+                    0.25,
+                    0.1,
+                    0.25,
+                    1
+                  ),
+                useNativeDriver:
+                  true,
+              }
+            ).start();
+
+          }
+        );
+
+      const show =
+        Keyboard.addListener(
+          'keyboardWillShow',
+          (
+            event
+          ) => {
+            const overlap =
+              Math.max(
+                0,
+                windowHeight -
+                  event.endCoordinates
+                    .screenY
+              );
+
+            commentsEmptyOpacity.stopAnimation();
+
+            Animated.timing(
+              commentsEmptyOpacity,
+              {
+                toValue:
+                  0,
+                duration:
+                  75,
+                easing:
+                  Easing.out(
+                    Easing.quad
+                  ),
+                useNativeDriver:
+                  true,
+              }
+            ).start(() => {
+              setCommentsKeyboardInset(
+                overlap
+              );
+
+              requestAnimationFrame(
+                () => {
+                  Animated.timing(
+                    commentsEmptyOpacity,
+                    {
+                      toValue:
+                        1,
+                      duration:
+                        125,
+                      easing:
+                        Easing.out(
+                          Easing.cubic
+                        ),
+                      useNativeDriver:
+                        true,
+                    }
+                  ).start();
+                }
+              );
+            });
+          }
+        );
+
+      const hide =
+        Keyboard.addListener(
+          'keyboardWillHide',
+          (
+            event
+          ) => {
+            setCommentsKeyboardVisible(
+              false
+            );
+
+            commentsEmptyOpacity.stopAnimation();
+
+            Animated.timing(
+              commentsEmptyOpacity,
+              {
+                toValue:
+                  0,
+                duration:
+                  75,
+                easing:
+                  Easing.out(
+                    Easing.quad
+                  ),
+                useNativeDriver:
+                  true,
+              }
+            ).start(() => {
+              setCommentsKeyboardInset(
+                0
+              );
+
+              requestAnimationFrame(
+                () => {
+                  Animated.timing(
+                    commentsEmptyOpacity,
+                    {
+                      toValue:
+                        1,
+                      duration:
+                        125,
+                      easing:
+                        Easing.out(
+                          Easing.cubic
+                        ),
+                      useNativeDriver:
+                        true,
+                    }
+                  ).start();
+                }
+              );
+            });
+
+            Animated.timing(
+              commentsKeyboardTranslateY,
+              {
+                toValue:
+                  0,
+                duration:
+                  Math.max(
+                    120,
+                    event.duration ??
+                      220
+                  ),
+                easing:
+                  Easing.bezier(
+                    0.25,
+                    0.1,
+                    0.25,
+                    1
+                  ),
+                useNativeDriver:
+                  true,
+              }
+            ).start();
+
+          }
+        );
+
+      return () => {
+        changeFrame.remove();
+        show.remove();
+        hide.remove();
+      };
+    },
+    [
+      commentsEmptyOpacity,
+      commentsKeyboardTranslateY,
+      windowHeight,
+    ]
+  );
+
+  useEffect(
+    () => {
+      if (
+        !commentsModalVisible ||
+        !commentsInitialLoadReady ||
+        !commentsSheetEntranceReady
+      ) {
+        return;
+      }
+
+      commentsResultOpacity.stopAnimation();
+      commentsResultOpacity.setValue(
+        0
+      );
+
+      Animated.timing(
+        commentsResultOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            240,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ).start();
+    },
+    [
+      commentsInitialLoadReady,
+      commentsModalVisible,
+      commentsResultOpacity,
+      commentsSheetEntranceReady,
+    ]
+  );
 
   useEffect(() => {
     const normalized =
@@ -320,8 +877,102 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadHomeData(true);
-    }, [loadHomeData])
+      void loadComposerProfile();
+    }, [
+      loadComposerProfile,
+      loadHomeData,
+    ])
   );
+
+  useEffect(() => {
+    let active =
+      true;
+
+    let channel:
+      ReturnType<
+        typeof supabase.channel
+      > | null =
+      null;
+
+    async function subscribeToNotificationCount() {
+      const {
+        data: {
+          user,
+        },
+        error,
+      } =
+        await supabase.auth.getUser();
+
+      if (
+        error ||
+        !user ||
+        !active
+      ) {
+        return;
+      }
+
+      const refreshAttentionCount =
+        async () => {
+          try {
+            const count =
+              await getNotificationAttentionCount();
+
+            if (
+              active
+            ) {
+              setAttentionCount(
+                count
+              );
+            }
+          } catch (
+            attentionError
+          ) {
+            console.error(
+              'Could not refresh realtime notification attention count:',
+              attentionError
+            );
+          }
+        };
+
+      channel =
+        supabase
+          .channel(
+            `home-notification-count-${user.id}`
+          )
+          .on(
+            'postgres_changes',
+            {
+              event:
+                '*',
+              schema:
+                'public',
+              table:
+                'notifications',
+              filter:
+                `recipient_id=eq.${user.id}`,
+            },
+            () => {
+              void refreshAttentionCount();
+            }
+          )
+          .subscribe();
+    }
+
+    void subscribeToNotificationCount();
+
+    return () => {
+      active =
+        false;
+
+      if (
+        channel
+      ) {
+        void supabase.removeChannel(
+          channel
+        );
+      }
+    };
+  }, []);
 
   async function handleRefresh() {
     try {
@@ -355,6 +1006,1812 @@ export default function HomeScreen() {
           readerId,
       },
     });
+  }
+
+  async function loadCommentsSheet(
+    postId: string
+  ) {
+    try {
+      setCommentsLoading(
+        true
+      );
+
+      const comments =
+        await getPostComments(
+          postId
+        );
+
+      setSheetComments(
+        comments
+      );
+
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              postId
+                ? {
+                    ...item,
+                    comment_count:
+                      comments.length,
+                  }
+                : item
+          )
+      );
+
+      setCommentsPost(
+        (
+          current
+        ) =>
+          current?.id ===
+          postId
+            ? {
+                ...current,
+                comment_count:
+                  comments.length,
+              }
+            : current
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not load comments:',
+        error
+      );
+
+      Alert.alert(
+        'Could not load comments',
+        'Please try again.'
+      );
+    } finally {
+      setCommentsLoading(
+        false
+      );
+
+      setCommentsInitialLoadReady(
+        true
+      );
+    }
+  }
+
+  function openCommentsSheet(
+    post: FeedPost
+  ) {
+    commentsSheetHeight.stopAnimation();
+    commentsEntranceTranslateY.stopAnimation();
+    commentsBackdropOpacity.stopAnimation();
+    commentsKeyboardTranslateY.stopAnimation();
+    commentsContentOpacity.stopAnimation();
+    commentsResultOpacity.stopAnimation();
+    commentsEmptyOpacity.stopAnimation();
+
+    commentsResultOpacity.setValue(
+      0
+    );
+    commentsEmptyOpacity.setValue(
+      1
+    );
+    setCommentsKeyboardInset(
+      0
+    );
+
+    setCommentsInitialLoadReady(
+      false
+    );
+    setCommentsSheetEntranceReady(
+      false
+    );
+    setCommentsKeyboardVisible(
+      false
+    );
+
+    // The sheet is already at its final resting height.
+    // Only the outer entrance wrapper moves, so the opening
+    // animation never performs JS-thread layout work.
+    commentsSheetHeight.setValue(
+      commentsPartialHeight
+    );
+
+    commentsEntranceTranslateY.setValue(
+      Math.max(
+        0,
+        commentsPartialHeight -
+          commentsEntranceStartHeight
+      )
+    );
+    commentsBackdropOpacity.setValue(
+      0
+    );
+    commentsKeyboardTranslateY.setValue(
+      0
+    );
+    commentsContentOpacity.setValue(
+      0
+    );
+
+    commentsSheetCurrentHeight.current =
+      commentsPartialHeight;
+    commentsSheetGestureStartHeight.current =
+      commentsPartialHeight;
+    commentsSheetSnap.current =
+      'partial';
+    commentsSheetAnimating.current =
+      true;
+
+    setSheetComments(
+      []
+    );
+
+    setCommentBody(
+      ''
+    );
+
+    setReplyTarget(
+      null
+    );
+
+    setExpandedReplyThreads(
+      {}
+    );
+
+    setCommentSort(
+      'top'
+    );
+
+    setCommentsPost(
+      post
+    );
+
+    setCommentsModalVisible(
+      true
+    );
+
+    void loadCommentsSheet(
+      post.id
+    );
+  }
+
+  function animateCommentsSheetIn() {
+    commentsEntranceTranslateY.stopAnimation();
+    commentsBackdropOpacity.stopAnimation();
+    commentsContentOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        commentsEntranceTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            285,
+          easing:
+            Easing.bezier(
+              0.22,
+              1,
+              0.36,
+              1
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentsBackdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            180,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.sequence([
+        Animated.delay(
+          70
+        ),
+        Animated.timing(
+          commentsContentOpacity,
+          {
+            toValue:
+              1,
+            duration:
+              110,
+            easing:
+              Easing.out(
+                Easing.cubic
+              ),
+            useNativeDriver:
+              true,
+          }
+        ),
+      ]),
+    ]).start(({
+      finished,
+    }) => {
+      commentsSheetAnimating.current =
+        false;
+
+      if (finished) {
+        commentsSheetCurrentHeight.current =
+          commentsPartialHeight;
+        commentsSheetGestureStartHeight.current =
+          commentsPartialHeight;
+
+        setCommentsSheetEntranceReady(
+          true
+        );
+      }
+    });
+  }
+
+  function handleCommentsModalDismiss() {
+    commentsResultOpacity.stopAnimation();
+    commentsEmptyOpacity.stopAnimation();
+    commentsResultOpacity.setValue(
+      0
+    );
+    commentsEmptyOpacity.setValue(
+      1
+    );
+    setCommentsKeyboardInset(
+      0
+    );
+
+    setCommentsInitialLoadReady(
+      false
+    );
+    setCommentsSheetEntranceReady(
+      false
+    );
+    setCommentsKeyboardVisible(
+      false
+    );
+
+    commentsSheetAnimating.current =
+      false;
+    commentsSheetSnap.current =
+      'partial';
+    commentsSheetCurrentHeight.current =
+      0;
+    commentsSheetGestureStartHeight.current =
+      0;
+
+    commentsSheetHeight.setValue(
+      0
+    );
+    commentsEntranceTranslateY.setValue(
+      0
+    );
+    commentsBackdropOpacity.setValue(
+      0
+    );
+    commentsKeyboardTranslateY.setValue(
+      0
+    );
+    commentsContentOpacity.setValue(
+      0
+    );
+
+    setCommentsPost(
+      null
+    );
+
+    setSheetComments(
+      []
+    );
+
+    setCommentBody(
+      ''
+    );
+
+    setReplyTarget(
+      null
+    );
+
+    setExpandedReplyThreads(
+      {}
+    );
+  }
+
+  function snapCommentsSheet(
+    target:
+      'partial' | 'full'
+  ) {
+    const targetHeight =
+      target ===
+        'full'
+        ? commentsFullHeight
+        : commentsPartialHeight;
+
+    commentsSheetSnap.current =
+      target;
+    commentsSheetAnimating.current =
+      true;
+
+    commentsSheetHeight.stopAnimation();
+
+    Animated.timing(
+      commentsSheetHeight,
+      {
+        toValue:
+          targetHeight,
+        duration:
+          target ===
+            'full'
+            ? 235
+            : 220,
+        easing:
+          Easing.bezier(
+            0.22,
+            1,
+            0.36,
+            1
+          ),
+        useNativeDriver:
+          false,
+      }
+    ).start(({
+      finished,
+    }) => {
+      commentsSheetAnimating.current =
+        false;
+
+      if (finished) {
+        commentsSheetCurrentHeight.current =
+          targetHeight;
+        commentsSheetGestureStartHeight.current =
+          targetHeight;
+      }
+    });
+  }
+
+  function handleCommentsBackdropPress() {
+    if (
+      commentsKeyboardVisible
+    ) {
+      Keyboard.dismiss();
+      return;
+    }
+
+    closeCommentsSheet();
+  }
+
+  function closeCommentsSheet() {
+    if (
+      commentsSheetAnimating.current
+    ) {
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    commentsSheetAnimating.current =
+      true;
+
+    commentsSheetHeight.stopAnimation();
+    commentsBackdropOpacity.stopAnimation();
+    commentsKeyboardTranslateY.stopAnimation();
+    commentsContentOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        commentsSheetHeight,
+        {
+          toValue:
+            0,
+          duration:
+            235,
+          easing:
+            Easing.bezier(
+              0.32,
+              0,
+              0.67,
+              1
+            ),
+          useNativeDriver:
+            false,
+        }
+      ),
+      Animated.timing(
+        commentsBackdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            210,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentsContentOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            90,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentsKeyboardTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            150,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      if (!finished) {
+        commentsSheetAnimating.current =
+          false;
+        return;
+      }
+
+      commentsSheetCurrentHeight.current =
+        0;
+      commentsSheetGestureStartHeight.current =
+        0;
+
+      setCommentsModalVisible(
+        false
+      );
+    });
+  }
+
+  const commentsSheetPanResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onStartShouldSetPanResponder:
+            () =>
+              !commentsSheetAnimating.current,
+
+          onStartShouldSetPanResponderCapture:
+            () =>
+              !commentsSheetAnimating.current,
+
+          onMoveShouldSetPanResponder:
+            () =>
+              !commentsSheetAnimating.current,
+
+          onMoveShouldSetPanResponderCapture:
+            () =>
+              !commentsSheetAnimating.current,
+
+          onPanResponderGrant:
+            () => {
+              commentsKeyboardGestureLock.current =
+                commentsKeyboardVisible;
+
+              if (
+                commentsKeyboardGestureLock.current
+              ) {
+                Keyboard.dismiss();
+
+                const lockedHeight =
+                  commentsSheetSnap.current ===
+                  'full'
+                    ? commentsFullHeight
+                    : commentsPartialHeight;
+
+                commentsSheetHeight.stopAnimation();
+                commentsSheetHeight.setValue(
+                  lockedHeight
+                );
+
+                commentsSheetCurrentHeight.current =
+                  lockedHeight;
+                commentsSheetGestureStartHeight.current =
+                  lockedHeight;
+
+                return;
+              }
+
+              commentsSheetHeight.stopAnimation(
+                (
+                  value
+                ) => {
+                  commentsSheetCurrentHeight.current =
+                    value;
+                  commentsSheetGestureStartHeight.current =
+                    value;
+                }
+              );
+
+              commentsSheetGestureStartHeight.current =
+                commentsSheetCurrentHeight.current;
+
+            },
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            if (
+              commentsKeyboardGestureLock.current
+            ) {
+              return;
+            }
+
+            const nextHeight =
+              Math.max(
+                0,
+                Math.min(
+                  commentsFullHeight,
+                  commentsSheetGestureStartHeight.current -
+                    gesture.dy
+                )
+              );
+
+            commentsSheetCurrentHeight.current =
+              nextHeight;
+
+            commentsSheetHeight.setValue(
+              nextHeight
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            if (
+              commentsKeyboardGestureLock.current
+            ) {
+              commentsKeyboardGestureLock.current =
+                false;
+
+              snapCommentsSheet(
+                commentsSheetSnap.current
+              );
+              return;
+            }
+
+            const currentSnap =
+              commentsSheetSnap.current;
+
+            const currentHeight =
+              commentsSheetCurrentHeight.current;
+
+            const fullToPartialMidpoint =
+              commentsPartialHeight +
+              (
+                commentsFullHeight -
+                commentsPartialHeight
+              ) *
+                0.52;
+
+            const partialDismissThreshold =
+              commentsPartialHeight *
+              0.68;
+
+            // Keyboard dismissal is independent of sheet snapping.
+            // The sheet still always resolves to a valid resting point.
+            if (
+              commentsKeyboardVisible
+            ) {
+              Keyboard.dismiss();
+            }
+
+            if (
+              currentSnap ===
+              'full'
+            ) {
+              const shouldDismissFromFull =
+                currentHeight <=
+                  partialDismissThreshold ||
+                gesture.dy >
+                  220 ||
+                gesture.vy >
+                  1.05;
+
+              if (
+                shouldDismissFromFull
+              ) {
+                closeCommentsSheet();
+                return;
+              }
+
+              const shouldReturnPartial =
+                currentHeight <=
+                  fullToPartialMidpoint ||
+                gesture.dy >
+                  56 ||
+                gesture.vy >
+                  0.42;
+
+              if (
+                shouldReturnPartial
+              ) {
+                snapCommentsSheet(
+                  'partial'
+                );
+                return;
+              }
+
+              snapCommentsSheet(
+                'full'
+              );
+              return;
+            }
+
+            const shouldDismiss =
+              currentHeight <=
+                partialDismissThreshold ||
+              gesture.dy >
+                118 ||
+              gesture.vy >
+                0.92;
+
+            if (
+              shouldDismiss
+            ) {
+              closeCommentsSheet();
+              return;
+            }
+
+            const shouldExpand =
+              currentHeight >=
+                fullToPartialMidpoint ||
+              gesture.dy <
+                -42 ||
+              gesture.vy <
+                -0.38;
+
+            if (
+              shouldExpand
+            ) {
+              snapCommentsSheet(
+                'full'
+              );
+              return;
+            }
+
+            snapCommentsSheet(
+              'partial'
+            );
+          },
+
+          onPanResponderTerminationRequest:
+            () => false,
+
+          onPanResponderTerminate:
+            () => {
+              if (
+                commentsKeyboardGestureLock.current
+              ) {
+                commentsKeyboardGestureLock.current =
+                  false;
+
+                snapCommentsSheet(
+                  commentsSheetSnap.current
+                );
+                return;
+              }
+
+              const distanceToPartial =
+                Math.abs(
+                  commentsSheetCurrentHeight.current -
+                    commentsPartialHeight
+                );
+
+              const distanceToFull =
+                Math.abs(
+                  commentsSheetCurrentHeight.current -
+                    commentsFullHeight
+                );
+
+              snapCommentsSheet(
+                distanceToFull <
+                  distanceToPartial
+                  ? 'full'
+                  : 'partial'
+              );
+            },
+
+          onShouldBlockNativeResponder:
+            () => true,
+        }),
+      [
+        commentsFullHeight,
+        commentsKeyboardVisible,
+        commentsPartialHeight,
+        commentsSheetHeight,
+      ]
+    );
+
+  function startReply(
+    comment:
+      PostComment
+  ) {
+    setReplyTarget(
+      comment
+    );
+
+    setTimeout(
+      () => {
+        commentInputRef
+          .current
+          ?.focus();
+      },
+      75
+    );
+  }
+
+  function toggleReplies(
+    commentId: string
+  ) {
+    setExpandedReplyThreads(
+      (
+        current
+      ) => ({
+        ...current,
+        [commentId]:
+          !current[
+            commentId
+          ],
+      })
+    );
+  }
+
+  async function submitSheetComment() {
+    if (
+      !commentsPost ||
+      submittingComment
+    ) {
+      return;
+    }
+
+    const cleaned =
+      commentBody.trim();
+
+    if (
+      !cleaned
+    ) {
+      return;
+    }
+
+    const postId =
+      commentsPost.id;
+
+    const parentId =
+      replyTarget?.id ??
+      null;
+
+    const optimisticId =
+      `optimistic-${Date.now()}`;
+
+    const optimisticComment:
+      PostComment = {
+        id:
+          optimisticId,
+        post_id:
+          postId,
+        author_id:
+          'optimistic-current-user',
+        parent_comment_id:
+          parentId,
+        body:
+          cleaned,
+        created_at:
+          new Date().toISOString(),
+        updated_at:
+          new Date().toISOString(),
+        author_display_name:
+          'You',
+        author_username:
+          null,
+        author_avatar_url:
+          null,
+        is_own:
+          true,
+        upvote_count:
+          0,
+        downvote_count:
+          0,
+        vote_score:
+          0,
+        viewer_vote:
+          0,
+      };
+
+    const previousBody =
+      commentBody;
+
+    const previousReplyTarget =
+      replyTarget;
+
+    setSheetComments(
+      (
+        current
+      ) => [
+        ...current,
+        optimisticComment,
+      ]
+    );
+
+    setFeedPosts(
+      (
+        current
+      ) =>
+        current.map(
+          (
+            item
+          ) =>
+            item.id ===
+            postId
+              ? {
+                  ...item,
+                  comment_count:
+                    (
+                      item.comment_count ??
+                      0
+                    ) +
+                    1,
+                }
+              : item
+        )
+    );
+
+    setCommentsPost(
+      (
+        current
+      ) =>
+        current?.id ===
+        postId
+          ? {
+              ...current,
+              comment_count:
+                (
+                  current.comment_count ??
+                  0
+                ) +
+                1,
+            }
+          : current
+    );
+
+    setCommentBody(
+      ''
+    );
+
+    setReplyTarget(
+      null
+    );
+
+    try {
+      setSubmittingComment(
+        true
+      );
+
+      await createPostComment(
+        postId,
+        cleaned,
+        parentId
+      );
+
+      const comments =
+        await getPostComments(
+          postId
+        );
+
+      setSheetComments(
+        comments
+      );
+
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              postId
+                ? {
+                    ...item,
+                    comment_count:
+                      comments.length,
+                  }
+                : item
+          )
+      );
+
+      setCommentsPost(
+        (
+          current
+        ) =>
+          current?.id ===
+          postId
+            ? {
+                ...current,
+                comment_count:
+                  comments.length,
+              }
+            : current
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not add comment:',
+        error
+      );
+
+      setSheetComments(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              comment
+            ) =>
+              comment.id !==
+              optimisticId
+          )
+      );
+
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              postId
+                ? {
+                    ...item,
+                    comment_count:
+                      Math.max(
+                        0,
+                        (
+                          item.comment_count ??
+                          1
+                        ) -
+                          1
+                      ),
+                  }
+                : item
+          )
+      );
+
+      setCommentsPost(
+        (
+          current
+        ) =>
+          current?.id ===
+          postId
+            ? {
+                ...current,
+                comment_count:
+                  Math.max(
+                    0,
+                    (
+                      current.comment_count ??
+                      1
+                    ) -
+                      1
+                  ),
+              }
+            : current
+      );
+
+      setCommentBody(
+        previousBody
+      );
+
+      setReplyTarget(
+        previousReplyTarget
+      );
+
+      Alert.alert(
+        'Could not comment',
+        error instanceof Error
+          ? error.message
+          : 'Please try again.'
+      );
+    } finally {
+      setSubmittingComment(
+        false
+      );
+    }
+  }
+
+  function confirmDeleteComment(
+    comment:
+      PostComment
+  ) {
+    Alert.alert(
+      'Delete comment?',
+      'This comment and any replies underneath it will be removed.',
+      [
+        {
+          text:
+            'Cancel',
+          style:
+            'cancel',
+        },
+        {
+          text:
+            'Delete',
+          style:
+            'destructive',
+          onPress: () =>
+            void removeSheetComment(
+              comment.id
+            ),
+        },
+      ]
+    );
+  }
+
+  async function removeSheetComment(
+    commentId: string
+  ) {
+    if (
+      !commentsPost ||
+      deletingCommentId
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingCommentId(
+        commentId
+      );
+
+      await deletePostComment(
+        commentId
+      );
+
+      if (
+        replyTarget?.id ===
+        commentId
+      ) {
+        setReplyTarget(
+          null
+        );
+      }
+
+      await loadCommentsSheet(
+        commentsPost.id
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not delete comment:',
+        error
+      );
+
+      Alert.alert(
+        'Could not delete comment',
+        'Please try again.'
+      );
+    } finally {
+      setDeletingCommentId(
+        null
+      );
+    }
+  }
+
+  function sortSiblingComments(
+    comments:
+      PostComment[]
+  ) {
+    return [
+      ...comments,
+    ].sort(
+      (
+        first,
+        second
+      ) => {
+        const firstOptimistic =
+          first.id.startsWith(
+            'optimistic-'
+          );
+
+        const secondOptimistic =
+          second.id.startsWith(
+            'optimistic-'
+          );
+
+        if (
+          firstOptimistic !==
+          secondOptimistic
+        ) {
+          return firstOptimistic
+            ? -1
+            : 1;
+        }
+
+        if (
+          commentSort ===
+          'newest'
+        ) {
+          return (
+            new Date(
+              second.created_at
+            ).getTime() -
+            new Date(
+              first.created_at
+            ).getTime()
+          );
+        }
+
+        const scoreDifference =
+          (
+            second.vote_score ??
+            0
+          ) -
+          (
+            first.vote_score ??
+            0
+          );
+
+        if (
+          scoreDifference !==
+          0
+        ) {
+          return scoreDifference;
+        }
+
+        return (
+          new Date(
+            second.created_at
+          ).getTime() -
+          new Date(
+            first.created_at
+          ).getTime()
+        );
+      }
+    );
+  }
+
+  async function handleCommentVote(
+    comment:
+      PostComment,
+    voteValue:
+      CommentVoteValue
+  ) {
+    if (
+      comment.id.startsWith(
+        'optimistic-'
+      ) ||
+      votingCommentIds[
+        comment.id
+      ]
+    ) {
+      return;
+    }
+
+    const previous =
+      comment;
+
+    const previousVote =
+      comment.viewer_vote ??
+      0;
+
+    const nextVote =
+      previousVote ===
+      voteValue
+        ? 0
+        : voteValue;
+
+    const scoreDelta =
+      nextVote -
+      previousVote;
+
+    const optimistic:
+      PostComment = {
+        ...comment,
+        viewer_vote:
+          nextVote,
+        vote_score:
+          (
+            comment.vote_score ??
+            0
+          ) +
+          scoreDelta,
+        upvote_count:
+          (
+            comment.upvote_count ??
+            0
+          ) +
+          (
+            previousVote ===
+              1
+              ? -1
+              : 0
+          ) +
+          (
+            nextVote ===
+              1
+              ? 1
+              : 0
+          ),
+        downvote_count:
+          (
+            comment.downvote_count ??
+            0
+          ) +
+          (
+            previousVote ===
+              -1
+              ? -1
+              : 0
+          ) +
+          (
+            nextVote ===
+              -1
+              ? 1
+              : 0
+          ),
+      };
+
+    setSheetComments(
+      (
+        current
+      ) =>
+        current.map(
+          (
+            item
+          ) =>
+            item.id ===
+            comment.id
+              ? optimistic
+              : item
+        )
+    );
+
+    setVotingCommentIds(
+      (
+        current
+      ) => ({
+        ...current,
+        [comment.id]:
+          true,
+      })
+    );
+
+    try {
+      const result =
+        await toggleCommentVote(
+          comment.id,
+          voteValue
+        );
+
+      setSheetComments(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              comment.id
+                ? {
+                    ...item,
+                    ...result,
+                  }
+                : item
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update comment vote:',
+        error
+      );
+
+      setSheetComments(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              comment.id
+                ? previous
+                : item
+          )
+      );
+    } finally {
+      setVotingCommentIds(
+        (
+          current
+        ) => {
+          const next = {
+            ...current,
+          };
+
+          delete next[
+            comment.id
+          ];
+
+          return next;
+        }
+      );
+    }
+  }
+
+  function renderSheetComment(
+    comment:
+      PostComment,
+    depth = 0
+  ) {
+    const displayName =
+      comment.author_display_name
+        ?.trim() ||
+      comment.author_username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      comment.author_username
+        ?.trim()
+        ? `@${comment.author_username.trim()}`
+        : '';
+
+    const initial =
+      displayName
+        .charAt(0)
+        .toUpperCase();
+
+    const children =
+      sortSiblingComments(
+        sheetComments.filter(
+          (
+            item
+          ) =>
+            item.parent_comment_id ===
+            comment.id
+        )
+      );
+
+    const expanded =
+      Boolean(
+        expandedReplyThreads[
+          comment.id
+        ]
+      );
+
+    const visibleChildren =
+      expanded
+        ? children
+        : children.slice(
+            0,
+            2
+          );
+
+    const hiddenCount =
+      Math.max(
+        0,
+        children.length -
+          visibleChildren.length
+      );
+
+    const visualDepth =
+      Math.min(
+        depth,
+        3
+      );
+
+    return (
+      <View
+        key={
+          comment.id
+        }
+        style={[
+          styles.sheetCommentThread,
+          {
+            marginLeft:
+              visualDepth *
+              16,
+          },
+        ]}
+      >
+        <View
+          style={
+            styles.sheetComment
+          }
+        >
+          <Pressable
+            onPress={() => {
+              closeCommentsSheet();
+
+              openReader(
+                comment.author_id
+              );
+            }}
+            style={({ pressed }) => [
+              styles.sheetCommentAvatarButton,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            {comment.author_avatar_url ? (
+              <Image
+                source={{
+                  uri:
+                    comment.author_avatar_url,
+                }}
+                style={
+                  styles.sheetCommentAvatar
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.sheetCommentAvatarFallback
+                }
+              >
+                <Text
+                  style={
+                    styles.sheetCommentAvatarText
+                  }
+                >
+                  {initial}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+
+          <View
+            style={
+              styles.sheetCommentCopy
+            }
+          >
+            <View
+              style={
+                styles.sheetCommentIdentity
+              }
+            >
+              <Text
+                style={
+                  styles.sheetCommentName
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {displayName}
+              </Text>
+
+              {username ? (
+                <Text
+                  style={
+                    styles.sheetCommentUsername
+                  }
+                  numberOfLines={
+                    1
+                  }
+                >
+                  {username}
+                </Text>
+              ) : null}
+
+              <Text
+                style={
+                  styles.sheetCommentTime
+                }
+              >
+                ·{' '}
+                {formatFeedTime(
+                  comment.created_at
+                )}
+              </Text>
+            </View>
+
+            <Text
+              style={
+                styles.sheetCommentBody
+              }
+            >
+              {comment.body}
+            </Text>
+
+            <View
+              style={
+                styles.sheetCommentActions
+              }
+            >
+              <View
+                style={
+                  styles.commentVoteControl
+                }
+              >
+                <Pressable
+                  disabled={
+                    Boolean(
+                      votingCommentIds[
+                        comment.id
+                      ]
+                    )
+                  }
+                  onPress={() =>
+                    void handleCommentVote(
+                      comment,
+                      1
+                    )
+                  }
+                  hitSlop={
+                    8
+                  }
+                  style={({ pressed }) => [
+                    styles.commentVoteButton,
+                    comment.viewer_vote ===
+                      1 &&
+                      styles.commentVoteButtonActive,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      comment.viewer_vote ===
+                      1
+                        ? 'arrow-up-circle'
+                        : 'arrow-up-circle-outline'
+                    }
+                    size={
+                      16
+                    }
+                    color={
+                      comment.viewer_vote ===
+                      1
+                        ? COLORS.gold
+                        : COLORS.mutedText
+                    }
+                  />
+                </Pressable>
+
+                <Text
+                  style={[
+                    styles.commentVoteScore,
+                    comment.viewer_vote !==
+                      0 &&
+                      styles.commentVoteScoreActive,
+                  ]}
+                >
+                  {comment.vote_score ??
+                    0}
+                </Text>
+
+                <Pressable
+                  disabled={
+                    Boolean(
+                      votingCommentIds[
+                        comment.id
+                      ]
+                    )
+                  }
+                  onPress={() =>
+                    void handleCommentVote(
+                      comment,
+                      -1
+                    )
+                  }
+                  hitSlop={
+                    8
+                  }
+                  style={({ pressed }) => [
+                    styles.commentVoteButton,
+                    comment.viewer_vote ===
+                      -1 &&
+                      styles.commentVoteButtonActive,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      comment.viewer_vote ===
+                      -1
+                        ? 'arrow-down-circle'
+                        : 'arrow-down-circle-outline'
+                    }
+                    size={
+                      16
+                    }
+                    color={
+                      comment.viewer_vote ===
+                      -1
+                        ? COLORS.gold
+                        : COLORS.mutedText
+                    }
+                  />
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  startReply(
+                    comment
+                  )
+                }
+                hitSlop={
+                  8
+                }
+                style={({ pressed }) => [
+                  styles.sheetReplyButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.sheetReplyText
+                  }
+                >
+                  Reply
+                </Text>
+              </Pressable>
+
+              {comment.is_own ? (
+                <Pressable
+                  disabled={
+                    deletingCommentId ===
+                    comment.id
+                  }
+                  onPress={() =>
+                    confirmDeleteComment(
+                      comment
+                    )
+                  }
+                  hitSlop={
+                    8
+                  }
+                  style={({ pressed }) => [
+                    styles.sheetDeleteButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  {deletingCommentId ===
+                  comment.id ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        COLORS.mutedText
+                      }
+                    />
+                  ) : (
+                    <Text
+                      style={
+                        styles.sheetDeleteText
+                      }
+                    >
+                      Delete
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        {visibleChildren.length >
+        0 ? (
+          <View
+            style={
+              styles.sheetReplies
+            }
+          >
+            {visibleChildren.map(
+              (
+                child
+              ) =>
+                renderSheetComment(
+                  child,
+                  depth + 1
+                )
+            )}
+          </View>
+        ) : null}
+
+        {hiddenCount >
+        0 ? (
+          <Pressable
+            onPress={() =>
+              toggleReplies(
+                comment.id
+              )
+            }
+            style={({ pressed }) => [
+              styles.viewMoreRepliesButton,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <View
+              style={
+                styles.replyGuide
+              }
+            />
+
+            <Text
+              style={
+                styles.viewMoreRepliesText
+              }
+            >
+              View {hiddenCount}{' '}
+              more{' '}
+              {hiddenCount ===
+              1
+                ? 'reply'
+                : 'replies'}
+            </Text>
+          </Pressable>
+        ) : expanded &&
+          children.length >
+            2 ? (
+          <Pressable
+            onPress={() =>
+              toggleReplies(
+                comment.id
+              )
+            }
+            style={({ pressed }) => [
+              styles.viewMoreRepliesButton,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <View
+              style={
+                styles.replyGuide
+              }
+            />
+
+            <Text
+              style={
+                styles.viewMoreRepliesText
+              }
+            >
+              Hide replies
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   }
 
   function renderClubCard(
@@ -654,6 +3111,85 @@ export default function HomeScreen() {
     );
   }
 
+  function formatCommentContextTime(
+    createdAt: string
+  ) {
+    const value =
+      formatFeedTime(
+        createdAt
+      );
+
+    if (
+      value === 'now'
+    ) {
+      return 'just now';
+    }
+
+    if (
+      /^\d+[mhd]$/.test(
+        value
+      )
+    ) {
+      return `${value} ago`;
+    }
+
+    return value;
+  }
+
+  async function handlePostVote(
+    postId: string,
+    voteValue:
+      PostVoteValue
+  ) {
+    if (
+      votingPostId ===
+      postId
+    ) {
+      return;
+    }
+
+    try {
+      setVotingPostId(
+        postId
+      );
+
+      const nextVote =
+        await togglePostVote(
+          postId,
+          voteValue
+        );
+
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              post
+            ) =>
+              post.id ===
+              postId
+                ? {
+                    ...post,
+                    ...nextVote,
+                  }
+                : post
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update post vote:',
+        error
+      );
+    } finally {
+      setVotingPostId(
+        null
+      );
+    }
+  }
+
   function renderFeedPost(
     post:
       FeedPost
@@ -683,13 +3219,20 @@ export default function HomeScreen() {
       'C';
 
     return (
-      <View
+      <Pressable
         key={
           post.id
         }
-        style={
-          styles.feedPostCard
+        onPress={() =>
+          openCommentsSheet(
+            post
+          )
         }
+        style={({ pressed }) => [
+          styles.feedPostCard,
+          pressed &&
+            styles.feedPostCardPressed,
+        ]}
       >
         <View
           style={
@@ -697,11 +3240,12 @@ export default function HomeScreen() {
           }
         >
           <Pressable
-            onPress={() =>
+            onPress={(event) => {
+              event.stopPropagation();
               openReader(
                 post.author_id
-              )
-            }
+              );
+            }}
             style={({ pressed }) => [
               pressed &&
                 styles.pressed,
@@ -745,12 +3289,14 @@ export default function HomeScreen() {
               }
             >
               <Pressable
-                onPress={() =>
+                onPress={(event) => {
+                  event.stopPropagation();
                   openReader(
                     post.author_id
-                  )
-                }
+                  );
+                }}
                 style={({ pressed }) => [
+                  styles.feedIdentity,
                   pressed &&
                     styles.pressed,
                 ]}
@@ -762,44 +3308,37 @@ export default function HomeScreen() {
                   numberOfLines={
                     1
                   }
+                  ellipsizeMode="tail"
                 >
                   {displayName}
                 </Text>
+
+                {username ? (
+                  <Text
+                    style={
+                      styles.feedUsername
+                    }
+                    numberOfLines={
+                      1
+                    }
+                    ellipsizeMode="tail"
+                  >
+                    {username}
+                  </Text>
+                ) : null}
               </Pressable>
 
-              {username ? (
-                <Text
-                  style={
-                    styles.feedUsername
-                  }
-                  numberOfLines={
-                    1
-                  }
-                >
-                  {username}
-                </Text>
-              ) : null}
-
-              <Text
-                style={
-                  styles.feedTime
-                }
-              >
-                ·{' '}
-                {formatFeedTime(
-                  post.created_at
-                )}
-              </Text>
             </View>
 
             {post.club_id &&
             post.club_name ? (
               <Pressable
-                onPress={() =>
+                onPress={(event) => {
+                  event.stopPropagation();
                   openClub(
                     post.club_id!
-                  )
-                }
+                  );
+                }}
                 style={({
                   pressed,
                 }) => [
@@ -847,7 +3386,17 @@ export default function HomeScreen() {
                   in{' '}
                   {
                     post.club_name
-                  }
+                  }{' '}
+                  <Text
+                    style={
+                      styles.feedTime
+                    }
+                  >
+                    ·{' '}
+                    {formatFeedTime(
+                      post.created_at
+                    )}
+                  </Text>
                 </Text>
               </Pressable>
             ) : (
@@ -856,7 +3405,17 @@ export default function HomeScreen() {
                   styles.feedAudienceText
                 }
               >
-                posted to their profile
+                posted to their profile{' '}
+                <Text
+                  style={
+                    styles.feedTime
+                  }
+                >
+                  ·{' '}
+                  {formatFeedTime(
+                    post.created_at
+                  )}
+                </Text>
               </Text>
             )}
           </View>
@@ -945,21 +3504,134 @@ export default function HomeScreen() {
         >
           <View
             style={
-              styles.feedPostType
+              styles.voteControl
             }
           >
-            <Ionicons
-              name={
-                post.post_type ===
-                'review'
-                  ? 'star-outline'
-                  : post.post_type ===
-                    'reading_update'
-                  ? 'book-outline'
-                  : 'chatbubble-ellipses-outline'
+            <Pressable
+              disabled={
+                votingPostId ===
+                post.id
               }
+              onPress={(event) => {
+                event.stopPropagation();
+                handlePostVote(
+                  post.id,
+                  1
+                );
+              }}
+              hitSlop={
+                8
+              }
+              style={({ pressed }) => [
+                styles.voteButton,
+                post.viewer_vote ===
+                  1 &&
+                  styles.voteButtonActive,
+                pressed &&
+                  styles.pressed,
+                votingPostId ===
+                  post.id &&
+                  styles.voteButtonDisabled,
+              ]}
+            >
+              <Ionicons
+                name={
+                  post.viewer_vote ===
+                  1
+                    ? 'arrow-up-circle'
+                    : 'arrow-up-circle-outline'
+                }
+                size={
+                  20
+                }
+                color={
+                  post.viewer_vote ===
+                  1
+                    ? COLORS.gold
+                    : COLORS.mutedText
+                }
+              />
+            </Pressable>
+
+            <Text
+              style={[
+                styles.voteScore,
+                post.viewer_vote !==
+                  0 &&
+                  styles.voteScoreActive,
+              ]}
+            >
+              {post.vote_score ??
+                0}
+            </Text>
+
+            <Pressable
+              disabled={
+                votingPostId ===
+                post.id
+              }
+              onPress={(event) => {
+                event.stopPropagation();
+                handlePostVote(
+                  post.id,
+                  -1
+                );
+              }}
+              hitSlop={
+                8
+              }
+              style={({ pressed }) => [
+                styles.voteButton,
+                post.viewer_vote ===
+                  -1 &&
+                  styles.voteButtonActive,
+                pressed &&
+                  styles.pressed,
+                votingPostId ===
+                  post.id &&
+                  styles.voteButtonDisabled,
+              ]}
+            >
+              <Ionicons
+                name={
+                  post.viewer_vote ===
+                  -1
+                    ? 'arrow-down-circle'
+                    : 'arrow-down-circle-outline'
+                }
+                size={
+                  20
+                }
+                color={
+                  post.viewer_vote ===
+                  -1
+                    ? COLORS.gold
+                    : COLORS.mutedText
+                }
+              />
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              openCommentsSheet(
+                post
+              );
+            }}
+            hitSlop={
+              8
+            }
+            style={({ pressed }) => [
+              styles.commentAction,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="chatbubble-outline"
               size={
-                14
+                15
               }
               color={
                 COLORS.mutedText
@@ -968,20 +3640,15 @@ export default function HomeScreen() {
 
             <Text
               style={
-                styles.feedPostTypeText
+                styles.commentActionText
               }
             >
-              {post.post_type ===
-              'review'
-                ? 'Review'
-                : post.post_type ===
-                  'reading_update'
-                ? 'Reading update'
-                : 'Post'}
+              {post.comment_count ??
+                0}
             </Text>
-          </View>
+          </Pressable>
         </View>
-      </View>
+      </Pressable>
     );
   }
 
@@ -1734,15 +4401,47 @@ export default function HomeScreen() {
     );
   }
 
+  const rootComments =
+    sortSiblingComments(
+      sheetComments.filter(
+        (
+          comment
+        ) =>
+          !comment.parent_comment_id
+      )
+    );
+
+  const canSubmitComment =
+    Boolean(
+      commentBody.trim()
+    ) &&
+    !submittingComment;
+
+  const composerDisplayName =
+    composerProfile
+      ?.display_name
+      ?.trim() ||
+    composerProfile
+      ?.username
+      ?.trim() ||
+    'You';
+
+  const composerAvatarInitial =
+    composerDisplayName
+      .charAt(0)
+      .toUpperCase() ||
+    'Y';
+
   return (
-    <SafeAreaView
-      style={
-        styles.safeArea
-      }
-      edges={[
-        'top',
-      ]}
-    >
+    <>
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+        edges={[
+          'top',
+        ]}
+      >
       <ScrollView
         style={
           styles.screen
@@ -1816,21 +4515,21 @@ export default function HomeScreen() {
             >
               <Ionicons
                 name={
-                  unreadCount >
+                  attentionCount >
                   0
                     ? 'notifications'
                     : 'notifications-outline'
                 }
                 size={24}
                 color={
-                  unreadCount >
+                  attentionCount >
                   0
                     ? COLORS.gold
                     : COLORS.text
                 }
               />
 
-              {unreadCount >
+              {attentionCount >
               0 ? (
                 <View
                   style={
@@ -1842,10 +4541,10 @@ export default function HomeScreen() {
                       styles.notificationBadgeText
                     }
                   >
-                    {unreadCount >
+                    {attentionCount >
                     99
                       ? '99+'
-                      : unreadCount}
+                      : attentionCount}
                   </Text>
                 </View>
               ) : null}
@@ -1914,7 +4613,516 @@ export default function HomeScreen() {
             : renderClubs()}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      <Modal
+        visible={
+          commentsModalVisible
+        }
+        transparent
+        animationType="none"
+        onShow={
+          animateCommentsSheetIn
+        }
+        onDismiss={
+          handleCommentsModalDismiss
+        }
+        onRequestClose={
+          closeCommentsSheet
+        }
+      >
+        <View
+          style={
+            styles.commentsModalRoot
+          }
+        >
+          <View
+            style={
+              styles.commentsBackdrop
+            }
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.commentsBackdropVisual,
+                {
+                  opacity:
+                    commentsBackdropOpacity,
+                },
+              ]}
+            >
+              <BlurView
+                intensity={
+                  24
+                }
+                tint="dark"
+                style={
+                  StyleSheet.absoluteFill
+                }
+              />
+
+              <View
+                style={
+                  styles.commentsBackdropDim
+                }
+              />
+            </Animated.View>
+
+            <Pressable
+              style={
+                styles.commentsBackdropTap
+              }
+              onPress={
+                handleCommentsBackdropPress
+              }
+            />
+
+            <Animated.View
+              pointerEvents="box-none"
+              style={[
+                styles.commentsEntranceLayer,
+                {
+                  transform: [
+                    {
+                      translateY:
+                        commentsEntranceTranslateY,
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Animated.View
+                style={[
+                  styles.commentsSheet,
+                  {
+                    height:
+                      commentsSheetHeight,
+                  },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    styles.commentsKeyboardLayer,
+                    {
+                      opacity:
+                        commentsContentOpacity,
+                    },
+                  ]}
+                >
+              <View
+                {...commentsSheetPanResponder.panHandlers}
+                style={
+                  styles.commentsDragRegion
+                }
+              >
+                <View
+                  style={
+                    styles.commentsSheetHandle
+                  }
+                />
+
+                <View
+                  style={
+                    styles.commentsSheetHeader
+                  }
+                >
+                  <Text
+                    style={
+                      styles.commentsSheetTitle
+                    }
+                  >
+                    Comments
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                onTouchStart={() => {
+                  if (
+                    commentsKeyboardVisible
+                  ) {
+                    Keyboard.dismiss();
+                  }
+                }}
+                style={
+                  styles.commentsMetaRow
+                }
+              >
+                  <Text
+                    style={
+                      styles.commentsIdentityText
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    On{' '}
+                    <Text
+                      style={
+                        styles.commentsIdentityName
+                      }
+                    >
+                      {commentsPost
+                        ?.author_username
+                        ?.trim()
+                        ? `@${commentsPost.author_username.trim()}`
+                        : commentsPost
+                            ?.author_display_name
+                            ?.trim() ||
+                          'Novori Reader'}
+                    </Text>
+                    {'’s post · '}
+                    {commentsPost
+                      ? formatCommentContextTime(
+                          commentsPost.created_at
+                        )
+                      : ''}
+                  </Text>
+
+                  <View
+                    style={
+                      styles.commentsSortWrap
+                    }
+                  >
+                    <Pressable
+                      onPress={() =>
+                        setCommentSort(
+                          (current) =>
+                            current ===
+                            'top'
+                              ? 'newest'
+                              : 'top'
+                        )
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        commentSort ===
+                        'top'
+                          ? 'Sort comments by newest'
+                          : 'Sort comments by top'
+                      }
+                      hitSlop={
+                        8
+                      }
+                      style={({ pressed }) => [
+                        styles.commentsSortTrigger,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="swap-vertical-outline"
+                        size={
+                          15
+                        }
+                        color={
+                          COLORS.mutedText
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.commentsSortTriggerText
+                        }
+                      >
+                        {commentSort ===
+                        'top'
+                          ? 'Top'
+                          : 'Newest'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+              <View
+                {...commentsSheetPanResponder.panHandlers}
+                style={[
+                  styles.commentsSideRail,
+                  styles.commentsSideRailLeft,
+                ]}
+              />
+
+              <View
+                {...commentsSheetPanResponder.panHandlers}
+                style={[
+                  styles.commentsSideRail,
+                  styles.commentsSideRailRight,
+                ]}
+              />
+
+              <View
+                onTouchStart={() => {
+                  if (
+                    commentsKeyboardVisible
+                  ) {
+                    Keyboard.dismiss();
+                  }
+                }}
+                style={[
+                  styles.commentsListWrap,
+                  {
+                    marginBottom:
+                      commentsKeyboardInset,
+                  },
+                ]}
+              >
+                {!commentsInitialLoadReady ||
+                !commentsSheetEntranceReady ? (
+                  <View
+                    style={
+                      styles.commentsLoading
+                    }
+                  />
+                ) : (
+                  <Animated.View
+                    style={[
+                      styles.commentsResultLayer,
+                      {
+                        opacity:
+                          commentsResultOpacity,
+                      },
+                    ]}
+                  >
+                    {rootComments.length >
+                    0 ? (
+                      <ScrollView
+                        style={
+                          styles.commentsList
+                        }
+                        contentContainerStyle={
+                          styles.commentsListContent
+                        }
+                        showsVerticalScrollIndicator={
+                          false
+                        }
+                        keyboardShouldPersistTaps="never"
+                        alwaysBounceVertical
+                      >
+                        {rootComments.map(
+                          (
+                            comment
+                          ) =>
+                            renderSheetComment(
+                              comment
+                            )
+                        )}
+                      </ScrollView>
+                    ) : (
+                      <Animated.View
+                        style={[
+                          styles.commentsEmpty,
+                          {
+                            opacity:
+                              commentsEmptyOpacity,
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="chatbubbles-outline"
+                          size={
+                            25
+                          }
+                          color={
+                            COLORS.mutedText
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.commentsEmptyTitle
+                          }
+                        >
+                          No comments yet
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.commentsEmptyText
+                          }
+                        >
+                          Start the conversation.
+                        </Text>
+                      </Animated.View>
+                    )}
+                  </Animated.View>
+                )}
+              </View>
+
+              <Animated.View
+                style={[
+                  styles.commentsComposerWrap,
+                  {
+                    paddingBottom:
+                      Math.max(
+                        insets.bottom +
+                          8,
+                        20
+                      ),
+                    transform: [
+                      {
+                        translateY:
+                          commentsKeyboardTranslateY,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {replyTarget ? (
+                  <View
+                    style={
+                      styles.replyingToRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.replyingToText
+                      }
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      Replying to{' '}
+                      {replyTarget.author_display_name
+                        ?.trim() ||
+                        replyTarget.author_username
+                          ?.trim() ||
+                        'reader'}
+                    </Text>
+
+                    <Pressable
+                      onPress={() =>
+                        setReplyTarget(
+                          null
+                        )
+                      }
+                      hitSlop={
+                        8
+                      }
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={
+                          18
+                        }
+                        color={
+                          COLORS.mutedText
+                        }
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                <View
+                  style={
+                    styles.commentsComposerRow
+                  }
+                >
+                  {composerProfile
+                    ?.avatar_url ? (
+                    <Image
+                      source={{
+                        uri:
+                          composerProfile.avatar_url,
+                      }}
+                      style={
+                        styles.commentsComposerAvatar
+                      }
+                    />
+                  ) : (
+                    <View
+                      style={
+                        styles.commentsComposerAvatarFallback
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.commentsComposerAvatarText
+                        }
+                      >
+                        {
+                          composerAvatarInitial
+                        }
+                      </Text>
+                    </View>
+                  )}
+
+                  <View
+                    style={
+                      styles.commentsComposer
+                    }
+                  >
+                    <TextInput
+                      ref={
+                        commentInputRef
+                      }
+                      value={
+                        commentBody
+                      }
+                      onChangeText={
+                        setCommentBody
+                      }
+                      placeholder={
+                        replyTarget
+                          ? 'Write a reply…'
+                          : 'Add a comment…'
+                      }
+                      placeholderTextColor={
+                        COLORS.mutedText
+                      }
+                      multiline
+                      maxLength={
+                        2000
+                      }
+                      style={
+                        styles.commentsInput
+                      }
+                    />
+
+                    <Pressable
+                      disabled={
+                        !canSubmitComment
+                      }
+                      onPress={() =>
+                        void submitSheetComment()
+                      }
+                      style={({ pressed }) => [
+                        styles.commentsSendButton,
+                        !canSubmitComment &&
+                          styles.commentsSendButtonDisabled,
+                        pressed &&
+                          canSubmitComment &&
+                          styles.pressed,
+                      ]}
+                    >
+                      {submittingComment ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={
+                            COLORS.background
+                          }
+                        />
+                      ) : (
+                        <Ionicons
+                          name="arrow-up"
+                          size={
+                            18
+                          }
+                          color={
+                            COLORS.background
+                          }
+                        />
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </Animated.View>
+                </Animated.View>
+              </Animated.View>
+            </Animated.View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -2302,6 +5510,9 @@ const styles =
       borderRadius: 18,
       padding: 15,
     },
+    feedPostCardPressed: {
+      opacity: 0.92,
+    },
     feedPostHeader: {
       flexDirection:
         'row',
@@ -2346,8 +5557,18 @@ const styles =
       alignItems:
         'center',
       flexWrap:
-        'wrap',
+        'nowrap',
       columnGap: 5,
+      minWidth: 0,
+    },
+    feedIdentity: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      columnGap: 5,
+      flexShrink: 1,
+      minWidth: 0,
     },
     feedAuthorName: {
       color:
@@ -2355,7 +5576,8 @@ const styles =
       fontFamily:
         'Inter_700Bold',
       fontSize: 13,
-      maxWidth: '55%',
+      flexShrink: 1,
+      minWidth: 0,
     },
     feedUsername: {
       color:
@@ -2363,14 +5585,15 @@ const styles =
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
-      maxWidth: '28%',
+      flexShrink: 1,
+      minWidth: 0,
     },
     feedTime: {
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 11,
+      fontSize: 10,
     },
     feedAudienceText: {
       color:
@@ -2484,25 +5707,64 @@ const styles =
       marginTop: 4,
     },
     feedPostFooter: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
       borderTopWidth: 1,
       borderTopColor:
         COLORS.border,
       marginTop: 13,
       paddingTop: 10,
     },
-    feedPostType: {
+    voteControl: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 0,
+    },
+    voteButton: {
+      width: 26,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    voteButtonActive: {
+      backgroundColor: COLORS.elevated,
+    },
+    voteButtonDisabled: {
+      opacity: 0.5,
+    },
+    voteScore: {
+      minWidth: 14,
+      textAlign: 'center',
+      color: COLORS.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+    voteScoreActive: {
+      color: COLORS.gold,
+    },
+    commentAction: {
+      minWidth: 34,
+      height: 32,
       flexDirection:
         'row',
       alignItems:
         'center',
+      justifyContent:
+        'flex-end',
       gap: 5,
+      paddingLeft: 6,
     },
-    feedPostTypeText: {
+    commentActionText: {
       color:
         COLORS.mutedText,
       fontFamily:
-        'Inter_500Medium',
-      fontSize: 10,
+        'Inter_600SemiBold',
+      fontSize: 11,
     },
     clubsLoading: {
       minHeight: 220,
@@ -2853,6 +6115,688 @@ const styles =
       textAlign:
         'center',
       marginTop: 4,
+    },
+    commentsModalRoot: {
+      flex:
+        1,
+    },
+    commentsBackdrop: {
+      flex:
+        1,
+      backgroundColor:
+        'transparent',
+      overflow:
+        'hidden',
+    },
+    commentsBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+    },
+    commentsBackdropDim: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0, 0, 0, 0.42)',
+    },
+    commentsBackdropTap: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'transparent',
+    },
+    commentsEntranceLayer: {
+      ...StyleSheet.absoluteFill,
+      justifyContent:
+        'flex-end',
+    },
+    commentsSheet: {
+      width:
+        '100%',
+    },
+    commentsKeyboardLayer: {
+      flex:
+        1,
+      backgroundColor:
+        COLORS.background,
+      borderTopLeftRadius:
+        26,
+      borderTopRightRadius:
+        26,
+      overflow:
+        'hidden',
+    },
+    commentsDragRegion: {
+      zIndex:
+        20,
+      minHeight:
+        66,
+      backgroundColor:
+        COLORS.background,
+      paddingBottom:
+        7,
+    },
+    commentsSheetHandle: {
+      alignSelf:
+        'center',
+      width:
+        38,
+      height:
+        4,
+      borderRadius:
+        2,
+      backgroundColor:
+        COLORS.border,
+      marginTop:
+        9,
+      marginBottom:
+        5,
+    },
+    commentsSheetHeader: {
+      minHeight:
+        38,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        18,
+    },
+    commentsSheetTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        20,
+      textAlign:
+        'center',
+    },
+    commentsMetaRow: {
+      minHeight:
+        42,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        18,
+      gap:
+        12,
+    },
+    commentsIdentityText: {
+      flex:
+        1,
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        18,
+    },
+    commentsIdentityName: {
+      color:
+        COLORS.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        13,
+    },
+    commentsSortWrap: {
+      position:
+        'relative',
+      zIndex:
+        40,
+    },
+    commentsSortTrigger: {
+      minHeight:
+        32,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
+      paddingLeft:
+        8,
+      paddingRight:
+        5,
+    },
+    commentsSortTriggerText: {
+      color:
+        COLORS.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11.5,
+    },
+    commentsSortMenu: {
+      position:
+        'absolute',
+      top:
+        34,
+      right:
+        0,
+      width:
+        202,
+      borderRadius:
+        14,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      backgroundColor:
+        COLORS.elevated,
+      shadowColor:
+        '#000000',
+      shadowOpacity:
+        0.18,
+      shadowRadius:
+        14,
+      shadowOffset: {
+        width:
+          0,
+        height:
+          6,
+      },
+      elevation:
+        8,
+      overflow:
+        'hidden',
+    },
+    commentsSortMenuItem: {
+      minHeight:
+        58,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        12,
+      paddingVertical:
+        9,
+    },
+    commentsSortMenuItemPressed: {
+      opacity:
+        0.72,
+    },
+    commentsSortMenuCheck: {
+      width:
+        23,
+      alignItems:
+        'flex-start',
+    },
+    commentsSortMenuCopy: {
+      flex:
+        1,
+    },
+    commentsSortMenuTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12,
+    },
+    commentsSortMenuSubtitle: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        9.5,
+      marginTop:
+        2,
+    },
+    commentsSortMenuDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      marginLeft:
+        35,
+      backgroundColor:
+        COLORS.border,
+    },
+    commentsSideRail: {
+      position:
+        'absolute',
+      top:
+        78,
+      bottom:
+        92,
+      width:
+        38,
+      zIndex:
+        60,
+      backgroundColor:
+        'transparent',
+    },
+    commentsSideRailLeft: {
+      left:
+        0,
+    },
+    commentsSideRailRight: {
+      right:
+        0,
+    },
+    commentsListWrap: {
+      flex:
+        1,
+      minHeight:
+        0,
+    },
+    commentsResultLayer: {
+      flex:
+        1,
+      minHeight:
+        0,
+    },
+    commentsList: {
+      flex:
+        1,
+    },
+    commentsListContent: {
+      paddingHorizontal:
+        38,
+      paddingTop:
+        14,
+      paddingBottom:
+        18,
+      gap:
+        13,
+    },
+    commentsLoading: {
+      flex:
+        1,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    commentsEmpty: {
+      flex:
+        1,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        28,
+    },
+    commentsEmptyTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        13,
+      marginTop:
+        8,
+    },
+    commentsEmptyText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11,
+      marginTop:
+        3,
+    },
+    sheetCommentThread: {
+      gap:
+        7,
+    },
+    sheetComment: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+    },
+    sheetCommentAvatarButton: {
+      marginRight:
+        9,
+    },
+    sheetCommentAvatar: {
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        17,
+      backgroundColor:
+        COLORS.elevated,
+    },
+    sheetCommentAvatarFallback: {
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        17,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    sheetCommentAvatarText: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        13,
+    },
+    sheetCommentCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
+    },
+    sheetCommentIdentity: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
+      minWidth:
+        0,
+    },
+    sheetCommentName: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        11,
+      flexShrink:
+        1,
+    },
+    sheetCommentUsername: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10,
+      flexShrink:
+        1,
+    },
+    sheetCommentTime: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        9,
+      flexShrink:
+        0,
+    },
+    sheetCommentBody: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12,
+      lineHeight:
+        18,
+      marginTop:
+        3,
+    },
+    sheetCommentActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        14,
+      marginTop:
+        5,
+    },
+    commentVoteControl: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        0,
+    },
+    commentVoteButton: {
+      width:
+        22,
+      height:
+        24,
+      borderRadius:
+        12,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    commentVoteButtonActive: {
+      backgroundColor:
+        COLORS.elevated,
+    },
+    commentVoteScore: {
+      minWidth:
+        14,
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
+      textAlign:
+        'center',
+    },
+    commentVoteScoreActive: {
+      color:
+        COLORS.gold,
+    },
+    sheetReplyButton: {
+      minHeight:
+        22,
+      justifyContent:
+        'center',
+    },
+    sheetReplyText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
+    },
+    sheetDeleteButton: {
+      minHeight:
+        22,
+      justifyContent:
+        'center',
+    },
+    sheetDeleteText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
+    },
+    sheetReplies: {
+      gap:
+        8,
+    },
+    viewMoreRepliesButton: {
+      minHeight:
+        25,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+      marginLeft:
+        43,
+    },
+    replyGuide: {
+      width:
+        20,
+      height:
+        1,
+      backgroundColor:
+        COLORS.border,
+    },
+    viewMoreRepliesText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
+    },
+    commentsComposerWrap: {
+      backgroundColor:
+        COLORS.background,
+      paddingHorizontal:
+        14,
+      paddingTop:
+        11,
+    },
+    commentsComposerRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-end',
+      gap:
+        10,
+    },
+    commentsComposerAvatar: {
+      width:
+        42,
+      height:
+        42,
+      borderRadius:
+        21,
+      backgroundColor:
+        COLORS.elevated,
+      marginBottom:
+        5,
+    },
+    commentsComposerAvatarFallback: {
+      width:
+        42,
+      height:
+        42,
+      borderRadius:
+        21,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginBottom:
+        5,
+    },
+    commentsComposerAvatarText: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        16,
+    },
+    replyingToRow: {
+      minHeight:
+        24,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      paddingHorizontal:
+        4,
+      paddingBottom:
+        5,
+    },
+    replyingToText: {
+      flex:
+        1,
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize:
+        9,
+      marginRight:
+        8,
+    },
+    commentsComposer: {
+      flex:
+        1,
+      minHeight:
+        52,
+      maxHeight:
+        122,
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-end',
+      backgroundColor:
+        COLORS.surface,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        20,
+      paddingLeft:
+        14,
+      paddingRight:
+        5,
+      paddingVertical:
+        5,
+    },
+    commentsInput: {
+      flex:
+        1,
+      minHeight:
+        40,
+      maxHeight:
+        108,
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        15,
+      lineHeight:
+        20,
+      paddingTop:
+        10,
+      paddingBottom:
+        9,
+      paddingRight:
+        8,
+    },
+    commentsSendButton: {
+      width:
+        40,
+      height:
+        40,
+      borderRadius:
+        20,
+      backgroundColor:
+        COLORS.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    commentsSendButtonDisabled: {
+      opacity:
+        0.35,
     },
     pressed: {
       opacity: 0.68,

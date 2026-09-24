@@ -2,36 +2,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import {
-    useEffect,
-    useState,
+  useEffect,
+  useState,
 } from 'react';
 
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import {
-    SafeAreaView,
+  SafeAreaView,
 } from 'react-native-safe-area-context';
 
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../constants/novori-theme';
 
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../context/theme-context';
 
 import {
-    supabase,
+  supabase,
 } from '../lib/supabase';
 
 export default function ResetPasswordScreen() {
@@ -196,15 +196,17 @@ export default function ResetPasswordScreen() {
         throw error;
       }
 
+      await supabase.auth.signOut();
+
       Alert.alert(
         'Password updated',
-        'Your Novori password has been changed successfully.',
+        'Your Novori password has been changed successfully. Sign in with your new password.',
         [
           {
             text: 'Continue',
             onPress: () =>
               router.replace(
-                '/(tabs)'
+                '/auth'
               ),
           },
         ]
@@ -297,14 +299,13 @@ export default function ResetPasswordScreen() {
             This password reset link
             may have expired or could
             not be verified. Request a
-            new link from Password &
-            Security.
+            new password reset link.
           </Text>
 
           <Pressable
             onPress={() =>
               router.replace(
-                '/password-security'
+                '/forgot-password'
               )
             }
             style={({ pressed }) => [
@@ -318,7 +319,7 @@ export default function ResetPasswordScreen() {
                 styles.returnButtonText
               }
             >
-              Password & Security
+              Request New Link
             </Text>
           </Pressable>
         </View>

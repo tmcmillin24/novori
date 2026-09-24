@@ -23,6 +23,22 @@ export type FeedPost = {
   club_name: string | null;
   club_cover_url: string | null;
   club_privacy: string | null;
+  upvote_count: number;
+  downvote_count: number;
+  vote_score: number;
+  viewer_vote: -1 | 0 | 1;
+  comment_count: number;
+};
+
+export type PostVoteValue =
+  | -1
+  | 1;
+
+export type PostVoteState = {
+  upvote_count: number;
+  downvote_count: number;
+  vote_score: number;
+  viewer_vote: -1 | 0 | 1;
 };
 
 async function getCurrentUserId() {
@@ -74,6 +90,41 @@ export async function getHomeFeed(
   ) as FeedPost[];
 }
 
+export async function getPostDetail(
+  postId: string
+): Promise<FeedPost> {
+  await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_post_detail',
+      {
+        target_post_id:
+          postId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    throw new Error(
+      'This post is unavailable.'
+    );
+  }
+
+  return row as FeedPost;
+}
+
 export async function getClubPosts(
   clubId: string,
   limit = 50
@@ -102,6 +153,73 @@ export async function getClubPosts(
     data ??
     []
   ) as FeedPost[];
+}
+
+export async function togglePostVote(
+  postId: string,
+  voteValue:
+    PostVoteValue
+): Promise<PostVoteState> {
+  await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'toggle_post_vote',
+      {
+        target_post_id:
+          postId,
+        vote_value:
+          voteValue,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    throw new Error(
+      'Could not update vote.'
+    );
+  }
+
+  const viewerVote =
+    Number(
+      row.viewer_vote ??
+      0
+    );
+
+  return {
+    upvote_count:
+      Number(
+        row.upvote_count ??
+        0
+      ),
+    downvote_count:
+      Number(
+        row.downvote_count ??
+        0
+      ),
+    vote_score:
+      Number(
+        row.vote_score ??
+        0
+      ),
+    viewer_vote:
+      viewerVote === 1
+        ? 1
+        : viewerVote === -1
+        ? -1
+        : 0,
+  };
 }
 
 export async function createPost(input: {
@@ -167,38 +285,54 @@ export async function createPost(input: {
   return data;
 }
 
+export type FollowActionResult =
+  | 'following'
+  | 'requested';
+
 export async function followReader(
   readerId: string
-) {
-  const userId =
-    await getCurrentUserId();
+): Promise<FollowActionResult> {
+  await getCurrentUserId();
 
-  if (
-    readerId ===
-    userId
-  ) {
-    throw new Error(
-      'You cannot follow yourself.'
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'request_follow_reader',
+      {
+        target_user_id:
+          readerId,
+      }
     );
+
+  if (error) {
+    throw error;
   }
+
+  return data ===
+    'requested'
+    ? 'requested'
+    : 'following';
+}
+
+export async function cancelFollowRequest(
+  readerId: string
+) {
+  await getCurrentUserId();
 
   const {
     error,
   } =
-    await supabase
-      .from('follows')
-      .insert({
-        follower_id:
-          userId,
-        following_id:
+    await supabase.rpc(
+      'cancel_follow_request',
+      {
+        target_user_id:
           readerId,
-      });
+      }
+    );
 
-  if (
-    error &&
-    error.code !==
-      '23505'
-  ) {
+  if (error) {
     throw error;
   }
 }

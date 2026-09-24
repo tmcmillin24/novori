@@ -1,9 +1,15 @@
 import { supabase } from './supabase';
 
+let suppressAttentionCountWhileMarking = false;
+
 export type NotificationType =
   | 'follow'
+  | 'follow_request'
+  | 'follow_request_accepted'
   | 'post_like'
   | 'review_like'
+  | 'post_vote'
+  | 'comment_vote'
   | 'comment'
   | 'reply'
   | 'club_invite'
@@ -93,7 +99,104 @@ export async function getNotifications(
     throw error;
   }
 
-  return (data ?? []) as NovoriNotification[];
+  const notifications =
+    (data ?? []) as NovoriNotification[];
+
+  const actorIds =
+    Array.from(
+      new Set(
+        notifications
+          .map(
+            (item) =>
+              item.actor_id
+          )
+          .filter(
+            (
+              actorId
+            ): actorId is string =>
+              Boolean(
+                actorId
+              )
+          )
+      )
+    );
+
+  if (
+    actorIds.length ===
+    0
+  ) {
+    return notifications;
+  }
+
+  const {
+    data: profiles,
+    error: profilesError,
+  } = await supabase
+    .from('profiles')
+    .select(
+      'id, display_name, username, avatar_url'
+    )
+    .in(
+      'id',
+      actorIds
+    );
+
+  if (
+    profilesError
+  ) {
+    console.error(
+      'Could not hydrate notification actor profiles:',
+      profilesError.message
+    );
+
+    return notifications;
+  }
+
+  const profilesById =
+    new Map(
+      (
+        profiles ?? []
+      ).map(
+        (profile) => [
+          profile.id,
+          profile,
+        ]
+      )
+    );
+
+  return notifications.map(
+    (notification) => {
+      if (
+        !notification.actor_id
+      ) {
+        return notification;
+      }
+
+      const profile =
+        profilesById.get(
+          notification.actor_id
+        );
+
+      if (
+        !profile
+      ) {
+        return notification;
+      }
+
+      return {
+        ...notification,
+        actor_display_name:
+          profile.display_name ??
+          notification.actor_display_name,
+        actor_username:
+          profile.username ??
+          notification.actor_username,
+        actor_avatar_url:
+          profile.avatar_url ??
+          notification.actor_avatar_url,
+      };
+    }
+  );
 }
 
 export async function getUnreadNotificationCount() {
@@ -122,6 +225,18 @@ export async function getUnreadNotificationCount() {
   return count ?? 0;
 }
 
+
+export async function getNotificationAttentionCount() {
+  if (
+    suppressAttentionCountWhileMarking
+  ) {
+    return 0;
+  }
+
+  return getUnreadNotificationCount();
+}
+
+
 export async function markNotificationRead(
   notificationId: string
 ) {
@@ -148,15 +263,75 @@ export async function markAllNotificationsRead() {
   const userId =
     await getCurrentUserId();
 
-  const { error } =
+  suppressAttentionCountWhileMarking =
+    true;
+
+  try {
+    const { error } =
+      await supabase
+        .from('notifications')
+        .update({
+          read_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          'recipient_id',
+          userId
+        )
+        .is(
+          'read_at',
+          null
+        );
+
+    if (error) {
+      throw error;
+    }
+  } finally {
+    suppressAttentionCountWhileMarking =
+      false;
+  }
+}
+
+export async function clearNotification(
+  notificationId: string
+) {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    error,
+  } =
     await supabase
       .from('notifications')
-      .update({
-        read_at:
-          new Date().toISOString(),
-      })
-      .eq('recipient_id', userId)
-      .is('read_at', null);
+      .delete()
+      .eq(
+        'id',
+        notificationId
+      )
+      .eq(
+        'recipient_id',
+        userId
+      );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function clearAllNotifications() {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    error,
+  } =
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq(
+        'recipient_id',
+        userId
+      );
 
   if (error) {
     throw error;

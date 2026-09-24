@@ -36,6 +36,8 @@ import {
 import {
     FeedPost,
     getClubPosts,
+    PostVoteValue,
+    togglePostVote,
 } from '../../lib/feed';
 
 function roleLabel(role: ClubMember['role']) {
@@ -64,6 +66,13 @@ export default function ClubDetailScreen() {
     useState(true);
   const [membershipLoading, setMembershipLoading] =
     useState(false);
+  const [
+    votingPostId,
+    setVotingPostId,
+  ] =
+    useState<string | null>(
+      null
+    );
   const [error, setError] =
     useState('');
 
@@ -259,6 +268,65 @@ export default function ClubDetailScreen() {
     );
   }
 
+  async function handlePostVote(
+    postId: string,
+    voteValue:
+      PostVoteValue
+  ) {
+    if (
+      votingPostId ===
+      postId
+    ) {
+      return;
+    }
+
+    try {
+      setVotingPostId(
+        postId
+      );
+
+      const nextVote =
+        await togglePostVote(
+          postId,
+          voteValue
+        );
+
+      setClubPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              post
+            ) =>
+              post.id ===
+              postId
+                ? {
+                    ...post,
+                    ...nextVote,
+                  }
+                : post
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update post vote:',
+        error
+      );
+
+      Alert.alert(
+        'Could not vote',
+        'Please try again.'
+      );
+    } finally {
+      setVotingPostId(
+        null
+      );
+    }
+  }
+
   function renderClubPost(
     post: FeedPost
   ) {
@@ -383,6 +451,114 @@ export default function ClubDetailScreen() {
             </View>
           </View>
         ) : null}
+
+        <View
+          style={
+            styles.postVoteRow
+          }
+        >
+          <Pressable
+            disabled={
+              votingPostId ===
+              post.id
+            }
+            onPress={() =>
+              handlePostVote(
+                post.id,
+                1
+              )
+            }
+            hitSlop={
+              8
+            }
+            style={({ pressed }) => [
+              styles.postVoteButton,
+              post.viewer_vote ===
+                1 &&
+                styles.postVoteButtonActive,
+              pressed &&
+                styles.pressed,
+              votingPostId ===
+                post.id &&
+                styles.postVoteButtonDisabled,
+            ]}
+          >
+            <Ionicons
+              name={
+                post.viewer_vote ===
+                1
+                  ? 'arrow-up-circle'
+                  : 'arrow-up-circle-outline'
+              }
+              size={
+                20
+              }
+              color={
+                post.viewer_vote ===
+                1
+                  ? colors.gold
+                  : colors.mutedText
+              }
+            />
+          </Pressable>
+
+          <Text
+            style={[
+              styles.postVoteScore,
+              post.viewer_vote !==
+                0 &&
+                styles.postVoteScoreActive,
+            ]}
+          >
+            {post.vote_score ??
+              0}
+          </Text>
+
+          <Pressable
+            disabled={
+              votingPostId ===
+              post.id
+            }
+            onPress={() =>
+              handlePostVote(
+                post.id,
+                -1
+              )
+            }
+            hitSlop={
+              8
+            }
+            style={({ pressed }) => [
+              styles.postVoteButton,
+              post.viewer_vote ===
+                -1 &&
+                styles.postVoteButtonActive,
+              pressed &&
+                styles.pressed,
+              votingPostId ===
+                post.id &&
+                styles.postVoteButtonDisabled,
+            ]}
+          >
+            <Ionicons
+              name={
+                post.viewer_vote ===
+                -1
+                  ? 'arrow-down-circle'
+                  : 'arrow-down-circle-outline'
+              }
+              size={
+                20
+              }
+              color={
+                post.viewer_vote ===
+                -1
+                  ? colors.gold
+                  : colors.mutedText
+              }
+            />
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -1174,6 +1350,45 @@ function createStyles(colors: NovoriColors) {
       borderColor: colors.border,
       borderRadius: 17,
       overflow: 'hidden',
+    },
+    postVoteRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 3,
+      marginTop: 14,
+    },
+    postVoteButton: {
+      width: 32,
+      height: 32,
+      borderRadius:
+        16,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    postVoteButtonActive: {
+      backgroundColor:
+        colors.elevated,
+    },
+    postVoteButtonDisabled: {
+      opacity: 0.55,
+    },
+    postVoteScore: {
+      minWidth: 24,
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+      textAlign:
+        'center',
+    },
+    postVoteScoreActive: {
+      color:
+        colors.gold,
     },
     memberRow: {
       minHeight: 68,

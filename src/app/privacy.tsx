@@ -45,6 +45,12 @@ export default function PrivacyScreen() {
     );
 
   const [
+    isPrivate,
+    setIsPrivate,
+  ] =
+    useState(false);
+
+  const [
     showBooks,
     setShowBooks,
   ] =
@@ -67,6 +73,7 @@ export default function PrivacyScreen() {
     setSavingKey,
   ] =
     useState<
+      'private' |
       'books' |
       'reviews' |
       null
@@ -78,6 +85,10 @@ export default function PrivacyScreen() {
         try {
           const preferences =
             await getProfilePrivacy();
+
+          setIsPrivate(
+            preferences.is_private
+          );
 
           setShowBooks(
             preferences.show_books
@@ -120,10 +131,17 @@ export default function PrivacyScreen() {
 
   async function update(
     key:
+      | 'private'
       | 'books'
       | 'reviews',
     value: boolean
   ) {
+    const nextPrivate =
+      key ===
+      'private'
+        ? value
+        : isPrivate;
+
     const nextBooks =
       key ===
       'books'
@@ -137,6 +155,13 @@ export default function PrivacyScreen() {
         : showReviews;
 
     if (
+      key ===
+      'private'
+    ) {
+      setIsPrivate(
+        value
+      );
+    } else if (
       key ===
       'books'
     ) {
@@ -155,6 +180,8 @@ export default function PrivacyScreen() {
       );
 
       await updateProfilePrivacy({
+        is_private:
+          nextPrivate,
         show_books:
           nextBooks,
         show_reviews:
@@ -169,6 +196,13 @@ export default function PrivacyScreen() {
       );
 
       if (
+        key ===
+        'private'
+      ) {
+        setIsPrivate(
+          !value
+        );
+      } else if (
         key ===
         'books'
       ) {
@@ -292,6 +326,83 @@ export default function PrivacyScreen() {
                 }
               >
                 <Ionicons
+                  name="lock-closed-outline"
+                  size={
+                    19
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.rowCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.rowTitle
+                  }
+                >
+                  Private Profile
+                </Text>
+
+                <Text
+                  style={
+                    styles.rowText
+                  }
+                >
+                  New readers must request to follow you. Approved followers can see your profile activity.
+                </Text>
+              </View>
+
+              <Switch
+                value={
+                  isPrivate
+                }
+                disabled={
+                  savingKey !==
+                  null
+                }
+                onValueChange={(
+                  value
+                ) =>
+                  update(
+                    'private',
+                    value
+                  )
+                }
+                trackColor={{
+                  false:
+                    colors.elevated,
+                  true:
+                    colors.gold,
+                }}
+                thumbColor={
+                  colors.text
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.divider
+              }
+            />
+
+            <View
+              style={
+                styles.row
+              }
+            >
+              <View
+                style={
+                  styles.iconWrap
+                }
+              >
+                <Ionicons
                   name="library-outline"
                   size={
                     19
@@ -312,7 +423,7 @@ export default function PrivacyScreen() {
                     styles.rowTitle
                   }
                 >
-                  Show Books
+                  Show Books Publicly
                 </Text>
 
                 <Text
@@ -320,7 +431,7 @@ export default function PrivacyScreen() {
                     styles.rowText
                   }
                 >
-                  Let other readers see your Reading, Read, and DNF books. Your TBR stays private.
+                  On a public profile, let anyone see Reading, Read, and DNF. On a private profile, approved followers can still see them. TBR stays private.
                 </Text>
               </View>
 
@@ -389,7 +500,7 @@ export default function PrivacyScreen() {
                     styles.rowTitle
                   }
                 >
-                  Show Reviews
+                  Show Reviews Publicly
                 </Text>
 
                 <Text
@@ -397,7 +508,7 @@ export default function PrivacyScreen() {
                     styles.rowText
                   }
                 >
-                  Let other readers see ratings and written reviews saved to your profile.
+                  On a public profile, let anyone see your ratings and reviews. Approved followers of a private profile can still see them.
                 </Text>
               </View>
 
@@ -450,7 +561,7 @@ export default function PrivacyScreen() {
                 styles.infoText
               }
             >
-              Both are on by default. Your private library table remains protected; Novori only exposes the profile content allowed by these settings.
+              Private Profile is off by default. Books and Reviews are public by default. Your underlying library table stays protected; private-profile access is enforced server-side.
             </Text>
           </View>
         </ScrollView>

@@ -26,6 +26,7 @@ import {
     useNovoriTheme,
 } from '../context/theme-context';
 import {
+    cancelFollowRequest,
     followReader,
     unfollowReader,
 } from '../lib/feed';
@@ -196,6 +197,12 @@ export default function ReaderConnectionsScreen() {
         reader.is_following
       ) {
         await unfollowReader(
+          reader.id
+        );
+      } else if (
+        reader.follow_request_pending
+      ) {
+        await cancelFollowRequest(
           reader.id
         );
       } else {
@@ -465,7 +472,8 @@ export default function ReaderConnectionsScreen() {
                           )
                         }
                         style={({ pressed }) => [
-                          reader.is_following
+                          reader.is_following ||
+                          reader.follow_request_pending
                             ? styles.followingButton
                             : styles.followButton,
                           pressed &&
@@ -477,7 +485,8 @@ export default function ReaderConnectionsScreen() {
                           <ActivityIndicator
                             size="small"
                             color={
-                              reader.is_following
+                              reader.is_following ||
+                              reader.follow_request_pending
                                 ? colors.text
                                 : colors.background
                             }
@@ -485,13 +494,18 @@ export default function ReaderConnectionsScreen() {
                         ) : (
                           <Text
                             style={
-                              reader.is_following
+                              reader.is_following ||
+                              reader.follow_request_pending
                                 ? styles.followingButtonText
                                 : styles.followButtonText
                             }
                           >
                             {reader.is_following
                               ? 'Following'
+                              : reader.follow_request_pending
+                              ? 'Requested'
+                              : reader.is_private
+                              ? 'Request'
                               : 'Follow'}
                           </Text>
                         )}

@@ -30,8 +30,11 @@ import {
     ClubWithMembership,
 } from '../../lib/clubs';
 import {
+    cancelFollowRequest,
     FeedPost,
     followReader,
+    PostVoteValue,
+    togglePostVote,
     unfollowReader,
 } from '../../lib/feed';
 import {
@@ -115,6 +118,14 @@ export default function ReaderProfileScreen() {
     useState<ClubWithMembership[]>(
       []
     );
+
+  const [
+    votingPostId,
+    setVotingPostId,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
     activeTab,
@@ -253,6 +264,12 @@ export default function ReaderProfileScreen() {
         await unfollowReader(
           profile.id
         );
+      } else if (
+        profile.follow_request_pending
+      ) {
+        await cancelFollowRequest(
+          profile.id
+        );
       } else {
         await followReader(
           profile.id
@@ -285,6 +302,17 @@ export default function ReaderProfileScreen() {
       | 'following'
   ) {
     if (!profile) {
+      return;
+    }
+
+    if (
+      profile.is_private &&
+      !profile.can_view_content
+    ) {
+      Alert.alert(
+        'Private profile',
+        'Follow this reader and wait for approval to see their connections.'
+      );
       return;
     }
 
@@ -394,6 +422,65 @@ export default function ReaderProfileScreen() {
           'numeric',
       }
     );
+  }
+
+  async function handlePostVote(
+    postId: string,
+    voteValue:
+      PostVoteValue
+  ) {
+    if (
+      votingPostId ===
+      postId
+    ) {
+      return;
+    }
+
+    try {
+      setVotingPostId(
+        postId
+      );
+
+      const nextVote =
+        await togglePostVote(
+          postId,
+          voteValue
+        );
+
+      setPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              post
+            ) =>
+              post.id ===
+              postId
+                ? {
+                    ...post,
+                    ...nextVote,
+                  }
+                : post
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update post vote:',
+        error
+      );
+
+      Alert.alert(
+        'Could not vote',
+        'Please try again.'
+      );
+    } finally {
+      setVotingPostId(
+        null
+      );
+    }
   }
 
   function renderPost(
@@ -532,6 +619,114 @@ export default function ReaderProfileScreen() {
             </View>
           </View>
         ) : null}
+
+        <View
+          style={
+            styles.postVoteRow
+          }
+        >
+          <Pressable
+            disabled={
+              votingPostId ===
+              post.id
+            }
+            onPress={() =>
+              handlePostVote(
+                post.id,
+                1
+              )
+            }
+            hitSlop={
+              8
+            }
+            style={({ pressed }) => [
+              styles.postVoteButton,
+              post.viewer_vote ===
+                1 &&
+                styles.postVoteButtonActive,
+              pressed &&
+                styles.pressed,
+              votingPostId ===
+                post.id &&
+                styles.postVoteButtonDisabled,
+            ]}
+          >
+            <Ionicons
+              name={
+                post.viewer_vote ===
+                1
+                  ? 'arrow-up-circle'
+                  : 'arrow-up-circle-outline'
+              }
+              size={
+                20
+              }
+              color={
+                post.viewer_vote ===
+                1
+                  ? colors.gold
+                  : colors.mutedText
+              }
+            />
+          </Pressable>
+
+          <Text
+            style={[
+              styles.postVoteScore,
+              post.viewer_vote !==
+                0 &&
+                styles.postVoteScoreActive,
+            ]}
+          >
+            {post.vote_score ??
+              0}
+          </Text>
+
+          <Pressable
+            disabled={
+              votingPostId ===
+              post.id
+            }
+            onPress={() =>
+              handlePostVote(
+                post.id,
+                -1
+              )
+            }
+            hitSlop={
+              8
+            }
+            style={({ pressed }) => [
+              styles.postVoteButton,
+              post.viewer_vote ===
+                -1 &&
+                styles.postVoteButtonActive,
+              pressed &&
+                styles.pressed,
+              votingPostId ===
+                post.id &&
+                styles.postVoteButtonDisabled,
+            ]}
+          >
+            <Ionicons
+              name={
+                post.viewer_vote ===
+                -1
+                  ? 'arrow-down-circle'
+                  : 'arrow-down-circle-outline'
+              }
+              size={
+                20
+              }
+              color={
+                post.viewer_vote ===
+                -1
+                  ? colors.gold
+                  : colors.mutedText
+              }
+            />
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -1121,6 +1316,32 @@ export default function ReaderProfileScreen() {
             </Text>
           ) : null}
 
+          {profile.is_private ? (
+            <View
+              style={
+                styles.privateBadge
+              }
+            >
+              <Ionicons
+                name="lock-closed"
+                size={
+                  11
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.privateBadgeText
+                }
+              >
+                Private
+              </Text>
+            </View>
+          ) : null}
+
           <Text
             style={
               styles.bio
@@ -1252,7 +1473,8 @@ export default function ReaderProfileScreen() {
               toggleFollow
             }
             style={({ pressed }) => [
-              profile.is_following
+              profile.is_following ||
+              profile.follow_request_pending
                 ? styles.followButtonSecondary
                 : styles.followButton,
               pressed &&
@@ -1264,7 +1486,8 @@ export default function ReaderProfileScreen() {
               <ActivityIndicator
                 size="small"
                 color={
-                  profile.is_following
+                  profile.is_following ||
+                  profile.follow_request_pending
                     ? colors.text
                     : colors.background
                 }
@@ -1275,13 +1498,18 @@ export default function ReaderProfileScreen() {
                   name={
                     profile.is_following
                       ? 'checkmark'
+                      : profile.follow_request_pending
+                      ? 'time-outline'
+                      : profile.is_private
+                      ? 'lock-closed-outline'
                       : 'person-add-outline'
                   }
                   size={
                     17
                   }
                   color={
-                    profile.is_following
+                    profile.is_following ||
+                    profile.follow_request_pending
                       ? colors.text
                       : colors.background
                   }
@@ -1289,13 +1517,18 @@ export default function ReaderProfileScreen() {
 
                 <Text
                   style={
-                    profile.is_following
+                    profile.is_following ||
+                    profile.follow_request_pending
                       ? styles.followButtonSecondaryText
                       : styles.followButtonText
                   }
                 >
                   {profile.is_following
                     ? 'Following'
+                    : profile.follow_request_pending
+                    ? 'Requested'
+                    : profile.is_private
+                    ? 'Request to Follow'
                     : 'Follow'}
                 </Text>
               </>
@@ -1303,6 +1536,58 @@ export default function ReaderProfileScreen() {
           </Pressable>
         )}
 
+        {profile.is_private &&
+        !profile.can_view_content &&
+        !profile.is_self ? (
+          <View
+            style={
+              styles.privateLockedCard
+            }
+          >
+            <View
+              style={
+                styles.privateLockedIcon
+              }
+            >
+              <Ionicons
+                name="lock-closed"
+                size={
+                  25
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.emptyTitle
+              }
+            >
+              This profile is private.
+            </Text>
+
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              Send a follow request to see this reader’s books, reviews, posts, clubs, and connections.
+            </Text>
+
+            {profile.follow_request_pending ? (
+              <Text
+                style={
+                  styles.requestPendingText
+                }
+              >
+                Follow request pending
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <>
         <View
           style={
             styles.tabRow
@@ -1375,8 +1660,7 @@ export default function ReaderProfileScreen() {
 
         {activeTab ===
         'books' ? (
-          !profile.show_books &&
-          !profile.is_self ? (
+          !profile.can_view_books ? (
             <View
               style={
                 styles.emptyCard
@@ -1454,8 +1738,7 @@ export default function ReaderProfileScreen() {
           )
         ) : activeTab ===
           'reviews' ? (
-          !profile.show_reviews &&
-          !profile.is_self ? (
+          !profile.can_view_reviews ? (
             <View
               style={
                 styles.emptyCard
@@ -1621,6 +1904,8 @@ export default function ReaderProfileScreen() {
             </Text>
           </View>
         )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1733,6 +2018,26 @@ function createStyles(
       fontSize: 13,
       marginTop: 4,
     },
+    privateBadge: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      backgroundColor:
+        colors.elevated,
+      borderRadius: 9,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      marginTop: 7,
+    },
+    privateBadgeText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 9,
+    },
     bio: {
       color:
         colors.secondaryText,
@@ -1826,6 +2131,45 @@ function createStyles(
         'Inter_700Bold',
       fontSize: 13,
     },
+    privateLockedCard: {
+      minHeight: 220,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 28,
+      paddingVertical: 30,
+      marginTop: 18,
+    },
+    privateLockedIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginBottom: 13,
+    },
+    requestPendingText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 10,
+      marginTop: 13,
+      textTransform:
+        'uppercase',
+      letterSpacing: 0.8,
+    },
     tabRow: {
       flexDirection:
         'row',
@@ -1871,6 +2215,45 @@ function createStyles(
       flexWrap:
         'wrap',
       gap: 12,
+    },
+    postVoteRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 3,
+      marginTop: 14,
+    },
+    postVoteButton: {
+      width: 32,
+      height: 32,
+      borderRadius:
+        16,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    postVoteButtonActive: {
+      backgroundColor:
+        colors.elevated,
+    },
+    postVoteButtonDisabled: {
+      opacity: 0.55,
+    },
+    postVoteScore: {
+      minWidth: 24,
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+      textAlign:
+        'center',
+    },
+    postVoteScoreActive: {
+      color:
+        colors.gold,
     },
     publicBookCard: {
       width: '31%',

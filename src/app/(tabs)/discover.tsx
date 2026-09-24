@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../constants/novori-theme';
 import {
+  cancelFollowRequest,
   followReader,
   unfollowReader,
 } from '../../lib/feed';
@@ -1198,26 +1199,34 @@ export default function DiscoverScreen() {
         await unfollowReader(
           reader.id
         );
+      } else if (
+        reader.follow_request_pending
+      ) {
+        await cancelFollowRequest(
+          reader.id
+        );
       } else {
         await followReader(
           reader.id
         );
       }
 
-      setReaderResults(
-        (current) =>
-          current.map(
-            (item) =>
-              item.id ===
-              reader.id
-                ? {
-                    ...item,
-                    is_following:
-                      !reader.is_following,
-                  }
-                : item
-          )
-      );
+      const searchTerm =
+        readerQuery
+          .trim();
+
+      if (
+        searchTerm.length >=
+        MIN_READER_SEARCH_LENGTH
+      ) {
+        const requestId =
+          ++latestReaderRequestRef.current;
+
+        await performReaderSearch(
+          searchTerm,
+          requestId
+        );
+      }
     } catch (
       followError
     ) {
@@ -1760,7 +1769,8 @@ export default function DiscoverScreen() {
               )
             }
             style={({ pressed }) => [
-              item.is_following
+              item.is_following ||
+              item.follow_request_pending
                 ? styles.readerFollowingButton
                 : styles.readerFollowButton,
               pressed &&
@@ -1772,7 +1782,8 @@ export default function DiscoverScreen() {
               <ActivityIndicator
                 size="small"
                 color={
-                  item.is_following
+                  item.is_following ||
+                  item.follow_request_pending
                     ? COLORS.text
                     : COLORS.background
                 }
@@ -1780,13 +1791,18 @@ export default function DiscoverScreen() {
             ) : (
               <Text
                 style={
-                  item.is_following
+                  item.is_following ||
+                  item.follow_request_pending
                     ? styles.readerFollowingButtonText
                     : styles.readerFollowButtonText
                 }
               >
                 {item.is_following
                   ? 'Following'
+                  : item.follow_request_pending
+                  ? 'Requested'
+                  : item.is_private
+                  ? 'Request'
                   : 'Follow'}
               </Text>
             )}

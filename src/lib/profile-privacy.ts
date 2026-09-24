@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 export type ProfilePrivacyPreferences = {
+  is_private: boolean;
   show_books: boolean;
   show_reviews: boolean;
 };
@@ -25,6 +26,9 @@ Promise<ProfilePrivacyPreferences> {
       : data;
 
   return {
+    is_private:
+      row?.is_private ??
+      false,
     show_books:
       row?.show_books ??
       true,
@@ -44,6 +48,8 @@ export async function updateProfilePrivacy(
     await supabase.rpc(
       'set_my_profile_privacy',
       {
+        is_private_value:
+          preferences.is_private,
         show_books_value:
           preferences.show_books,
         show_reviews_value:
