@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -15,6 +16,10 @@ import {
   NovoriColors,
 } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
+import {
+  getExplicitLanguagePreference,
+  setExplicitLanguagePreference,
+} from '../lib/content-filter';
 import { supabase } from '../lib/supabase';
 
 type SettingsRowProps = {
@@ -97,6 +102,98 @@ function SettingsRow({
   );
 }
 
+
+type ContentPreferenceRowProps = {
+  value: boolean;
+  disabled?: boolean;
+  onValueChange: (
+    value: boolean
+  ) => void;
+};
+
+function ContentPreferenceRow({
+  value,
+  disabled = false,
+  onValueChange,
+}: ContentPreferenceRowProps) {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
+  return (
+    <View
+      style={
+        styles.row
+      }
+    >
+      <View
+        style={
+          styles.iconWrap
+        }
+      >
+        <Ionicons
+          name="eye-outline"
+          size={
+            19
+          }
+          color={
+            colors.gold
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.rowText
+        }
+      >
+        <Text
+          style={
+            styles.rowTitle
+          }
+        >
+          Allow explicit language
+        </Text>
+
+        <Text
+          style={
+            styles.rowSubtitle
+          }
+        >
+          Show posts and comments that contain explicit language.
+        </Text>
+      </View>
+
+      <Switch
+        value={
+          value
+        }
+        disabled={
+          disabled
+        }
+        onValueChange={
+          onValueChange
+        }
+        trackColor={{
+          false:
+            colors.border,
+          true:
+            colors.gold,
+        }}
+        thumbColor={
+          colors.surface
+        }
+      />
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, theme } = useNovoriTheme();
@@ -104,17 +201,109 @@ export default function SettingsScreen() {
 
   const [email, setEmail] = useState('');
 
-  useEffect(() => {
-    async function loadEmail() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const [
+    allowExplicitLanguage,
+    setAllowExplicitLanguage,
+  ] =
+    useState(false);
 
-      setEmail(user?.email ?? '');
+  const [
+    explicitPreferenceLoading,
+    setExplicitPreferenceLoading,
+  ] =
+    useState(true);
+
+  const [
+    explicitPreferenceSaving,
+    setExplicitPreferenceSaving,
+  ] =
+    useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const {
+          data: {
+            user,
+          },
+        } =
+          await supabase.auth.getUser();
+
+        setEmail(
+          user?.email ??
+            ''
+        );
+
+        if (user) {
+          setAllowExplicitLanguage(
+            await getExplicitLanguagePreference()
+          );
+        }
+      } catch (
+        error
+      ) {
+        console.error(
+          'Could not load explicit-language preference:',
+          error
+        );
+      } finally {
+        setExplicitPreferenceLoading(
+          false
+        );
+      }
     }
 
-    loadEmail();
+    void loadSettings();
   }, []);
+
+  async function toggleExplicitLanguage(
+    enabled: boolean
+  ) {
+    if (
+      explicitPreferenceSaving
+    ) {
+      return;
+    }
+
+    const previous =
+      allowExplicitLanguage;
+
+    setAllowExplicitLanguage(
+      enabled
+    );
+
+    try {
+      setExplicitPreferenceSaving(
+        true
+      );
+
+      setAllowExplicitLanguage(
+        await setExplicitLanguagePreference(
+          enabled
+        )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update explicit-language preference:',
+        error
+      );
+
+      setAllowExplicitLanguage(
+        previous
+      );
+
+      Alert.alert(
+        'Could not save',
+        'Your explicit-language preference was not changed. Please try again.'
+      );
+    } finally {
+      setExplicitPreferenceSaving(
+        false
+      );
+    }
+  }
 
   function placeholder(
     title: string,
@@ -272,6 +461,23 @@ export default function SettingsScreen() {
 
           <View style={styles.rowDivider} />
 
+          <ContentPreferenceRow
+            value={
+              allowExplicitLanguage
+            }
+            disabled={
+              explicitPreferenceLoading ||
+              explicitPreferenceSaving
+            }
+            onValueChange={(value) =>
+              void toggleExplicitLanguage(
+                value
+              )
+            }
+          />
+
+          <View style={styles.rowDivider} />
+
           <SettingsRow
             icon={
               theme === 'dark'
@@ -316,6 +522,23 @@ export default function SettingsScreen() {
               placeholder(
                 'About Novori',
                 'Read. Discuss. Belong.'
+              )
+            }
+          />
+        </View>
+
+        <Text style={styles.sectionLabel}>
+          PRIVACY & SAFETY
+        </Text>
+
+        <View style={styles.card}>
+          <SettingsRow
+            icon="ban-outline"
+            title="Blocked Readers"
+            subtitle="View and manage readers you’ve blocked"
+            onPress={() =>
+              router.push(
+                '/blocked-readers'
               )
             }
           />

@@ -1,5 +1,5 @@
 import {
-    ClubGenreKey,
+  ClubGenreKey,
 } from '../constants/club-genres';
 import { supabase } from './supabase';
 
@@ -45,6 +45,51 @@ export type ClubMember = {
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+};
+
+export type ClubInviteStatus =
+  | 'pending'
+  | 'accepted'
+  | 'declined'
+  | 'cancelled';
+
+export type ClubInviteCandidate = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_member: boolean;
+  invite_pending: boolean;
+};
+
+export type ClubInvitation = {
+  id: string;
+  club_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: ClubInviteStatus;
+  created_at: string;
+  inviter_username?: string | null;
+  inviter_display_name?: string | null;
+  inviter_avatar_url?: string | null;
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+};
+
+export type ClubJoinRequest = {
+  id: string;
+  club_id: string;
+  requester_id: string;
+  status:
+    | 'pending'
+    | 'approved'
+    | 'declined'
+    | 'cancelled';
+  created_at: string;
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
 };
 
 export type ClubCoverUpload = {
@@ -515,10 +560,6 @@ export async function searchClubs(
     await supabase
       .from('clubs')
       .select('*')
-      .eq(
-        'privacy',
-        'public'
-      )
       .ilike(
         'name',
         `%${normalized}%`
@@ -702,29 +743,16 @@ export async function joinClub(
 export async function leaveClub(
   clubId: string
 ) {
-  const userId =
-    await getCurrentUserId();
-
   const {
     error,
   } =
-    await supabase
-      .from(
-        'club_members'
-      )
-      .delete()
-      .eq(
-        'club_id',
-        clubId
-      )
-      .eq(
-        'user_id',
-        userId
-      )
-      .eq(
-        'role',
-        'member'
-      );
+    await supabase.rpc(
+      'leave_club',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
 
   if (error) {
     throw error;
@@ -847,4 +875,509 @@ export async function getClubMembers(
       };
     }
   );
+}
+export async function searchClubInviteCandidates(
+  clubId: string,
+  query: string,
+  limit = 30
+): Promise<ClubInviteCandidate[]> {
+  const normalized =
+    query.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'search_club_invite_candidates',
+      {
+        target_club_id:
+          clubId,
+        search_term:
+          normalized,
+        result_limit:
+          limit,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    data ??
+    []
+  ).map(
+    (
+      row: any
+    ) => ({
+      id:
+        row.id,
+      username:
+        row.username ??
+        null,
+      display_name:
+        row.display_name ??
+        null,
+      avatar_url:
+        row.avatar_url ??
+        null,
+      is_member:
+        Boolean(
+          row.is_member
+        ),
+      invite_pending:
+        Boolean(
+          row.invite_pending
+        ),
+    })
+  ) as ClubInviteCandidate[];
+}
+
+export async function inviteReaderToClub(
+  clubId: string,
+  readerId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'create_club_invite',
+      {
+        target_club_id:
+          clubId,
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not create this invitation.'
+    );
+  }
+
+  return data;
+}
+
+export async function getPendingClubInvite(
+  clubId: string
+): Promise<ClubInvitation | null> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_pending_club_invite',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    status:
+      row.status as
+        ClubInviteStatus,
+  } as ClubInvitation;
+}
+
+export async function getPendingClubInvitesForManager(
+  clubId: string
+): Promise<ClubInvitation[]> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_pending_club_invites_for_manager',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    data ??
+    []
+  ).map(
+    (
+      row: any
+    ) => ({
+      ...row,
+      status:
+        row.status as
+          ClubInviteStatus,
+    })
+  ) as ClubInvitation[];
+}
+
+export async function acceptClubInvite(
+  invitationId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'accept_club_invite',
+      {
+        target_invitation_id:
+          invitationId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not accept this invitation.'
+    );
+  }
+
+  return data;
+}
+
+export async function declineClubInvite(
+  invitationId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'decline_club_invite',
+      {
+        target_invitation_id:
+          invitationId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not decline this invitation.'
+    );
+  }
+
+  return data;
+}
+
+export async function cancelClubInvite(
+  invitationId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'cancel_club_invite',
+      {
+        target_invitation_id:
+          invitationId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not cancel this invitation.'
+    );
+  }
+
+  return data;
+}
+
+export async function requestPrivateClubAccess(
+  clubId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'request_private_club_access',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not send this access request.'
+    );
+  }
+
+  return data;
+}
+
+export async function getPendingPrivateClubRequest(
+  clubId: string
+): Promise<ClubJoinRequest | null> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_pending_private_club_request',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    return null;
+  }
+
+  return row as
+    ClubJoinRequest;
+}
+
+export async function cancelPrivateClubRequest(
+  requestId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'cancel_private_club_request',
+      {
+        target_request_id:
+          requestId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not cancel this access request.'
+    );
+  }
+
+  return data;
+}
+
+export async function getPendingClubJoinRequestsForManager(
+  clubId: string
+): Promise<ClubJoinRequest[]> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_pending_club_join_requests_for_manager',
+      {
+        target_club_id:
+          clubId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    data ??
+    []
+  ) as ClubJoinRequest[];
+}
+
+export async function approveClubJoinRequest(
+  requestId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'approve_club_join_request',
+      {
+        target_request_id:
+          requestId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not approve this request.'
+    );
+  }
+
+  return data;
+}
+
+export async function declineClubJoinRequest(
+  requestId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'decline_club_join_request',
+      {
+        target_request_id:
+          requestId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    typeof data !==
+    'string'
+  ) {
+    throw new Error(
+      'Novori could not decline this request.'
+    );
+  }
+
+  return data;
+}
+
+export async function promoteClubMember(
+  clubId: string,
+  readerId: string
+) {
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'promote_club_member',
+      {
+        target_club_id:
+          clubId,
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function demoteClubAdmin(
+  clubId: string,
+  readerId: string
+) {
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'demote_club_admin',
+      {
+        target_club_id:
+          clubId,
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function kickClubMember(
+  clubId: string,
+  readerId: string
+) {
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'kick_club_member',
+      {
+        target_club_id:
+          clubId,
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
 }

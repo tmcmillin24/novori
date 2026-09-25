@@ -34,6 +34,8 @@ export type PostComment = {
     | string
     | null;
   is_own: boolean;
+  is_blocked_author?:
+    boolean;
   upvote_count: number;
   downvote_count: number;
   vote_score: number;
@@ -121,6 +123,10 @@ function normalizeComment(
       normalizeVote(
         row.viewer_vote
       ),
+    is_blocked_author:
+      Boolean(
+        row.is_blocked_author
+      ),
   };
 }
 
@@ -207,6 +213,42 @@ export async function createPostComment(
   }
 
   return data as string;
+}
+
+export async function updatePostComment(
+  commentId: string,
+  body: string
+) {
+  await requireUser();
+
+  const cleaned =
+    body.trim();
+
+  if (
+    cleaned.length < 1 ||
+    cleaned.length > 2000
+  ) {
+    throw new Error(
+      'Comments must be between 1 and 2,000 characters.'
+    );
+  }
+
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'update_post_comment',
+      {
+        target_comment_id:
+          commentId,
+        comment_body:
+          cleaned,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function deletePostComment(

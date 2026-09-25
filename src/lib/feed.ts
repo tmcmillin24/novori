@@ -28,6 +28,8 @@ export type FeedPost = {
   vote_score: number;
   viewer_vote: -1 | 0 | 1;
   comment_count: number;
+  is_blocked_author?:
+    boolean;
 };
 
 export type PostVoteValue =

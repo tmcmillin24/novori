@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -543,6 +544,10 @@ function normalizeTitle(value?: string) {
 export default function DiscoverScreen() {
   const router = useRouter();
 
+  const preserveDiscoverStateOnNextBlur =
+    useRef(false);
+
+
   const [
     discoverMode,
     setDiscoverMode,
@@ -640,6 +645,94 @@ export default function DiscoverScreen() {
 
   const discoverRefreshInFlightRef =
     useRef(false);
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        return () => {
+          if (
+            preserveDiscoverStateOnNextBlur.current
+          ) {
+            preserveDiscoverStateOnNextBlur.current =
+              false;
+            return;
+          }
+
+          setDiscoverMode(
+            'books'
+          );
+
+          setQuery(
+            ''
+          );
+          setBooks(
+            []
+          );
+          setLoading(
+            false
+          );
+          setError(
+            ''
+          );
+
+          setReaderQuery(
+            ''
+          );
+          setReaderResults(
+            []
+          );
+          setReaderLoading(
+            false
+          );
+          setReaderError(
+            ''
+          );
+          setReaderFollowBusyId(
+            null
+          );
+
+          setActiveTrendingGenreKey(
+            'all'
+          );
+          setGenrePath(
+            []
+          );
+          setGenreMenuVisible(
+            false
+          );
+          setOpeningTrendingBookId(
+            null
+          );
+
+          latestRequestRef.current +=
+            1;
+          latestReaderRequestRef.current +=
+            1;
+
+          if (
+            debounceTimerRef.current
+          ) {
+            clearTimeout(
+              debounceTimerRef.current
+            );
+            debounceTimerRef.current =
+              null;
+          }
+
+          if (
+            readerDebounceTimerRef.current
+          ) {
+            clearTimeout(
+              readerDebounceTimerRef.current
+            );
+            readerDebounceTimerRef.current =
+              null;
+          }
+        };
+      },
+      []
+    )
+  );
 
   useEffect(() => {
     refreshDiscoverData(
@@ -1168,6 +1261,9 @@ export default function DiscoverScreen() {
   function openReader(
     readerId: string
   ) {
+    preserveDiscoverStateOnNextBlur.current =
+      true;
+
     router.push({
       pathname:
         '/reader/[id]',
@@ -1249,6 +1345,9 @@ export default function DiscoverScreen() {
   function openBook(
     bookId: string
   ) {
+    preserveDiscoverStateOnNextBlur.current =
+      true;
+
     router.push({
       pathname:
         '/book/[id]',

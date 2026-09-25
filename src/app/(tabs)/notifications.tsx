@@ -32,6 +32,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
 import {
+  containsExplicitLanguage,
+  getExplicitLanguagePreference,
+  isExplicitContentRevealed,
+} from '../../lib/content-filter';
+import {
   clearAllNotifications,
   clearNotification,
   getNotifications,
@@ -460,6 +465,11 @@ export default function NotificationsScreen() {
   const [userId, setUserId] =
     useState<string | null>(null);
   const [
+    allowExplicitLanguage,
+    setAllowExplicitLanguage,
+  ] =
+    useState(false);
+  const [
     followRequestCount,
     setFollowRequestCount,
   ] =
@@ -558,10 +568,12 @@ export default function NotificationsScreen() {
         const [
           notificationData,
           requestCount,
+          explicitLanguagePreference,
         ] =
           await Promise.all([
             getNotifications(),
             getPendingFollowRequestCount(),
+            getExplicitLanguagePreference(),
           ]);
 
         if (
@@ -613,6 +625,10 @@ export default function NotificationsScreen() {
 
         setFollowRequestCount(
           requestCount
+        );
+
+        setAllowExplicitLanguage(
+          explicitLanguagePreference
         );
 
         if (
@@ -1003,6 +1019,47 @@ export default function NotificationsScreen() {
           item.id
         ]
       );
+    const explicitCommentId =
+      typeof item.metadata?.comment_id ===
+      'string'
+        ? item.metadata.comment_id
+        : null;
+
+    const explicitPostId =
+      typeof item.metadata?.post_id ===
+      'string'
+        ? item.metadata.post_id
+        : item.entity_type ===
+            'post' &&
+          item.entity_id
+        ? item.entity_id
+        : null;
+
+    const explicitBodyWasRevealed =
+      explicitCommentId
+        ? isExplicitContentRevealed(
+            'comment',
+            explicitCommentId
+          )
+        : explicitPostId
+        ? isExplicitContentRevealed(
+            'post',
+            explicitPostId
+          )
+        : false;
+
+    const hideExplicitBody =
+      Boolean(
+        item.body
+      ) &&
+      item.actor_id !==
+        userId &&
+      !allowExplicitLanguage &&
+      !explicitBodyWasRevealed &&
+      containsExplicitLanguage(
+        item.body
+      );
+
     const avatarInitial =
       (
         item.actor_display_name ??
@@ -1138,16 +1195,30 @@ export default function NotificationsScreen() {
             </View>
 
             {item.body ? (
-              <Text
-                style={
-                  styles.notificationBody
-                }
-                numberOfLines={
-                  3
-                }
-              >
-                {item.body}
-              </Text>
+              hideExplicitBody ? (
+                <Text
+                  style={[
+                    styles.notificationBody,
+                    styles.notificationBodyHidden,
+                  ]}
+                  numberOfLines={
+                    2
+                  }
+                >
+                  Explicit language hidden · Tap to view
+                </Text>
+              ) : (
+                <Text
+                  style={
+                    styles.notificationBody
+                  }
+                  numberOfLines={
+                    3
+                  }
+                >
+                  {item.body}
+                </Text>
+              )
             ) : null}
           </View>
 
@@ -1622,6 +1693,10 @@ function createStyles(colors: NovoriColors) {
       fontSize: 13,
       lineHeight: 18,
       marginTop: 3,
+    },
+    notificationBodyHidden: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
     },
     time: {
       color: colors.mutedText,

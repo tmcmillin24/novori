@@ -181,7 +181,7 @@ export default function LibraryScreen() {
     >('actions');
 
   const insets = useSafeAreaInsets();
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(12)).current;
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetHeight = useRef(0);
@@ -191,19 +191,78 @@ export default function LibraryScreen() {
   const afterSheetDismiss = useRef<(() => void) | null>(null);
 
   function animateBookSheetIn() {
-    if (!sheetShown.current || !sheetHeight.current || sheetStarted.current || sheetClosing.current) return;
-    sheetStarted.current = true;
-    sheetTranslateY.setValue(sheetHeight.current + 24);
-    sheetOpacity.setValue(1);
+    if (
+      !sheetShown.current ||
+      !sheetHeight.current ||
+      sheetStarted.current ||
+      sheetClosing.current
+    ) {
+      return;
+    }
+
+    sheetStarted.current =
+      true;
+
+    sheetTranslateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    sheetTranslateY.setValue(
+      12
+    );
+    sheetOpacity.setValue(
+      0
+    );
+    backdropOpacity.setValue(
+      0
+    );
+
     Animated.parallel([
-      Animated.timing(sheetTranslateY, {
-        toValue: 0, duration: 320,
-        easing: Easing.bezier(0.22, 0.68, 0.30, 1), useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1, duration: 320,
-        easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
+      Animated.timing(
+        sheetTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            135,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        sheetOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        backdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            125,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
     ]).start();
   }
 
@@ -216,27 +275,125 @@ export default function LibraryScreen() {
     action?.();
   }
 
-  function dismissBookSheet(afterDismiss?: () => void) {
-    if (sheetClosing.current) return;
-    sheetClosing.current = true;
-    afterSheetDismiss.current = afterDismiss ?? null;
+  function dismissBookSheet(
+    afterDismiss?: () => void
+  ) {
+    if (
+      sheetClosing.current
+    ) {
+      return;
+    }
+
+    sheetClosing.current =
+      true;
+
+    afterSheetDismiss.current =
+      afterDismiss ??
+      null;
+
     sheetTranslateY.stopAnimation();
+    sheetOpacity.stopAnimation();
     backdropOpacity.stopAnimation();
+
     Animated.parallel([
-      Animated.timing(sheetTranslateY, {
-        toValue: sheetHeight.current + 24, duration: 245,
-        easing: Easing.bezier(0.32, 0, 0.67, 1), useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0, duration: 245,
-        easing: Easing.in(Easing.cubic), useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (!finished) return;
-      // Keep the sheet offscreen until the native modal finishes dismissing.
-      setSelectedBook(null);
-      if (Platform.OS !== 'ios') handleBookSheetDismiss();
+      Animated.timing(
+        sheetTranslateY,
+        {
+          toValue:
+            12,
+          duration:
+            115,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        sheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        backdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            120,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      if (
+        !finished
+      ) {
+        return;
+      }
+
+      sheetTranslateY.setValue(
+        12
+      );
+      sheetOpacity.setValue(
+        0
+      );
+
+      setSelectedBook(
+        null
+      );
+
+      if (
+        Platform.OS !==
+        'ios'
+      ) {
+        handleBookSheetDismiss();
+      }
     });
+  }
+
+  const libraryListRef =
+    useRef<FlatList<UserBook> | null>(
+      null
+    );
+
+  const libraryScrollOffsetRef =
+    useRef(0);
+
+  const restoreLibraryScrollRef =
+    useRef(false);
+
+  const hasLoadedLibraryRef =
+    useRef(false);
+
+  function restoreLibraryScrollPosition() {
+    requestAnimationFrame(
+      () => {
+        libraryListRef.current?.scrollToOffset({
+          offset:
+            libraryScrollOffsetRef.current,
+          animated: false,
+        });
+      }
+    );
   }
 
   const filterScrollRef =
@@ -264,15 +421,32 @@ export default function LibraryScreen() {
       let active = true;
 
       async function loadLibrary() {
+        const isFirstLoad =
+          !hasLoadedLibraryRef.current;
+
         try {
-          setLoading(true);
+          if (isFirstLoad) {
+            setLoading(true);
+          }
+
           setError('');
 
           const data =
             await getUserBooks();
 
           if (active) {
+            if (!isFirstLoad) {
+              restoreLibraryScrollRef.current =
+                true;
+            }
+
             setBooks(data);
+            hasLoadedLibraryRef.current =
+              true;
+
+            if (!isFirstLoad) {
+              restoreLibraryScrollPosition();
+            }
           }
         } catch (loadError) {
           console.error(
@@ -481,6 +655,10 @@ export default function LibraryScreen() {
     sheetShown.current = false;
     sheetStarted.current = false;
     sheetHeight.current = 0;
+    sheetTranslateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    backdropOpacity.stopAnimation();
+    sheetTranslateY.setValue(12);
     sheetOpacity.setValue(0);
     backdropOpacity.setValue(0);
     setSelectedBook(
@@ -509,6 +687,20 @@ export default function LibraryScreen() {
       selectedBook.google_book_id;
 
     dismissBookSheet(() => openBook(googleBookId));
+  }
+
+  function openSelectedReadingDetails() {
+    if (!selectedBook || selectedBook.status === 'want_to_read') {
+      return;
+    }
+
+    const googleBookId = selectedBook.google_book_id;
+    dismissBookSheet(() => {
+      router.push({
+        pathname: '/reading-details/[id]',
+        params: { id: googleBookId },
+      });
+    });
   }
 
   function removeSelectedBook() {
@@ -1145,6 +1337,9 @@ export default function LibraryScreen() {
         ]}
       >
         <FlatList
+          ref={
+            libraryListRef
+          }
           data={
             visibleBooks
           }
@@ -1206,6 +1401,23 @@ export default function LibraryScreen() {
           contentContainerStyle={
             styles.listContent
           }
+          onScroll={(event) => {
+            libraryScrollOffsetRef.current =
+              event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={
+            16
+          }
+          onContentSizeChange={() => {
+            if (
+              restoreLibraryScrollRef.current
+            ) {
+              restoreLibraryScrollRef.current =
+                false;
+
+              restoreLibraryScrollPosition();
+            }
+          }}
           showsVerticalScrollIndicator={
             false
           }
@@ -1420,6 +1632,66 @@ export default function LibraryScreen() {
                         }
                       />
                     </Pressable>
+
+                    {selectedBook.status !==
+                    'want_to_read' ? (
+                      <Pressable
+                        onPress={
+                          openSelectedReadingDetails
+                        }
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.sheetRow,
+                          pressed &&
+                            styles.sheetRowPressed,
+                        ]}
+                      >
+                        <View
+                          style={
+                            styles.sheetRowIcon
+                          }
+                        >
+                          <Ionicons
+                            name="journal-outline"
+                            size={20}
+                            color={
+                              colors.gold
+                            }
+                          />
+                        </View>
+
+                        <View
+                          style={
+                            styles.sheetRowText
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.sheetRowTitle
+                            }
+                          >
+                            View Reading Details
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.sheetRowSubtitle
+                            }
+                          >
+                            Progress, summary, notes, and checkpoints
+                          </Text>
+                        </View>
+
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={
+                            colors.mutedText
+                          }
+                        />
+                      </Pressable>
+                    ) : null}
 
                     <Pressable
                       onPress={() =>

@@ -1,8 +1,8 @@
 import {
-    ClubWithMembership,
+  ClubWithMembership,
 } from './clubs';
 import {
-    FeedPost,
+  FeedPost,
 } from './feed';
 import { supabase } from './supabase';
 
@@ -492,4 +492,101 @@ export async function searchReaders(
         ),
     })
   ) as ReaderConnection[];
+}
+
+
+export async function blockReader(
+  readerId: string
+) {
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'block_reader',
+      {
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function unblockReader(
+  readerId: string
+) {
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'unblock_reader',
+      {
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export type BlockedReader = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  blocked_at: string;
+};
+
+export async function getBlockedReaders(
+  limit = 200
+): Promise<BlockedReader[]> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_blocked_readers',
+      {
+        result_limit:
+          limit,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    data ??
+    []
+  ) as BlockedReader[];
+}
+
+
+export async function isReaderBlockedByViewer(
+  readerId: string
+): Promise<boolean> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'is_reader_blocked_by_viewer',
+      {
+        target_user_id:
+          readerId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(
+    data
+  );
 }

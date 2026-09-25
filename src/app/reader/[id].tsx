@@ -20,6 +20,7 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -29,6 +30,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
   NovoriColors,
 } from '../../constants/novori-theme';
@@ -37,6 +40,8 @@ import {
 } from '../../context/theme-context';
 import {
   ClubWithMembership,
+  getMyClubs,
+  inviteReaderToClub,
 } from '../../lib/clubs';
 import {
   cancelFollowRequest,
@@ -51,14 +56,17 @@ import {
   submitProfileReport,
 } from '../../lib/reports';
 import {
+  blockReader,
   getReaderProfile,
   getReaderProfilePosts,
   getReaderPublicBooks,
   getReaderPublicClubs,
   getReaderPublicReviews,
+  isReaderBlockedByViewer,
   PublicReaderBook,
   PublicReaderReview,
   ReaderSocialProfile,
+  unblockReader,
 } from '../../lib/social';
 
 type ReaderTab =
@@ -235,6 +243,68 @@ export default function ReaderProfileScreen() {
     );
 
   const [
+    isBlocked,
+    setIsBlocked,
+  ] =
+    useState(false);
+
+  const [
+    blockConfirmProfile,
+    setBlockConfirmProfile,
+  ] =
+    useState<ReaderSocialProfile | null>(
+      null
+    );
+
+  const [
+    unblockConfirmProfile,
+    setUnblockConfirmProfile,
+  ] =
+    useState<ReaderSocialProfile | null>(
+      null
+    );
+
+  const [
+    blockBusy,
+    setBlockBusy,
+  ] =
+    useState(false);
+
+  const blockSucceededRef =
+    useRef(false);
+
+  const unblockSucceededRef =
+    useRef(false);
+
+  const [
+    profileActionsOpen,
+    setProfileActionsOpen,
+  ] =
+    useState(false);
+
+  const [
+    managerClubs,
+    setManagerClubs,
+  ] =
+    useState<ClubWithMembership[]>(
+      []
+    );
+
+  const [
+    inviteClubPickerOpen,
+    setInviteClubPickerOpen,
+  ] =
+    useState(false);
+
+  const [
+    invitingClubId,
+    setInvitingClubId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
     reportSubmitting,
     setReportSubmitting,
   ] =
@@ -293,15 +363,78 @@ export default function ReaderProfileScreen() {
 
           const [
             profileData,
+            blockedByViewer,
+          ] =
+            await Promise.all([
+              getReaderProfile(
+                readerId
+              ),
+              isReaderBlockedByViewer(
+                readerId
+              ),
+            ]);
+
+          setProfile(
+            profileData
+          );
+
+          setIsBlocked(
+            blockedByViewer
+          );
+
+          try {
+            const myClubData =
+              await getMyClubs();
+
+            setManagerClubs(
+              myClubData.filter(
+                (
+                  club
+                ) =>
+                  club.membership_role ===
+                    'owner' ||
+                  club.membership_role ===
+                    'admin'
+              )
+            );
+          } catch (
+            clubLoadError
+          ) {
+            console.error(
+              'Could not load clubs managed by this reader:',
+              clubLoadError
+            );
+
+            setManagerClubs(
+              []
+            );
+          }
+
+          if (
+            blockedByViewer
+          ) {
+            setBooks(
+              []
+            );
+            setReviews(
+              []
+            );
+            setPosts(
+              []
+            );
+            setClubs(
+              []
+            );
+            return;
+          }
+
+          const [
             bookData,
             reviewData,
             postData,
             clubData,
           ] =
             await Promise.all([
-              getReaderProfile(
-                readerId
-              ),
               getReaderPublicBooks(
                 readerId
               ),
@@ -316,9 +449,6 @@ export default function ReaderProfileScreen() {
               ),
             ]);
 
-          setProfile(
-            profileData
-          );
           setBooks(
             bookData
           );
@@ -739,11 +869,217 @@ export default function ReaderProfileScreen() {
       ]
     );
 
-  async function toggleFollow() {
+  function openProfileActions() {
     if (
       !profile ||
       profile.is_self
     ) {
+      return;
+    }
+
+    setProfileActionsOpen(
+      true
+    );
+  }
+
+  async function shareProfile() {
+    if (
+      !profile
+    ) {
+      return;
+    }
+
+    const name =
+      profile.display_name
+        ?.trim() ||
+      profile.username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      profile.username
+        ?.trim()
+        ? `@${profile.username.trim()}`
+        : '';
+
+    setProfileActionsOpen(
+      false
+    );
+
+    try {
+      await Share.share({
+        message:
+          username
+            ? `Check out ${name} (${username}) on Novori.`
+            : `Check out ${name} on Novori.`,
+      });
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share profile:',
+        shareError
+      );
+    }
+  }
+
+  async function inviteProfileToClub(
+    targetClub:
+      ClubWithMembership
+  ) {
+    if (
+      !profile ||
+      invitingClubId
+    ) {
+      return;
+    }
+
+    try {
+      setInvitingClubId(
+        targetClub.id
+      );
+
+      await inviteReaderToClub(
+        targetClub.id,
+        profile.id
+      );
+
+      setInviteClubPickerOpen(
+        false
+      );
+
+      Alert.alert(
+        'Invitation sent',
+        `${profile.display_name?.trim() ||
+          profile.username?.trim() ||
+          'This reader'} was invited to ${targetClub.name}.`
+      );
+    } catch (
+      inviteError
+    ) {
+      console.error(
+        'Could not invite reader from profile:',
+        inviteError
+      );
+
+      Alert.alert(
+        'Could not send invitation',
+        inviteError instanceof Error
+          ? inviteError.message
+          : 'Please try again.'
+      );
+    } finally {
+      setInvitingClubId(
+        null
+      );
+    }
+  }
+
+  async function confirmBlockProfile() {
+    if (
+      !blockConfirmProfile ||
+      blockBusy
+    ) {
+      return;
+    }
+
+    try {
+      setBlockBusy(
+        true
+      );
+
+      blockSucceededRef.current =
+        false;
+
+      await blockReader(
+        blockConfirmProfile.id
+      );
+
+      blockSucceededRef.current =
+        true;
+    } catch (
+      blockError
+    ) {
+      console.error(
+        'Could not block reader from profile:',
+        blockError
+      );
+
+      Alert.alert(
+        'Could not block reader',
+        blockError instanceof Error
+          ? blockError.message
+          : 'Please try again.'
+      );
+
+      throw blockError;
+    } finally {
+      setBlockBusy(
+        false
+      );
+    }
+  }
+
+  async function confirmUnblockProfile() {
+    if (
+      !unblockConfirmProfile ||
+      blockBusy
+    ) {
+      return;
+    }
+
+    try {
+      setBlockBusy(
+        true
+      );
+
+      unblockSucceededRef.current =
+        false;
+
+      await unblockReader(
+        unblockConfirmProfile.id
+      );
+
+      unblockSucceededRef.current =
+        true;
+    } catch (
+      unblockError
+    ) {
+      console.error(
+        'Could not unblock reader from profile:',
+        unblockError
+      );
+
+      Alert.alert(
+        'Could not unblock reader',
+        unblockError instanceof Error
+          ? unblockError.message
+          : 'Please try again.'
+      );
+
+      throw unblockError;
+    } finally {
+      setBlockBusy(
+        false
+      );
+    }
+  }
+
+  async function toggleFollow() {
+
+    if (
+      !profile ||
+      profile.is_self
+    ) {
+      return;
+    }
+
+    if (
+      isBlocked
+    ) {
+      setUnblockConfirmProfile(
+        profile
+      );
       return;
     }
 
@@ -1755,7 +2091,7 @@ export default function ReaderProfileScreen() {
         ) : (
           <Pressable
             onPress={
-              openProfileReport
+              openProfileActions
             }
             hitSlop={
               10
@@ -1987,25 +2323,30 @@ export default function ReaderProfileScreen() {
         ) : (
           <Pressable
             disabled={
-              followLoading
+              followLoading ||
+              blockBusy
             }
             onPress={
               toggleFollow
             }
             style={({ pressed }) => [
+              isBlocked ||
               profile.is_following ||
               profile.follow_request_pending
                 ? styles.followButtonSecondary
                 : styles.followButton,
               pressed &&
                 !followLoading &&
+                !blockBusy &&
                 styles.pressed,
             ]}
           >
-            {followLoading ? (
+            {followLoading ||
+            blockBusy ? (
               <ActivityIndicator
                 size="small"
                 color={
+                  isBlocked ||
                   profile.is_following ||
                   profile.follow_request_pending
                     ? colors.text
@@ -2016,7 +2357,9 @@ export default function ReaderProfileScreen() {
               <>
                 <Ionicons
                   name={
-                    profile.is_following
+                    isBlocked
+                      ? 'ban-outline'
+                      : profile.is_following
                       ? 'checkmark'
                       : profile.follow_request_pending
                       ? 'time-outline'
@@ -2028,6 +2371,7 @@ export default function ReaderProfileScreen() {
                     17
                   }
                   color={
+                    isBlocked ||
                     profile.is_following ||
                     profile.follow_request_pending
                       ? colors.text
@@ -2037,13 +2381,16 @@ export default function ReaderProfileScreen() {
 
                 <Text
                   style={
+                    isBlocked ||
                     profile.is_following ||
                     profile.follow_request_pending
                       ? styles.followButtonSecondaryText
                       : styles.followButtonText
                   }
                 >
-                  {profile.is_following
+                  {isBlocked
+                    ? 'Blocked'
+                    : profile.is_following
                     ? 'Following'
                     : profile.follow_request_pending
                     ? 'Requested'
@@ -2056,7 +2403,46 @@ export default function ReaderProfileScreen() {
           </Pressable>
         )}
 
-        {profile.is_private &&
+        {isBlocked &&
+        !profile.is_self ? (
+          <View
+            style={
+              styles.privateLockedCard
+            }
+          >
+            <View
+              style={
+                styles.privateLockedIcon
+              }
+            >
+              <Ionicons
+                name="ban-outline"
+                size={
+                  25
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </View>
+
+            <Text
+              style={
+                styles.emptyTitle
+              }
+            >
+              You blocked this reader.
+            </Text>
+
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              Their posts and comments are hidden from you. Tap Blocked above if you want to unblock them.
+            </Text>
+          </View>
+        ) : profile.is_private &&
         !profile.can_view_content &&
         !profile.is_self ? (
           <View
@@ -2427,6 +2813,313 @@ export default function ReaderProfileScreen() {
           </>
         )}
       </ScrollView>
+      <ReaderProfileActionsSheet
+        visible={
+          profileActionsOpen
+        }
+        isBlocked={
+          isBlocked
+        }
+        canInviteToClub={
+          managerClubs.length >
+          0
+        }
+        onInviteToClub={() =>
+          setInviteClubPickerOpen(
+            true
+          )
+        }
+        onBlock={() => {
+          if (
+            profile
+          ) {
+            setBlockConfirmProfile(
+              profile
+            );
+          }
+        }}
+        onUnblock={() => {
+          if (
+            profile
+          ) {
+            setUnblockConfirmProfile(
+              profile
+            );
+          }
+        }}
+        onReport={
+          openProfileReport
+        }
+        onShare={() =>
+          void shareProfile()
+        }
+        onDismiss={() =>
+          setProfileActionsOpen(
+            false
+          )
+        }
+      />
+
+      <Modal
+        visible={
+          inviteClubPickerOpen
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setInviteClubPickerOpen(
+            false
+          )
+        }
+      >
+        <View
+          style={
+            styles.profileActionsBackdrop
+          }
+        >
+          <Pressable
+            style={
+              StyleSheet.absoluteFill
+            }
+            onPress={() =>
+              setInviteClubPickerOpen(
+                false
+              )
+            }
+          />
+
+          <View
+            style={[
+              styles.profileActionsSheet,
+              {
+                paddingBottom:
+                  Math.max(
+                    18,
+                    insets.bottom +
+                      12
+                  ),
+              },
+            ]}
+          >
+            <View
+              style={
+                styles.profileActionsHandle
+              }
+            />
+
+            <Text
+              style={
+                styles.profileActionsTitle
+              }
+            >
+              Invite to a club
+            </Text>
+
+            <Text
+              style={
+                styles.profileActionsHint
+              }
+            >
+              Choose one of the clubs you manage.
+            </Text>
+
+            {managerClubs.map(
+              (
+                managedClub,
+                index
+              ) => (
+                <View
+                  key={
+                    managedClub.id
+                  }
+                >
+                  {index >
+                  0 ? (
+                    <View
+                      style={
+                        styles.profileActionsDivider
+                      }
+                    />
+                  ) : null}
+
+                  <Pressable
+                    disabled={
+                      Boolean(
+                        invitingClubId
+                      )
+                    }
+                    onPress={() =>
+                      void inviteProfileToClub(
+                        managedClub
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.profileActionsRow,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="people-outline"
+                      size={
+                        19
+                      }
+                      color={
+                        colors.gold
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.profileInviteClubCopy
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.profileActionsText
+                        }
+                        numberOfLines={
+                          1
+                        }
+                      >
+                        {managedClub.name}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.profileInviteClubRole
+                        }
+                      >
+                        {managedClub.membership_role ===
+                        'owner'
+                          ? 'Owner'
+                          : 'Admin'}
+                      </Text>
+                    </View>
+
+                    {invitingClubId ===
+                    managedClub.id ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.gold
+                        }
+                      />
+                    ) : (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={
+                          18
+                        }
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    )}
+                  </Pressable>
+                </View>
+              )
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <BlockReaderConfirmSheet
+        visible={
+          Boolean(
+            blockConfirmProfile
+          )
+        }
+        readerName={
+          blockConfirmProfile?.display_name
+            ?.trim() ||
+          blockConfirmProfile?.username
+            ?.trim() ||
+          'this reader'
+        }
+        busy={
+          blockBusy
+        }
+        onConfirm={
+          confirmBlockProfile
+        }
+        onDismiss={() => {
+          const didBlock =
+            blockSucceededRef.current;
+
+          blockSucceededRef.current =
+            false;
+
+          setBlockConfirmProfile(
+            null
+          );
+
+          if (
+            didBlock
+          ) {
+            setIsBlocked(
+              true
+            );
+
+            setBooks(
+              []
+            );
+            setReviews(
+              []
+            );
+            setPosts(
+              []
+            );
+            setClubs(
+              []
+            );
+          }
+        }}
+      />
+
+      <BlockReaderConfirmSheet
+        visible={
+          Boolean(
+            unblockConfirmProfile
+          )
+        }
+        readerName={
+          unblockConfirmProfile?.display_name
+            ?.trim() ||
+          unblockConfirmProfile?.username
+            ?.trim() ||
+          'this reader'
+        }
+        mode="unblock"
+        busy={
+          blockBusy
+        }
+        onConfirm={
+          confirmUnblockProfile
+        }
+        onDismiss={() => {
+          const didUnblock =
+            unblockSucceededRef.current;
+
+          unblockSucceededRef.current =
+            false;
+
+          setUnblockConfirmProfile(
+            null
+          );
+
+          if (
+            didUnblock
+          ) {
+            setIsBlocked(
+              false
+            );
+
+            void loadReader();
+          }
+        }}
+      />
+
       <Modal
         visible={
           Boolean(
@@ -3354,6 +4047,112 @@ function createStyles(
       marginTop: 7,
       textAlign:
         'center',
+    },
+    profileActionsBackdrop: {
+      flex:
+        1,
+      justifyContent:
+        'flex-end',
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+    profileActionsSheet: {
+      width:
+        '100%',
+      backgroundColor:
+        colors.surface,
+      borderTopLeftRadius:
+        24,
+      borderTopRightRadius:
+        24,
+      paddingHorizontal:
+        16,
+      paddingTop:
+        10,
+      overflow:
+        'hidden',
+    },
+    profileActionsHandle: {
+      width:
+        42,
+      height:
+        4,
+      borderRadius:
+        2,
+      backgroundColor:
+        colors.border,
+      alignSelf:
+        'center',
+      marginBottom:
+        13,
+    },
+    profileActionsTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        19,
+      marginBottom:
+        12,
+    },
+    profileActionsRow: {
+      minHeight:
+        58,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        12,
+      paddingHorizontal:
+        12,
+    },
+    profileActionsText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        13,
+    },
+    profileActionsHint: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        18,
+      marginBottom:
+        8,
+      paddingHorizontal:
+        12,
+    },
+    profileInviteClubCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
+    },
+    profileInviteClubRole: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11,
+      marginTop:
+        2,
+    },
+    profileActionsDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      backgroundColor:
+        colors.border,
+      marginLeft:
+        12,
     },
     reportBackdrop: {
       flex: 1,

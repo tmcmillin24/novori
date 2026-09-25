@@ -16,6 +16,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import {
   NovoriThemeProvider,
@@ -85,8 +86,10 @@ export default function RootLayout() {
   }
 
   return (
-    <NovoriThemeProvider>
-      <AppNavigator />
-    </NovoriThemeProvider>
+    <KeyboardProvider>
+      <NovoriThemeProvider>
+        <AppNavigator />
+      </NovoriThemeProvider>
+    </KeyboardProvider>
   );
 }

@@ -31,10 +31,15 @@ import {
   View,
 } from 'react-native';
 import {
+  KeyboardStickyView,
+  useKeyboardAnimation,
+} from 'react-native-keyboard-controller';
+import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import {
   CLUB_GENRES,
   ClubGenreKey,
@@ -54,7 +59,15 @@ import {
   getPostComments,
   PostComment,
   toggleCommentVote,
+  updatePostComment,
 } from '../../lib/comments';
+import {
+  containsExplicitLanguage,
+  getExplicitLanguagePreference,
+  isExplicitContentRevealed,
+  revealExplicitContentOnce,
+  setExplicitLanguagePreference,
+} from '../../lib/content-filter';
 import {
   deletePost,
   FeedPost,
@@ -70,6 +83,9 @@ import {
   submitCommentReport,
   submitPostReport,
 } from '../../lib/reports';
+import {
+  blockReader,
+} from '../../lib/social';
 import {
   supabase,
 } from '../../lib/supabase';
@@ -147,6 +163,18 @@ const POST_REPORT_REASONS:
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const {
+    height:
+      keyboardHeight,
+  } =
+    useKeyboardAnimation();
+
+  const emptyStateKeyboardTranslateY =
+    Animated.multiply(
+      keyboardHeight,
+      0.5
+    );
   const {
     height: windowHeight,
   } = useWindowDimensions();
@@ -281,6 +309,34 @@ export default function HomeScreen() {
     useState(false);
 
   const [
+    allowExplicitLanguage,
+    setAllowExplicitLanguage,
+  ] =
+    useState(false);
+
+  const [
+    revealedExplicitPosts,
+    setRevealedExplicitPosts,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const [
+    revealedExplicitComments,
+    setRevealedExplicitComments,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const [
     votingPostId,
     setVotingPostId,
   ] =
@@ -307,7 +363,14 @@ export default function HomeScreen() {
   const ownPostOptionsTranslateY =
     useRef(
       new Animated.Value(
-        260
+        12
+      )
+    ).current;
+
+  const ownPostOptionsSheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
       )
     ).current;
 
@@ -371,6 +434,18 @@ export default function HomeScreen() {
     useState('');
 
   const [
+    composerResetting,
+    setComposerResetting,
+  ] =
+    useState(false);
+
+  const [
+    replyResetting,
+    setReplyResetting,
+  ] =
+    useState(false);
+
+  const [
     replyTarget,
     setReplyTarget,
   ] =
@@ -397,6 +472,91 @@ export default function HomeScreen() {
     setCommentReportTarget,
   ] =
     useState<PostComment | null>(
+      null
+    );
+
+  const [
+    commentActionTarget,
+    setCommentActionTarget,
+  ] =
+    useState<PostComment | null>(
+      null
+    );
+
+  const [
+    blockConfirmTarget,
+    setBlockConfirmTarget,
+  ] =
+    useState<PostComment | null>(
+      null
+    );
+
+  const [
+    holdingCommentId,
+    setHoldingCommentId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const commentActionTranslateY =
+    useRef(
+      new Animated.Value(
+        12
+      )
+    ).current;
+
+  const commentActionBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentActionSheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentSelectionAccentOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const commentActionSheetHeight =
+    useRef(
+      0
+    );
+
+  const commentActionEntranceStarted =
+    useRef(false);
+
+  const commentActionClosing =
+    useRef(false);
+
+  const pendingCommentActionHandoff =
+    useRef<
+      (() => void) | null
+    >(null);
+
+
+  const [
+    editingComment,
+    setEditingComment,
+  ] =
+    useState<PostComment | null>(
+      null
+    );
+
+  const [
+    blockingReaderId,
+    setBlockingReaderId,
+  ] =
+    useState<string | null>(
       null
     );
 
@@ -495,18 +655,6 @@ export default function HomeScreen() {
       )
     ).current;
 
-  const commentsKeyboardTranslateY =
-    useRef(
-      new Animated.Value(
-        0
-      )
-    ).current;
-
-  const [
-    commentsKeyboardInset,
-    setCommentsKeyboardInset,
-  ] =
-    useState(0);
 
   const commentsEmptyOpacity =
     useRef(
@@ -548,6 +696,9 @@ export default function HomeScreen() {
     useRef(false);
 
   const commentsKeyboardGestureLock =
+    useRef(false);
+
+  const preserveHomeStateOnNextBlur =
     useRef(false);
 
   const [
@@ -654,6 +805,7 @@ export default function HomeScreen() {
             getMyClubs(),
             getDiscoverClubs(),
             getHomeFeed(),
+            getExplicitLanguagePreference(),
           ]);
 
         const [
@@ -661,6 +813,7 @@ export default function HomeScreen() {
           myClubsResult,
           discoverResult,
           feedResult,
+          explicitPreferenceResult,
         ] = results;
 
         if (
@@ -725,6 +878,20 @@ export default function HomeScreen() {
           );
         }
 
+        if (
+          explicitPreferenceResult.status ===
+          'fulfilled'
+        ) {
+          setAllowExplicitLanguage(
+            explicitPreferenceResult.value
+          );
+        } else {
+          console.error(
+            'Could not load explicit-language preference:',
+            explicitPreferenceResult.reason
+          );
+        }
+
         if (showClubLoader) {
           setClubsLoading(false);
           setFeedLoading(false);
@@ -732,6 +899,31 @@ export default function HomeScreen() {
       },
       []
     );
+
+  useEffect(
+    () => {
+      if (
+        commentActionTarget ||
+        !pendingCommentActionHandoff.current
+      ) {
+        return;
+      }
+
+      const action =
+        pendingCommentActionHandoff.current;
+
+      pendingCommentActionHandoff.current =
+        null;
+
+      // Effects run after React has committed the action-sheet unmount.
+      // The action can now safely update/focus the composer without the
+      // keyboard ever re-laying out a still-mounted action sheet.
+      action();
+    },
+    [
+      commentActionTarget,
+    ]
+  );
 
   useEffect(
     () => {
@@ -761,177 +953,26 @@ export default function HomeScreen() {
                 0
             );
 
-            Animated.timing(
-              commentsKeyboardTranslateY,
-              {
-                toValue:
-                  -overlap,
-                duration:
-                  Math.max(
-                    120,
-                    event.duration ??
-                      250
-                  ),
-                easing:
-                  Easing.bezier(
-                    0.25,
-                    0.1,
-                    0.25,
-                    1
-                  ),
-                useNativeDriver:
-                  true,
-              }
-            ).start();
-
-          }
-        );
-
-      const show =
-        Keyboard.addListener(
-          'keyboardWillShow',
-          (
-            event
-          ) => {
-            const overlap =
-              Math.max(
-                0,
-                windowHeight -
-                  event.endCoordinates
-                    .screenY
+            if (
+              overlap ===
+              0
+            ) {
+              setComposerResetting(
+                false
               );
 
-            commentsEmptyOpacity.stopAnimation();
-
-            Animated.timing(
-              commentsEmptyOpacity,
-              {
-                toValue:
-                  0,
-                duration:
-                  75,
-                easing:
-                  Easing.out(
-                    Easing.quad
-                  ),
-                useNativeDriver:
-                  true,
-              }
-            ).start(() => {
-              setCommentsKeyboardInset(
-                overlap
+              setReplyResetting(
+                false
               );
-
-              requestAnimationFrame(
-                () => {
-                  Animated.timing(
-                    commentsEmptyOpacity,
-                    {
-                      toValue:
-                        1,
-                      duration:
-                        125,
-                      easing:
-                        Easing.out(
-                          Easing.cubic
-                        ),
-                      useNativeDriver:
-                        true,
-                    }
-                  ).start();
-                }
-              );
-            });
-          }
-        );
-
-      const hide =
-        Keyboard.addListener(
-          'keyboardWillHide',
-          (
-            event
-          ) => {
-            setCommentsKeyboardVisible(
-              false
-            );
-
-            commentsEmptyOpacity.stopAnimation();
-
-            Animated.timing(
-              commentsEmptyOpacity,
-              {
-                toValue:
-                  0,
-                duration:
-                  75,
-                easing:
-                  Easing.out(
-                    Easing.quad
-                  ),
-                useNativeDriver:
-                  true,
-              }
-            ).start(() => {
-              setCommentsKeyboardInset(
-                0
-              );
-
-              requestAnimationFrame(
-                () => {
-                  Animated.timing(
-                    commentsEmptyOpacity,
-                    {
-                      toValue:
-                        1,
-                      duration:
-                        125,
-                      easing:
-                        Easing.out(
-                          Easing.cubic
-                        ),
-                      useNativeDriver:
-                        true,
-                    }
-                  ).start();
-                }
-              );
-            });
-
-            Animated.timing(
-              commentsKeyboardTranslateY,
-              {
-                toValue:
-                  0,
-                duration:
-                  Math.max(
-                    120,
-                    event.duration ??
-                      220
-                  ),
-                easing:
-                  Easing.bezier(
-                    0.25,
-                    0.1,
-                    0.25,
-                    1
-                  ),
-                useNativeDriver:
-                  true,
-              }
-            ).start();
-
+            }
           }
         );
 
       return () => {
         changeFrame.remove();
-        show.remove();
-        hide.remove();
       };
     },
     [
-      commentsEmptyOpacity,
-      commentsKeyboardTranslateY,
       windowHeight,
     ]
   );
@@ -940,8 +981,7 @@ export default function HomeScreen() {
     () => {
       if (
         !commentsModalVisible ||
-        !commentsInitialLoadReady ||
-        !commentsSheetEntranceReady
+        !commentsInitialLoadReady
       ) {
         return;
       }
@@ -957,7 +997,7 @@ export default function HomeScreen() {
           toValue:
             1,
           duration:
-            240,
+            60,
           easing:
             Easing.out(
               Easing.cubic
@@ -971,7 +1011,6 @@ export default function HomeScreen() {
       commentsInitialLoadReady,
       commentsModalVisible,
       commentsResultOpacity,
-      commentsSheetEntranceReady,
     ]
   );
 
@@ -1070,6 +1109,42 @@ export default function HomeScreen() {
     useCallback(() => {
       loadHomeData(true);
       void loadComposerProfile();
+
+      return () => {
+        Keyboard.dismiss();
+
+        if (
+          preserveHomeStateOnNextBlur.current
+        ) {
+          preserveHomeStateOnNextBlur.current =
+            false;
+          return;
+        }
+
+        setActiveSection(
+          'feed'
+        );
+
+        setClubSearch(
+          ''
+        );
+
+        setClubSearchResults(
+          []
+        );
+
+        setClubSearchLoading(
+          false
+        );
+
+        setClubSearchError(
+          ''
+        );
+
+        setActiveClubGenre(
+          'all'
+        );
+      };
     }, [
       loadComposerProfile,
       loadHomeData,
@@ -1180,6 +1255,9 @@ export default function HomeScreen() {
   function openClub(
     clubId: string
   ) {
+    preserveHomeStateOnNextBlur.current =
+      true;
+
     router.push({
       pathname:
         '/club/[id]',
@@ -1280,7 +1358,6 @@ export default function HomeScreen() {
     commentsSheetHeight.stopAnimation();
     commentsEntranceTranslateY.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
-    commentsKeyboardTranslateY.stopAnimation();
     commentsContentOpacity.stopAnimation();
     commentsResultOpacity.stopAnimation();
     commentsEmptyOpacity.stopAnimation();
@@ -1290,9 +1367,6 @@ export default function HomeScreen() {
     );
     commentsEmptyOpacity.setValue(
       1
-    );
-    setCommentsKeyboardInset(
-      0
     );
 
     setCommentsInitialLoadReady(
@@ -1322,9 +1396,6 @@ export default function HomeScreen() {
     commentsBackdropOpacity.setValue(
       0
     );
-    commentsKeyboardTranslateY.setValue(
-      0
-    );
     commentsContentOpacity.setValue(
       0
     );
@@ -1347,6 +1418,14 @@ export default function HomeScreen() {
     );
 
     setReplyTarget(
+      null
+    );
+
+    setEditingComment(
+      null
+    );
+
+    setCommentActionTarget(
       null
     );
 
@@ -1410,26 +1489,21 @@ export default function HomeScreen() {
             true,
         }
       ),
-      Animated.sequence([
-        Animated.delay(
-          70
-        ),
-        Animated.timing(
-          commentsContentOpacity,
-          {
-            toValue:
-              1,
-            duration:
-              110,
-            easing:
-              Easing.out(
-                Easing.cubic
-              ),
-            useNativeDriver:
-              true,
-          }
-        ),
-      ]),
+      Animated.timing(
+        commentsContentOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            65,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
     ]).start(({
       finished,
     }) => {
@@ -1457,9 +1531,6 @@ export default function HomeScreen() {
     );
     commentsEmptyOpacity.setValue(
       1
-    );
-    setCommentsKeyboardInset(
-      0
     );
 
     setCommentsInitialLoadReady(
@@ -1490,9 +1561,6 @@ export default function HomeScreen() {
     commentsBackdropOpacity.setValue(
       0
     );
-    commentsKeyboardTranslateY.setValue(
-      0
-    );
     commentsContentOpacity.setValue(
       0
     );
@@ -1510,6 +1578,14 @@ export default function HomeScreen() {
     );
 
     setReplyTarget(
+      null
+    );
+
+    setEditingComment(
+      null
+    );
+
+    setCommentActionTarget(
       null
     );
 
@@ -1572,6 +1648,14 @@ export default function HomeScreen() {
 
   function handleCommentsBackdropPress() {
     if (
+      editingComment ||
+      replyTarget
+    ) {
+      resetTemporaryCommentComposer();
+      return;
+    }
+
+    if (
       commentsKeyboardVisible
     ) {
       Keyboard.dismiss();
@@ -1595,7 +1679,6 @@ export default function HomeScreen() {
 
     commentsSheetHeight.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
-    commentsKeyboardTranslateY.stopAnimation();
     commentsContentOpacity.stopAnimation();
 
     Animated.parallel([
@@ -1641,21 +1724,6 @@ export default function HomeScreen() {
             90,
           easing:
             Easing.in(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-      Animated.timing(
-        commentsKeyboardTranslateY,
-        {
-          toValue:
-            0,
-          duration:
-            150,
-          easing:
-            Easing.out(
               Easing.cubic
             ),
           useNativeDriver:
@@ -1944,21 +2012,47 @@ export default function HomeScreen() {
       ]
     );
 
-  function startReply(
-    comment:
-      PostComment
+  function startComposerWithKeyboard(
+    action:
+      () => void
   ) {
-    setReplyTarget(
-      comment
+    setComposerResetting(
+      false
     );
 
-    setTimeout(
+    setReplyResetting(
+      false
+    );
+
+    action();
+
+    requestAnimationFrame(
       () => {
         commentInputRef
           .current
           ?.focus();
-      },
-      75
+      }
+    );
+  }
+
+  function startReply(
+    comment:
+      PostComment
+  ) {
+    startComposerWithKeyboard(
+      () => {
+        setEditingComment(
+          null
+        );
+
+        setCommentBody(
+          ''
+        );
+
+        setReplyTarget(
+          comment
+        );
+      }
     );
   }
 
@@ -1992,6 +2086,103 @@ export default function HomeScreen() {
     if (
       !cleaned
     ) {
+      return;
+    }
+
+    if (
+      editingComment
+    ) {
+      const target =
+        editingComment;
+
+      const previousBody =
+        target.body;
+
+      setSubmittingComment(
+        true
+      );
+
+      setSheetComments(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+              target.id
+                ? {
+                    ...item,
+                    body:
+                      cleaned,
+                    updated_at:
+                      new Date().toISOString(),
+                  }
+                : item
+          )
+      );
+
+      setEditingComment(
+        null
+      );
+
+      setCommentBody(
+        ''
+      );
+
+      try {
+        await updatePostComment(
+          target.id,
+          cleaned
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          'Could not edit comment:',
+          error
+        );
+
+        setSheetComments(
+          (
+            current
+          ) =>
+            current.map(
+              (
+                item
+              ) =>
+                item.id ===
+                target.id
+                  ? {
+                      ...item,
+                      body:
+                        previousBody,
+                    }
+                  : item
+            )
+        );
+
+        setEditingComment(
+          target
+        );
+
+        setCommentBody(
+          cleaned
+        );
+
+        Alert.alert(
+          'Could not edit comment',
+          error instanceof Error
+            ? error.message
+            : 'Please try again.'
+        );
+      } finally {
+        setSubmittingComment(
+          false
+        );
+      }
+
       return;
     }
 
@@ -2317,6 +2508,542 @@ export default function HomeScreen() {
       );
     } finally {
       setDeletingCommentId(
+        null
+      );
+    }
+  }
+
+  function animateCommentActionsIn() {
+    if (
+      !commentActionTarget ||
+      commentActionEntranceStarted.current ||
+      commentActionClosing.current ||
+      !commentActionSheetHeight.current
+    ) {
+      return;
+    }
+
+    commentActionEntranceStarted.current =
+      true;
+
+    commentActionTranslateY.stopAnimation();
+    commentActionBackdropOpacity.stopAnimation();
+    commentActionSheetOpacity.stopAnimation();
+    commentSelectionAccentOpacity.stopAnimation();
+
+    // The sheet is already mounted at its final bottom position.
+    // Only a tiny 12px settle is animated so the user never sees
+    // a full-height bottom-to-top travel.
+    Animated.parallel([
+      Animated.timing(
+        commentActionTranslateY,
+        {
+          toValue:
+            0,
+          duration:
+            135,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentActionSheetOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentActionBackdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            125,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentSelectionAccentOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            70,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  function openCommentActions(
+    comment:
+      PostComment
+  ) {
+    if (
+      commentActionTarget ||
+      commentActionClosing.current
+    ) {
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    commentActionEntranceStarted.current =
+      false;
+
+    commentActionTranslateY.stopAnimation();
+    commentActionBackdropOpacity.stopAnimation();
+    commentActionSheetOpacity.stopAnimation();
+    commentSelectionAccentOpacity.stopAnimation();
+
+    // Mount invisibly at the final bottom position with only a
+    // tiny downward offset. onLayout starts the short settle-in.
+    commentActionTranslateY.setValue(
+      12
+    );
+    commentActionBackdropOpacity.setValue(
+      0
+    );
+    commentActionSheetOpacity.setValue(
+      0
+    );
+    commentSelectionAccentOpacity.setValue(
+      0
+    );
+
+    setHoldingCommentId(
+      comment.id
+    );
+
+    setCommentActionTarget(
+      comment
+    );
+  }
+
+  function closeCommentActions(
+    afterClose?: () => void,
+    quickHandoff =
+      false
+  ) {
+    if (
+      !commentActionTarget ||
+      commentActionClosing.current
+    ) {
+      return;
+    }
+
+    commentActionClosing.current =
+      true;
+
+    commentActionTranslateY.stopAnimation();
+    commentActionBackdropOpacity.stopAnimation();
+    commentActionSheetOpacity.stopAnimation();
+    commentSelectionAccentOpacity.stopAnimation();
+
+    Animated.timing(
+      commentSelectionAccentOpacity,
+      {
+        toValue:
+          0,
+        duration:
+          quickHandoff
+            ? 55
+            : 90,
+        easing:
+          Easing.inOut(
+            Easing.cubic
+          ),
+        useNativeDriver:
+          true,
+      }
+    ).start(({
+      finished,
+    }) => {
+      if (
+        finished
+      ) {
+        setHoldingCommentId(
+          null
+        );
+      }
+    });
+
+    Animated.parallel([
+      Animated.timing(
+        commentActionTranslateY,
+        {
+          toValue:
+            12,
+          duration:
+            quickHandoff
+              ? 70
+              : 115,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentActionBackdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            quickHandoff
+              ? 75
+              : 120,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        commentActionSheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            quickHandoff
+              ? 60
+              : 100,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      commentActionClosing.current =
+        false;
+
+      if (
+        !finished
+      ) {
+        return;
+      }
+
+      commentActionEntranceStarted.current =
+        false;
+
+      commentActionTranslateY.setValue(
+        12
+      );
+
+      commentActionSheetOpacity.setValue(
+        0
+      );
+
+      setCommentActionTarget(
+        null
+      );
+
+      afterClose?.();
+    });
+  }
+
+  function beginCommentActionHandoff(
+    action:
+      () => void,
+    delay =
+      50
+  ) {
+    if (
+      delay <=
+      0
+    ) {
+      // Reply/Edit must never start the keyboard while the action
+      // sheet is still mounted. Store the action, perform a very
+      // fast close, then the effect above runs it only after React
+      // has committed the sheet's removal.
+      pendingCommentActionHandoff.current =
+        action;
+
+      closeCommentActions(
+        undefined,
+        true
+      );
+      return;
+    }
+
+    closeCommentActions();
+
+    setTimeout(
+      action,
+      delay
+    );
+  }
+
+  function replyToSelectedComment() {
+    if (
+      !commentActionTarget
+    ) {
+      return;
+    }
+
+    const target =
+      commentActionTarget;
+
+    beginCommentActionHandoff(
+      () => {
+        startReply(
+          target
+        );
+      },
+      0
+    );
+  }
+
+  function startEditComment(
+    comment:
+      PostComment
+  ) {
+    startComposerWithKeyboard(
+      () => {
+        setReplyTarget(
+          null
+        );
+
+        setEditingComment(
+          comment
+        );
+
+        setCommentBody(
+          comment.body
+        );
+      }
+    );
+  }
+
+  function editSelectedComment() {
+    if (
+      !commentActionTarget ||
+      !commentActionTarget.is_own
+    ) {
+      return;
+    }
+
+    const target =
+      commentActionTarget;
+
+    beginCommentActionHandoff(
+      () => {
+        startEditComment(
+          target
+        );
+      },
+      0
+    );
+  }
+
+  function resetTemporaryCommentComposer() {
+    if (
+      !editingComment &&
+      !replyTarget
+    ) {
+      return;
+    }
+
+    setComposerResetting(
+      true
+    );
+
+    setReplyResetting(
+      Boolean(
+        replyTarget
+      )
+    );
+
+    commentInputRef
+      .current
+      ?.clear();
+
+    commentInputRef
+      .current
+      ?.blur();
+
+    setCommentBody(
+      ''
+    );
+
+    setEditingComment(
+      null
+    );
+
+    setReplyTarget(
+      null
+    );
+
+    Keyboard.dismiss();
+  }
+
+  function cancelCommentEdit() {
+    resetTemporaryCommentComposer();
+  }
+
+  function handleCommentComposerOutsideTouch() {
+    if (
+      editingComment ||
+      replyTarget
+    ) {
+      resetTemporaryCommentComposer();
+      return;
+    }
+
+    if (
+      commentsKeyboardVisible
+    ) {
+      Keyboard.dismiss();
+    }
+  }
+
+  function reportSelectedComment() {
+    if (
+      !commentActionTarget ||
+      commentActionTarget.is_own
+    ) {
+      return;
+    }
+
+    const target =
+      commentActionTarget;
+
+    beginCommentActionHandoff(
+      () => {
+        openCommentReport(
+          target
+        );
+      },
+      70
+    );
+  }
+
+  function deleteSelectedComment() {
+    if (
+      !commentActionTarget ||
+      !commentActionTarget.is_own
+    ) {
+      return;
+    }
+
+    const target =
+      commentActionTarget;
+
+    beginCommentActionHandoff(
+      () => {
+        confirmDeleteComment(
+          target
+        );
+      },
+      105
+    );
+  }
+
+  function confirmBlockSelectedReader() {
+    if (
+      !commentActionTarget ||
+      commentActionTarget.is_own
+    ) {
+      return;
+    }
+
+    const target =
+      commentActionTarget;
+
+    beginCommentActionHandoff(
+      () => {
+        setBlockConfirmTarget(
+          target
+        );
+      },
+      105
+    );
+  }
+
+  async function blockSelectedReader(
+    comment:
+      PostComment
+  ) {
+    if (
+      blockingReaderId
+    ) {
+      return;
+    }
+
+    try {
+      setBlockingReaderId(
+        comment.author_id
+      );
+
+      await blockReader(
+        comment.author_id
+      );
+
+      if (
+        commentsPost?.author_id ===
+        comment.author_id
+      ) {
+        closeCommentsSheet();
+      } else if (
+        commentsPost
+      ) {
+        await loadCommentsSheet(
+          commentsPost.id
+        );
+      }
+
+      await loadHomeData(
+        false
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not block reader:',
+        error
+      );
+
+      Alert.alert(
+        'Could not block reader',
+        'Please try again.'
+      );
+
+      throw error;
+    } finally {
+      setBlockingReaderId(
         null
       );
     }
@@ -3008,6 +3735,80 @@ export default function HomeScreen() {
         3
       );
 
+    if (
+      comment.is_blocked_author
+    ) {
+      return (
+        <View
+          key={
+            comment.id
+          }
+          style={[
+            styles.sheetCommentThread,
+            {
+              marginLeft:
+                visualDepth *
+                14,
+            },
+          ]}
+        >
+          <View
+            style={
+              styles.blockedCommentCard
+            }
+          >
+            <View
+              style={
+                styles.blockedCommentIcon
+              }
+            >
+              <Ionicons
+                name="ban-outline"
+                size={
+                  16
+                }
+                color={
+                  COLORS.mutedText
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.blockedCommentCopy
+              }
+            >
+              <Text
+                style={
+                  styles.blockedCommentTitle
+                }
+              >
+                Blocked reader
+              </Text>
+
+              <Text
+                style={
+                  styles.blockedCommentText
+                }
+              >
+                This comment is hidden.
+              </Text>
+            </View>
+          </View>
+
+          {children.map(
+            (
+              child
+            ) =>
+              renderSheetComment(
+                child,
+                depth + 1
+              )
+          )}
+        </View>
+      );
+    }
+
     return (
       <View
         key={
@@ -3023,10 +3824,23 @@ export default function HomeScreen() {
         ]}
       >
         <View
-          style={
-            styles.sheetComment
-          }
+          style={[
+            styles.sheetComment,
+          ]}
         >
+          {holdingCommentId ===
+          comment.id ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.sheetCommentActionAccent,
+                {
+                  opacity:
+                    commentSelectionAccentOpacity,
+                },
+              ]}
+            />
+          ) : null}
           <Pressable
             onPress={() => {
               closeCommentsSheet();
@@ -3132,13 +3946,37 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            <Text
+            <Pressable
+              delayLongPress={
+                220
+              }
+              onLongPress={() =>
+                openCommentActions(
+                  comment
+                )
+              }
+              hitSlop={{
+                top:
+                  6,
+                bottom:
+                  8,
+                left:
+                  4,
+                right:
+                  4,
+              }}
               style={
-                styles.sheetCommentBody
+                styles.commentHoldTarget
               }
             >
-              {comment.body}
-            </Text>
+              {renderExplicitContentWarning(
+                comment.body,
+                'comment',
+                comment.id,
+                styles.sheetCommentBody,
+                comment.is_own
+              )}
+            </Pressable>
 
             <View
               style={
@@ -3184,7 +4022,7 @@ export default function HomeScreen() {
                         : 'arrow-up-circle-outline'
                     }
                     size={
-                      19
+                      21
                     }
                     color={
                       comment.viewer_vote ===
@@ -3241,7 +4079,7 @@ export default function HomeScreen() {
                         : 'arrow-down-circle-outline'
                     }
                     size={
-                      19
+                      21
                     }
                     color={
                       comment.viewer_vote ===
@@ -3253,93 +4091,6 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
 
-              <Pressable
-                onPress={() =>
-                  startReply(
-                    comment
-                  )
-                }
-                hitSlop={
-                  8
-                }
-                style={({ pressed }) => [
-                  styles.sheetReplyButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={
-                    styles.sheetReplyText
-                  }
-                >
-                  Reply
-                </Text>
-              </Pressable>
-
-              {comment.is_own ? (
-                <Pressable
-                  disabled={
-                    deletingCommentId ===
-                    comment.id
-                  }
-                  onPress={() =>
-                    confirmDeleteComment(
-                      comment
-                    )
-                  }
-                  hitSlop={
-                    8
-                  }
-                  style={({ pressed }) => [
-                    styles.sheetDeleteButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  {deletingCommentId ===
-                  comment.id ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        COLORS.mutedText
-                      }
-                    />
-                  ) : (
-                    <Text
-                      style={
-                        styles.sheetDeleteText
-                      }
-                    >
-                      Delete
-                    </Text>
-                  )}
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() =>
-                    openCommentReport(
-                      comment
-                    )
-                  }
-                  hitSlop={
-                    8
-                  }
-                  style={({ pressed }) => [
-                    styles.sheetReportButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.sheetReportText
-                    }
-                  >
-                    Report
-                  </Text>
-                </Pressable>
-              )}
             </View>
           </View>
         </View>
@@ -3659,6 +4410,235 @@ export default function HomeScreen() {
     );
   }
 
+  async function alwaysShowExplicitLanguage() {
+    try {
+      setAllowExplicitLanguage(
+        true
+      );
+
+      await setExplicitLanguagePreference(
+        true
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not save explicit-language preference:',
+        error
+      );
+
+      setAllowExplicitLanguage(
+        false
+      );
+
+      Alert.alert(
+        'Could not save preference',
+        'Please try again.'
+      );
+    }
+  }
+
+  function renderExplicitContentWarning(
+    content:
+      string,
+    targetType:
+      'post' | 'comment',
+    targetId:
+      string,
+    textStyle:
+      any,
+    isOwnContent =
+      false
+  ) {
+    const revealed =
+      isExplicitContentRevealed(
+        targetType,
+        targetId
+      ) ||
+      (
+        targetType ===
+          'post'
+          ? Boolean(
+              revealedExplicitPosts[
+                targetId
+              ]
+            )
+          : Boolean(
+              revealedExplicitComments[
+                targetId
+              ]
+            )
+      );
+
+    const shouldHide =
+      !isOwnContent &&
+      !allowExplicitLanguage &&
+      !revealed &&
+      containsExplicitLanguage(
+        content
+      );
+
+    if (
+      !shouldHide
+    ) {
+      return (
+        <Text
+          style={
+            textStyle
+          }
+        >
+          {content}
+        </Text>
+      );
+    }
+
+    const revealOnce =
+      () => {
+        revealExplicitContentOnce(
+          targetType,
+          targetId
+        );
+
+        if (
+          targetType ===
+          'post'
+        ) {
+          setRevealedExplicitPosts(
+            (
+              current
+            ) => ({
+              ...current,
+              [targetId]:
+                true,
+            })
+          );
+        } else {
+          setRevealedExplicitComments(
+            (
+              current
+            ) => ({
+              ...current,
+              [targetId]:
+                true,
+            })
+          );
+        }
+      };
+
+    return (
+      <View
+        style={
+          styles.explicitContentWrap
+        }
+      >
+        <Text
+          style={[
+            textStyle,
+            styles.explicitContentSource,
+          ]}
+        >
+          {content}
+        </Text>
+
+        <BlurView
+          intensity={
+            65
+          }
+          tint="dark"
+          style={
+            StyleSheet.absoluteFill
+          }
+        />
+
+        <View
+          style={
+            styles.explicitWarningCard
+          }
+        >
+          <View
+            style={
+              styles.explicitWarningHeading
+            }
+          >
+            <Ionicons
+              name="eye-off-outline"
+              size={
+                17
+              }
+              color={
+                COLORS.gold
+              }
+            />
+
+            <Text
+              style={
+                styles.explicitWarningTitle
+              }
+            >
+              Explicit content warning
+            </Text>
+          </View>
+
+          <Text
+            style={
+              styles.explicitWarningText
+            }
+          >
+            This may contain explicit language.
+          </Text>
+
+          <View
+            style={
+              styles.explicitWarningActions
+            }
+          >
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                revealOnce();
+              }}
+              style={({ pressed }) => [
+                styles.explicitWarningButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.explicitWarningButtonText
+                }
+              >
+                Show once
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                void alwaysShowExplicitLanguage();
+              }}
+              style={({ pressed }) => [
+                styles.explicitWarningButton,
+                styles.explicitWarningButtonPrimary,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.explicitWarningButtonText,
+                  styles.explicitWarningButtonPrimaryText,
+                ]}
+              >
+                Always show
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   function formatFeedTime(
     createdAt: string
   ) {
@@ -3773,10 +4753,11 @@ export default function HomeScreen() {
     reportSheetHeight.current = 0;
     reportSheetOpacity.setValue(0);
     reportTranslateY.stopAnimation();
+    reportSheetOpacity.stopAnimation();
     reportBackdropOpacity.stopAnimation();
 
     reportTranslateY.setValue(
-      reportEntranceOffset
+      12
     );
     reportBackdropOpacity.setValue(
       0
@@ -3792,32 +4773,62 @@ export default function HomeScreen() {
 
   function animatePostReportIn() {
     // onShow and onLayout may arrive in either order. Wait for both.
-    if (reportEntranceStarted.current || !reportModalShown.current || !reportSheetHeight.current ||
-        reportSheetAnimating.current || reportSheetClosing.current) {
+    if (
+      reportEntranceStarted.current ||
+      !reportModalShown.current ||
+      !reportSheetHeight.current ||
+      reportSheetAnimating.current ||
+      reportSheetClosing.current
+    ) {
       return;
     }
+
     reportTranslateY.stopAnimation();
+    reportSheetOpacity.stopAnimation();
     reportBackdropOpacity.stopAnimation();
 
     reportSheetAnimating.current =
       true;
 
-    reportEntranceStarted.current = true;
-    reportTranslateY.setValue(reportSheetHeight.current + 24);
-    reportSheetOpacity.setValue(1);
+    reportEntranceStarted.current =
+      true;
+
+    reportTranslateY.setValue(
+      12
+    );
+    reportSheetOpacity.setValue(
+      0
+    );
+    reportBackdropOpacity.setValue(
+      0
+    );
 
     Animated.parallel([
       Animated.timing(
         reportTranslateY,
         {
-          toValue: 0,
-          duration: 320,
+          toValue:
+            0,
+          duration:
+            135,
           easing:
-            Easing.bezier(
-              0.22,
-              0.68,
-              0.30,
-              1
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportSheetOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
             ),
           useNativeDriver:
             true,
@@ -3826,8 +4837,10 @@ export default function HomeScreen() {
       Animated.timing(
         reportBackdropOpacity,
         {
-          toValue: 1,
-          duration: 320,
+          toValue:
+            1,
+          duration:
+            125,
           easing:
             Easing.out(
               Easing.cubic
@@ -3862,12 +4875,17 @@ export default function HomeScreen() {
   }
 
   function dismissPostReport() {
-    if (reportSheetClosing.current) {
+    if (
+      reportSheetClosing.current
+    ) {
       return;
     }
-    reportSheetClosing.current = true;
+
+    reportSheetClosing.current =
+      true;
 
     reportTranslateY.stopAnimation();
+    reportSheetOpacity.stopAnimation();
     reportBackdropOpacity.stopAnimation();
 
     reportSheetAnimating.current =
@@ -3878,14 +4896,27 @@ export default function HomeScreen() {
         reportTranslateY,
         {
           toValue:
-            reportSheetHeight.current + 24,
-          duration: 245,
+            12,
+          duration:
+            115,
           easing:
-            Easing.bezier(
-              0.32,
-              0,
-              0.67,
-              1
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        reportSheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
             ),
           useNativeDriver:
             true,
@@ -3894,8 +4925,10 @@ export default function HomeScreen() {
       Animated.timing(
         reportBackdropOpacity,
         {
-          toValue: 0,
-          duration: 245,
+          toValue:
+            0,
+          duration:
+            120,
           easing:
             Easing.in(
               Easing.cubic
@@ -3913,13 +4946,21 @@ export default function HomeScreen() {
       if (
         finished
       ) {
+        reportTranslateY.setValue(
+          12
+        );
+        reportSheetOpacity.setValue(
+          0
+        );
+
         setReportTargetPost(
           null
         );
 
-        // Do not reset the translation while the native modal is dismissing:
-        // doing so briefly exposes the sheet again over the undimmed feed.
-        if (Platform.OS !== 'ios') {
+        if (
+          Platform.OS !==
+          'ios'
+        ) {
           handleReportDismiss();
         }
       }
@@ -4186,10 +5227,14 @@ export default function HomeScreen() {
     }
 
     ownPostOptionsTranslateY.stopAnimation();
+    ownPostOptionsSheetOpacity.stopAnimation();
     ownPostOptionsBackdropOpacity.stopAnimation();
 
     ownPostOptionsTranslateY.setValue(
-      260
+      12
+    );
+    ownPostOptionsSheetOpacity.setValue(
+      0
     );
     ownPostOptionsBackdropOpacity.setValue(
       0
@@ -4201,18 +5246,36 @@ export default function HomeScreen() {
   }
 
   function animateOwnPostOptionsIn() {
+    ownPostOptionsTranslateY.stopAnimation();
+    ownPostOptionsSheetOpacity.stopAnimation();
+    ownPostOptionsBackdropOpacity.stopAnimation();
+
     Animated.parallel([
       Animated.timing(
         ownPostOptionsTranslateY,
         {
-          toValue: 0,
-          duration: 260,
+          toValue:
+            0,
+          duration:
+            135,
           easing:
-            Easing.bezier(
-              0.22,
-              1,
-              0.36,
-              1
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        ownPostOptionsSheetOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
             ),
           useNativeDriver:
             true,
@@ -4221,8 +5284,10 @@ export default function HomeScreen() {
       Animated.timing(
         ownPostOptionsBackdropOpacity,
         {
-          toValue: 1,
-          duration: 180,
+          toValue:
+            1,
+          duration:
+            125,
           easing:
             Easing.out(
               Easing.cubic
@@ -4238,20 +5303,35 @@ export default function HomeScreen() {
     afterClose?: () => void
   ) {
     ownPostOptionsTranslateY.stopAnimation();
+    ownPostOptionsSheetOpacity.stopAnimation();
     ownPostOptionsBackdropOpacity.stopAnimation();
 
     Animated.parallel([
       Animated.timing(
         ownPostOptionsTranslateY,
         {
-          toValue: 260,
-          duration: 210,
+          toValue:
+            12,
+          duration:
+            115,
           easing:
-            Easing.bezier(
-              0.32,
-              0,
-              0.67,
-              1
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        ownPostOptionsSheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
             ),
           useNativeDriver:
             true,
@@ -4260,8 +5340,10 @@ export default function HomeScreen() {
       Animated.timing(
         ownPostOptionsBackdropOpacity,
         {
-          toValue: 0,
-          duration: 170,
+          toValue:
+            0,
+          duration:
+            120,
           easing:
             Easing.in(
               Easing.cubic
@@ -4278,6 +5360,13 @@ export default function HomeScreen() {
       ) {
         return;
       }
+
+      ownPostOptionsTranslateY.setValue(
+        12
+      );
+      ownPostOptionsSheetOpacity.setValue(
+        0
+      );
 
       setOwnPostOptionsTarget(
         null
@@ -4663,81 +5752,140 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        <Text
+        <View
           style={
-            styles.feedBody
+            styles.feedPostContent
           }
         >
-          {post.body}
-        </Text>
+          {renderExplicitContentWarning(
+            post.body,
+            'post',
+            post.id,
+            styles.feedBody,
+            Boolean(
+              currentUserId &&
+              post.author_id ===
+                currentUserId
+            )
+          )}
 
-        {post.book_title ? (
-          <View
-            style={
-              styles.feedBookCard
-            }
-          >
-            {post.book_cover_url ? (
-              <Image
-                source={{
-                  uri:
-                    post.book_cover_url,
-                }}
-                style={
-                  styles.feedBookCover
-                }
-              />
-            ) : (
-              <View
-                style={
-                  styles.feedBookCoverFallback
-                }
-              >
-                <Ionicons
-                  name="book-outline"
-                  size={
-                    19
-                  }
-                  color={
-                    COLORS.gold
-                  }
-                />
-              </View>
-            )}
-
+          {post.book_title ? (
             <View
               style={
-                styles.feedBookCopy
+                styles.feedBookCard
               }
             >
-              <Text
-                style={
-                  styles.feedBookTitle
-                }
-                numberOfLines={
-                  2
-                }
-              >
-                {
-                  post.book_title
-                }
-              </Text>
-
-              {post.rating ? (
-                <Text
+              {post.book_cover_url ? (
+                <Image
+                  source={{
+                    uri:
+                      post.book_cover_url,
+                  }}
                   style={
-                    styles.feedBookRating
+                    styles.feedBookCover
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.feedBookCoverFallback
                   }
                 >
-                  ★{' '}
+                  <Ionicons
+                    name="book-outline"
+                    size={
+                      22
+                    }
+                    color={
+                      COLORS.gold
+                    }
+                  />
+                </View>
+              )}
+
+              <View
+                style={
+                  styles.feedBookCopy
+                }
+              >
+                <View
+                  style={
+                    styles.feedBookEyebrow
+                  }
+                >
+                  <Ionicons
+                    name="book-outline"
+                    size={
+                      12
+                    }
+                    color={
+                      COLORS.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.feedBookEyebrowText
+                    }
+                  >
+                    Book
+                  </Text>
+                </View>
+
+                <Text
+                  style={
+                    styles.feedBookTitle
+                  }
+                  numberOfLines={
+                    2
+                  }
+                >
                   {
-                    post.rating
+                    post.book_title
                   }
                 </Text>
-              ) : null}
+
+                {post.rating ? (
+                  <View
+                    style={
+                      styles.feedBookRatingRow
+                    }
+                  >
+                    <Ionicons
+                      name="star"
+                      size={
+                        13
+                      }
+                      color={
+                        COLORS.gold
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.feedBookRating
+                      }
+                    >
+                      {
+                        post.rating
+                      }
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={
+                  17
+                }
+                color={
+                  COLORS.mutedText
+                }
+              />
             </View>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View
           style={
@@ -4873,7 +6021,7 @@ export default function HomeScreen() {
             <Ionicons
               name="chatbubble-outline"
               size={
-                15
+                16
               }
               color={
                 COLORS.mutedText
@@ -4886,7 +6034,12 @@ export default function HomeScreen() {
               }
             >
               {post.comment_count ??
-                0}
+                0}{' '}
+              {(post.comment_count ??
+                0) ===
+              1
+                ? 'comment'
+                : 'comments'}
             </Text>
           </Pressable>
         </View>
@@ -5855,7 +7008,39 @@ export default function HomeScreen() {
             : renderClubs()}
         </View>
       </ScrollView>
-      </SafeAreaView>
+        <BlockReaderConfirmSheet
+        visible={
+          Boolean(
+            blockConfirmTarget
+          )
+        }
+        readerName={
+          blockConfirmTarget?.author_display_name
+            ?.trim() ||
+          blockConfirmTarget?.author_username
+            ?.trim() ||
+          'this reader'
+        }
+        busy={
+          Boolean(
+            blockingReaderId
+          )
+        }
+        onConfirm={() =>
+          blockConfirmTarget
+            ? blockSelectedReader(
+                blockConfirmTarget
+              )
+            : Promise.resolve()
+        }
+        onDismiss={() =>
+          setBlockConfirmTarget(
+            null
+          )
+        }
+      />
+
+    </SafeAreaView>
 
       <Modal
         visible={
@@ -5901,6 +7086,8 @@ export default function HomeScreen() {
                     insets.bottom +
                       12
                   ),
+                opacity:
+                  ownPostOptionsSheetOpacity,
                 transform: [
                   {
                     translateY:
@@ -6411,6 +7598,9 @@ export default function HomeScreen() {
                 >
               <View
                 {...commentsSheetPanResponder.panHandlers}
+                onTouchStart={
+                  handleCommentComposerOutsideTouch
+                }
                 style={
                   styles.commentsDragRegion
                 }
@@ -6437,13 +7627,9 @@ export default function HomeScreen() {
               </View>
 
               <View
-                onTouchStart={() => {
-                  if (
-                    commentsKeyboardVisible
-                  ) {
-                    Keyboard.dismiss();
-                  }
-                }}
+                onTouchStart={
+                  handleCommentComposerOutsideTouch
+                }
                 style={
                   styles.commentsMetaRow
                 }
@@ -6536,6 +7722,9 @@ export default function HomeScreen() {
 
               <View
                 {...commentsSheetPanResponder.panHandlers}
+                onTouchStart={
+                  handleCommentComposerOutsideTouch
+                }
                 style={[
                   styles.commentsSideRail,
                   styles.commentsSideRailLeft,
@@ -6544,6 +7733,9 @@ export default function HomeScreen() {
 
               <View
                 {...commentsSheetPanResponder.panHandlers}
+                onTouchStart={
+                  handleCommentComposerOutsideTouch
+                }
                 style={[
                   styles.commentsSideRail,
                   styles.commentsSideRailRight,
@@ -6551,23 +7743,14 @@ export default function HomeScreen() {
               />
 
               <View
-                onTouchStart={() => {
-                  if (
-                    commentsKeyboardVisible
-                  ) {
-                    Keyboard.dismiss();
-                  }
-                }}
-                style={[
-                  styles.commentsListWrap,
-                  {
-                    marginBottom:
-                      commentsKeyboardInset,
-                  },
-                ]}
+                onTouchStart={
+                  handleCommentComposerOutsideTouch
+                }
+                style={
+                  styles.commentsListWrap
+                }
               >
-                {!commentsInitialLoadReady ||
-                !commentsSheetEntranceReady ? (
+                {!commentsInitialLoadReady ? (
                   <View
                     style={
                       styles.commentsLoading
@@ -6586,6 +7769,9 @@ export default function HomeScreen() {
                     {rootComments.length >
                     0 ? (
                       <ScrollView
+                        onTouchStart={
+                          handleCommentComposerOutsideTouch
+                        }
                         style={
                           styles.commentsList
                         }
@@ -6595,7 +7781,13 @@ export default function HomeScreen() {
                         showsVerticalScrollIndicator={
                           false
                         }
-                        keyboardShouldPersistTaps="never"
+                        keyboardShouldPersistTaps="always"
+                        keyboardDismissMode={
+                          Platform.OS ===
+                          'ios'
+                            ? 'interactive'
+                            : 'on-drag'
+                        }
                         alwaysBounceVertical
                       >
                         {rootComments.map(
@@ -6614,6 +7806,12 @@ export default function HomeScreen() {
                           {
                             opacity:
                               commentsEmptyOpacity,
+                            transform: [
+                              {
+                                translateY:
+                                  emptyStateKeyboardTranslateY,
+                              },
+                            ],
                           },
                         ]}
                       >
@@ -6648,9 +7846,17 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <Animated.View
-                style={[
-                  styles.commentsComposerWrap,
+              <KeyboardStickyView
+                offset={{
+                  closed:
+                    0,
+                  opened:
+                    0,
+                }}
+              >
+                <Animated.View
+                  style={[
+                    styles.commentsComposerWrap,
                   {
                     paddingBottom:
                       Math.max(
@@ -6658,16 +7864,43 @@ export default function HomeScreen() {
                           8,
                         20
                       ),
-                    transform: [
-                      {
-                        translateY:
-                          commentsKeyboardTranslateY,
-                      },
-                    ],
                   },
                 ]}
               >
-                {replyTarget ? (
+                {editingComment ? (
+                  <View
+                    style={
+                      styles.replyingToRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.replyingToText
+                      }
+                    >
+                      Editing comment
+                    </Text>
+
+                    <Pressable
+                      onPress={
+                        cancelCommentEdit
+                      }
+                      hitSlop={
+                        8
+                      }
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={
+                          18
+                        }
+                        color={
+                          COLORS.mutedText
+                        }
+                      />
+                    </Pressable>
+                  </View>
+                ) : replyTarget ? (
                   <View
                     style={
                       styles.replyingToRow
@@ -6690,10 +7923,8 @@ export default function HomeScreen() {
                     </Text>
 
                     <Pressable
-                      onPress={() =>
-                        setReplyTarget(
-                          null
-                        )
+                      onPress={
+                        resetTemporaryCommentComposer
                       }
                       hitSlop={
                         8
@@ -6709,6 +7940,31 @@ export default function HomeScreen() {
                         }
                       />
                     </Pressable>
+                  </View>
+                ) : composerResetting ? (
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.replyingToRow,
+                      styles.replyingToRowSpacer,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.replyingToText
+                      }
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      Replying to reader
+                    </Text>
+
+                    <View
+                      style={
+                        styles.replyingToSpacerIcon
+                      }
+                    />
                   </View>
                 ) : null}
 
@@ -6762,7 +8018,11 @@ export default function HomeScreen() {
                         setCommentBody
                       }
                       placeholder={
-                        replyTarget
+                        composerResetting
+                          ? ''
+                          : editingComment
+                          ? 'Edit your comment…'
+                          : replyTarget
                           ? 'Write a reply…'
                           : 'Add a comment…'
                       }
@@ -6803,7 +8063,11 @@ export default function HomeScreen() {
                         />
                       ) : (
                         <Ionicons
-                          name="arrow-up"
+                          name={
+                            editingComment
+                              ? 'checkmark'
+                              : 'arrow-up'
+                          }
                           size={
                             18
                           }
@@ -6815,8 +8079,335 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                 </View>
-              </Animated.View>
                 </Animated.View>
+              </KeyboardStickyView>
+                </Animated.View>
+              {commentActionTarget ? (
+                <View
+                  style={
+                    styles.longPressCommentActionModal
+                  }
+                >
+                  <Pressable
+                    style={
+                      StyleSheet.absoluteFill
+                    }
+                    onPress={() => {
+                      resetTemporaryCommentComposer();
+                      closeCommentActions();
+                    }}
+                  >
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.longPressCommentActionBackdrop,
+                        {
+                          opacity:
+                            commentActionBackdropOpacity,
+                        },
+                      ]}
+                    />
+                  </Pressable>
+
+                  <Animated.View
+                    onLayout={(event) => {
+                      commentActionSheetHeight.current =
+                        event.nativeEvent.layout.height;
+
+                      animateCommentActionsIn();
+                    }}
+                    style={[
+                      styles.longPressCommentActionSheet,
+                      {
+                        opacity:
+                          commentActionSheetOpacity,
+                        transform: [
+                          {
+                            translateY:
+                              commentActionTranslateY,
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+            <View
+              style={
+                styles.longPressCommentActionHandle
+              }
+            />
+
+            <Text
+              style={
+                styles.longPressCommentActionTitle
+              }
+            >
+              {commentActionTarget
+                ?.is_own
+                ? 'Comment options'
+                : commentActionTarget
+                ? `Comment by ${
+                    commentActionTarget
+                      .author_display_name
+                      ?.trim() ||
+                    commentActionTarget
+                      .author_username
+                      ?.trim() ||
+                    'Novori Reader'
+                  }`
+                : 'Comment options'}
+            </Text>
+
+            <Text
+              style={
+                styles.longPressCommentActionHint
+              }
+            >
+              Choose an action for this comment.
+            </Text>
+
+            <View
+              style={
+                styles.longPressCommentActionList
+              }
+            >
+              <Pressable
+                onPress={
+                  replyToSelectedComment
+                }
+                style={({ pressed }) => [
+                  styles.longPressCommentActionRow,
+                  pressed &&
+                    styles.longPressCommentActionRowPressed,
+                ]}
+              >
+                <View
+                  style={
+                    styles.longPressCommentActionIcon
+                  }
+                >
+                  <Ionicons
+                    name="return-down-forward-outline"
+                    size={
+                      19
+                    }
+                    color={
+                      COLORS.gold
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.longPressCommentActionText
+                  }
+                >
+                  Reply
+                </Text>
+              </Pressable>
+
+              {commentActionTarget
+                ?.is_own ? (
+                <>
+                  <View
+                    style={
+                      styles.longPressCommentActionDivider
+                    }
+                  />
+
+                  <Pressable
+                    onPress={
+                      editSelectedComment
+                    }
+                    style={({ pressed }) => [
+                      styles.longPressCommentActionRow,
+                      pressed &&
+                        styles.longPressCommentActionRowPressed,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.longPressCommentActionIcon
+                      }
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={
+                          19
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.longPressCommentActionText
+                      }
+                    >
+                      Edit
+                    </Text>
+                  </Pressable>
+
+                  <View
+                    style={
+                      styles.longPressCommentActionDivider
+                    }
+                  />
+
+                  <Pressable
+                    onPress={
+                      deleteSelectedComment
+                    }
+                    style={({ pressed }) => [
+                      styles.longPressCommentActionRow,
+                      pressed &&
+                        styles.longPressCommentActionRowPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.longPressCommentActionIcon,
+                        styles.longPressCommentActionDangerIcon,
+                      ]}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={
+                          19
+                        }
+                        color={
+                          COLORS.danger
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.longPressCommentActionText,
+                        styles.longPressCommentActionDangerText,
+                      ]}
+                    >
+                      Delete
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <View
+                    style={
+                      styles.longPressCommentActionDivider
+                    }
+                  />
+
+                  <Pressable
+                    onPress={
+                      reportSelectedComment
+                    }
+                    style={({ pressed }) => [
+                      styles.longPressCommentActionRow,
+                      pressed &&
+                        styles.longPressCommentActionRowPressed,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.longPressCommentActionIcon
+                      }
+                    >
+                      <Ionicons
+                        name="flag-outline"
+                        size={
+                          19
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.longPressCommentActionText
+                      }
+                    >
+                      Report
+                    </Text>
+                  </Pressable>
+
+                  <View
+                    style={
+                      styles.longPressCommentActionDivider
+                    }
+                  />
+
+                  <Pressable
+                    disabled={
+                      Boolean(
+                        blockingReaderId
+                      )
+                    }
+                    onPress={
+                      confirmBlockSelectedReader
+                    }
+                    style={({ pressed }) => [
+                      styles.longPressCommentActionRow,
+                      pressed &&
+                        styles.longPressCommentActionRowPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.longPressCommentActionIcon,
+                        styles.longPressCommentActionDangerIcon,
+                      ]}
+                    >
+                      <Ionicons
+                        name="ban-outline"
+                        size={
+                          19
+                        }
+                        color={
+                          COLORS.danger
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.longPressCommentActionText,
+                        styles.longPressCommentActionDangerText,
+                      ]}
+                    >
+                      Block reader
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            <Pressable
+              onPress={() =>
+                closeCommentActions()
+              }
+              style={({ pressed }) => [
+                styles.longPressCommentActionCancel,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.longPressCommentActionCancelText
+                }
+              >
+                Cancel
+              </Text>
+            </Pressable>
+                  </Animated.View>
+                </View>
+              ) : null}
+
               {commentReportTarget ? (
                 <View
                   style={
@@ -7033,6 +8624,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
     </>
   );
 }
@@ -7303,7 +8895,8 @@ const styles =
         'center',
     },
     feedList: {
-      gap: 12,
+      gap:
+        14,
     },
     feedHeadingRow: {
       flexDirection:
@@ -7418,60 +9011,111 @@ const styles =
       borderWidth: 1,
       borderColor:
         COLORS.border,
-      borderRadius: 18,
-      padding: 15,
+      borderRadius: 22,
+      overflow:
+        'hidden',
+      shadowColor:
+        '#000000',
+      shadowOpacity:
+        0.10,
+      shadowRadius:
+        14,
+      shadowOffset: {
+        width:
+          0,
+        height:
+          5,
+      },
+      elevation:
+        3,
     },
     feedPostCardPressed: {
-      opacity: 0.92,
+      opacity:
+        0.95,
+      transform: [
+        {
+          scale:
+            0.998,
+        },
+      ],
     },
     feedPostHeader: {
       flexDirection:
         'row',
       alignItems:
         'flex-start',
+      paddingHorizontal:
+        16,
+      paddingTop:
+        15,
     },
     feedMoreButton: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        17,
       alignItems:
         'center',
       justifyContent:
         'center',
-      marginLeft: 4,
-      marginTop: -3,
+      marginLeft:
+        4,
+      marginTop:
+        -2,
     },
     feedAvatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width:
+        46,
+      height:
+        46,
+      borderRadius:
+        23,
       backgroundColor:
         COLORS.elevated,
-      marginRight: 11,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      marginRight:
+        12,
     },
     feedAvatarFallback: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width:
+        46,
+      height:
+        46,
+      borderRadius:
+        23,
       backgroundColor:
         COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
       alignItems:
         'center',
       justifyContent:
         'center',
-      marginRight: 11,
+      marginRight:
+        12,
     },
     feedAvatarText: {
       color:
         COLORS.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
-      fontSize: 18,
+      fontSize:
+        18,
     },
     feedAuthorCopy: {
-      flex: 1,
-      minWidth: 0,
-      paddingTop: 2,
+      flex:
+        1,
+      minWidth:
+        0,
+      paddingTop:
+        2,
     },
     feedAuthorLine: {
       flexDirection:
@@ -7480,50 +9124,64 @@ const styles =
         'center',
       flexWrap:
         'nowrap',
-      columnGap: 5,
-      minWidth: 0,
+      columnGap:
+        6,
+      minWidth:
+        0,
     },
     feedIdentity: {
       flexDirection:
         'row',
       alignItems:
         'center',
-      columnGap: 5,
-      flexShrink: 1,
-      minWidth: 0,
+      columnGap:
+        6,
+      flexShrink:
+        1,
+      minWidth:
+        0,
     },
     feedAuthorName: {
       color:
         COLORS.text,
       fontFamily:
         'Inter_700Bold',
-      fontSize: 13,
-      flexShrink: 1,
-      minWidth: 0,
+      fontSize:
+        13.5,
+      flexShrink:
+        1,
+      minWidth:
+        0,
     },
     feedUsername: {
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 11,
-      flexShrink: 1,
-      minWidth: 0,
+      fontSize:
+        11.5,
+      flexShrink:
+        1,
+      minWidth:
+        0,
     },
     feedTime: {
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 10,
+      fontSize:
+        10.5,
     },
     feedAudienceText: {
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 10,
-      marginTop: 4,
+      fontSize:
+        10.5,
+      marginTop:
+        5,
     },
     feedClubLine: {
       alignSelf:
@@ -7532,23 +9190,40 @@ const styles =
         'row',
       alignItems:
         'center',
-      gap: 5,
-      marginTop: 4,
-      maxWidth: '100%',
+      gap:
+        6,
+      marginTop:
+        5,
+      maxWidth:
+        '100%',
     },
     feedClubIcon: {
-      width: 17,
-      height: 17,
-      borderRadius: 5,
+      width:
+        18,
+      height:
+        18,
+      borderRadius:
+        6,
       backgroundColor:
         COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
     },
     feedClubIconFallback: {
-      width: 17,
-      height: 17,
-      borderRadius: 5,
+      width:
+        18,
+      height:
+        18,
+      borderRadius:
+        6,
       backgroundColor:
         COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
       alignItems:
         'center',
       justifyContent:
@@ -7559,24 +9234,34 @@ const styles =
         COLORS.gold,
       fontFamily:
         'PlayfairDisplay_700Bold',
-      fontSize: 8,
+      fontSize:
+        8,
     },
     feedClubText: {
       color:
         COLORS.softGold,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize: 10,
-      flexShrink: 1,
+      fontSize:
+        10.5,
+      flexShrink:
+        1,
+    },
+    feedPostContent: {
+      paddingHorizontal:
+        16,
+      paddingTop:
+        14,
     },
     feedBody: {
       color:
         COLORS.text,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 21,
-      marginTop: 13,
+      fontSize:
+        15,
+      lineHeight:
+        22,
     },
     feedBookCard: {
       flexDirection:
@@ -7585,48 +9270,106 @@ const styles =
         'center',
       backgroundColor:
         COLORS.elevated,
-      borderRadius: 13,
-      padding: 9,
-      marginTop: 13,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        16,
+      padding:
+        11,
+      marginTop:
+        15,
     },
     feedBookCover: {
-      width: 39,
-      height: 57,
-      borderRadius: 6,
+      width:
+        52,
+      height:
+        76,
+      borderRadius:
+        8,
       backgroundColor:
         COLORS.surface,
-      marginRight: 10,
+      marginRight:
+        12,
     },
     feedBookCoverFallback: {
-      width: 39,
-      height: 57,
-      borderRadius: 6,
+      width:
+        52,
+      height:
+        76,
+      borderRadius:
+        8,
       backgroundColor:
         COLORS.surface,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
       alignItems:
         'center',
       justifyContent:
         'center',
-      marginRight: 10,
+      marginRight:
+        12,
     },
     feedBookCopy: {
-      flex: 1,
+      flex:
+        1,
+      minWidth:
+        0,
+      paddingRight:
+        8,
+    },
+    feedBookEyebrow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
+      marginBottom:
+        5,
+    },
+    feedBookEyebrowText: {
+      color:
+        COLORS.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9,
+      textTransform:
+        'uppercase',
+      letterSpacing:
+        0.8,
     },
     feedBookTitle: {
       color:
         COLORS.text,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize: 12,
-      lineHeight: 17,
+      fontSize:
+        13,
+      lineHeight:
+        18,
+    },
+    feedBookRatingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
+      marginTop:
+        7,
     },
     feedBookRating: {
       color:
         COLORS.gold,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize: 11,
-      marginTop: 4,
+      fontSize:
+        11.5,
     },
     feedPostFooter: {
       flexDirection:
@@ -7635,58 +9378,104 @@ const styles =
         'center',
       justifyContent:
         'space-between',
-      borderTopWidth: 1,
+      gap:
+        10,
+      marginTop:
+        15,
+      paddingHorizontal:
+        16,
+      paddingTop:
+        12,
+      paddingBottom:
+        14,
+      borderTopWidth:
+        1,
       borderTopColor:
         COLORS.border,
-      marginTop: 13,
-      paddingTop: 10,
     },
     voteControl: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 0,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      minHeight:
+        36,
+      backgroundColor:
+        COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        18,
+      paddingHorizontal:
+        4,
     },
     voteButton: {
-      width: 26,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
+      width:
+        30,
+      height:
+        34,
+      borderRadius:
+        17,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
     voteButtonActive: {
-      backgroundColor: COLORS.elevated,
+      backgroundColor:
+        COLORS.surface,
     },
     voteButtonDisabled: {
-      opacity: 0.5,
+      opacity:
+        0.5,
     },
     voteScore: {
-      minWidth: 14,
-      textAlign: 'center',
-      color: COLORS.mutedText,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 12,
+      minWidth:
+        20,
+      textAlign:
+        'center',
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12,
     },
     voteScoreActive: {
-      color: COLORS.gold,
+      color:
+        COLORS.gold,
     },
     commentAction: {
-      minWidth: 34,
-      height: 32,
+      minHeight:
+        36,
       flexDirection:
         'row',
       alignItems:
         'center',
       justifyContent:
-        'flex-end',
-      gap: 5,
-      paddingLeft: 6,
+        'center',
+      gap:
+        6,
+      backgroundColor:
+        COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        18,
+      paddingHorizontal:
+        12,
     },
     commentActionText: {
       color:
         COLORS.mutedText,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize: 11,
+      fontSize:
+        11,
     },
     clubsLoading: {
       minHeight: 220,
@@ -8206,6 +9995,121 @@ const styles =
       overflow:
         'hidden',
     },
+    explicitContentWrap: {
+      position:
+        'relative',
+      minHeight:
+        142,
+      overflow:
+        'hidden',
+      borderRadius:
+        16,
+      marginTop:
+        4,
+    },
+    explicitContentSource: {
+      opacity:
+        0.38,
+    },
+    explicitWarningCard: {
+      ...StyleSheet.absoluteFill,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        18,
+      paddingVertical:
+        14,
+      backgroundColor:
+        'rgba(68,68,68,0.94)',
+      borderWidth:
+        1,
+      borderColor:
+        'rgba(255,255,255,0.10)',
+    },
+    explicitWarningHeading: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+    },
+    explicitWarningTitle: {
+      color:
+        '#FFFFFF',
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        14,
+      lineHeight:
+        19,
+    },
+    explicitWarningText: {
+      color:
+        '#F2F2F2',
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12,
+      lineHeight:
+        17,
+      marginTop:
+        5,
+      textAlign:
+        'center',
+    },
+    explicitWarningActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        10,
+      marginTop:
+        12,
+    },
+    explicitWarningButton: {
+      minHeight:
+        42,
+      minWidth:
+        108,
+      paddingHorizontal:
+        18,
+      borderRadius:
+        21,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+    },
+    explicitWarningButtonPrimary: {
+      backgroundColor:
+        COLORS.gold,
+      borderColor:
+        COLORS.gold,
+    },
+    explicitWarningButtonText: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12,
+    },
+    explicitWarningButtonPrimaryText: {
+      color:
+        COLORS.background,
+    },
     reportBackdrop: {
       flex: 1,
       backgroundColor:
@@ -8680,6 +10584,48 @@ const styles =
         'row',
       alignItems:
         'flex-start',
+      borderWidth:
+        1,
+      borderColor:
+        'transparent',
+      borderRadius:
+        14,
+      paddingHorizontal:
+        6,
+      paddingVertical:
+        5,
+      marginHorizontal:
+        -6,
+      marginVertical:
+        -5,
+    },
+    sheetCommentActionAccent: {
+      position:
+        'absolute',
+      left:
+        -1,
+      top:
+        7,
+      bottom:
+        7,
+      width:
+        3,
+      borderRadius:
+        2,
+      backgroundColor:
+        COLORS.gold,
+      zIndex:
+        2,
+    },
+    commentHoldTarget: {
+      alignSelf:
+        'stretch',
+      borderRadius:
+        10,
+    },
+    sheetCommentPressed: {
+      backgroundColor:
+        COLORS.elevated,
     },
     sheetCommentAvatarButton: {
       marginRight:
@@ -8987,6 +10933,16 @@ const styles =
       marginRight:
         8,
     },
+    replyingToRowSpacer: {
+      opacity:
+        0,
+    },
+    replyingToSpacerIcon: {
+      width:
+        18,
+      height:
+        18,
+    },
     commentsComposer: {
       flex:
         1,
@@ -9053,7 +11009,245 @@ const styles =
       opacity:
         0.35,
     },
+    blockedCommentCard: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      backgroundColor:
+        COLORS.elevated,
+      borderRadius:
+        14,
+      paddingHorizontal:
+        12,
+      paddingVertical:
+        11,
+      marginVertical:
+        4,
+    },
+    blockedCommentIcon: {
+      width:
+        30,
+      height:
+        30,
+      borderRadius:
+        10,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        COLORS.surface,
+      marginRight:
+        10,
+    },
+    blockedCommentCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
+    },
+    blockedCommentTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    blockedCommentText: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11.5,
+      marginTop:
+        2,
+    },
     pressed: {
       opacity: 0.68,
+    },
+    longPressCommentActionModal: {
+      ...StyleSheet.absoluteFill,
+      justifyContent:
+        'flex-end',
+      borderTopLeftRadius:
+        26,
+      borderTopRightRadius:
+        26,
+      overflow:
+        'hidden',
+      zIndex:
+        80,
+      elevation:
+        80,
+    },
+    longPressCommentActionBackdrop: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.42)',
+      borderTopLeftRadius:
+        26,
+      borderTopRightRadius:
+        26,
+    },
+    longPressCommentActionSheet: {
+      width:
+        '100%',
+      maxWidth:
+        720,
+      alignSelf:
+        'center',
+      backgroundColor:
+        COLORS.surface,
+      borderTopLeftRadius:
+        24,
+      borderTopRightRadius:
+        24,
+      paddingHorizontal:
+        16,
+      paddingTop:
+        10,
+      paddingBottom:
+        24,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+    },
+    longPressCommentActionHandle: {
+      width:
+        42,
+      height:
+        4,
+      borderRadius:
+        2,
+      backgroundColor:
+        COLORS.border,
+      alignSelf:
+        'center',
+      marginBottom:
+        15,
+    },
+    longPressCommentActionTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        20,
+      textAlign:
+        'center',
+    },
+    longPressCommentActionHint: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11,
+      textAlign:
+        'center',
+      marginTop:
+        4,
+      marginBottom:
+        14,
+    },
+    longPressCommentActionList: {
+      borderRadius:
+        16,
+      overflow:
+        'hidden',
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      backgroundColor:
+        COLORS.background,
+    },
+    longPressCommentActionRow: {
+      minHeight:
+        58,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        13,
+      backgroundColor:
+        COLORS.background,
+    },
+    longPressCommentActionRowPressed: {
+      backgroundColor:
+        COLORS.elevated,
+    },
+    longPressCommentActionIcon: {
+      width:
+        36,
+      height:
+        36,
+      borderRadius:
+        12,
+      backgroundColor:
+        COLORS.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        12,
+    },
+    longPressCommentActionDangerIcon: {
+      backgroundColor:
+        'rgba(220,80,80,0.10)',
+    },
+    longPressCommentActionText: {
+      flex:
+        1,
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        14,
+    },
+    longPressCommentActionDangerText: {
+      color:
+        COLORS.danger,
+    },
+    longPressCommentActionDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      backgroundColor:
+        COLORS.border,
+      marginLeft:
+        61,
+    },
+    longPressCommentActionCancel: {
+      minHeight:
+        48,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginTop:
+        12,
+      borderRadius:
+        14,
+      backgroundColor:
+        COLORS.elevated,
+    },
+    longPressCommentActionCancelText: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        13,
     },
   });
