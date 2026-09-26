@@ -7,14 +7,19 @@ import {
 import {
     useCallback,
     useMemo,
+    useRef,
     useState,
 } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
+    Easing,
     Image,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
+    PanResponder,
     Platform,
     Pressable,
     RefreshControl,
@@ -41,6 +46,7 @@ import {
     ReadingDetailsData,
     saveReadingCheckpoint,
     saveReadingSummary,
+    updateReadingDetailsDates,
 } from '../../lib/reading-details';
 
 function formatDate(
@@ -66,6 +72,150 @@ function formatDate(
         'numeric',
     }
   );
+}
+
+
+function dateInputFromIso(
+  value:
+    | string
+    | null
+    | undefined
+) {
+  if (!value) {
+    return '';
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  const month =
+    String(
+      date.getMonth() +
+        1
+    ).padStart(
+      2,
+      '0'
+    );
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      '0'
+    );
+
+  const year =
+    date.getFullYear();
+
+  return `${month}/${day}/${year}`;
+}
+
+function formatDateInput(
+  value: string
+) {
+  const digits =
+    value.replace(
+      /\D/g,
+      ''
+    ).slice(
+      0,
+      8
+    );
+
+  if (
+    digits.length <=
+    2
+  ) {
+    return digits;
+  }
+
+  if (
+    digits.length <=
+    4
+  ) {
+    return `${digits.slice(
+      0,
+      2
+    )}/${digits.slice(
+      2
+    )}`;
+  }
+
+  return `${digits.slice(
+    0,
+    2
+  )}/${digits.slice(
+    2,
+    4
+  )}/${digits.slice(
+    4
+  )}`;
+}
+
+function parseDateInput(
+  value: string
+) {
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const match =
+    trimmed.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+    );
+
+  if (!match) {
+    throw new Error(
+      'Use MM/DD/YYYY for reading dates.'
+    );
+  }
+
+  const month =
+    Number(
+      match[1]
+    );
+
+  const day =
+    Number(
+      match[2]
+    );
+
+  const year =
+    Number(
+      match[3]
+    );
+
+  const date =
+    new Date(
+      year,
+      month - 1,
+      day,
+      12,
+      0,
+      0,
+      0
+    );
+
+  if (
+    date.getFullYear() !==
+      year ||
+    date.getMonth() !==
+      month - 1 ||
+    date.getDate() !==
+      day
+  ) {
+    throw new Error(
+      'Enter a valid calendar date.'
+    );
+  }
+
+  return date.toISOString();
 }
 
 function checkpointLabel(
@@ -200,6 +350,424 @@ function checkpointInputValue(
   }
 
   return '';
+}
+
+
+function useNovoriSheet(
+  onDismiss: () => void
+) {
+  const translateY =
+    useRef(
+      new Animated.Value(
+        12
+      )
+    ).current;
+
+  const sheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const backdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const sheetHeight =
+    useRef(
+      0
+    );
+
+  const closing =
+    useRef(
+      false
+    );
+
+  const onDismissRef =
+    useRef(
+      onDismiss
+    );
+
+  onDismissRef.current =
+    onDismiss;
+
+  function finishDismiss() {
+    closing.current =
+      false;
+
+    translateY.setValue(
+      12
+    );
+
+    sheetOpacity.setValue(
+      0
+    );
+
+    backdropOpacity.setValue(
+      0
+    );
+
+    onDismissRef.current();
+  }
+
+  function animateIn() {
+    closing.current =
+      false;
+
+    translateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    translateY.setValue(
+      12
+    );
+
+    sheetOpacity.setValue(
+      0
+    );
+
+    backdropOpacity.setValue(
+      0
+    );
+
+    Animated.parallel([
+      Animated.timing(
+        translateY,
+        {
+          toValue:
+            0,
+          duration:
+            135,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        sheetOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        backdropOpacity,
+        {
+          toValue:
+            1,
+          duration:
+            125,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  function closeSmoothly() {
+    if (
+      closing.current
+    ) {
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    closing.current =
+      true;
+
+    translateY.stopAnimation();
+    sheetOpacity.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        translateY,
+        {
+          toValue:
+            12,
+          duration:
+            115,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        sheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        backdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            120,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      if (
+        finished
+      ) {
+        finishDismiss();
+      } else {
+        closing.current =
+          false;
+      }
+    });
+  }
+
+  const panResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) => {
+            const mostlyVertical =
+              Math.abs(
+                gesture.dy
+              ) >
+              Math.abs(
+                gesture.dx
+              );
+
+            return (
+              !closing.current &&
+              gesture.dy >
+                6 &&
+              mostlyVertical
+            );
+          },
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            if (
+              gesture.dy <
+              0
+            ) {
+              return;
+            }
+
+            const nextY =
+              Math.max(
+                0,
+                gesture.dy
+              );
+
+            translateY.setValue(
+              nextY
+            );
+
+            backdropOpacity.setValue(
+              Math.max(
+                0.18,
+                1 -
+                  nextY /
+                    520
+              )
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            const shouldDismiss =
+              gesture.dy >
+                88 ||
+              gesture.vy >
+                0.72;
+
+            if (
+              shouldDismiss
+            ) {
+              closing.current =
+                true;
+
+              const targetY =
+                Math.max(
+                  sheetHeight.current +
+                    32,
+                  420
+                );
+
+              Animated.parallel([
+                Animated.timing(
+                  translateY,
+                  {
+                    toValue:
+                      targetY,
+                    duration:
+                      190,
+                    easing:
+                      Easing.out(
+                        Easing.cubic
+                      ),
+                    useNativeDriver:
+                      true,
+                  }
+                ),
+                Animated.timing(
+                  backdropOpacity,
+                  {
+                    toValue:
+                      0,
+                    duration:
+                      120,
+                    easing:
+                      Easing.out(
+                        Easing.cubic
+                      ),
+                    useNativeDriver:
+                      true,
+                  }
+                ),
+              ]).start(({
+                finished,
+              }) => {
+                if (
+                  finished
+                ) {
+                  finishDismiss();
+                } else {
+                  closing.current =
+                    false;
+                }
+              });
+
+              return;
+            }
+
+            Animated.parallel([
+              Animated.spring(
+                translateY,
+                {
+                  toValue:
+                    0,
+                  damping:
+                    24,
+                  stiffness:
+                    220,
+                  mass:
+                    0.9,
+                  useNativeDriver:
+                    true,
+                }
+              ),
+              Animated.timing(
+                backdropOpacity,
+                {
+                  toValue:
+                    1,
+                  duration:
+                    120,
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]).start();
+          },
+
+          onPanResponderTerminate: () => {
+            Animated.parallel([
+              Animated.spring(
+                translateY,
+                {
+                  toValue:
+                    0,
+                  damping:
+                    24,
+                  stiffness:
+                    220,
+                  mass:
+                    0.9,
+                  useNativeDriver:
+                    true,
+                }
+              ),
+              Animated.timing(
+                backdropOpacity,
+                {
+                  toValue:
+                    1,
+                  duration:
+                    120,
+                  easing:
+                    Easing.out(
+                      Easing.cubic
+                    ),
+                  useNativeDriver:
+                    true,
+                }
+              ),
+            ]).start();
+          },
+        }),
+      [
+        backdropOpacity,
+        translateY,
+      ]
+    );
+
+  return {
+    animateIn,
+    backdropOpacity,
+    closeSmoothly,
+    panResponder,
+    sheetHeight,
+    sheetOpacity,
+    translateY,
+  };
 }
 
 export default function ReadingDetailsScreen() {
@@ -343,6 +911,62 @@ export default function ReadingDetailsScreen() {
   ] =
     useState(false);
 
+  const [
+    dateEditorVisible,
+    setDateEditorVisible,
+  ] =
+    useState(false);
+
+  const [
+    startedDateInput,
+    setStartedDateInput,
+  ] =
+    useState('');
+
+  const [
+    endedDateInput,
+    setEndedDateInput,
+  ] =
+    useState('');
+
+  const [
+    savingDates,
+    setSavingDates,
+  ] =
+    useState(false);
+
+  const summarySheet =
+    useNovoriSheet(
+      () =>
+        setSummaryEditorOpen(
+          false
+        )
+    );
+
+  const noteSheet =
+    useNovoriSheet(
+      () =>
+        setNoteEditorOpen(
+          false
+        )
+    );
+
+  const historySheet =
+    useNovoriSheet(
+      () =>
+        setShowHistory(
+          false
+        )
+    );
+
+  const dateSheet =
+    useNovoriSheet(
+      () =>
+        setDateEditorVisible(
+          false
+        )
+    );
+
   const loadData =
     useCallback(
       async (
@@ -433,6 +1057,21 @@ export default function ReadingDetailsScreen() {
   const isReading =
     data?.book.status ===
     'reading';
+
+  const isFinished =
+    data?.book.status ===
+    'read';
+
+  const isDnf =
+    data?.book.status ===
+    'dnf';
+
+  const resumeEyebrow =
+    isFinished
+      ? 'READING COMPLETED'
+      : isDnf
+      ? 'READING STOPPED'
+      : 'YOU LEFT OFF HERE';
 
   const displayedNotes =
     useMemo(
@@ -597,9 +1236,7 @@ export default function ReadingDetailsScreen() {
             : current
       );
 
-      setSummaryEditorOpen(
-        false
-      );
+      summarySheet.closeSmoothly();
     } catch (
       saveError
     ) {
@@ -674,9 +1311,7 @@ export default function ReadingDetailsScreen() {
         }
       );
 
-      setNoteEditorOpen(
-        false
-      );
+      noteSheet.closeSmoothly();
 
       await loadData(
         false
@@ -693,6 +1328,220 @@ export default function ReadingDetailsScreen() {
       );
     } finally {
       setSavingNote(
+        false
+      );
+    }
+  }
+
+
+  function openBookPage() {
+    router.push({
+      pathname:
+        '/book/[id]',
+      params: {
+        id:
+          googleBookId,
+        source:
+          'library',
+      },
+    });
+  }
+
+  function openDateEditor() {
+    if (!data) {
+      return;
+    }
+
+    setStartedDateInput(
+      dateInputFromIso(
+        data.book
+          .started_at
+      )
+    );
+
+    if (
+      data.book.status ===
+      'read'
+    ) {
+      setEndedDateInput(
+        dateInputFromIso(
+          data.book
+            .finished_at
+        )
+      );
+    } else if (
+      data.book.status ===
+      'dnf'
+    ) {
+      setEndedDateInput(
+        dateInputFromIso(
+          data.book
+            .dnf_at
+        )
+      );
+    } else {
+      setEndedDateInput(
+        ''
+      );
+    }
+
+    setDateEditorVisible(
+      true
+    );
+  }
+
+  async function saveDates() {
+    if (
+      !data ||
+      savingDates
+    ) {
+      return;
+    }
+
+    try {
+      const startedAt =
+        parseDateInput(
+          startedDateInput
+        );
+
+      let finishedAt =
+        data.book
+          .finished_at;
+
+      let dnfAt =
+        data.book
+          .dnf_at;
+
+      if (
+        data.book.status ===
+        'reading'
+      ) {
+        finishedAt =
+          null;
+        dnfAt =
+          null;
+      }
+
+      if (
+        data.book.status ===
+        'read'
+      ) {
+        finishedAt =
+          parseDateInput(
+            endedDateInput
+          );
+
+        if (!finishedAt) {
+          throw new Error(
+            'A finished date is required for a finished book.'
+          );
+        }
+
+        dnfAt =
+          null;
+      }
+
+      if (
+        data.book.status ===
+        'dnf'
+      ) {
+        dnfAt =
+          parseDateInput(
+            endedDateInput
+          );
+
+        if (!dnfAt) {
+          throw new Error(
+            'A stopped date is required for a DNF book.'
+          );
+        }
+
+        finishedAt =
+          null;
+      }
+
+      const endDate =
+        data.book.status ===
+        'read'
+          ? finishedAt
+          : data.book
+              .status ===
+            'dnf'
+          ? dnfAt
+          : null;
+
+      if (
+        startedAt &&
+        endDate &&
+        new Date(
+          endDate
+        ).getTime() <
+          new Date(
+            startedAt
+          ).getTime()
+      ) {
+        throw new Error(
+          'The ending date cannot be before the started date.'
+        );
+      }
+
+      setSavingDates(
+        true
+      );
+
+      const updatedBook =
+        await updateReadingDetailsDates(
+          data.session.id,
+          googleBookId,
+          data.book.status,
+          startedAt,
+          finishedAt,
+          dnfAt
+        );
+
+      setData(
+        (
+          current
+        ) =>
+          current
+            ? {
+                ...current,
+                book:
+                  updatedBook,
+                session: {
+                  ...current.session,
+                  started_at:
+                    startedAt,
+                  finished_at:
+                    data.book
+                        .status ===
+                      'read'
+                      ? finishedAt
+                      : null,
+                  dnf_at:
+                    data.book
+                        .status ===
+                      'dnf'
+                      ? dnfAt
+                      : null,
+                },
+              }
+            : current
+      );
+
+      dateSheet.closeSmoothly();
+    } catch (
+      dateError
+    ) {
+      Alert.alert(
+        'Check reading dates',
+        dateError instanceof
+          Error
+          ? dateError.message
+          : 'Novori could not update these dates.'
+      );
+    } finally {
+      setSavingDates(
         false
       );
     }
@@ -1012,6 +1861,36 @@ export default function ReadingDetailsScreen() {
                   }
                 </Text>
               </View>
+
+              <Pressable
+                onPress={
+                  openBookPage
+                }
+                hitSlop={8}
+                style={({
+                  pressed,
+                }) => [
+                  styles.openBookAction,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="open-outline"
+                  size={14}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.openBookActionText
+                  }
+                >
+                  Open Book
+                </Text>
+              </Pressable>
             </View>
           </View>
 
@@ -1022,72 +1901,138 @@ export default function ReadingDetailsScreen() {
           >
             <View
               style={
-                styles.timelineItem
+                styles.timelineHeader
               }
             >
               <Text
                 style={
-                  styles.timelineLabel
+                  styles.timelineHeaderText
                 }
               >
-                Started
+                Reading dates
               </Text>
 
-              <Text
-                style={
-                  styles.timelineValue
+              <Pressable
+                onPress={
+                  openDateEditor
                 }
+                hitSlop={8}
+                style={({
+                  pressed,
+                }) => [
+                  styles.timelineEditButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
               >
-                {
-                  data.book
-                    .started_at
-                    ? formatDate(
-                        data.book
-                          .started_at
-                      )
-                    : 'Not recorded'
-                }
-              </Text>
+                <Ionicons
+                  name="create-outline"
+                  size={14}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.timelineEditText
+                  }
+                >
+                  Edit
+                </Text>
+              </Pressable>
             </View>
 
             <View
               style={
-                styles.timelineDivider
-              }
-            />
-
-            <View
-              style={
-                styles.timelineItem
+                styles.timelineDatesRow
               }
             >
-              <Text
+              <View
                 style={
-                  styles.timelineLabel
+                  styles.timelineItem
                 }
               >
-                Finished
-              </Text>
+                <Text
+                  style={
+                    styles.timelineLabel
+                  }
+                >
+                  Started
+                </Text>
 
-              <Text
+                <Text
+                  style={
+                    styles.timelineValue
+                  }
+                >
+                  {
+                    data.book
+                      .started_at
+                      ? formatDate(
+                          data.book
+                            .started_at
+                        )
+                      : 'Not recorded'
+                  }
+                </Text>
+              </View>
+
+              <View
                 style={
-                  styles.timelineValue
+                  styles.timelineDivider
+                }
+              />
+
+              <View
+                style={
+                  styles.timelineItem
                 }
               >
-                {
-                  data.book
-                    .finished_at
-                    ? formatDate(
-                        data.book
-                          .finished_at
-                      )
-                    : data.book
+                <Text
+                  style={
+                    styles.timelineLabel
+                  }
+                >
+                  {
+                    data.book
                         .status ===
-                      'reading'
-                    ? 'In progress'
-                    : 'Not finished'
-                }
-              </Text>
+                      'dnf'
+                      ? 'Stopped'
+                      : 'Finished'
+                  }
+                </Text>
+
+                <Text
+                  style={
+                    styles.timelineValue
+                  }
+                >
+                  {
+                    data.book
+                        .status ===
+                      'dnf'
+                      ? data.book
+                          .dnf_at
+                        ? formatDate(
+                            data.book
+                              .dnf_at
+                          )
+                        : 'Not recorded'
+                      : data.book
+                          .finished_at
+                      ? formatDate(
+                          data.book
+                            .finished_at
+                        )
+                      : data.book
+                          .status ===
+                        'reading'
+                      ? 'In progress'
+                      : 'Not finished'
+                  }
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -1108,7 +2053,9 @@ export default function ReadingDetailsScreen() {
                     styles.eyebrow
                   }
                 >
-                  YOU LEFT OFF HERE
+                  {
+                    resumeEyebrow
+                  }
                 </Text>
 
                 <Text
@@ -1130,10 +2077,24 @@ export default function ReadingDetailsScreen() {
                 >
                   {
                     data.latest_checkpoint
-                      ? `Updated ${formatDate(
-                          data.latest_checkpoint
-                            .created_at
-                        )}`
+                      ? isFinished
+                        ? `Final checkpoint · ${formatDate(
+                            data.latest_checkpoint
+                              .created_at
+                          )}`
+                        : isDnf
+                        ? `Last checkpoint · ${formatDate(
+                            data.latest_checkpoint
+                              .created_at
+                          )}`
+                        : `Updated ${formatDate(
+                            data.latest_checkpoint
+                              .created_at
+                          )}`
+                      : isFinished
+                      ? 'This reading session is complete.'
+                      : isDnf
+                      ? 'No checkpoint was saved before this reading session ended.'
                       : 'Save your first checkpoint whenever you stop reading.'
                   }
                 </Text>
@@ -1204,7 +2165,11 @@ export default function ReadingDetailsScreen() {
                   styles.completedHint
                 }
               >
-                Your reading record is preserved after finishing the book.
+                {
+                  isFinished
+                    ? 'Your completed reading record is preserved here.'
+                    : 'Your reading record is preserved here.'
+                }
               </Text>
             )}
           </View>
@@ -1714,14 +2679,15 @@ export default function ReadingDetailsScreen() {
 
         <Modal
           visible={
-            summaryEditorOpen
+            dateEditorVisible
           }
           transparent
-          animationType="slide"
-          onRequestClose={() =>
-            setSummaryEditorOpen(
-              false
-            )
+          animationType="none"
+          onShow={
+            dateSheet.animateIn
+          }
+          onRequestClose={
+            dateSheet.closeSmoothly
           }
         >
           <KeyboardAvoidingView
@@ -1739,18 +2705,329 @@ export default function ReadingDetailsScreen() {
               style={
                 styles.modalBackdrop
               }
-              onPress={() =>
-                setSummaryEditorOpen(
-                  false
-                )
-              }
-            />
-
-            <View
-              style={
-                styles.modalSheet
+              onPress={
+                dateSheet.closeSmoothly
               }
             >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.modalBackdropVisual,
+                  {
+                    opacity:
+                      dateSheet.backdropOpacity,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                {...dateSheet.panResponder.panHandlers}
+                onLayout={(event) => {
+                  dateSheet.sheetHeight.current =
+                    event.nativeEvent.layout.height;
+                }}
+                style={[
+                  styles.modalSheet,
+                  styles.dateModalSheet,
+                  {
+                    opacity:
+                      dateSheet.sheetOpacity,
+                    transform: [
+                      {
+                        translateY:
+                          dateSheet.translateY,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={(event) =>
+                    event.stopPropagation()
+                  }
+                >
+                  <View
+                    style={
+                      styles.modalHandle
+                    }
+                  />
+
+                  <View
+                    style={
+                      styles.modalHeader
+                    }
+                  >
+                    <View
+                      style={
+                        styles.modalHeaderCopy
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.modalTitle
+                        }
+                      >
+                        Edit reading dates
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.modalSubtitle
+                        }
+                      >
+                        Adjust dates if you started or finished on a different day.
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      onPress={
+                        dateSheet.closeSmoothly
+                      }
+                      hitSlop={8}
+                      disabled={
+                        savingDates
+                      }
+                      style={
+                        styles.modalCloseButton
+                      }
+                    >
+                      <Ionicons
+                        name="close"
+                        size={20}
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    </Pressable>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.fieldLabelNoTop
+                    }
+                  >
+                    Started
+                  </Text>
+
+                  <TextInput
+                    value={
+                      startedDateInput
+                    }
+                    onChangeText={(value) =>
+                      setStartedDateInput(
+                        formatDateInput(
+                          value
+                        )
+                      )
+                    }
+                    keyboardType="number-pad"
+                    placeholder="MM/DD/YYYY"
+                    placeholderTextColor={
+                      colors.mutedText
+                    }
+                    maxLength={10}
+                    autoCorrect={false}
+                    style={
+                      styles.input
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.dateInputHint
+                    }
+                  >
+                    Leave blank if you do not know the start date.
+                  </Text>
+
+                  {data.book.status ===
+                    'read' ||
+                  data.book.status ===
+                    'dnf' ? (
+                    <View
+                      style={
+                        styles.dateEndField
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.fieldLabelNoTop
+                        }
+                      >
+                        {
+                          data.book
+                              .status ===
+                            'read'
+                            ? 'Finished'
+                            : 'Stopped'
+                        }
+                      </Text>
+
+                      <TextInput
+                        value={
+                          endedDateInput
+                        }
+                        onChangeText={(value) =>
+                          setEndedDateInput(
+                            formatDateInput(
+                              value
+                            )
+                          )
+                        }
+                        keyboardType="number-pad"
+                        placeholder="MM/DD/YYYY"
+                        placeholderTextColor={
+                          colors.mutedText
+                        }
+                        maxLength={10}
+                        autoCorrect={false}
+                        style={
+                          styles.input
+                        }
+                      />
+                    </View>
+                  ) : null}
+
+                  <View
+                    style={
+                      styles.modalActions
+                    }
+                  >
+                    <Pressable
+                      onPress={
+                        dateSheet.closeSmoothly
+                      }
+                      disabled={
+                        savingDates
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.secondaryButton,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          styles.secondaryButtonText
+                        }
+                      >
+                        Cancel
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() =>
+                        void saveDates()
+                      }
+                      disabled={
+                        savingDates
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.smallPrimaryButton,
+                        (
+                          pressed ||
+                          savingDates
+                        ) &&
+                          styles.pressed,
+                      ]}
+                    >
+                      {savingDates ? (
+                        <ActivityIndicator
+                          color={
+                            colors.background
+                          }
+                        />
+                      ) : (
+                        <Text
+                          style={
+                            styles.primaryButtonText
+                          }
+                        >
+                          Save dates
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </Animated.View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        <Modal
+          visible={
+            summaryEditorOpen
+          }
+          transparent
+          animationType="none"
+          onShow={
+            summarySheet.animateIn
+          }
+          onRequestClose={
+            summarySheet.closeSmoothly
+          }
+        >
+          <KeyboardAvoidingView
+            style={
+              styles.modalKeyboardHost
+            }
+            behavior={
+              Platform.OS ===
+              'ios'
+                ? 'padding'
+                : undefined
+            }
+          >
+            <Pressable
+              style={
+                styles.modalBackdrop
+              }
+              onPress={
+                summarySheet.closeSmoothly
+              }
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.modalBackdropVisual,
+                  {
+                    opacity:
+                      summarySheet.backdropOpacity,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                {...summarySheet.panResponder.panHandlers}
+                onLayout={(event) => {
+                  summarySheet.sheetHeight.current =
+                    event.nativeEvent.layout.height;
+                }}
+                style={[
+                  styles.modalSheet,
+                  {
+                    opacity:
+                      summarySheet.sheetOpacity,
+                    transform: [
+                      {
+                        translateY:
+                          summarySheet.translateY,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={(event) =>
+                    event.stopPropagation()
+                  }
+                >
               <View
                 style={
                   styles.modalHandle
@@ -1785,10 +3062,8 @@ export default function ReadingDetailsScreen() {
                 </View>
 
                 <Pressable
-                  onPress={() =>
-                    setSummaryEditorOpen(
-                      false
-                    )
+                  onPress={
+                    summarySheet.closeSmoothly
                   }
                   hitSlop={8}
                   style={
@@ -1829,10 +3104,8 @@ export default function ReadingDetailsScreen() {
                 }
               >
                 <Pressable
-                  onPress={() =>
-                    setSummaryEditorOpen(
-                      false
-                    )
+                  onPress={
+                    summarySheet.closeSmoothly
                   }
                   style={({
                     pressed,
@@ -1886,7 +3159,9 @@ export default function ReadingDetailsScreen() {
                   )}
                 </Pressable>
               </View>
-            </View>
+                </Pressable>
+              </Animated.View>
+            </Pressable>
           </KeyboardAvoidingView>
         </Modal>
 
@@ -1895,11 +3170,12 @@ export default function ReadingDetailsScreen() {
             noteEditorOpen
           }
           transparent
-          animationType="slide"
-          onRequestClose={() =>
-            setNoteEditorOpen(
-              false
-            )
+          animationType="none"
+          onShow={
+            noteSheet.animateIn
+          }
+          onRequestClose={
+            noteSheet.closeSmoothly
           }
         >
           <KeyboardAvoidingView
@@ -1917,19 +3193,47 @@ export default function ReadingDetailsScreen() {
               style={
                 styles.modalBackdrop
               }
-              onPress={() =>
-                setNoteEditorOpen(
-                  false
-                )
+              onPress={
+                noteSheet.closeSmoothly
               }
-            />
-
-            <View
-              style={[
-                styles.modalSheet,
-                styles.noteModalSheet,
-              ]}
             >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.modalBackdropVisual,
+                  {
+                    opacity:
+                      noteSheet.backdropOpacity,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                {...noteSheet.panResponder.panHandlers}
+                onLayout={(event) => {
+                  noteSheet.sheetHeight.current =
+                    event.nativeEvent.layout.height;
+                }}
+                style={[
+                  [styles.modalSheet, styles.noteModalSheet],
+                  {
+                    opacity:
+                      noteSheet.sheetOpacity,
+                    transform: [
+                      {
+                        translateY:
+                          noteSheet.translateY,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={(event) =>
+                    event.stopPropagation()
+                  }
+                >
               <View
                 style={
                   styles.modalHandle
@@ -1964,10 +3268,8 @@ export default function ReadingDetailsScreen() {
                 </View>
 
                 <Pressable
-                  onPress={() =>
-                    setNoteEditorOpen(
-                      false
-                    )
+                  onPress={
+                    noteSheet.closeSmoothly
                   }
                   hitSlop={8}
                   style={
@@ -2091,10 +3393,8 @@ export default function ReadingDetailsScreen() {
                 }
               >
                 <Pressable
-                  onPress={() =>
-                    setNoteEditorOpen(
-                      false
-                    )
+                  onPress={
+                    noteSheet.closeSmoothly
                   }
                   style={({
                     pressed,
@@ -2148,7 +3448,9 @@ export default function ReadingDetailsScreen() {
                   )}
                 </Pressable>
               </View>
-            </View>
+                </Pressable>
+              </Animated.View>
+            </Pressable>
           </KeyboardAvoidingView>
         </Modal>
 
@@ -2157,11 +3459,12 @@ export default function ReadingDetailsScreen() {
             showHistory
           }
           transparent
-          animationType="slide"
-          onRequestClose={() =>
-            setShowHistory(
-              false
-            )
+          animationType="none"
+          onShow={
+            historySheet.animateIn
+          }
+          onRequestClose={
+            historySheet.closeSmoothly
           }
         >
           <View
@@ -2173,19 +3476,47 @@ export default function ReadingDetailsScreen() {
               style={
                 styles.modalBackdrop
               }
-              onPress={() =>
-                setShowHistory(
-                  false
-                )
+              onPress={
+                historySheet.closeSmoothly
               }
-            />
-
-            <View
-              style={[
-                styles.modalSheet,
-                styles.historyModalSheet,
-              ]}
             >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.modalBackdropVisual,
+                  {
+                    opacity:
+                      historySheet.backdropOpacity,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                {...historySheet.panResponder.panHandlers}
+                onLayout={(event) => {
+                  historySheet.sheetHeight.current =
+                    event.nativeEvent.layout.height;
+                }}
+                style={[
+                  [styles.modalSheet, styles.historyModalSheet],
+                  {
+                    opacity:
+                      historySheet.sheetOpacity,
+                    transform: [
+                      {
+                        translateY:
+                          historySheet.translateY,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={(event) =>
+                    event.stopPropagation()
+                  }
+                >
               <View
                 style={
                   styles.modalHandle
@@ -2229,10 +3560,8 @@ export default function ReadingDetailsScreen() {
                 </View>
 
                 <Pressable
-                  onPress={() =>
-                    setShowHistory(
-                      false
-                    )
+                  onPress={
+                    historySheet.closeSmoothly
                   }
                   hitSlop={8}
                   style={
@@ -2337,7 +3666,9 @@ export default function ReadingDetailsScreen() {
                   Your checkpoints will appear here as you update your progress.
                 </Text>
               )}
-            </View>
+                </Pressable>
+              </Animated.View>
+            </Pressable>
           </View>
         </Modal>
       </KeyboardAvoidingView>
@@ -2491,6 +3822,28 @@ function createStyles(
       paddingVertical:
         5,
     },
+    openBookAction: {
+      alignSelf:
+        'flex-start',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      marginTop:
+        10,
+      paddingVertical:
+        4,
+    },
+    openBookActionText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11.5,
+    },
     statusPillText: {
       color:
         colors.gold,
@@ -2500,10 +3853,6 @@ function createStyles(
         11,
     },
     timelineCard: {
-      flexDirection:
-        'row',
-      alignItems:
-        'stretch',
       backgroundColor:
         colors.surface,
       borderWidth:
@@ -2513,11 +3862,61 @@ function createStyles(
       borderRadius:
         16,
       paddingVertical:
-        14,
+        13,
       paddingHorizontal:
         16,
       marginBottom:
         14,
+    },
+    timelineHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      paddingBottom:
+        11,
+      marginBottom:
+        12,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+      borderBottomColor:
+        colors.border,
+    },
+    timelineHeaderText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    timelineEditButton: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
+      paddingVertical:
+        3,
+      paddingHorizontal:
+        2,
+    },
+    timelineEditText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11.5,
+    },
+    timelineDatesRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'stretch',
     },
     timelineItem: {
       flex:
@@ -3071,7 +4470,14 @@ function createStyles(
         'flex-end',
     },
     modalBackdrop: {
-      ...StyleSheet.absoluteFill,
+      flex:
+        1,
+      justifyContent:
+        'flex-end',
+      backgroundColor:
+        'transparent',
+    },
+    modalBackdropVisual: {
       backgroundColor:
         'rgba(0, 0, 0, 0.56)',
     },
@@ -3103,6 +4509,26 @@ function createStyles(
         'ios'
           ? 28
           : 20,
+    },
+    dateModalSheet: {
+      maxHeight:
+        '72%',
+    },
+    dateInputHint: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      lineHeight:
+        15,
+      marginTop:
+        7,
+    },
+    dateEndField: {
+      marginTop:
+        16,
     },
     noteModalSheet: {
       maxHeight:

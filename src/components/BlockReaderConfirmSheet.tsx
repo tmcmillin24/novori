@@ -10,6 +10,7 @@ import {
     Easing,
     Modal,
     PanResponder,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -28,22 +29,26 @@ import {
 
 type Props = {
   visible: boolean;
+  embedded?: boolean;
   readerName: string;
   mode?: 'block' | 'unblock';
   message?: string;
   busy?: boolean;
   onConfirm: () => Promise<void>;
   onDismiss: () => void;
+  onDismissed?: () => void;
 };
 
 export default function BlockReaderConfirmSheet({
   visible,
+  embedded = false,
   readerName,
   mode = 'block',
   message,
   busy = false,
   onConfirm,
   onDismiss,
+  onDismissed,
 }: Props) {
   const {
     colors,
@@ -78,6 +83,17 @@ export default function BlockReaderConfirmSheet({
         0
       )
     ).current;
+
+  // iOS reports completion through Modal.onDismiss. Other platforms
+  // finish when the non-animated native modal becomes hidden.
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    const didHide = wasVisible.current && !visible;
+    wasVisible.current = visible;
+    if (didHide && (embedded || Platform.OS !== 'ios')) {
+      onDismissed?.();
+    }
+  }, [visible, embedded, onDismissed]);
 
   const sheetHeight =
     useRef(0);
@@ -544,17 +560,7 @@ export default function BlockReaderConfirmSheet({
         : 'Their posts and comments will be hidden from you, and any follow relationship between you will be removed. You can unblock them later in Settings.'
     );
 
-  return (
-    <Modal
-      visible={
-        visible
-      }
-      transparent
-      animationType="none"
-      onRequestClose={
-        closeSmoothly
-      }
-    >
+  const content = (
       <Pressable
         style={
           styles.backdrop
@@ -709,6 +715,25 @@ export default function BlockReaderConfirmSheet({
           </Pressable>
         </Animated.View>
       </Pressable>
+  );
+
+  if (embedded) {
+    return visible ? (
+      <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
+        {content}
+      </View>
+    ) : null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onDismiss={onDismissed}
+      onRequestClose={closeSmoothly}
+    >
+      {content}
     </Modal>
   );
 }

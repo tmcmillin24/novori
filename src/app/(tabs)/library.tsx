@@ -39,6 +39,8 @@ import {
   useNovoriTheme,
 } from '../../context/theme-context';
 
+import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
+
 import {
   getUserBooks,
   removeUserBook,
@@ -167,6 +169,14 @@ export default function LibraryScreen() {
   const [
     selectedBook,
     setSelectedBook,
+  ] =
+    useState<UserBook | null>(
+      null
+    );
+
+  const [
+    removeConfirmBook,
+    setRemoveConfirmBook,
   ] =
     useState<UserBook | null>(
       null
@@ -780,23 +790,8 @@ export default function LibraryScreen() {
   function confirmRemove(
     book: UserBook
   ) {
-    Alert.alert(
-      'Remove from Library?',
-      `Remove ${book.title} from your Novori library? This will also remove its saved rating and review.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () =>
-            removeBook(
-              book
-            ),
-        },
-      ]
+    setRemoveConfirmBook(
+      book
     );
   }
 
@@ -834,6 +829,8 @@ export default function LibraryScreen() {
         'Could not remove book',
         'Novori had trouble removing this book from your library. Please try again.'
       );
+
+      throw removeError;
     } finally {
       setUpdatingBookId(
         null
@@ -1423,6 +1420,48 @@ export default function LibraryScreen() {
           }
         />
       </SafeAreaView>
+
+      <RemoveBookConfirmSheet
+        visible={
+          removeConfirmBook !==
+          null
+        }
+        bookTitle={
+          removeConfirmBook
+            ?.title ??
+          ''
+        }
+        hasReadingDetails={
+          Boolean(
+            removeConfirmBook &&
+            removeConfirmBook.status !==
+              'want_to_read'
+          )
+        }
+        busy={
+          Boolean(
+            removeConfirmBook &&
+            updatingBookId ===
+              removeConfirmBook.id
+          )
+        }
+        onDismiss={() =>
+          setRemoveConfirmBook(
+            null
+          )
+        }
+        onConfirm={async () => {
+          if (
+            !removeConfirmBook
+          ) {
+            return;
+          }
+
+          await removeBook(
+            removeConfirmBook
+          );
+        }}
+      />
 
       <Modal
         visible={

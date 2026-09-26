@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 
+import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
 import { COLORS } from '../../../constants/novori-theme';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -249,64 +250,6 @@ function dateInputFromIso(
   return `${month}/${day}/${date.getFullYear()}`;
 }
 
-function formatDateInput(
-  nextValue: string,
-  previousValue: string
-) {
-  if (
-    nextValue.length <
-      previousValue.length &&
-    previousValue.endsWith(
-      '/'
-    ) &&
-    nextValue ===
-      previousValue.slice(
-        0,
-        -1
-      )
-  ) {
-    return nextValue;
-  }
-
-  const digits =
-    nextValue
-      .replace(
-        /\D/g,
-        ''
-      )
-      .slice(
-        0,
-        8
-      );
-
-  if (
-    digits.length <= 2
-  ) {
-    return digits;
-  }
-
-  if (
-    digits.length <= 4
-  ) {
-    return `${digits.slice(
-      0,
-      2
-    )}/${digits.slice(
-      2
-    )}`;
-  }
-
-  return `${digits.slice(
-    0,
-    2
-  )}/${digits.slice(
-    2,
-    4
-  )}/${digits.slice(
-    4
-  )}`;
-}
-
 function parseDateInput(
   value: string
 ) {
@@ -406,6 +349,8 @@ export default function BookDetailsScreen() {
   const [savingStatus, setSavingStatus] =
     useState<UserBookStatus | null>(null);
   const [removingBook, setRemovingBook] =
+    useState(false);
+  const [removeConfirmVisible, setRemoveConfirmVisible] =
     useState(false);
   const [series, setSeries] =
     useState<HardcoverSeries | null>(null);
@@ -709,20 +654,8 @@ export default function BookDetailsScreen() {
       return;
     }
 
-    Alert.alert(
-      'Remove from Library?',
-      `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: removeFromLibrary,
-        },
-      ]
+    setRemoveConfirmVisible(
+      true
     );
   }
 
@@ -753,6 +686,8 @@ export default function BookDetailsScreen() {
         'Could not remove book',
         'Novori had trouble removing this book from your library. Please try again.'
       );
+
+      throw removeError;
     } finally {
       setRemovingBook(false);
     }
@@ -1275,9 +1210,15 @@ export default function BookDetailsScreen() {
           'want_to_read' ? (
           <View style={styles.readingDatesSection}>
             <View style={styles.readingDatesHeader}>
-              <Text style={styles.sectionLabel}>
-                READING DATES
-              </Text>
+              <View>
+                <Text style={styles.sectionLabel}>
+                  READING ACTIVITY
+                </Text>
+
+                <Text style={styles.readingDatesTitle}>
+                  Your reading dates
+                </Text>
+              </View>
 
               <Pressable
                 onPress={
@@ -1292,7 +1233,7 @@ export default function BookDetailsScreen() {
               >
                 <Ionicons
                   name="create-outline"
-                  size={14}
+                  size={15}
                   color={COLORS.gold}
                 />
 
@@ -1303,39 +1244,53 @@ export default function BookDetailsScreen() {
             </View>
 
             <View style={styles.readingDatesCard}>
-              <View style={styles.readingDateCompactItem}>
-                <Text style={styles.readingDateLabel}>
-                  Started
-                </Text>
+              <View style={styles.readingDateItem}>
+                <View style={styles.readingDateIcon}>
+                  <Ionicons
+                    name="play-outline"
+                    size={17}
+                    color={COLORS.gold}
+                  />
+                </View>
 
-                <Text
-                  style={styles.readingDateValue}
-                  numberOfLines={1}
-                >
-                  {formatReadingDate(
-                    savedBook.started_at
-                  )}
-                </Text>
+                <View style={styles.readingDateText}>
+                  <Text style={styles.readingDateLabel}>
+                    Started
+                  </Text>
+
+                  <Text style={styles.readingDateValue}>
+                    {formatReadingDate(
+                      savedBook.started_at
+                    )}
+                  </Text>
+                </View>
               </View>
 
               {savedBook.status ===
               'read' ? (
                 <>
-                  <View style={styles.readingDateVerticalDivider} />
+                  <View style={styles.readingDateDivider} />
 
-                  <View style={styles.readingDateCompactItem}>
-                    <Text style={styles.readingDateLabel}>
-                      Finished
-                    </Text>
+                  <View style={styles.readingDateItem}>
+                    <View style={styles.readingDateIcon}>
+                      <Ionicons
+                        name="checkmark-outline"
+                        size={17}
+                        color={COLORS.gold}
+                      />
+                    </View>
 
-                    <Text
-                      style={styles.readingDateValue}
-                      numberOfLines={1}
-                    >
-                      {formatReadingDate(
-                        savedBook.finished_at
-                      )}
-                    </Text>
+                    <View style={styles.readingDateText}>
+                      <Text style={styles.readingDateLabel}>
+                        Finished
+                      </Text>
+
+                      <Text style={styles.readingDateValue}>
+                        {formatReadingDate(
+                          savedBook.finished_at
+                        )}
+                      </Text>
+                    </View>
                   </View>
                 </>
               ) : null}
@@ -1343,21 +1298,28 @@ export default function BookDetailsScreen() {
               {savedBook.status ===
               'dnf' ? (
                 <>
-                  <View style={styles.readingDateVerticalDivider} />
+                  <View style={styles.readingDateDivider} />
 
-                  <View style={styles.readingDateCompactItem}>
-                    <Text style={styles.readingDateLabel}>
-                      Stopped
-                    </Text>
+                  <View style={styles.readingDateItem}>
+                    <View style={styles.readingDateIcon}>
+                      <Ionicons
+                        name="stop-outline"
+                        size={17}
+                        color={COLORS.gold}
+                      />
+                    </View>
 
-                    <Text
-                      style={styles.readingDateValue}
-                      numberOfLines={1}
-                    >
-                      {formatReadingDate(
-                        savedBook.dnf_at
-                      )}
-                    </Text>
+                    <View style={styles.readingDateText}>
+                      <Text style={styles.readingDateLabel}>
+                        Stopped
+                      </Text>
+
+                      <Text style={styles.readingDateValue}>
+                        {formatReadingDate(
+                          savedBook.dnf_at
+                        )}
+                      </Text>
+                    </View>
                   </View>
                 </>
               ) : null}
@@ -1682,6 +1644,35 @@ export default function BookDetailsScreen() {
         </Pressable>
       </ScrollView>
 
+      <RemoveBookConfirmSheet
+        visible={
+          removeConfirmVisible
+        }
+        bookTitle={
+          book?.volumeInfo
+            .title ??
+          'this book'
+        }
+        hasReadingDetails={
+          Boolean(
+            savedBook &&
+            savedBook.status !==
+              'want_to_read'
+          )
+        }
+        busy={
+          removingBook
+        }
+        onDismiss={() =>
+          setRemoveConfirmVisible(
+            false
+          )
+        }
+        onConfirm={
+          removeFromLibrary
+        }
+      />
+
       <Modal
         visible={dateEditorVisible}
         transparent
@@ -1734,24 +1725,21 @@ export default function BookDetailsScreen() {
 
               <TextInput
                 value={startedDateInput}
-                onChangeText={(value) =>
-                  setStartedDateInput(
-                    formatDateInput(
-                      value,
-                      startedDateInput
-                    )
-                  )
+                onChangeText={
+                  setStartedDateInput
                 }
                 placeholder="MM/DD/YYYY"
                 placeholderTextColor={
                   COLORS.mutedText
                 }
-                keyboardType="number-pad"
-                maxLength={10}
+                keyboardType="numbers-and-punctuation"
                 autoCorrect={false}
                 style={styles.dateInput}
               />
 
+              <Text style={styles.dateFieldHint}>
+                Leave blank if you do not know the start date.
+              </Text>
             </View>
 
             {savedBook?.status ===
@@ -1768,20 +1756,14 @@ export default function BookDetailsScreen() {
 
                 <TextInput
                   value={endedDateInput}
-                  onChangeText={(value) =>
-                    setEndedDateInput(
-                      formatDateInput(
-                        value,
-                        endedDateInput
-                      )
-                    )
+                  onChangeText={
+                    setEndedDateInput
                   }
                   placeholder="MM/DD/YYYY"
                   placeholderTextColor={
                     COLORS.mutedText
                   }
-                  keyboardType="number-pad"
-                  maxLength={10}
+                  keyboardType="numbers-and-punctuation"
                   autoCorrect={false}
                   style={styles.dateInput}
                 />
@@ -2086,23 +2068,30 @@ const styles = StyleSheet.create({
   },
 
   readingDatesSection: {
-    marginTop: 21,
+    marginTop: 23,
   },
 
   readingDatesHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 7,
+    marginBottom: 10,
+  },
+
+  readingDatesTitle: {
+    color: COLORS.text,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    marginTop: -4,
   },
 
   editDatesButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    marginTop: -3,
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 1,
   },
 
   editDatesButtonPressed: {
@@ -2112,45 +2101,55 @@ const styles = StyleSheet.create({
   editDatesText: {
     color: COLORS.gold,
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 10,
+    fontSize: 11,
     marginLeft: 4,
   },
 
   readingDatesCard: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 13,
-    minHeight: 52,
-    paddingHorizontal: 5,
+    borderRadius: 15,
+    paddingHorizontal: 14,
   },
 
-  readingDateCompactItem: {
-    flex: 1,
+  readingDateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 62,
+  },
+
+  readingDateIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    marginRight: 11,
+  },
+
+  readingDateText: {
+    flex: 1,
   },
 
   readingDateLabel: {
     color: COLORS.mutedText,
     fontFamily: 'Inter_500Medium',
-    fontSize: 9,
+    fontSize: 10,
   },
 
   readingDateValue: {
     color: COLORS.text,
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 13,
+    marginTop: 3,
   },
 
-  readingDateVerticalDivider: {
-    width: 1,
+  readingDateDivider: {
+    height: 1,
     backgroundColor: COLORS.border,
-    marginVertical: 9,
+    marginLeft: 45,
   },
 
   dateModalBackdrop: {
@@ -2229,6 +2228,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
     paddingHorizontal: 13,
+  },
+
+  dateFieldHint: {
+    color: COLORS.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 6,
   },
 
   dateModalActions: {

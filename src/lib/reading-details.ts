@@ -1,7 +1,9 @@
 import { supabase } from './supabase';
 import {
     getUserBook,
+    updateBookReadingDates,
     UserBook,
+    UserBookStatus,
 } from './user-books';
 
 export type ReadingSession = {
@@ -536,4 +538,65 @@ export async function addReadingNote(
   return normalizeNote(
     data
   );
+}
+
+
+export async function updateReadingDetailsDates(
+  sessionId: string,
+  googleBookId: string,
+  status: UserBookStatus,
+  startedAt: string | null,
+  finishedAt: string | null,
+  dnfAt: string | null
+): Promise<UserBook> {
+  const user =
+    await requireUser();
+
+  const updatedBook =
+    await updateBookReadingDates({
+      googleBookId,
+      startedAt,
+      finishedAt,
+      dnfAt,
+    });
+
+  const {
+    error:
+      sessionError,
+  } =
+    await supabase
+      .from(
+        'reading_sessions'
+      )
+      .update({
+        started_at:
+          startedAt,
+        finished_at:
+          status ===
+          'read'
+            ? finishedAt
+            : null,
+        dnf_at:
+          status ===
+          'dnf'
+            ? dnfAt
+            : null,
+        updated_at:
+          new Date()
+            .toISOString(),
+      })
+      .eq(
+        'id',
+        sessionId
+      )
+      .eq(
+        'user_id',
+        user.id
+      );
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  return updatedBook;
 }

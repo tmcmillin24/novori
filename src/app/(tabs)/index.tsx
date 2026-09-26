@@ -160,6 +160,99 @@ const POST_REPORT_REASONS:
     },
   ];
 
+
+type ReadingUpdateDisplay = {
+  pageLabel: string | null;
+  chapterLabel: string | null;
+  thought: string;
+};
+
+function parseReadingUpdateDisplay(
+  body: string
+): ReadingUpdateDisplay {
+  const normalized =
+    body.replace(
+      /\r\n/g,
+      '\n'
+    );
+
+  const [
+    firstBlock,
+    ...restBlocks
+  ] =
+    normalized.split(
+      /\n\s*\n/
+    );
+
+  const pieces =
+    firstBlock
+      .split('·')
+      .map(
+        (piece) =>
+          piece.trim()
+      )
+      .filter(
+        Boolean
+      );
+
+  let pageLabel:
+    string | null =
+    null;
+
+  let chapterLabel:
+    string | null =
+    null;
+
+  let recognizedProgress =
+    false;
+
+  for (
+    const piece of
+    pieces
+  ) {
+    if (
+      /^Page\s+\d+$/i.test(
+        piece
+      ) ||
+      /^\d+(?:\.\d+)?%$/.test(
+        piece
+      )
+    ) {
+      pageLabel =
+        piece;
+      recognizedProgress =
+        true;
+      continue;
+    }
+
+    if (
+      /^Chapter\s+.+$/i.test(
+        piece
+      )
+    ) {
+      chapterLabel =
+        piece;
+      recognizedProgress =
+        true;
+    }
+  }
+
+  const thought =
+    recognizedProgress
+      ? restBlocks
+          .join(
+            '\n\n'
+          )
+          .trim()
+      : normalized.trim();
+
+  return {
+    pageLabel,
+    chapterLabel,
+    thought,
+  };
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -490,6 +583,8 @@ export default function HomeScreen() {
     useState<PostComment | null>(
       null
     );
+
+  const blockedReaderAfterDismiss = useRef<string | null>(null);
 
   const [
     holdingCommentId,
@@ -1107,6 +1202,17 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (
+        preserveHomeStateOnNextBlur.current
+      ) {
+        preserveHomeStateOnNextBlur.current =
+          false;
+
+        return () => {
+          Keyboard.dismiss();
+        };
+      }
+
       loadHomeData(true);
       void loadComposerProfile();
 
@@ -1116,8 +1222,6 @@ export default function HomeScreen() {
         if (
           preserveHomeStateOnNextBlur.current
         ) {
-          preserveHomeStateOnNextBlur.current =
-            false;
           return;
         }
 
@@ -1140,108 +1244,12 @@ export default function HomeScreen() {
         setClubSearchError(
           ''
         );
-
-        setActiveClubGenre(
-          'all'
-        );
       };
     }, [
-      loadComposerProfile,
       loadHomeData,
+      loadComposerProfile,
     ])
   );
-
-  useEffect(() => {
-    let active =
-      true;
-
-    let channel:
-      ReturnType<
-        typeof supabase.channel
-      > | null =
-      null;
-
-    async function subscribeToNotificationCount() {
-      const {
-        data: {
-          user,
-        },
-        error,
-      } =
-        await supabase.auth.getUser();
-
-      if (
-        error ||
-        !user ||
-        !active
-      ) {
-        return;
-      }
-
-      const refreshAttentionCount =
-        async () => {
-          try {
-            const count =
-              await getNotificationAttentionCount();
-
-            if (
-              active
-            ) {
-              setAttentionCount(
-                count
-              );
-            }
-          } catch (
-            attentionError
-          ) {
-            console.error(
-              'Could not refresh realtime notification attention count:',
-              attentionError
-            );
-          }
-        };
-
-      channel =
-        supabase
-          .channel(
-            `home-notification-count-${user.id}-${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2)}`
-          )
-          .on(
-            'postgres_changes',
-            {
-              event:
-                '*',
-              schema:
-                'public',
-              table:
-                'notifications',
-              filter:
-                `recipient_id=eq.${user.id}`,
-            },
-            () => {
-              void refreshAttentionCount();
-            }
-          )
-          .subscribe();
-    }
-
-    void subscribeToNotificationCount();
-
-    return () => {
-      active =
-        false;
-
-      if (
-        channel
-      ) {
-        void supabase.removeChannel(
-          channel
-        );
-      }
-    };
-  }, []);
 
   async function handleRefresh() {
     try {
@@ -1276,6 +1284,22 @@ export default function HomeScreen() {
       params: {
         id:
           readerId,
+      },
+    });
+  }
+
+  function openBook(
+    googleBookId: string
+  ) {
+    preserveHomeStateOnNextBlur.current =
+      true;
+
+    router.push({
+      pathname:
+        '/book/[id]',
+      params: {
+        id:
+          googleBookId,
       },
     });
   }
@@ -1665,9 +1689,13 @@ export default function HomeScreen() {
     closeCommentsSheet();
   }
 
-  function closeCommentsSheet() {
+  function closeCommentsSheet(
+    force =
+      false
+  ) {
     if (
-      commentsSheetAnimating.current
+      commentsSheetAnimating.current &&
+      !force
     ) {
       return;
     }
@@ -2982,13 +3010,12 @@ export default function HomeScreen() {
     const target =
       commentActionTarget;
 
+    // Finish removing the comment menu before opening its confirmation.
     beginCommentActionHandoff(
       () => {
-        setBlockConfirmTarget(
-          target
-        );
+        setBlockConfirmTarget(target);
       },
-      105
+      0
     );
   }
 
@@ -3011,22 +3038,9 @@ export default function HomeScreen() {
         comment.author_id
       );
 
-      if (
-        commentsPost?.author_id ===
-        comment.author_id
-      ) {
-        closeCommentsSheet();
-      } else if (
-        commentsPost
-      ) {
-        await loadCommentsSheet(
-          commentsPost.id
-        );
-      }
-
-      await loadHomeData(
-        false
-      );
+      // Keep the comments modal intact until the confirmation's native
+      // dismissal completes, even when blocking the post's author.
+      blockedReaderAfterDismiss.current = comment.author_id;
 
     } catch (
       error
@@ -3045,6 +3059,53 @@ export default function HomeScreen() {
     } finally {
       setBlockingReaderId(
         null
+      );
+    }
+  }
+
+  async function finishBlockAfterDismiss() {
+    const readerId =
+      blockedReaderAfterDismiss.current;
+
+    blockedReaderAfterDismiss.current =
+      null;
+
+    if (!readerId) {
+      return;
+    }
+
+    const blockedPostAuthor =
+      commentsPost?.author_id ===
+      readerId;
+
+    // A successful block can change the data backing the currently
+    // open comments modal. Close that native modal first so a refresh
+    // can never leave an invisible full-screen surface intercepting taps.
+    if (blockedPostAuthor) {
+      closeCommentsSheet(
+        true
+      );
+    }
+
+    try {
+      if (
+        !blockedPostAuthor &&
+        commentsPost
+      ) {
+        await loadCommentsSheet(
+          commentsPost.id
+        );
+      }
+
+      await loadHomeData(
+        false
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not refresh after blocking reader:',
+        error
       );
     }
   }
@@ -5494,6 +5555,17 @@ export default function HomeScreen() {
         .toUpperCase() ||
       'C';
 
+    const isReadingUpdate =
+      post.post_type ===
+      'reading_update';
+
+    const readingUpdate =
+      isReadingUpdate
+        ? parseReadingUpdateDisplay(
+            post.body
+          )
+        : null;
+
     return (
       <Pressable
         key={
@@ -5757,134 +5829,358 @@ export default function HomeScreen() {
             styles.feedPostContent
           }
         >
-          {renderExplicitContentWarning(
-            post.body,
-            'post',
-            post.id,
-            styles.feedBody,
-            Boolean(
-              currentUserId &&
-              post.author_id ===
-                currentUserId
-            )
-          )}
-
-          {post.book_title ? (
-            <View
-              style={
-                styles.feedBookCard
-              }
-            >
-              {post.book_cover_url ? (
-                <Image
-                  source={{
-                    uri:
-                      post.book_cover_url,
-                  }}
-                  style={
-                    styles.feedBookCover
-                  }
-                />
-              ) : (
-                <View
-                  style={
-                    styles.feedBookCoverFallback
-                  }
-                >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      22
-                    }
-                    color={
-                      COLORS.gold
-                    }
-                  />
-                </View>
-              )}
-
+          {isReadingUpdate ? (
+            <>
               <View
                 style={
-                  styles.feedBookCopy
+                  styles.feedReadingUpdateLabel
                 }
               >
-                <View
-                  style={
-                    styles.feedBookEyebrow
+                <Ionicons
+                  name="book-outline"
+                  size={
+                    13
                   }
-                >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      12
-                    }
-                    color={
-                      COLORS.gold
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.feedBookEyebrowText
-                    }
-                  >
-                    Book
-                  </Text>
-                </View>
+                  color={
+                    COLORS.gold
+                  }
+                />
 
                 <Text
                   style={
-                    styles.feedBookTitle
-                  }
-                  numberOfLines={
-                    2
+                    styles.feedReadingUpdateLabelText
                   }
                 >
-                  {
-                    post.book_title
-                  }
+                  READING UPDATE
                 </Text>
+              </View>
 
-                {post.rating ? (
-                  <View
-                    style={
-                      styles.feedBookRatingRow
+              {post.book_title ? (
+                <Pressable
+                  disabled={
+                    !post.google_book_id
+                  }
+                  onPress={(event) => {
+                    event.stopPropagation();
+
+                    if (
+                      post.google_book_id
+                    ) {
+                      openBook(
+                        post.google_book_id
+                      );
                     }
-                  >
-                    <Ionicons
-                      name="star"
-                      size={
-                        13
-                      }
-                      color={
-                        COLORS.gold
+                  }}
+                  accessibilityRole={
+                    post.google_book_id
+                      ? 'button'
+                      : undefined
+                  }
+                  accessibilityLabel={
+                    post.google_book_id
+                      ? `Open ${post.book_title}`
+                      : undefined
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.feedReadingBookCard,
+                    pressed &&
+                      post.google_book_id &&
+                      styles.feedReadingBookCardPressed,
+                  ]}
+                >
+                  {post.book_cover_url ? (
+                    <Image
+                      source={{
+                        uri:
+                          post.book_cover_url,
+                      }}
+                      style={
+                        styles.feedReadingBookCover
                       }
                     />
+                  ) : (
+                    <View
+                      style={
+                        styles.feedReadingBookCoverFallback
+                      }
+                    >
+                      <Ionicons
+                        name="book-outline"
+                        size={
+                          24
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+                  )}
 
+                  <View
+                    style={
+                      styles.feedReadingBookCopy
+                    }
+                  >
                     <Text
                       style={
-                        styles.feedBookRating
+                        styles.feedReadingBookTitle
+                      }
+                      numberOfLines={
+                        2
                       }
                     >
                       {
-                        post.rating
+                        post.book_title
                       }
                     </Text>
-                  </View>
-                ) : null}
-              </View>
 
-              <Ionicons
-                name="chevron-forward"
-                size={
-                  17
-                }
-                color={
-                  COLORS.mutedText
-                }
-              />
-            </View>
-          ) : null}
+                    {readingUpdate &&
+                    (
+                      readingUpdate.pageLabel ||
+                      readingUpdate.chapterLabel
+                    ) ? (
+                      <View
+                        style={
+                          styles.feedReadingProgressPills
+                        }
+                      >
+                        {readingUpdate.pageLabel ? (
+                          <View
+                            style={
+                              styles.feedReadingProgressPill
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.feedReadingProgressPillText
+                              }
+                            >
+                              {
+                                readingUpdate.pageLabel
+                              }
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {readingUpdate.chapterLabel ? (
+                          <View
+                            style={
+                              styles.feedReadingProgressPill
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.feedReadingProgressPillText
+                              }
+                            >
+                              {
+                                readingUpdate.chapterLabel
+                              }
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {post.google_book_id ? (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={
+                        18
+                      }
+                      color={
+                        COLORS.mutedText
+                      }
+                    />
+                  ) : null}
+                </Pressable>
+              ) : null}
+
+              {readingUpdate
+                ?.thought ? (
+                <View
+                  style={
+                    styles.feedReadingThoughtWrap
+                  }
+                >
+                  {renderExplicitContentWarning(
+                    readingUpdate.thought,
+                    'post',
+                    post.id,
+                    styles.feedReadingThought,
+                    Boolean(
+                      currentUserId &&
+                      post.author_id ===
+                        currentUserId
+                    )
+                  )}
+                </View>
+              ) : (
+                <Text
+                  style={
+                    styles.feedReadingMuted
+                  }
+                >
+                  Progress update
+                </Text>
+              )}
+            </>
+          ) : (
+            <>
+              {renderExplicitContentWarning(
+                post.body,
+                'post',
+                post.id,
+                styles.feedBody,
+                Boolean(
+                  currentUserId &&
+                  post.author_id ===
+                    currentUserId
+                )
+              )}
+
+              {post.book_title ? (
+                <Pressable
+                  disabled={
+                    !post.google_book_id
+                  }
+                  onPress={(event) => {
+                    event.stopPropagation();
+
+                    if (
+                      post.google_book_id
+                    ) {
+                      openBook(
+                        post.google_book_id
+                      );
+                    }
+                  }}
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.feedBookCard,
+                    pressed &&
+                      post.google_book_id &&
+                      styles.pressed,
+                  ]}
+                >
+                  {post.book_cover_url ? (
+                    <Image
+                      source={{
+                        uri:
+                          post.book_cover_url,
+                      }}
+                      style={
+                        styles.feedBookCover
+                      }
+                    />
+                  ) : (
+                    <View
+                      style={
+                        styles.feedBookCoverFallback
+                      }
+                    >
+                      <Ionicons
+                        name="book-outline"
+                        size={
+                          22
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+                    </View>
+                  )}
+
+                  <View
+                    style={
+                      styles.feedBookCopy
+                    }
+                  >
+                    <View
+                      style={
+                        styles.feedBookEyebrow
+                      }
+                    >
+                      <Ionicons
+                        name="book-outline"
+                        size={
+                          12
+                        }
+                        color={
+                          COLORS.gold
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.feedBookEyebrowText
+                        }
+                      >
+                        Book
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={
+                        styles.feedBookTitle
+                      }
+                      numberOfLines={
+                        2
+                      }
+                    >
+                      {
+                        post.book_title
+                      }
+                    </Text>
+
+                    {post.rating ? (
+                      <View
+                        style={
+                          styles.feedBookRatingRow
+                        }
+                      >
+                        <Ionicons
+                          name="star"
+                          size={
+                            13
+                          }
+                          color={
+                            COLORS.gold
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.feedBookRating
+                          }
+                        >
+                          {
+                            post.rating
+                          }
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {post.google_book_id ? (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={
+                        17
+                      }
+                      color={
+                        COLORS.mutedText
+                      }
+                    />
+                  ) : null}
+                </Pressable>
+              ) : null}
+            </>
+          )}
         </View>
 
         <View
@@ -7008,37 +7304,7 @@ export default function HomeScreen() {
             : renderClubs()}
         </View>
       </ScrollView>
-        <BlockReaderConfirmSheet
-        visible={
-          Boolean(
-            blockConfirmTarget
-          )
-        }
-        readerName={
-          blockConfirmTarget?.author_display_name
-            ?.trim() ||
-          blockConfirmTarget?.author_username
-            ?.trim() ||
-          'this reader'
-        }
-        busy={
-          Boolean(
-            blockingReaderId
-          )
-        }
-        onConfirm={() =>
-          blockConfirmTarget
-            ? blockSelectedReader(
-                blockConfirmTarget
-              )
-            : Promise.resolve()
-        }
-        onDismiss={() =>
-          setBlockConfirmTarget(
-            null
-          )
-        }
-      />
+
 
     </SafeAreaView>
 
@@ -7514,9 +7780,7 @@ export default function HomeScreen() {
         onDismiss={
           handleCommentsModalDismiss
         }
-        onRequestClose={
-          closeCommentsSheet
-        }
+        onRequestClose={() => closeCommentsSheet()}
       >
         <View
           style={
@@ -8622,6 +8886,41 @@ export default function HomeScreen() {
               </Animated.View>
             </Animated.View>
           </View>
+        <BlockReaderConfirmSheet
+        embedded
+        visible={
+          Boolean(
+            blockConfirmTarget
+          )
+        }
+        readerName={
+          blockConfirmTarget?.author_display_name
+            ?.trim() ||
+          blockConfirmTarget?.author_username
+            ?.trim() ||
+          'this reader'
+        }
+        busy={
+          Boolean(
+            blockingReaderId
+          )
+        }
+        onConfirm={() =>
+          blockConfirmTarget
+            ? blockSelectedReader(
+                blockConfirmTarget
+              )
+            : Promise.resolve()
+        }
+        onDismissed={() => {
+          void finishBlockAfterDismiss();
+        }}
+        onDismiss={() =>
+          setBlockConfirmTarget(
+            null
+          )
+        }
+      />
         </View>
       </Modal>
 
@@ -9252,6 +9551,154 @@ const styles =
         16,
       paddingTop:
         14,
+    },
+    feedReadingUpdateLabel: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      marginBottom:
+        11,
+    },
+    feedReadingUpdateLabelText: {
+      color:
+        COLORS.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        10,
+      letterSpacing:
+        0.9,
+    },
+    feedReadingBookCard: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        COLORS.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      borderRadius:
+        18,
+      padding:
+        12,
+    },
+    feedReadingBookCardPressed: {
+      opacity:
+        0.82,
+    },
+    feedReadingBookCover: {
+      width:
+        60,
+      height:
+        88,
+      borderRadius:
+        9,
+      backgroundColor:
+        COLORS.surface,
+      marginRight:
+        13,
+    },
+    feedReadingBookCoverFallback: {
+      width:
+        60,
+      height:
+        88,
+      borderRadius:
+        9,
+      backgroundColor:
+        COLORS.surface,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        13,
+    },
+    feedReadingBookCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
+      paddingRight:
+        8,
+    },
+    feedReadingBookTitle: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        15,
+      lineHeight:
+        20,
+    },
+    feedReadingProgressPills: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      gap:
+        7,
+      marginTop:
+        10,
+    },
+    feedReadingProgressPill: {
+      borderRadius:
+        999,
+      borderWidth:
+        1,
+      borderColor:
+        COLORS.border,
+      backgroundColor:
+        COLORS.surface,
+      paddingHorizontal:
+        9,
+      paddingVertical:
+        5,
+    },
+    feedReadingProgressPillText: {
+      color:
+        COLORS.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11,
+    },
+    feedReadingThoughtWrap: {
+      marginTop:
+        14,
+    },
+    feedReadingThought: {
+      color:
+        COLORS.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        15,
+      lineHeight:
+        22,
+    },
+    feedReadingMuted: {
+      color:
+        COLORS.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        13,
+      lineHeight:
+        19,
+      marginTop:
+        12,
     },
     feedBody: {
       color:

@@ -63,9 +63,16 @@ export default function TabLayout() {
         name="post"
         options={{
           title: '',
-          tabBarButton: ({ children: _children, ref: _ref, ...props }) => (
+          tabBarAccessibilityLabel: 'Create',
+          tabBarButton: ({ onPress, onLongPress, accessibilityState }) => (
             <Pressable
-              {...props}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              accessibilityState={accessibilityState}
+              accessibilityRole="button"
+              accessibilityLabel="Create"
+              accessibilityHint="Open the Novori creation hub."
+              testID="create-tab-button"
               style={{
                 flex: 1,
                 alignItems: 'center',
