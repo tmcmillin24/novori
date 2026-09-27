@@ -1542,7 +1542,7 @@ function createStyles(colors: NovoriColors) {
       justifyContent: 'space-between',
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      marginTop: 14,
+      marginTop: 15,
       paddingHorizontal: 14,
       paddingVertical: 9,
     },
