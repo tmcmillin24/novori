@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 
+import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
 import {
   TabScreen,
@@ -840,6 +841,9 @@ export default function ProfileScreen() {
                       : post.post_type ===
                         'question'
                       ? 'help-circle-outline'
+                      : post.post_type ===
+                        'book_stack'
+                      ? 'albums-outline'
                       : 'chatbubble-ellipses-outline'
                   }
                   size={14}
@@ -862,6 +866,9 @@ export default function ProfileScreen() {
                     : post.post_type ===
                       'question'
                     ? 'Ask Readers'
+                    : post.post_type ===
+                      'book_stack'
+                    ? 'Book Stack'
                     : 'Post'}
                 </Text>
               </View>
@@ -876,6 +883,16 @@ export default function ProfileScreen() {
                   post.body
                 }
               </Text>
+
+              {post.post_type ===
+                'book_stack' &&
+              post.book_stack_id ? (
+                <BookStackPostAttachment
+                  stackId={
+                    post.book_stack_id
+                  }
+                />
+              ) : null}
 
               {post.book_title ? (
                 <View
