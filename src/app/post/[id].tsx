@@ -35,6 +35,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import {
   NovoriColors,
@@ -3386,6 +3387,16 @@ export default function PostDetailScreen() {
                 )
               )
             )}
+
+            {post.post_type ===
+              'book_stack' &&
+            post.book_stack_id ? (
+              <BookStackPostAttachment
+                stackId={
+                  post.book_stack_id
+                }
+              />
+            ) : null}
 
             {post.book_title ? (
               <View
