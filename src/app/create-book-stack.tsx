@@ -39,6 +39,7 @@ import {
 import {
   BookStackDraftItem,
   createBookStack,
+  deleteBookStack,
 } from '../lib/book-stacks';
 import {
   createPost,
@@ -502,6 +503,10 @@ export default function CreateBookStackScreen() {
       return;
     }
 
+    let createdStackId:
+      string | null =
+        null;
+
     try {
       setPublishing(
         true
@@ -512,6 +517,9 @@ export default function CreateBookStackScreen() {
           name,
           items
         );
+
+      createdStackId =
+        stack.id;
 
       await createPost({
         body:
@@ -534,11 +542,49 @@ export default function CreateBookStackScreen() {
         error
       );
 
+      if (
+        createdStackId
+      ) {
+        try {
+          await deleteBookStack(
+            createdStackId
+          );
+        } catch (
+          cleanupError
+        ) {
+          console.warn(
+            'Could not clean up unpublished Book Stack:',
+            cleanupError
+          );
+        }
+      }
+
+      const message =
+        error &&
+        typeof error ===
+          'object' &&
+        'message' in error &&
+        typeof error.message ===
+          'string'
+          ? error.message
+          : 'Please try again.';
+
+      const schemaIssue =
+        message.includes(
+          'post_type'
+        ) ||
+        message.includes(
+          'book_stack_id'
+        ) ||
+        message.includes(
+          'schema cache'
+        );
+
       Alert.alert(
         'Could not publish stack',
-        error instanceof Error
-          ? error.message
-          : 'Please try again.'
+        schemaIssue
+          ? `${message}\n\nThe Phase 6 Supabase migration needs to be rerun so posts accept Book Stacks.`
+          : message
       );
     } finally {
       setPublishing(
