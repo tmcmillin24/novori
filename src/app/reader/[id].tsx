@@ -482,6 +482,16 @@ export default function ReaderProfileScreen() {
               ),
               getPublicBookStacks(
                 readerId
+              ).catch(
+                (
+                  stackError
+                ) => {
+                  console.warn(
+                    'Could not load reader Book Stacks:',
+                    stackError
+                  );
+                  return [];
+                }
               ),
             ]);
 
