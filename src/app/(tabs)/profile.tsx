@@ -27,6 +27,9 @@ import {
   useNovoriTheme,
 } from '../../context/theme-context';
 import {
+  getReaderProfile,
+} from '../../lib/social';
+import {
   supabase,
 } from '../../lib/supabase';
 import {
@@ -83,6 +86,16 @@ export default function ProfileScreen() {
     useState<UserBook[]>(
       []
     );
+
+  const [
+    followerCount,
+    setFollowerCount,
+  ] = useState(0);
+
+  const [
+    followingCount,
+    setFollowingCount,
+  ] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -142,14 +155,27 @@ export default function ProfileScreen() {
         }
 
         try {
-          const savedBooks =
-            await getUserBooks();
+          const [
+            savedBooks,
+            socialProfile,
+          ] = await Promise.all([
+            getUserBooks(),
+            getReaderProfile(
+              user.id
+            ),
+          ]);
 
           if (
             isMounted
           ) {
             setBooks(
               savedBooks
+            );
+            setFollowerCount(
+              socialProfile.follower_count
+            );
+            setFollowingCount(
+              socialProfile.following_count
             );
           }
         } catch (
@@ -165,6 +191,12 @@ export default function ProfileScreen() {
           ) {
             setBooks(
               []
+            );
+            setFollowerCount(
+              0
+            );
+            setFollowingCount(
+              0
             );
           }
         }
@@ -1144,11 +1176,25 @@ export default function ProfileScreen() {
             pressed &&
               styles.pressed,
           ]}
-          onPress={() =>
-            Alert.alert(
-              'Followers',
-              'Your followers list will open here.'
-            )
+          onPress={() => {
+            if (
+              !profile
+            ) {
+              return;
+            }
+
+            router.push({
+              pathname:
+                '/reader-connections',
+              params: {
+                readerId:
+                  profile.id,
+                mode:
+                  'followers',
+                name:
+                  displayName,
+              },
+            });
           }
         >
           <Text
@@ -1156,7 +1202,9 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            0
+            {
+              followerCount
+            }
           </Text>
 
           <Text
@@ -1176,11 +1224,25 @@ export default function ProfileScreen() {
             pressed &&
               styles.pressed,
           ]}
-          onPress={() =>
-            Alert.alert(
-              'Following',
-              'The readers you follow will open here.'
-            )
+          onPress={() => {
+            if (
+              !profile
+            ) {
+              return;
+            }
+
+            router.push({
+              pathname:
+                '/reader-connections',
+              params: {
+                readerId:
+                  profile.id,
+                mode:
+                  'following',
+                name:
+                  displayName,
+              },
+            });
           }
         >
           <Text
@@ -1188,7 +1250,9 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            0
+            {
+              followingCount
+            }
           </Text>
 
           <Text
