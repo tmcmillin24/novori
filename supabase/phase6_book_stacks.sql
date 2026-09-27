@@ -112,8 +112,24 @@ alter table public.posts
   references public.book_stacks(id)
   on delete set null;
 
-alter table public.posts
-  drop constraint if exists posts_post_type_check;
+do $
+declare
+  constraint_record record;
+begin
+  for constraint_record in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.posts'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%post_type%'
+  loop
+    execute format(
+      'alter table public.posts drop constraint %I',
+      constraint_record.conname
+    );
+  end loop;
+end
+$;
 
 alter table public.posts
   add constraint posts_post_type_check
