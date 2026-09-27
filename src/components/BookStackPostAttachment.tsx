@@ -131,7 +131,11 @@ export default function BookStackPostAttachment({
 
   return (
     <Pressable
-      onPress={() =>
+      onPress={(
+        event
+      ) => {
+        event.stopPropagation();
+
         router.push({
           pathname:
             '/stack/[id]',
@@ -139,8 +143,8 @@ export default function BookStackPostAttachment({
             id:
               stack.id,
           },
-        })
-      }
+        });
+      }}
       style={({ pressed }) => [
         styles.wrap,
         pressed &&
