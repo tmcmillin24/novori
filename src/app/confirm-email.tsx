@@ -13,10 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 import { supabase } from '../lib/supabase';
 
 export default function ConfirmEmailScreen() {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string }>();
   const inputRef = useRef<TextInput>(null);
@@ -209,7 +212,7 @@ export default function ConfirmEmailScreen() {
             {loading ? (
               <ActivityIndicator
                 size="small"
-                color={COLORS.background}
+                color={colors.background}
               />
             ) : (
               <Text style={styles.primaryButtonText}>
@@ -236,10 +239,10 @@ export default function ConfirmEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   keyboardView: {
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontSize: 44,
     fontFamily: 'PlayfairDisplay_700Bold',
     textAlign: 'center',
@@ -265,14 +268,14 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 28,
     fontFamily: 'PlayfairDisplay_700Bold',
     textAlign: 'center',
   },
 
   subtitle: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontSize: 14,
     lineHeight: 21,
     fontFamily: 'Inter_400Regular',
@@ -281,7 +284,7 @@ const styles = StyleSheet.create({
   },
 
   email: {
-    color: COLORS.softGold,
+    color: colors.softGold,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     textAlign: 'center',
@@ -289,7 +292,7 @@ const styles = StyleSheet.create({
   },
 
   spamText: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontSize: 12,
     lineHeight: 18,
     fontFamily: 'Inter_400Regular',
@@ -309,26 +312,26 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 62,
     borderRadius: 14,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   codeBoxActive: {
-    borderColor: COLORS.gold,
+    borderColor: colors.gold,
   },
 
   codeBoxText: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 24,
     fontFamily: 'Inter_600SemiBold',
     textAlign: 'center',
   },
 
   codePlaceholder: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
   },
 
   hiddenInput: {
@@ -341,14 +344,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: COLORS.gold,
+    backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
   },
 
   primaryButtonText: {
-    color: COLORS.background,
+    color: colors.background,
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
   },
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: COLORS.softGold,
+    color: colors.softGold,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
   },

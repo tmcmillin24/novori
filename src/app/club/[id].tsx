@@ -32,6 +32,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import FeedPostImage from '../../components/FeedPostImage';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import LeaveClubConfirmSheet from '../../components/LeaveClubConfirmSheet';
@@ -3558,66 +3559,6 @@ export default function ClubDetailScreen() {
   function renderClubPost(
     post: FeedPost
   ) {
-    if (
-      post.is_blocked_author
-    ) {
-      return (
-        <View
-          key={
-            post.id
-          }
-          style={[
-            styles.postCard,
-            styles.blockedPostCard,
-          ]}
-        >
-          <View
-            style={
-              styles.blockedPostRow
-            }
-          >
-            <View
-              style={
-                styles.blockedPostIcon
-              }
-            >
-              <Ionicons
-                name="ban-outline"
-                size={
-                  18
-                }
-                color={
-                  colors.mutedText
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.blockedPostCopy
-              }
-            >
-              <Text
-                style={
-                  styles.blockedPostTitle
-                }
-              >
-                Blocked reader
-              </Text>
-
-              <Text
-                style={
-                  styles.blockedPostText
-                }
-              >
-                This club post is hidden.
-              </Text>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
     const displayName =
       post.author_display_name?.trim() ||
       post.author_username?.trim() ||
@@ -3698,46 +3639,213 @@ export default function ClubDetailScreen() {
           {post.body}
         </Text>
 
+        {post.post_image_url ? (
+          <FeedPostImage
+            uri={
+              post.post_image_url
+            }
+            colors={
+              colors
+            }
+          />
+        ) : null}
+
         {post.book_title ? (
-          <View style={styles.postBookCard}>
-            {post.book_cover_url ? (
-              <Image
-                source={{
-                  uri: post.book_cover_url,
-                }}
-                style={styles.postBookCover}
+          post.post_image_url ? (
+            <Pressable
+              disabled={
+                !post.google_book_id
+              }
+              onPress={() => {
+                if (
+                  !post.google_book_id
+                ) {
+                  return;
+                }
+
+                router.push({
+                  pathname:
+                    '/book/[id]',
+                  params: {
+                    id:
+                      post.google_book_id,
+                  },
+                });
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.postCompactBookLink,
+                pressed &&
+                  Boolean(
+                    post.google_book_id
+                  ) &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="book-outline"
+                size={14}
+                color={
+                  colors.gold
+                }
               />
-            ) : (
+
               <View
                 style={
-                  styles.postBookCoverFallback
+                  styles.postCompactBookCopy
                 }
               >
-                <Ionicons
-                  name="book-outline"
-                  size={18}
-                  color={colors.gold}
-                />
-              </View>
-            )}
-
-            <View style={styles.postBookCopy}>
-              <Text
-                style={styles.postBookTitle}
-                numberOfLines={2}
-              >
-                {post.book_title}
-              </Text>
-
-              {post.rating ? (
                 <Text
-                  style={styles.postBookRating}
+                  style={
+                    styles.postCompactBookTitle
+                  }
+                  numberOfLines={1}
                 >
-                  ★ {post.rating}
+                  {post.book_title}
                 </Text>
+
+                {(post.book_authors &&
+                  post.book_authors.length >
+                    0) ||
+                post.book_series_name ? (
+                  <Text
+                    style={
+                      styles.postCompactBookMeta
+                    }
+                    numberOfLines={1}
+                  >
+                    {post.book_authors &&
+                    post.book_authors.length >
+                      0
+                      ? post.book_authors.join(
+                          ', '
+                        )
+                      : ''}
+                    {post.book_authors &&
+                    post.book_authors.length >
+                      0 &&
+                    post.book_series_name
+                      ? ' · '
+                      : ''}
+                    {post.book_series_name
+                      ? `${post.book_series_name}${post.book_series_position !== null
+                          ? ` #${post.book_series_position}`
+                          : ''}`
+                      : ''}
+                  </Text>
+                ) : null}
+              </View>
+
+              {post.google_book_id ? (
+                <Ionicons
+                  name="chevron-forward"
+                  size={15}
+                  color={
+                    colors.mutedText
+                  }
+                />
               ) : null}
-            </View>
-          </View>
+            </Pressable>
+          ) : (
+            <Pressable
+              disabled={
+                !post.google_book_id
+              }
+              onPress={() => {
+                if (
+                  !post.google_book_id
+                ) {
+                  return;
+                }
+
+                router.push({
+                  pathname:
+                    '/book/[id]',
+                  params: {
+                    id:
+                      post.google_book_id,
+                  },
+                });
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.postBookCard,
+                pressed &&
+                  Boolean(
+                    post.google_book_id
+                  ) &&
+                  styles.pressed,
+              ]}
+            >
+              {post.book_cover_url ? (
+                <Image
+                  source={{
+                    uri:
+                      post.book_cover_url,
+                  }}
+                  style={
+                    styles.postBookCover
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.postBookCoverFallback
+                  }
+                >
+                  <Ionicons
+                    name="book-outline"
+                    size={18}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+              )}
+
+              <View
+                style={
+                  styles.postBookCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.postBookTitle
+                  }
+                  numberOfLines={2}
+                >
+                  {post.book_title}
+                </Text>
+
+                {post.book_authors &&
+                post.book_authors.length >
+                  0 ? (
+                  <Text
+                    style={
+                      styles.postBookAuthor
+                    }
+                    numberOfLines={1}
+                  >
+                    {post.book_authors.join(
+                      ', '
+                    )}
+                  </Text>
+                ) : null}
+
+                {post.rating ? (
+                  <Text
+                    style={
+                      styles.postBookRating
+                    }
+                  >
+                    ★ {post.rating}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          )
         ) : null}
 
         <View
@@ -3991,14 +4099,11 @@ export default function ClubDetailScreen() {
         }
       >
         <Pressable
-          onPress={() => {
-            preserveClubStateOnNextFocus.current =
-              true;
-
+          onPress={() =>
             openReader(
               candidate.id
-            );
-          }}
+            )
+          }
           style={({ pressed }) => [
             styles.inviteReaderIdentity,
             pressed &&
@@ -4691,7 +4796,7 @@ export default function ClubDetailScreen() {
               onPress={() =>
                 router.push({
                   pathname:
-                    '/edit-club-genres',
+                    '/edit-club',
                   params: {
                     clubId:
                       club.id,
@@ -4719,9 +4824,7 @@ export default function ClubDetailScreen() {
                   styles.editGenresText
                 }
               >
-                {club.genres?.length
-                  ? 'Edit genres'
-                  : 'Add genres'}
+                Edit club
               </Text>
             </Pressable>
           ) : null}
@@ -8166,57 +8269,6 @@ function createStyles(colors: NovoriColors) {
       borderRadius: 17,
       padding: 14,
     },
-    blockedPostCard: {
-      paddingVertical:
-        14,
-    },
-    blockedPostRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-    },
-    blockedPostIcon: {
-      width:
-        36,
-      height:
-        36,
-      borderRadius:
-        11,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        colors.elevated,
-      marginRight:
-        11,
-    },
-    blockedPostCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
-    },
-    blockedPostTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        13,
-    },
-    blockedPostText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        12,
-      marginTop:
-        3,
-    },
-
     postHeader: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -8276,6 +8328,48 @@ function createStyles(colors: NovoriColors) {
       lineHeight: 21,
       marginTop: 12,
     },
+    postCompactBookLink: {
+      minHeight:
+        42,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        8,
+      marginTop:
+        7,
+      paddingHorizontal:
+        2,
+      paddingVertical:
+        7,
+    },
+    postCompactBookCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
+    },
+    postCompactBookTitle: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    postCompactBookMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      fontStyle:
+        'italic',
+      marginTop:
+        2,
+    },
     postBookCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -8308,6 +8402,16 @@ function createStyles(colors: NovoriColors) {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 12,
       lineHeight: 17,
+    },
+    postBookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      marginTop:
+        4,
     },
     postBookRating: {
       color: colors.gold,

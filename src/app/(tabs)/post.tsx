@@ -19,186 +19,28 @@ import {
   useNovoriTheme,
 } from '../../context/theme-context';
 
-type GridOptionProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-  stackVisual?: boolean;
-};
-
-function GridOption({
-  icon,
-  title,
-  subtitle,
-  onPress,
-  stackVisual = false,
-}: GridOptionProps) {
-  const {
-    width,
-  } =
-    useWindowDimensions();
-
-  const tablet =
-    width >=
-    768;
-  const {
-    colors,
-  } =
-    useNovoriTheme();
-
-  const styles =
-    createStyles(
-      colors
-    );
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        title
-      }
-      accessibilityHint={
-        subtitle
-      }
-      onPress={
-        onPress
-      }
-      style={({
-        pressed,
-      }) => [
-        styles.gridCard,
-        tablet &&
-          styles.gridCardTablet,
-        pressed &&
-          styles.cardPressed,
-      ]}
-    >
-      <View
-        style={
-          styles.gridCardTop
-        }
-      >
-        <View
-          style={
-            styles.gridIconWrap
-          }
-        >
-          <Ionicons
-            name={
-              icon
-            }
-            size={
-              21
-            }
-            color={
-              colors.gold
-            }
-          />
-        </View>
-
-        {stackVisual ? (
-          <View
-            style={
-              styles.stackPreview
-            }
-          >
-            <View
-              style={[
-                styles.stackBook,
-                styles.stackBookBack,
-              ]}
-            />
-            <View
-              style={[
-                styles.stackBook,
-                styles.stackBookMiddle,
-              ]}
-            />
-            <View
-              style={[
-                styles.stackBook,
-                styles.stackBookFront,
-              ]}
-            />
-          </View>
-        ) : (
-          <Ionicons
-            name="arrow-forward"
-            size={17}
-            color={
-              colors.mutedText
-            }
-          />
-        )}
-      </View>
-
-      <View>
-        <Text
-          style={
-            styles.gridTitle
-          }
-        >
-          {title}
-        </Text>
-
-        <Text
-          style={
-            styles.gridSubtitle
-          }
-        >
-          {subtitle}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-// Phase 1 locked Create routes:
-// Post -> /create-post
-// Reading Update -> /create-reading-update
-// Review a Book -> /create-review
-// Ask Readers -> /ask-readers
-// Book Stack -> /create-book-stack
 export default function PostScreen() {
   const router =
     useRouter();
 
-  const {
-    width,
-  } =
+  const { width } =
     useWindowDimensions();
 
-  const {
-    colors,
-  } =
+  const { colors } =
     useNovoriTheme();
 
   const styles =
-    createStyles(
-      colors
-    );
-
-  const compactPhone =
-    width <
-    360;
+    createStyles(colors);
 
   const tablet =
-    width >=
-    768;
-
-  const largeTablet =
-    width >=
-    1024;
+    width >= 768;
 
   return (
     <SafeAreaView
       style={
         styles.safeArea
       }
-      edges={[
-        'top',
-      ]}
+      edges={['top']}
     >
       <ScrollView
         style={
@@ -216,24 +58,31 @@ export default function PostScreen() {
             styles.content,
             tablet &&
               styles.contentTablet,
-            largeTablet &&
-              styles.contentLargeTablet,
           ]}
         >
           <View
-            style={[
-              styles.header,
-              tablet &&
-                styles.headerTablet,
-            ]}
+            style={
+              styles.header
+            }
           >
-            <Text
+            <View
               style={
-                styles.eyebrow
+                styles.headerMark
               }
             >
-              CREATE
-            </Text>
+              <View
+                style={
+                  styles.headerMarkLine
+                }
+              />
+              <Text
+                style={
+                  styles.eyebrow
+                }
+              >
+                CREATE
+              </Text>
+            </View>
 
             <Text
               style={[
@@ -242,17 +91,15 @@ export default function PostScreen() {
                   styles.titleTablet,
               ]}
             >
-              What do you want to create?
+              Make something worth sharing.
             </Text>
 
             <Text
-              style={[
-                styles.subtitle,
-                tablet &&
-                  styles.subtitleTablet,
-              ]}
+              style={
+                styles.subtitle
+              }
             >
-              Share with readers, track your reading life, or build something just for you.
+              Start a conversation, share where you are in a book, or build something readers can come back to.
             </Text>
           </View>
 
@@ -265,30 +112,26 @@ export default function PostScreen() {
                 '/create-post'
               )
             }
-            style={({
-              pressed,
-            }) => [
-              styles.primaryCard,
-              tablet &&
-                styles.primaryCardTablet,
+            style={({ pressed }) => [
+              styles.featureCard,
               pressed &&
-                styles.cardPressed,
+                styles.pressed,
             ]}
           >
             <View
               style={
-                styles.primaryAccent
+                styles.featureAccent
               }
             />
 
             <View
               style={
-                styles.primaryContent
+                styles.featureTop
               }
             >
               <View
                 style={
-                  styles.primaryIconWrap
+                  styles.featureIcon
                 }
               >
                 <Ionicons
@@ -302,29 +145,7 @@ export default function PostScreen() {
 
               <View
                 style={
-                  styles.primaryCopy
-                }
-              >
-                <Text
-                  style={
-                    styles.primaryLabel
-                  }
-                >
-                  Post
-                </Text>
-
-                <Text
-                  style={
-                    styles.primarySubtitle
-                  }
-                >
-                  Share a thought, reaction, recommendation, or discussion with your readers.
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.primaryArrow
+                  styles.featureArrow
                 }
               >
                 <Ionicons
@@ -336,83 +157,404 @@ export default function PostScreen() {
                 />
               </View>
             </View>
+
+            <Text
+              style={
+                styles.featureTitle
+              }
+            >
+              Post
+            </Text>
+
+            <Text
+              style={
+                styles.featureSubtitle
+              }
+            >
+              Share a thought, reaction, recommendation, photo, or discussion with your readers.
+            </Text>
+
+            <View
+              style={
+                styles.featureFooter
+              }
+            >
+              <Ionicons
+                name="people-outline"
+                size={13}
+                color={
+                  colors.mutedText
+                }
+              />
+              <Text
+                style={
+                  styles.featureFooterText
+                }
+              >
+                Share to Feed or Club
+              </Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Reading Update"
+            accessibilityHint="Share your reading progress."
+            onPress={() =>
+              router.push(
+                '/create-reading-update'
+              )
+            }
+            style={({ pressed }) => [
+              styles.readingCard,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <View
+              style={
+                styles.readingAccent
+              }
+            />
+
+            <View
+              style={
+                styles.readingCardContent
+              }
+            >
+              <View
+                style={
+                  styles.readingIcon
+                }
+              >
+                <Ionicons
+                  name="book-outline"
+                  size={22}
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.readingCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.readingTitle
+                  }
+                >
+                  Reading Update
+                </Text>
+
+                <Text
+                  style={
+                    styles.readingSubtitle
+                  }
+                >
+                  Share your progress, chapter, or what you’re thinking so far.
+                </Text>
+
+                <View
+                  style={
+                    styles.readingMotif
+                  }
+                >
+                  <View
+                    style={
+                      styles.readingBook
+                    }
+                  >
+                    <View
+                      style={
+                        styles.readingBookLeft
+                      }
+                    />
+                    <View
+                      style={
+                        styles.readingBookRight
+                      }
+                    />
+                    <View
+                      style={
+                        styles.readingBookSpine
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.readingBookmark
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.readingQuote
+                    }
+                  >
+                    <Ionicons
+                      name="chatbox-ellipses-outline"
+                      size={14}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={
+                      styles.readingMotifText
+                    }
+                  >
+                    Progress · chapter · thought
+                  </Text>
+                </View>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={
+                  colors.mutedText
+                }
+              />
+            </View>
           </Pressable>
 
           <View
             style={
-              styles.sectionHeading
+              styles.createDivider
             }
           >
-            <Text
+            <View
               style={
-                styles.sectionTitle
+                styles.createDividerLine
               }
-            >
-              More ways to create
-            </Text>
+            />
 
             <Text
               style={
-                styles.sectionHint
+                styles.createDividerText
               }
             >
-              Choose a format
+              MORE WAYS TO CREATE
             </Text>
+
+            <View
+              style={
+                styles.createDividerLine
+              }
+            />
           </View>
 
           <View
-            style={[
-              styles.grid,
-              compactPhone &&
-                styles.gridCompact,
-              tablet &&
-                styles.gridTablet,
-            ]}
+            style={
+              styles.bottomGrid
+            }
           >
-            <GridOption
-              icon="book-outline"
-              title="Reading Update"
-              subtitle="Share where you are and what you think so far."
-              onPress={() =>
-                router.push(
-                  '/create-reading-update'
-                )
-              }
-            />
-
-            <GridOption
-              icon="star-outline"
-              title="Review a Book"
-              subtitle="Rate a finished read and share your take."
-              onPress={() =>
-                router.push(
-                  '/create-review'
-                )
-              }
-            />
-
-            <GridOption
-              icon="help-circle-outline"
-              title="Ask Readers"
-              subtitle="Start with a question and invite the community in."
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ask Readers"
+              accessibilityHint="Ask readers a question."
               onPress={() =>
                 router.push(
                   '/ask-readers'
                 )
               }
-            />
+              style={({ pressed }) => [
+                styles.smallCard,
+                styles.askReadersCard,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <View
+                style={
+                  styles.askVisual
+                }
+              >
+                <View
+                  style={
+                    styles.askBubbleBack
+                  }
+                />
 
-            <GridOption
-              icon="albums-outline"
-              title="Book Stack"
-              subtitle="Build and save a collection of books your way."
-              stackVisual
+                <View
+                  style={
+                    styles.askBubbleFront
+                  }
+                >
+                  <Ionicons
+                    name="help"
+                    size={14}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.askDots
+                  }
+                >
+                  <View
+                    style={
+                      styles.askDot
+                    }
+                  />
+                  <View
+                    style={
+                      styles.askDot
+                    }
+                  />
+                  <View
+                    style={
+                      styles.askDot
+                    }
+                  />
+                </View>
+              </View>
+
+              <Text
+                style={
+                  styles.smallTitle
+                }
+              >
+                Ask Readers
+              </Text>
+
+              <Text
+                style={
+                  styles.smallSubtitle
+                }
+              >
+                Start a question and pull the community in.
+              </Text>
+
+              <View
+                style={
+                  styles.smallBottom
+                }
+              >
+                <Text
+                  style={
+                    styles.smallAction
+                  }
+                >
+                  Ask
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Book Stack"
+              accessibilityHint="Build and save a book stack."
               onPress={() =>
                 router.push(
                   '/create-book-stack'
                 )
               }
-            />
+              style={({ pressed }) => [
+                styles.smallCard,
+                styles.stackCard,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <View
+                style={
+                  styles.stackVisualWrap
+                }
+              >
+                <View
+                  style={
+                    styles.stackMini
+                  }
+                >
+                  <View
+                    style={[
+                      styles.stackMiniBook,
+                      styles.stackMiniBack,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.stackMiniBook,
+                      styles.stackMiniMiddle,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.stackMiniBook,
+                      styles.stackMiniFront,
+                    ]}
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.stackAddMark
+                  }
+                >
+                  <Ionicons
+                    name="add"
+                    size={14}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+              </View>
+
+              <Text
+                style={
+                  styles.smallTitle
+                }
+              >
+                Book Stack
+              </Text>
+
+              <Text
+                style={
+                  styles.smallSubtitle
+                }
+              >
+                Build a collection and keep it private until you share it.
+              </Text>
+
+              <View
+                style={
+                  styles.smallBottom
+                }
+              >
+                <Text
+                  style={
+                    styles.smallAction
+                  }
+                >
+                  Build
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+            </Pressable>
           </View>
 
           <View
@@ -421,19 +563,18 @@ export default function PostScreen() {
             }
           >
             <Ionicons
-              name="lock-closed-outline"
-              size={13}
+              name="star-outline"
+              size={14}
               color={
-                colors.mutedText
+                colors.gold
               }
             />
-
             <Text
               style={
                 styles.footerText
               }
             >
-              Book Stacks can be saved privately before you decide to share them.
+              Ratings and reviews live with the book in your Library.
             </Text>
           </View>
         </View>
@@ -447,426 +588,581 @@ function createStyles(
 ) {
   return StyleSheet.create({
     safeArea: {
-      flex:
-        1,
+      flex: 1,
       backgroundColor:
         colors.background,
     },
+
     screen: {
-      flex:
-        1,
+      flex: 1,
       backgroundColor:
         colors.background,
     },
+
     scrollContent: {
-      flexGrow:
-        1,
-      paddingTop:
-        20,
-      paddingBottom:
-        120,
+      flexGrow: 1,
+      paddingTop: 20,
+      paddingBottom: 120,
     },
+
     content: {
-      width:
-        '100%',
-      maxWidth:
-        720,
-      alignSelf:
-        'center',
-      paddingHorizontal:
-        20,
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
+      paddingHorizontal: 20,
     },
+
     contentTablet: {
-      maxWidth:
-        780,
-      paddingHorizontal:
-        30,
+      maxWidth: 780,
+      paddingHorizontal: 30,
     },
-    contentLargeTablet: {
-      maxWidth:
-        820,
-    },
+
     header: {
-      marginBottom:
-        20,
+      marginBottom: 22,
     },
-    headerTablet: {
-      marginBottom:
-        24,
+
+    headerMark: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 8,
     },
+
+    headerMarkLine: {
+      width: 24,
+      height: 1,
+      backgroundColor:
+        colors.gold,
+    },
+
     eyebrow: {
       color:
         colors.gold,
       fontFamily:
         'Inter_700Bold',
-      fontSize:
-        10.5,
-      letterSpacing:
-        1.7,
-      marginBottom:
-        7,
+      fontSize: 10.5,
+      letterSpacing: 1.8,
     },
+
     title: {
       color:
         colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
-      fontSize:
-        34,
-      lineHeight:
-        40,
-      maxWidth:
-        560,
+      fontSize: 34,
+      lineHeight: 40,
+      maxWidth: 580,
     },
+
     titleTablet: {
-      fontSize:
-        38,
-      lineHeight:
-        45,
-      maxWidth:
-        650,
+      fontSize: 39,
+      lineHeight: 46,
     },
+
     subtitle: {
       color:
         colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
-      fontSize:
-        14,
-      lineHeight:
-        21,
-      marginTop:
-        9,
-      maxWidth:
-        570,
+      fontSize: 13.5,
+      lineHeight: 20,
+      marginTop: 8,
+      maxWidth: 610,
     },
-    subtitleTablet: {
-      fontSize:
-        15,
-      lineHeight:
-        23,
-      maxWidth:
-        640,
-    },
-    primaryCard: {
-      position:
-        'relative',
-      overflow:
-        'hidden',
+
+    featureCard: {
+      position: 'relative',
+      overflow: 'hidden',
+      minHeight: 186,
       backgroundColor:
         colors.surface,
-      borderWidth:
-        1,
+      borderWidth: 1,
       borderColor:
         colors.border,
-      borderRadius:
-        22,
-      marginBottom:
-        20,
+      borderRadius: 22,
+      padding: 18,
+      paddingLeft: 21,
     },
-    primaryCardTablet: {
-      marginBottom:
-        24,
-    },
-    primaryAccent: {
-      height:
-        3,
-      width:
-        '100%',
+
+    featureAccent: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 3,
       backgroundColor:
         colors.gold,
-      opacity:
-        0.8,
     },
-    primaryContent: {
-      minHeight:
-        112,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal:
-        16,
-      paddingVertical:
-        17,
+
+    featureTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'space-between',
     },
-    primaryIconWrap: {
-      width:
-        54,
-      height:
-        54,
-      borderRadius:
-        18,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      alignItems:
-        'center',
+
+    featureIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 15,
+      alignItems: 'center',
       justifyContent:
         'center',
-      marginRight:
-        14,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
     },
-    primaryCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
+
+    featureArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
     },
-    primaryLabel: {
+
+    featureTitle: {
       color:
         colors.text,
       fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        17,
+        'PlayfairDisplay_700Bold',
+      fontSize: 25,
+      marginTop: 22,
     },
-    primarySubtitle: {
+
+    featureSubtitle: {
       color:
         colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
-      fontSize:
-        12.5,
-      lineHeight:
-        18,
-      marginTop:
-        5,
-      maxWidth:
-        490,
+      fontSize: 12.5,
+      lineHeight: 18,
+      marginTop: 6,
+      maxWidth: 520,
     },
-    primaryArrow: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        17,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        colors.elevated,
-      marginLeft:
-        10,
+
+    featureFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 17,
     },
-    sectionHeading: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'space-between',
-      marginBottom:
-        10,
-    },
-    sectionTitle: {
+
+    featureFooterText: {
       color:
-        colors.text,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize:
-        13.5,
+      fontSize: 10.5,
+      letterSpacing: 0.4,
     },
-    sectionHint: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        10.5,
-    },
-    grid: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      justifyContent:
-        'space-between',
-      rowGap:
-        12,
-    },
-    gridCompact: {
-      rowGap:
-        10,
-    },
-    gridTablet: {
-      rowGap:
-        14,
-    },
-    gridCard: {
-      width:
-        '48.4%',
-      minHeight:
-        166,
-      justifyContent:
-        'space-between',
+
+    readingCard: {
+      position: 'relative',
+      overflow: 'hidden',
+      minHeight: 116,
       backgroundColor:
         colors.surface,
-      borderWidth:
-        1,
+      borderWidth: 1,
       borderColor:
         colors.border,
-      borderRadius:
-        19,
-      padding:
-        14,
+      borderRadius: 18,
+      marginTop: 12,
     },
-    gridCardTablet: {
-      minHeight:
-        174,
-      padding:
-        16,
+
+    readingAccent: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 3,
+      backgroundColor:
+        colors.gold,
     },
-    gridCardTop: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-start',
-      justifyContent:
-        'space-between',
-      minHeight:
-        42,
+
+    readingCardContent: {
+      minHeight: 116,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
     },
-    gridIconWrap: {
-      width:
-        40,
-      height:
-        40,
-      borderRadius:
-        13,
-      alignItems:
-        'center',
+
+    readingIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      alignItems: 'center',
       justifyContent:
         'center',
       backgroundColor:
         colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
+      marginRight: 13,
     },
-    gridTitle: {
+
+    readingCopy: {
+      flex: 1,
+      paddingRight: 12,
+    },
+
+    readingTitle: {
       color:
         colors.text,
       fontFamily:
         'Inter_700Bold',
-      fontSize:
-        14,
-      lineHeight:
-        18,
+      fontSize: 15,
     },
-    gridSubtitle: {
+
+    readingSubtitle: {
       color:
         colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
-      fontSize:
-        11.5,
-      lineHeight:
-        16,
-      marginTop:
-        5,
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: 4,
     },
-    stackPreview: {
-      width:
-        48,
-      height:
-        38,
-      position:
-        'relative',
-      marginTop:
-        1,
+
+
+
+
+
+
+
+
+
+
+
+    readingMotif: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 11,
+      gap: 8,
     },
-    stackBook: {
-      position:
-        'absolute',
-      width:
-        22,
-      height:
-        32,
-      borderRadius:
-        4,
-      borderWidth:
-        1,
+
+    readingBook: {
+      width: 37,
+      height: 24,
+      position: 'relative',
+    },
+
+    readingBookLeft: {
+      position: 'absolute',
+      left: 0,
+      top: 2,
+      width: 18,
+      height: 20,
+      borderTopLeftRadius: 5,
+      borderBottomLeftRadius: 5,
+      borderWidth: 1,
       borderColor:
         colors.border,
       backgroundColor:
         colors.elevated,
     },
-    stackBookBack: {
-      right:
-        0,
-      top:
-        4,
-      transform: [
-        {
-          rotate:
-            '8deg',
-        },
-      ],
-      opacity:
-        0.58,
+
+    readingBookRight: {
+      position: 'absolute',
+      right: 0,
+      top: 2,
+      width: 18,
+      height: 20,
+      borderTopRightRadius: 5,
+      borderBottomRightRadius: 5,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
     },
-    stackBookMiddle: {
-      right:
-        12,
-      top:
-        2,
-      transform: [
-        {
-          rotate:
-            '2deg',
-        },
-      ],
-      opacity:
-        0.8,
+
+    readingBookSpine: {
+      position: 'absolute',
+      left: 18,
+      top: 3,
+      width: 1,
+      height: 18,
+      backgroundColor:
+        colors.gold,
+      opacity: 0.65,
     },
-    stackBookFront: {
-      right:
-        24,
-      top:
-        0,
+
+    readingBookmark: {
+      position: 'absolute',
+      right: 5,
+      top: 0,
+      width: 4,
+      height: 11,
+      borderBottomLeftRadius: 2,
+      borderBottomRightRadius: 2,
+      backgroundColor:
+        colors.gold,
+    },
+
+    readingQuote: {
+      width: 26,
+      height: 26,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+    },
+
+    readingMotifText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 9.5,
+      letterSpacing: 0.2,
+    },
+
+    createDivider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+
+    createDividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor:
+        colors.border,
+    },
+
+    createDividerText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 8.5,
+      letterSpacing: 1.2,
+    },
+
+    bottomGrid: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: 10,
+      marginTop: 0,
+    },
+
+    smallCard: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 184,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      padding: 14,
+    },
+
+    askReadersCard: {
+      borderColor:
+        colors.gold,
+    },
+
+    stackCard: {
+      borderColor:
+        colors.gold,
+    },
+
+
+
+    askVisual: {
+      width: 64,
+      height: 44,
+      position: 'relative',
+    },
+
+    askBubbleBack: {
+      position: 'absolute',
+      width: 42,
+      height: 26,
+      left: 18,
+      top: 2,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
+      opacity: 0.5,
+    },
+
+    askBubbleFront: {
+      position: 'absolute',
+      width: 46,
+      height: 30,
+      left: 0,
+      top: 11,
+      borderRadius: 12,
+      borderWidth: 1,
       borderColor:
         colors.gold,
       backgroundColor:
-        colors.surface,
-    },
-    footerNote: {
-      flexDirection:
-        'row',
-      alignItems:
+        colors.elevated,
+      alignItems: 'center',
+      justifyContent:
         'center',
-      gap:
-        7,
-      marginTop:
-        16,
-      paddingHorizontal:
-        2,
     },
+
+    askDots: {
+      position: 'absolute',
+      right: 2,
+      bottom: 4,
+      flexDirection: 'row',
+      gap: 3,
+    },
+
+    askDot: {
+      width: 3,
+      height: 3,
+      borderRadius: 999,
+      backgroundColor:
+        colors.mutedText,
+      opacity: 0.55,
+    },
+
+    smallTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 14,
+      marginTop: 16,
+    },
+
+    smallSubtitle: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.75,
+      lineHeight: 15,
+      marginTop: 5,
+      flex: 1,
+    },
+
+    smallBottom: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 11,
+    },
+
+    smallAction: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 10.5,
+      letterSpacing: 0.25,
+    },
+
+    stackVisualWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'space-between',
+      minHeight: 48,
+    },
+
+    stackMini: {
+      width: 64,
+      height: 46,
+      position: 'relative',
+    },
+
+    stackMiniBook: {
+      position: 'absolute',
+      width: 29,
+      height: 40,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    stackMiniBack: {
+      left: 29,
+      top: 5,
+      transform: [
+        {
+          rotate: '8deg',
+        },
+      ],
+      opacity: 0.42,
+    },
+
+    stackMiniMiddle: {
+      left: 15,
+      top: 2,
+      transform: [
+        {
+          rotate: '4deg',
+        },
+      ],
+      opacity: 0.68,
+    },
+
+    stackMiniFront: {
+      left: 0,
+      top: 0,
+    },
+
+    stackAddMark: {
+      width: 28,
+      height: 28,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent:
+        'center',
+      borderWidth: 1,
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    footerNote: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'center',
+      gap: 7,
+      marginTop: 18,
+      paddingHorizontal: 8,
+    },
+
     footerText: {
-      flex:
-        1,
       color:
         colors.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize:
-        10.5,
-      lineHeight:
-        15,
+      fontSize: 10.75,
+      lineHeight: 15,
+      textAlign: 'center',
     },
-    cardPressed: {
-      opacity:
-        0.72,
+
+    pressed: {
+      opacity: 0.7,
       transform: [
         {
-          scale:
-            0.99,
+          scale: 0.992,
         },
       ],
     },

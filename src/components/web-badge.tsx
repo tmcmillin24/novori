@@ -1,6 +1,7 @@
+import { useNovoriTheme } from '@/context/theme-context';
 import { Image } from 'expo-image';
 import { version } from 'expo/package.json';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
@@ -8,7 +9,7 @@ import { ThemedView } from './themed-view';
 import { Spacing } from '@/constants/novori-theme';
 
 export function WebBadge() {
-  const scheme = useColorScheme();
+  const { theme: scheme } = useNovoriTheme();
 
   return (
     <ThemedView style={styles.container}>

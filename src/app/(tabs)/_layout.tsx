@@ -2,28 +2,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
-import { COLORS } from '../../constants/novori-theme';
+import { useNovoriTheme } from '../../context/theme-context';
 
 export default function TabLayout() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
 
         sceneStyle: {
-          backgroundColor: COLORS.background,
+          backgroundColor: colors.background,
         },
 
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           height: 82,
           paddingTop: 8,
           paddingBottom: 22,
         },
 
-        tabBarActiveTintColor: COLORS.gold,
-        tabBarInactiveTintColor: COLORS.mutedText,
+        tabBarActiveTintColor: colors.gold,
+        tabBarInactiveTintColor: colors.mutedText,
 
         tabBarLabelStyle: {
           fontFamily: 'Inter_600SemiBold',
@@ -64,7 +69,7 @@ export default function TabLayout() {
         options={{
           title: '',
           tabBarAccessibilityLabel: 'Create',
-          tabBarButton: ({ onPress, onLongPress, accessibilityState }) => (
+          tabBarButton: ({ onPress, onLongPress, accessibilityState, children: _children }) => (
             <Pressable
               onPress={onPress}
               onLongPress={onLongPress}
@@ -84,7 +89,7 @@ export default function TabLayout() {
                   width: 54,
                   height: 54,
                   borderRadius: 27,
-                  backgroundColor: COLORS.gold,
+                  backgroundColor: colors.gold,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginTop: -18,
@@ -93,7 +98,7 @@ export default function TabLayout() {
                 <Ionicons
                   name="add"
                   size={30}
-                  color={COLORS.background}
+                  color={colors.background}
                 />
               </View>
             </Pressable>

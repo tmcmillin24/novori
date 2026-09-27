@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   useCallback,
@@ -12,6 +13,8 @@ import {
   AppState,
   FlatList,
   Image,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,9 +23,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../../constants/novori-theme';
+import { NovoriColors } from '../../constants/novori-theme';
+import { useNovoriTheme } from '../../context/theme-context';
 import {
   cancelFollowRequest,
   followReader,
@@ -33,6 +37,10 @@ import {
   searchReaders,
 } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
+import {
+  getUserBooks,
+  UserBook,
+} from '../../lib/user-books';
 
 type GoogleBookItem = {
   id: string;
@@ -45,8 +53,12 @@ type GoogleBookItem = {
     description?: string;
 
     imageLinks?: {
-      thumbnail?: string;
       smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
     };
 
     industryIdentifiers?: {
@@ -56,12 +68,27 @@ type GoogleBookItem = {
 
     pageCount?: number;
     categories?: string[];
+
+    averageRating?: number;
+    ratingsCount?: number;
   };
 };
 
 type GoogleBooksResponse = {
   totalItems?: number;
   items?: GoogleBookItem[];
+};
+
+type HardcoverSearchPopularityResponse = {
+  popularity?: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >;
+  error?: string;
+  details?: unknown;
 };
 
 type TrendingBook = {
@@ -104,6 +131,124 @@ type RecentReleasesResponse = {
   error?: string;
   details?: unknown;
 };
+
+
+function normalizeBookIdentityText(
+  value?: string | null
+) {
+  return (
+    value
+      ?.toLowerCase()
+      .replace(
+        /[^a-z0-9]/g,
+        ''
+      ) ?? ''
+  );
+}
+
+function normalizeIsbn(
+  value?: string | null
+) {
+  return (
+    value
+      ?.replace(
+        /[^0-9Xx]/g,
+        ''
+      )
+      .toUpperCase() ??
+    ''
+  );
+}
+
+function isDiscoverBookInLibrary(
+  book: TrendingBook,
+  libraryBooks: UserBook[]
+) {
+  const bookIsbns =
+    new Set(
+      (book.isbns ?? [])
+        .map(normalizeIsbn)
+        .filter(Boolean)
+    );
+
+  const bookTitle =
+    normalizeBookIdentityText(
+      book.title
+    );
+
+  const bookAuthors =
+    (book.authors ?? [])
+      .map(
+        normalizeBookIdentityText
+      )
+      .filter(Boolean);
+
+  return libraryBooks.some(
+    (savedBook) => {
+      const savedIsbn =
+        normalizeIsbn(
+          savedBook.isbn
+        );
+
+      if (
+        savedIsbn &&
+        bookIsbns.has(
+          savedIsbn
+        )
+      ) {
+        return true;
+      }
+
+      const savedTitle =
+        normalizeBookIdentityText(
+          savedBook.title
+        );
+
+      if (
+        !bookTitle ||
+        !savedTitle ||
+        bookTitle !==
+          savedTitle
+      ) {
+        return false;
+      }
+
+      const savedAuthors =
+        (
+          savedBook.authors ??
+          []
+        )
+          .map(
+            normalizeBookIdentityText
+          )
+          .filter(Boolean);
+
+      if (
+        bookAuthors.length ===
+          0 ||
+        savedAuthors.length ===
+          0
+      ) {
+        return true;
+      }
+
+      return bookAuthors.some(
+        (bookAuthor) =>
+          savedAuthors.some(
+            (savedAuthor) =>
+              bookAuthor ===
+                savedAuthor ||
+              bookAuthor.includes(
+                savedAuthor
+              ) ||
+              savedAuthor.includes(
+                bookAuthor
+              )
+          )
+      );
+    }
+  );
+}
 
 const SEARCH_DELAY_MS = 350;
 const MIN_SEARCH_LENGTH = 2;
@@ -541,7 +686,640 @@ function normalizeTitle(value?: string) {
     .trim();
 }
 
+
+function getGoogleBookPopularity(
+  book: GoogleBookItem
+) {
+  const ratingsCount =
+    book.volumeInfo.ratingsCount ??
+    0;
+
+  const averageRating =
+    book.volumeInfo.averageRating ??
+    0;
+
+  return {
+    ratingsCount,
+    averageRating,
+  };
+}
+
+function getBookIsbns(
+  book: GoogleBookItem
+) {
+  return (
+    book.volumeInfo
+      .industryIdentifiers ?? []
+  )
+    .map(
+      (identifier) =>
+        identifier.identifier
+          ?.replace(
+            /[^0-9Xx]/g,
+            ''
+          )
+          .toUpperCase()
+    )
+    .filter(
+      (
+        value
+      ): value is string =>
+        Boolean(value)
+    );
+}
+
+async function getHardcoverPopularity(
+  books: GoogleBookItem[]
+) {
+  const booksWithIsbns =
+    books
+      .map((book) => ({
+        googleBookId:
+          book.id,
+        isbns:
+          getBookIsbns(
+            book
+          ),
+      }))
+      .filter(
+        (book) =>
+          book.isbns.length >
+          0
+      )
+      .slice(0, 40);
+
+  if (
+    booksWithIsbns.length ===
+    0
+  ) {
+    return {};
+  }
+
+  try {
+    const {
+      data,
+      error:
+        functionError,
+    } =
+      await supabase.functions.invoke(
+        'hardcover-search-popularity',
+        {
+          body: {
+            books:
+              booksWithIsbns,
+          },
+        }
+      );
+
+    if (functionError) {
+      console.warn(
+        'Hardcover popularity unavailable; using Google ranking.'
+      );
+
+      return {};
+    }
+
+    const response =
+      data as HardcoverSearchPopularityResponse;
+
+    if (response?.error) {
+      console.warn(
+        'Hardcover popularity unavailable; using Google ranking.'
+      );
+
+      return {};
+    }
+
+    return (
+      response?.popularity ??
+      {}
+    );
+  } catch (error) {
+    console.warn(
+      'Hardcover popularity unavailable; using Google ranking.'
+    );
+
+    return {};
+  }
+}
+
+function compareBookPopularity(
+  a: GoogleBookItem,
+  b: GoogleBookItem,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const aHardcover =
+    hardcoverPopularity[
+      a.id
+    ];
+
+  const bHardcover =
+    hardcoverPopularity[
+      b.id
+    ];
+
+  const aUsersCount =
+    aHardcover?.usersCount ??
+    0;
+
+  const bUsersCount =
+    bHardcover?.usersCount ??
+    0;
+
+  if (
+    bUsersCount !==
+    aUsersCount
+  ) {
+    return (
+      bUsersCount -
+      aUsersCount
+    );
+  }
+
+  const aGoogle =
+    getGoogleBookPopularity(
+      a
+    );
+
+  const bGoogle =
+    getGoogleBookPopularity(
+      b
+    );
+
+  if (
+    bGoogle.ratingsCount !==
+    aGoogle.ratingsCount
+  ) {
+    return (
+      bGoogle.ratingsCount -
+      aGoogle.ratingsCount
+    );
+  }
+
+  const aHardcoverRating =
+    aHardcover?.rating ??
+    0;
+
+  const bHardcoverRating =
+    bHardcover?.rating ??
+    0;
+
+  if (
+    bHardcoverRating !==
+    aHardcoverRating
+  ) {
+    return (
+      bHardcoverRating -
+      aHardcoverRating
+    );
+  }
+
+  if (
+    bGoogle.averageRating !==
+    aGoogle.averageRating
+  ) {
+    return (
+      bGoogle.averageRating -
+      aGoogle.averageRating
+    );
+  }
+
+  return 0;
+}
+
+function getTitleSearchRelevance(
+  book: GoogleBookItem,
+  normalizedQuery: string
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  if (!title || !normalizedQuery) {
+    return 0;
+  }
+
+  if (title === normalizedQuery) {
+    return 400;
+  }
+
+  if (
+    title.startsWith(
+      `${normalizedQuery} `
+    )
+  ) {
+    return 300;
+  }
+
+  if (
+    title.includes(
+      normalizedQuery
+    )
+  ) {
+    return 200;
+  }
+
+  const queryWords =
+    normalizedQuery
+      .split(' ')
+      .filter(Boolean);
+
+  if (
+    queryWords.length > 0 &&
+    queryWords.every((word) =>
+      title.includes(word)
+    )
+  ) {
+    return 100;
+  }
+
+  return 0;
+}
+
+function getAuthorSearchRelevance(
+  book: GoogleBookItem,
+  normalizedQuery: string
+) {
+  const authors =
+    book.volumeInfo.authors ?? [];
+
+  let best = 0;
+
+  for (const author of authors) {
+    const normalizedAuthor =
+      normalizeTitle(author);
+
+    if (!normalizedAuthor) {
+      continue;
+    }
+
+    if (
+      normalizedAuthor ===
+      normalizedQuery
+    ) {
+      best = Math.max(
+        best,
+        400
+      );
+
+      continue;
+    }
+
+    if (
+      normalizedAuthor.startsWith(
+        `${normalizedQuery} `
+      ) ||
+      normalizedQuery.startsWith(
+        `${normalizedAuthor} `
+      )
+    ) {
+      best = Math.max(
+        best,
+        300
+      );
+
+      continue;
+    }
+
+    if (
+      normalizedAuthor.includes(
+        normalizedQuery
+      ) ||
+      normalizedQuery.includes(
+        normalizedAuthor
+      )
+    ) {
+      best = Math.max(
+        best,
+        200
+      );
+
+      continue;
+    }
+
+    const queryWords =
+      normalizedQuery
+        .split(' ')
+        .filter(Boolean);
+
+    if (
+      queryWords.length > 0 &&
+      queryWords.every((word) =>
+        normalizedAuthor.includes(
+          word
+        )
+      )
+    ) {
+      best = Math.max(
+        best,
+        100
+      );
+    }
+  }
+
+  return best;
+}
+
+function sortTitleSearchResults(
+  books: GoogleBookItem[],
+  searchTerm: string,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const normalizedQuery =
+    normalizeTitle(
+      searchTerm
+    );
+
+  return [...books].sort(
+    (a, b) => {
+      const relevanceDifference =
+        getTitleSearchRelevance(
+          b,
+          normalizedQuery
+        ) -
+        getTitleSearchRelevance(
+          a,
+          normalizedQuery
+        );
+
+      if (
+        relevanceDifference !== 0
+      ) {
+        return relevanceDifference;
+      }
+
+      return compareBookPopularity(
+        a,
+        b,
+        hardcoverPopularity
+      );
+    }
+  );
+}
+
+function sortAuthorSearchResults(
+  books: GoogleBookItem[],
+  searchTerm: string,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const normalizedQuery =
+    normalizeTitle(
+      searchTerm
+    );
+
+  return [...books]
+    .filter(
+      (book) =>
+        getAuthorSearchRelevance(
+          book,
+          normalizedQuery
+        ) > 0
+    )
+    .sort(
+      (a, b) => {
+        const relevanceDifference =
+          getAuthorSearchRelevance(
+            b,
+            normalizedQuery
+          ) -
+          getAuthorSearchRelevance(
+            a,
+            normalizedQuery
+          );
+
+        if (
+          relevanceDifference !== 0
+        ) {
+          return relevanceDifference;
+        }
+
+        return compareBookPopularity(
+          a,
+          b,
+          hardcoverPopularity
+        );
+      }
+    );
+}
+
+function mergeGoogleBookResults(
+  ...groups: GoogleBookItem[][]
+) {
+  const byId =
+    new Map<
+      string,
+      GoogleBookItem
+    >();
+
+  for (const group of groups) {
+    for (const book of group) {
+      if (!byId.has(book.id)) {
+        byId.set(
+          book.id,
+          book
+        );
+      }
+    }
+  }
+
+  return Array.from(
+    byId.values()
+  );
+}
+
+
+function secureGoogleBooksImageUrl(
+  url?: string
+) {
+  return url?.replace(
+    'http://',
+    'https://'
+  );
+}
+
+function getGoogleBooksImageParam(
+  url: string,
+  key: string
+) {
+  const match =
+    url.match(
+      new RegExp(
+        `[?&]${key}=([^&]+)`,
+        'i'
+      )
+    );
+
+  return match?.[1]
+    ? decodeURIComponent(
+        match[1]
+      )
+    : null;
+}
+
+function isSameGoogleBooksCover(
+  referenceUrl: string,
+  candidateUrl: string
+) {
+  const reference =
+    secureGoogleBooksImageUrl(
+      referenceUrl
+    );
+
+  const candidate =
+    secureGoogleBooksImageUrl(
+      candidateUrl
+    );
+
+  if (
+    !reference ||
+    !candidate
+  ) {
+    return false;
+  }
+
+  const referenceId =
+    getGoogleBooksImageParam(
+      reference,
+      'id'
+    );
+
+  const candidateId =
+    getGoogleBooksImageParam(
+      candidate,
+      'id'
+    );
+
+  if (
+    referenceId &&
+    candidateId &&
+    referenceId !==
+      candidateId
+  ) {
+    return false;
+  }
+
+  const referencePrintSec =
+    getGoogleBooksImageParam(
+      reference,
+      'printsec'
+    );
+
+  const candidatePrintSec =
+    getGoogleBooksImageParam(
+      candidate,
+      'printsec'
+    );
+
+  if (
+    referencePrintSec &&
+    candidatePrintSec &&
+    referencePrintSec !==
+      candidatePrintSec
+  ) {
+    return false;
+  }
+
+  if (
+    referencePrintSec ===
+      'frontcover' &&
+    candidatePrintSec &&
+    candidatePrintSec !==
+      'frontcover'
+  ) {
+    return false;
+  }
+
+  if (
+    referenceId &&
+    candidateId
+  ) {
+    return true;
+  }
+
+  return (
+    reference.split('?')[0] ===
+    candidate.split('?')[0]
+  );
+}
+
+function getBestSearchCover(
+  imageLinks:
+    | GoogleBookItem['volumeInfo']['imageLinks']
+    | undefined
+) {
+  const thumbnail =
+    secureGoogleBooksImageUrl(
+      imageLinks?.thumbnail
+    ) ||
+    secureGoogleBooksImageUrl(
+      imageLinks?.smallThumbnail
+    );
+
+  if (!thumbnail) {
+    return undefined;
+  }
+
+  const higherResolutionCandidates = [
+    imageLinks?.extraLarge,
+    imageLinks?.large,
+    imageLinks?.medium,
+    imageLinks?.small,
+  ]
+    .map(
+      secureGoogleBooksImageUrl
+    )
+    .filter(
+      (
+        candidate
+      ): candidate is string =>
+        Boolean(candidate)
+    );
+
+  const matchingCandidate =
+    higherResolutionCandidates.find(
+      (candidate) =>
+        isSameGoogleBooksCover(
+          thumbnail,
+          candidate
+        )
+    );
+
+  return (
+    matchingCandidate ||
+    thumbnail
+  );
+}
+
 export default function DiscoverScreen() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
   const router = useRouter();
 
   const preserveDiscoverStateOnNextBlur =
@@ -557,6 +1335,84 @@ export default function DiscoverScreen() {
     );
 
   const [query, setQuery] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const scanLocked = useRef(false);
+
+  const nativeScannerSubscription = useRef<{ remove: () => void } | null>(null);
+  const scannerOpening = useRef(false);
+
+  useEffect(() => () => {
+    nativeScannerSubscription.current?.remove();
+  }, []);
+
+  async function openBarcodeScanner() {
+    if (scannerOpening.current) return;
+    scannerOpening.current = true;
+    try {
+      const permission = cameraPermission?.granted
+        ? cameraPermission
+        : await requestCameraPermission();
+      if (!permission.granted) {
+        Alert.alert('Camera access needed',
+          'Allow camera access to scan a book, or enter its ISBN in the search box.');
+        return;
+      }
+      scanLocked.current = false;
+      nativeScannerSubscription.current?.remove();
+      nativeScannerSubscription.current = null;
+
+      if (Platform.OS === 'ios') {
+        try {
+          nativeScannerSubscription.current = CameraView.onModernBarcodeScanned((event) => {
+            if (scanLocked.current) return;
+            scanLocked.current = true;
+            nativeScannerSubscription.current?.remove();
+            nativeScannerSubscription.current = null;
+            void CameraView.dismissScanner().then(() => {
+              scanLocked.current = false;
+              handleBookBarcode(event.data);
+            }).catch(() => {
+              scanLocked.current = false;
+              Alert.alert('Barcode detected', 'Close the scanner and try again.');
+            });
+          });
+          await CameraView.launchScanner({
+            barcodeTypes: ['ean13'],
+            isGuidanceEnabled: true,
+            isHighlightingEnabled: true,
+            isPinchToZoomEnabled: true,
+          });
+          return;
+        } catch (scannerError) {
+          nativeScannerSubscription.current?.remove();
+          nativeScannerSubscription.current = null;
+          console.warn('Native barcode scanner unavailable; using camera preview.', scannerError);
+        }
+      }
+      setScannerOpen(true);
+    } catch (cameraError) {
+      Alert.alert('Could not open scanner',
+        cameraError instanceof Error ? cameraError.message : 'Please try again.');
+    } finally {
+      scannerOpening.current = false;
+    }
+  }
+
+  function handleBookBarcode(data: string) {
+    if (scanLocked.current) return;
+    scanLocked.current = true;
+    setScannerOpen(false);
+    const isbn = data.replace(/[^0-9]/g, '');
+    if (!/^(978|979)\d{10}$/.test(isbn)) {
+      Alert.alert('Not a book ISBN',
+        'Scan the 13-digit ISBN barcode on the back of the book, or enter its ISBN in search.');
+      return;
+    }
+    setDiscoverMode('books');
+    setQuery(`isbn:${isbn}`);
+  }
+
   const [books, setBooks] = useState<GoogleBookItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -603,6 +1459,8 @@ export default function DiscoverScreen() {
     useState(true);
   const [recentReleasesError, setRecentReleasesError] =
     useState('');
+  const [libraryBooks, setLibraryBooks] =
+    useState<UserBook[]>([]);
   const [discoverRefreshing, setDiscoverRefreshing] =
     useState(false);
   const [openingTrendingBookId, setOpeningTrendingBookId] =
@@ -645,6 +1503,46 @@ export default function DiscoverScreen() {
 
   const discoverRefreshInFlightRef =
     useRef(false);
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        let active =
+          true;
+
+        void getUserBooks()
+          .then(
+            (
+              savedBooks
+            ) => {
+              if (
+                active
+              ) {
+                setLibraryBooks(
+                  savedBooks
+                );
+              }
+            }
+          )
+          .catch(
+            (
+              libraryError
+            ) => {
+              console.warn(
+                'Could not refresh Discover library exclusions:',
+                libraryError
+              );
+            }
+          );
+
+        return () => {
+          active =
+            false;
+        };
+      },
+      []
+    )
+  );
 
   useFocusEffect(
     useCallback(
@@ -1179,7 +2077,7 @@ export default function DiscoverScreen() {
 
       const response =
         await fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&key=${apiKey}`
+          `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full&key=${apiKey}`
         );
 
       if (!response.ok) {
@@ -1199,8 +2097,130 @@ export default function DiscoverScreen() {
         return;
       }
 
+      const initialResults =
+        data.items ?? [];
+
+      const normalizedQuery =
+        normalizeTitle(
+          searchTerm
+        );
+
+      // If Google Books is clearly matching the
+      // query to an author, switch into an
+      // author-first search. This lets "Stephen
+      // King", "Sarah J Maas", etc. show that
+      // author's books from most popular downward.
+      const authorMatches =
+        initialResults.filter(
+          (book) =>
+            getAuthorSearchRelevance(
+              book,
+              normalizedQuery
+            ) >= 200
+        );
+
+      const exactAuthorMatch =
+        initialResults.some(
+          (book) =>
+            getAuthorSearchRelevance(
+              book,
+              normalizedQuery
+            ) >= 400
+        );
+
+      const strongTitleMatch =
+        initialResults.some(
+          (book) =>
+            getTitleSearchRelevance(
+              book,
+              normalizedQuery
+            ) >= 300
+        );
+
+      const looksLikeAuthorSearch =
+        exactAuthorMatch ||
+        (
+          authorMatches.length >= 2 &&
+          !strongTitleMatch
+        );
+
+      let rankedResults:
+        GoogleBookItem[];
+
+      if (looksLikeAuthorSearch) {
+        const authorResponse =
+          await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+              `inauthor:"${searchTerm}"`
+            )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+          );
+
+        let authorSpecificResults:
+          GoogleBookItem[] = [];
+
+        if (authorResponse.ok) {
+          const authorData:
+            GoogleBooksResponse =
+            await authorResponse.json();
+
+          authorSpecificResults =
+            authorData.items ?? [];
+        }
+
+        if (
+          requestId !==
+          latestRequestRef.current
+        ) {
+          return;
+        }
+
+        const merged =
+          mergeGoogleBookResults(
+            authorSpecificResults,
+            initialResults
+          );
+
+        const hardcoverPopularity =
+          await getHardcoverPopularity(
+            merged
+          );
+
+        if (
+          requestId !==
+          latestRequestRef.current
+        ) {
+          return;
+        }
+
+        rankedResults =
+          sortAuthorSearchResults(
+            merged,
+            searchTerm,
+            hardcoverPopularity
+          );
+      } else {
+        const hardcoverPopularity =
+          await getHardcoverPopularity(
+            initialResults
+          );
+
+        if (
+          requestId !==
+          latestRequestRef.current
+        ) {
+          return;
+        }
+
+        rankedResults =
+          sortTitleSearchResults(
+            initialResults,
+            searchTerm,
+            hardcoverPopularity
+          );
+      }
+
       setBooks(
-        data.items ?? []
+        rankedResults
       );
     } catch (err) {
       if (
@@ -1343,7 +2363,13 @@ export default function DiscoverScreen() {
   }
 
   function openBook(
-    bookId: string
+    bookId: string,
+    options?: {
+      coverUrl?: string;
+      title?: string;
+      authors?: string[];
+      isbn?: string;
+    }
   ) {
     preserveDiscoverStateOnNextBlur.current =
       true;
@@ -1354,6 +2380,32 @@ export default function DiscoverScreen() {
       params: {
         id: bookId,
         source: 'discover',
+        ...(options?.coverUrl
+          ? {
+              coverUrl:
+                options.coverUrl,
+            }
+          : {}),
+        ...(options?.title
+          ? {
+              clickedTitle:
+                options.title,
+            }
+          : {}),
+        ...(options?.authors?.length
+          ? {
+              clickedAuthors:
+                JSON.stringify(
+                  options.authors
+                ),
+            }
+          : {}),
+        ...(options?.isbn
+          ? {
+              clickedIsbn:
+                options.isbn,
+            }
+          : {}),
       },
     });
   }
@@ -1616,18 +2668,9 @@ export default function DiscoverScreen() {
       item.volumeInfo;
 
     const cover =
-      info.imageLinks
-        ?.thumbnail
-        ?.replace(
-          'http://',
-          'https://'
-        ) ||
-      info.imageLinks
-        ?.smallThumbnail
-        ?.replace(
-          'http://',
-          'https://'
-        );
+      getBestSearchCover(
+        info.imageLinks
+      );
 
     return (
       <Pressable
@@ -1640,7 +2683,36 @@ export default function DiscoverScreen() {
         ]}
         onPress={() =>
           openBook(
-            item.id
+            item.id,
+            {
+              coverUrl:
+                cover,
+              title:
+                info.title,
+              authors:
+                info.authors,
+              isbn:
+                info
+                  .industryIdentifiers
+                  ?.find(
+                    (
+                      identifier
+                    ) =>
+                      identifier.type ===
+                      'ISBN_13'
+                  )
+                  ?.identifier ||
+                info
+                  .industryIdentifiers
+                  ?.find(
+                    (
+                      identifier
+                    ) =>
+                      identifier.type ===
+                      'ISBN_10'
+                  )
+                  ?.identifier,
+            }
           )
         }
       >
@@ -1883,8 +2955,8 @@ export default function DiscoverScreen() {
                 color={
                   item.is_following ||
                   item.follow_request_pending
-                    ? COLORS.text
-                    : COLORS.background
+                    ? colors.text
+                    : colors.background
                 }
               />
             ) : (
@@ -1971,7 +3043,7 @@ export default function DiscoverScreen() {
             >
               <ActivityIndicator
                 size="small"
-                color={COLORS.gold}
+                color={colors.gold}
               />
             </View>
           ) : null}
@@ -2066,7 +3138,7 @@ export default function DiscoverScreen() {
             >
               <ActivityIndicator
                 size="small"
-                color={COLORS.gold}
+                color={colors.gold}
               />
             </View>
           ) : null}
@@ -2149,10 +3221,18 @@ export default function DiscoverScreen() {
   // appearing empty simply because their first qualifying book sits
   // below the global top 40.
   const globallyRankedTrendingBooks =
-    [...trendingBooks].sort(
-      (a, b) =>
-        a.rank - b.rank
-    );
+    trendingBooks
+      .filter(
+        (book) =>
+          !isDiscoverBookInLibrary(
+            book,
+            libraryBooks
+          )
+      )
+      .sort(
+        (a, b) =>
+          a.rank - b.rank
+      );
 
   const coreTrendingPool =
     globallyRankedTrendingBooks.slice(
@@ -2199,6 +3279,10 @@ export default function DiscoverScreen() {
           !!book.authors?.[0] &&
           !fixedTrendingIds.has(
             book.id
+          ) &&
+          !isDiscoverBookInLibrary(
+            book,
+            libraryBooks
           )
       )
       .sort((a, b) => {
@@ -2461,8 +3545,8 @@ export default function DiscoverScreen() {
                 color={
                   discoverMode ===
                   'books'
-                    ? COLORS.gold
-                    : COLORS.mutedText
+                    ? colors.gold
+                    : colors.mutedText
                 }
               />
 
@@ -2502,8 +3586,8 @@ export default function DiscoverScreen() {
                 color={
                   discoverMode ===
                   'readers'
-                    ? COLORS.gold
-                    : COLORS.mutedText
+                    ? colors.gold
+                    : colors.mutedText
                 }
               />
 
@@ -2536,7 +3620,7 @@ export default function DiscoverScreen() {
                   : 'Name or @username'
               }
               placeholderTextColor={
-                COLORS.mutedText
+                colors.mutedText
               }
               value={
                 discoverMode ===
@@ -2563,6 +3647,17 @@ export default function DiscoverScreen() {
               blurOnSubmit={false}
             />
 
+            {discoverMode === 'books' ? (
+              <Pressable
+                onPress={openBarcodeScanner}
+                style={styles.scanButton}
+                accessibilityRole="button"
+                accessibilityLabel="Scan a book barcode"
+              >
+                <Ionicons name="scan-outline" size={23} color={colors.gold} />
+              </Pressable>
+            ) : null}
+
             {(discoverMode ===
               'books'
                 ? loading
@@ -2570,11 +3665,12 @@ export default function DiscoverScreen() {
               <ActivityIndicator
                 size="small"
                 color={
-                  COLORS.gold
+                  colors.gold
                 }
-                style={
-                  styles.searchSpinner
-                }
+                style={[
+                  styles.searchSpinner,
+                  discoverMode === 'books' && styles.searchSpinnerWithScanner,
+                ]}
               />
             ) : null}
           </View>
@@ -2646,7 +3742,7 @@ export default function DiscoverScreen() {
                           25
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
                     </View>
@@ -2720,13 +3816,13 @@ export default function DiscoverScreen() {
                   handleDiscoverRefresh
                 }
                 tintColor={
-                  COLORS.gold
+                  colors.gold
                 }
                 colors={[
-                  COLORS.gold,
+                  colors.gold,
                 ]}
                 progressBackgroundColor={
-                  COLORS.surface
+                  colors.surface
                 }
               />
             }
@@ -2832,7 +3928,7 @@ export default function DiscoverScreen() {
                             : 'chevron-down'
                         }
                         size={16}
-                        color={COLORS.gold}
+                        color={colors.gold}
                       />
                     </Pressable>
 
@@ -2910,7 +4006,7 @@ export default function DiscoverScreen() {
                                 <Ionicons
                                   name="checkmark"
                                   size={18}
-                                  color={COLORS.gold}
+                                  color={colors.gold}
                                 />
                               ) : null}
                             </Pressable>
@@ -2959,7 +4055,7 @@ export default function DiscoverScreen() {
                                         <Ionicons
                                           name="checkmark"
                                           size={18}
-                                          color={COLORS.gold}
+                                          color={colors.gold}
                                         />
                                       ) : null}
                                     </Pressable>
@@ -3111,7 +4207,7 @@ export default function DiscoverScreen() {
               >
                 <ActivityIndicator
                   size="small"
-                  color={COLORS.gold}
+                  color={colors.gold}
                 />
                 <Text
                   style={
@@ -3264,7 +4360,7 @@ export default function DiscoverScreen() {
                 >
                   <ActivityIndicator
                     size="small"
-                    color={COLORS.gold}
+                    color={colors.gold}
                   />
                 </View>
               ) : recentReleasesError ? (
@@ -3400,22 +4496,78 @@ export default function DiscoverScreen() {
         )}
       </View>
 
+      <Modal
+        visible={scannerOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setScannerOpen(false)}
+      >
+        <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.scannerScreen}>
+        <SafeAreaView style={styles.scannerScreen} edges={['top', 'bottom', 'left', 'right']}>
+
+          <View style={styles.scannerHeader}>
+            <View style={styles.scannerHeadingCopy}>
+              <Text style={styles.scannerTitle}>Scan a book</Text>
+              <Text style={styles.scannerSubtitle}>Aim at the ISBN barcode on the back cover.</Text>
+            </View>
+            <Pressable
+              onPress={() => setScannerOpen(false)}
+              style={({ pressed }) => [styles.scannerCloseButton, pressed && styles.scannerClosePressed]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close scanner"
+            >
+              <Ionicons name="close" size={25} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.scannerPreviewArea}>
+            {scannerOpen ? (
+              <CameraView
+                style={styles.scannerCamera}
+                facing="back"
+                autofocus="on"
+                barcodeScannerSettings={{ barcodeTypes: ['ean13'] }}
+                onBarcodeScanned={({ data }) => handleBookBarcode(data)}
+                onMountError={({ message }) => {
+                  setScannerOpen(false);
+                  Alert.alert('Could not open camera', message || 'Close and reopen the scanner to try again.');
+                }}
+              />
+            ) : null}
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <View style={styles.scannerShade} />
+              <View style={styles.scannerGuideRow}>
+                <View style={styles.scannerShade} />
+                <View style={styles.scannerGuideFrame} />
+                <View style={styles.scannerShade} />
+              </View>
+              <View style={styles.scannerShade}>
+                <Text style={styles.scannerGuideLabel}>Center the barcode inside the frame</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.scannerHint}>Check the book details before adding it to your Library.</Text>
+        </SafeAreaView>
+        </SafeAreaProvider>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles =
-  StyleSheet.create({
+function createStyles(
+  colors: NovoriColors
+) {
+  return StyleSheet.create({
     safeArea: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
 
     screen: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
 
     headerArea: {
@@ -3436,7 +4588,7 @@ const styles =
 
     heading: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize: 34,
       fontFamily:
         'PlayfairDisplay_700Bold',
@@ -3444,7 +4596,7 @@ const styles =
 
     subheading: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize: 15,
       fontFamily:
         'Inter_400Regular',
@@ -3457,10 +4609,10 @@ const styles =
       alignSelf:
         'flex-start',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 13,
       padding: 3,
       marginBottom: 10,
@@ -3483,12 +4635,12 @@ const styles =
 
     discoverModeButtonActive: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     discoverModeText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 12,
       fontFamily:
         'Inter_600SemiBold',
@@ -3496,7 +4648,7 @@ const styles =
 
     discoverModeTextActive: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
     },
@@ -3511,12 +4663,12 @@ const styles =
     input: {
       minHeight: 50,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       color:
-        COLORS.text,
+        colors.text,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 14,
       paddingLeft: 14,
       paddingRight: 46,
@@ -3524,6 +4676,92 @@ const styles =
       fontFamily:
         'Inter_400Regular',
     },
+
+    scanButton: {
+      position: 'absolute',
+      right: 9,
+      top: 5,
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scannerScreen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scannerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      gap: 12,
+      flexShrink: 0,
+    },
+    scannerHeadingCopy: { flex: 1, minWidth: 0 },
+    scannerCloseButton: {
+      minWidth: 48,
+      minHeight: 48,
+      flexShrink: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    scannerClosePressed: { opacity: 0.65 },
+    scannerTitle: {
+      color: colors.gold,
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 23,
+    },
+    scannerSubtitle: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 5,
+    },
+    scannerPreviewArea: {
+      flex: 1,
+      minHeight: 0,
+      marginHorizontal: 16,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    scannerCamera: { flex: 1 },
+    scannerShade: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    },
+    scannerGuideRow: {
+      flexDirection: 'row',
+      height: '28%',
+    },
+    scannerGuideFrame: {
+      width: '80%',
+      borderWidth: 2,
+      borderColor: colors.gold,
+      borderRadius: 10,
+    },
+    scannerGuideLabel: {
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      textAlign: 'center',
+      marginTop: 16,
+      marginHorizontal: 16,
+    },
+    scannerHint: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      textAlign: 'center',
+      marginHorizontal: 24,
+      marginVertical: 22,
+    },
+
+    searchSpinnerWithScanner: { right: 55 },
 
     searchSpinner: {
       position:
@@ -3533,7 +4771,7 @@ const styles =
 
     error: {
       color:
-        COLORS.danger,
+        colors.danger,
       marginTop: 10,
       fontFamily:
         'Inter_400Regular',
@@ -3573,13 +4811,13 @@ const styles =
     },
 
     sectionTitle: {
-      color: COLORS.text,
+      color: colors.text,
       fontSize: 24,
       fontFamily: 'PlayfairDisplay_700Bold',
     },
 
     sectionSubtitle: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       marginTop: 2,
@@ -3600,13 +4838,13 @@ const styles =
       paddingHorizontal: 10,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: COLORS.border,
-      backgroundColor: COLORS.background,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
     },
 
     genreSelectorBarOpen: {
-      borderColor: COLORS.gold,
-      backgroundColor: COLORS.surface,
+      borderColor: colors.gold,
+      backgroundColor: colors.surface,
     },
 
     genreSelectorCopy: {
@@ -3617,7 +4855,7 @@ const styles =
     },
 
     genreSelectorCaption: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 8,
       fontFamily: 'Inter_600SemiBold',
       textTransform: 'uppercase',
@@ -3628,12 +4866,12 @@ const styles =
       width: 1,
       height: 13,
       marginHorizontal: 7,
-      backgroundColor: COLORS.border,
+      backgroundColor: colors.border,
     },
 
     genreSelectorText: {
       flex: 1,
-      color: COLORS.text,
+      color: colors.text,
       fontSize: 12,
       fontFamily: 'Inter_600SemiBold',
     },
@@ -3648,8 +4886,8 @@ const styles =
       paddingBottom: 8,
       borderRadius: 15,
       borderWidth: 1,
-      borderColor: COLORS.border,
-      backgroundColor: COLORS.surface,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
       zIndex: 100,
       elevation: 12,
       shadowColor: '#000',
@@ -3662,7 +4900,7 @@ const styles =
     },
 
     genreDropdownTitle: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 10,
       fontFamily: 'Inter_600SemiBold',
       textTransform: 'uppercase',
@@ -3691,7 +4929,7 @@ const styles =
       bottom: 4,
       width: 4,
       borderRadius: 2,
-      backgroundColor: COLORS.border,
+      backgroundColor: colors.border,
       opacity: 0.72,
       overflow: 'hidden',
     },
@@ -3699,7 +4937,7 @@ const styles =
     genreScrollbarThumb: {
       width: 4,
       borderRadius: 2,
-      backgroundColor: COLORS.gold,
+      backgroundColor: colors.gold,
     },
 
     genreDropdownRow: {
@@ -3712,18 +4950,18 @@ const styles =
     },
 
     genreDropdownRowActive: {
-      backgroundColor: COLORS.elevated,
+      backgroundColor: colors.elevated,
     },
 
     genreDropdownRowText: {
       flex: 1,
-      color: COLORS.secondaryText,
+      color: colors.secondaryText,
       fontSize: 13,
       fontFamily: 'Inter_500Medium',
     },
 
     genreDropdownRowTextActive: {
-      color: COLORS.gold,
+      color: colors.gold,
       fontFamily: 'Inter_700Bold',
     },
 
@@ -3731,13 +4969,13 @@ const styles =
       height: 1,
       marginVertical: 5,
       marginHorizontal: 10,
-      backgroundColor: COLORS.border,
+      backgroundColor: colors.border,
     },
 
     genreDropdownDivider: {
       height: 1,
       marginHorizontal: 10,
-      backgroundColor: COLORS.border,
+      backgroundColor: colors.border,
       opacity: 0.55,
     },
 
@@ -3764,23 +5002,23 @@ const styles =
       paddingHorizontal: 11,
       borderRadius: 16,
       borderWidth: 1,
-      borderColor: COLORS.border,
+      borderColor: colors.border,
       backgroundColor: 'transparent',
     },
 
     subgenreTabActive: {
-      borderColor: COLORS.gold,
-      backgroundColor: COLORS.elevated,
+      borderColor: colors.gold,
+      backgroundColor: colors.elevated,
     },
 
     subgenreTabText: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 11,
       fontFamily: 'Inter_600SemiBold',
     },
 
     subgenreTabTextActive: {
-      color: COLORS.gold,
+      color: colors.gold,
       fontFamily: 'Inter_700Bold',
     },
 
@@ -3798,14 +5036,14 @@ const styles =
       borderRadius: 16,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
     },
 
     genreEmptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 18,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -3813,7 +5051,7 @@ const styles =
 
     genreEmptyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 13,
       lineHeight: 19,
       fontFamily:
@@ -3828,7 +5066,7 @@ const styles =
 
     genreEmptyButtonText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize: 12,
       fontFamily:
         'Inter_600SemiBold',
@@ -3860,7 +5098,7 @@ const styles =
       height: 183,
       borderRadius: 10,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     trendingCoverPlaceholder: {
@@ -3868,12 +5106,12 @@ const styles =
       height: 183,
       borderRadius: 10,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
 
     trendingLoadingOverlay: {
@@ -3891,7 +5129,7 @@ const styles =
 
     trendingTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 14,
       lineHeight: 18,
       fontFamily:
@@ -3901,7 +5139,7 @@ const styles =
 
     trendingAuthor: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 11,
       fontFamily:
         'Inter_400Regular',
@@ -3910,7 +5148,7 @@ const styles =
 
     trendingRating: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 11,
       fontFamily:
         'Inter_600SemiBold',
@@ -3926,7 +5164,7 @@ const styles =
 
     trendingLoadingText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 13,
       fontFamily:
         'Inter_400Regular',
@@ -3939,15 +5177,15 @@ const styles =
       borderRadius: 14,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       alignItems: 'center',
     },
 
     trendingErrorText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize: 13,
       textAlign: 'center',
       fontFamily:
@@ -3956,7 +5194,7 @@ const styles =
 
     retryText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 12,
       fontFamily:
         'Inter_600SemiBold',
@@ -3974,13 +5212,13 @@ const styles =
     },
 
     newReleasesTitle: {
-      color: COLORS.text,
+      color: colors.text,
       fontSize: 22,
       fontFamily: 'PlayfairDisplay_700Bold',
     },
 
     newReleasesSubtitle: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       marginTop: 3,
@@ -4012,18 +5250,18 @@ const styles =
       width: 112,
       height: 168,
       borderRadius: 9,
-      backgroundColor: COLORS.elevated,
+      backgroundColor: colors.elevated,
     },
 
     newReleaseCoverPlaceholder: {
       width: 112,
       height: 168,
       borderRadius: 9,
-      backgroundColor: COLORS.elevated,
+      backgroundColor: colors.elevated,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: COLORS.border,
+      borderColor: colors.border,
     },
 
     newReleaseLoadingOverlay: {
@@ -4040,7 +5278,7 @@ const styles =
     },
 
     newReleaseTitle: {
-      color: COLORS.text,
+      color: colors.text,
       fontSize: 13,
       lineHeight: 17,
       fontFamily: 'PlayfairDisplay_600SemiBold',
@@ -4048,14 +5286,14 @@ const styles =
     },
 
     newReleaseAuthor: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 10,
       fontFamily: 'Inter_400Regular',
       marginTop: 2,
     },
 
     newReleaseDate: {
-      color: COLORS.softGold,
+      color: colors.softGold,
       fontSize: 10,
       fontFamily: 'Inter_500Medium',
       marginTop: 4,
@@ -4073,7 +5311,7 @@ const styles =
     },
 
     newReleasesErrorText: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
     },
@@ -4085,7 +5323,7 @@ const styles =
     },
 
     newReleasesEmptyText: {
-      color: COLORS.mutedText,
+      color: colors.mutedText,
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
     },
@@ -4111,10 +5349,10 @@ const styles =
       height: 54,
       borderRadius: 27,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -4123,7 +5361,7 @@ const styles =
 
     readerIntroTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 22,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -4134,7 +5372,7 @@ const styles =
 
     readerIntroText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 13,
       lineHeight: 19,
       fontFamily:
@@ -4149,11 +5387,11 @@ const styles =
       width: '100%',
       minHeight: 76,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderRadius: 16,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       paddingHorizontal: 11,
       paddingVertical: 10,
       marginBottom: 10,
@@ -4178,7 +5416,7 @@ const styles =
       height: 50,
       borderRadius: 25,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       marginRight: 11,
     },
 
@@ -4187,7 +5425,7 @@ const styles =
       height: 50,
       borderRadius: 25,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -4197,7 +5435,7 @@ const styles =
 
     readerAvatarText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize: 19,
       fontFamily:
         'PlayfairDisplay_700Bold',
@@ -4210,7 +5448,7 @@ const styles =
 
     readerName: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 14,
       fontFamily:
         'Inter_700Bold',
@@ -4218,7 +5456,7 @@ const styles =
 
     readerUsername: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 11,
       fontFamily:
         'Inter_400Regular',
@@ -4227,7 +5465,7 @@ const styles =
 
     readerViewProfile: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 10,
       fontFamily:
         'Inter_600SemiBold',
@@ -4239,7 +5477,7 @@ const styles =
       minHeight: 34,
       borderRadius: 11,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -4249,7 +5487,7 @@ const styles =
 
     readerFollowButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontSize: 10,
       fontFamily:
         'Inter_700Bold',
@@ -4260,10 +5498,10 @@ const styles =
       minHeight: 34,
       borderRadius: 11,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -4273,7 +5511,7 @@ const styles =
 
     readerFollowingButtonText: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 10,
       fontFamily:
         'Inter_700Bold',
@@ -4284,7 +5522,7 @@ const styles =
       minHeight: 30,
       borderRadius: 10,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -4294,7 +5532,7 @@ const styles =
 
     readerYouBadgeText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 10,
       fontFamily:
         'Inter_700Bold',
@@ -4333,13 +5571,13 @@ const styles =
         'row',
       width: '100%',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderRadius: 16,
       padding: 12,
       marginBottom: 14,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
 
     bookCardPressed: {
@@ -4351,7 +5589,7 @@ const styles =
       height: 112,
       borderRadius: 8,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     coverPlaceholder: {
@@ -4359,7 +5597,7 @@ const styles =
       height: 112,
       borderRadius: 8,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -4368,7 +5606,7 @@ const styles =
 
     coverPlaceholderText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 11,
       fontFamily:
         'Inter_400Regular',
@@ -4383,7 +5621,7 @@ const styles =
 
     bookTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 18,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -4392,7 +5630,7 @@ const styles =
 
     author: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize: 13,
       fontFamily:
         'Inter_500Medium',
@@ -4401,7 +5639,7 @@ const styles =
 
     meta: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 12,
       fontFamily:
         'Inter_400Regular',
@@ -4410,7 +5648,7 @@ const styles =
 
     viewDetails: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 12,
       fontFamily:
         'Inter_600SemiBold',
@@ -4431,7 +5669,7 @@ const styles =
 
     emptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 22,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -4441,7 +5679,7 @@ const styles =
 
     emptyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 14,
       lineHeight: 20,
       fontFamily:
@@ -4450,4 +5688,5 @@ const styles =
         'center',
       marginTop: 8,
     },
-  });
+    });
+}

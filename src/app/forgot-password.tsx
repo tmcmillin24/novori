@@ -17,13 +17,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 import { supabase } from '../lib/supabase';
 
 const PASSWORD_RECOVERY_REDIRECT =
   'novori://auth-confirm?flow=recovery';
 
 export default function ForgotPasswordScreen() {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   const router =
     useRouter();
 
@@ -158,7 +161,7 @@ export default function ForgotPasswordScreen() {
                 24
               }
               color={
-                COLORS.text
+                colors.text
               }
             />
           </Pressable>
@@ -190,7 +193,7 @@ export default function ForgotPasswordScreen() {
                 30
               }
               color={
-                COLORS.gold
+                colors.gold
               }
             />
           </View>
@@ -223,7 +226,7 @@ export default function ForgotPasswordScreen() {
                 }
                 placeholder="Email"
                 placeholderTextColor={
-                  COLORS.mutedText
+                  colors.mutedText
                 }
                 value={
                   email
@@ -266,7 +269,7 @@ export default function ForgotPasswordScreen() {
                   <ActivityIndicator
                     size="small"
                     color={
-                      COLORS.background
+                      colors.background
                     }
                   />
                 ) : (
@@ -333,12 +336,11 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles =
-  StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
     safeArea: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     keyboardView: {
       flex: 1,
@@ -395,11 +397,11 @@ const styles =
       borderRadius:
         32,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -409,7 +411,7 @@ const styles =
     },
     title: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -419,7 +421,7 @@ const styles =
     },
     subtitle: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -441,13 +443,13 @@ const styles =
       minHeight:
         52,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       color:
-        COLORS.text,
+        colors.text,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         14,
       paddingHorizontal:
@@ -467,7 +469,7 @@ const styles =
       borderRadius:
         14,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -475,7 +477,7 @@ const styles =
     },
     primaryButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -495,7 +497,7 @@ const styles =
     },
     secondaryButtonText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:

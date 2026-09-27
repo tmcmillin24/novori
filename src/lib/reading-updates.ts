@@ -5,7 +5,40 @@ type PublishReadingUpdateInput = {
   progress?: string;
   chapter?: string;
   thought?: string;
+  audioPosition?: string;
+  sourceNoteId?: string | null;
 };
+
+function parseAudioPosition(value: string): number | null {
+  const cleaned = value.trim();
+  if (!cleaned) return null;
+  const parts = cleaned.split(':');
+  if ((parts.length !== 2 && parts.length !== 3) ||
+      parts.some((part) => !/^\d+$/.test(part))) {
+    throw new Error('Enter an audiobook time like 23:45 or 1:23:45.');
+  }
+  const values = parts.map(Number);
+  const seconds = values[values.length - 1];
+  const minutes = values[values.length - 2];
+  const hours = parts.length === 3 ? values[0] : 0;
+  if (seconds > 59 || (parts.length === 3 && minutes > 59)) {
+    throw new Error('Minutes and seconds must be below 60.');
+  }
+  const total = hours * 3600 + minutes * 60 + seconds;
+  if (!Number.isSafeInteger(total) || total > 2147483647) {
+    throw new Error('Audiobook time is too long.');
+  }
+  return total;
+}
+
+function formatAudioPosition(total: number): string {
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
 
 type ParsedProgress = {
   pageNumber: number | null;
@@ -126,6 +159,11 @@ function buildPostBody(
     );
   }
 
+  const audioSeconds = parseAudioPosition(input.audioPosition ?? '');
+  if (audioSeconds !== null) {
+    parts.push(`Audio ${formatAudioPosition(audioSeconds)}`);
+  }
+
   const thought =
     input.thought
       ?.trim() ||
@@ -133,7 +171,7 @@ function buildPostBody(
 
   const progressLine =
     parts.join(
-      ' · '
+      ' \u00b7 '
     );
 
   if (
@@ -168,6 +206,8 @@ export async function publishReadingUpdate(
       ?.trim() ||
     '';
 
+  const audioSeconds = parseAudioPosition(input.audioPosition ?? '');
+
   if (
     !input.googleBookId
       .trim()
@@ -184,10 +224,11 @@ export async function publishReadingUpdate(
       null &&
     chapter ===
       null &&
+    audioSeconds === null &&
     !thought
   ) {
     throw new Error(
-      'Add a page, percentage, chapter, or thought before publishing.'
+      'Add a page, percentage, chapter, audio time, or thought before publishing.'
     );
   }
 
@@ -233,6 +274,17 @@ export async function publishReadingUpdate(
           parsed.progressPercent,
         checkpoint_chapter:
           chapter,
+        checkpoint_audio_position_seconds:
+          audioSeconds,
+        private_note_body:
+          thought ||
+          null,
+        source_note_id:
+          thought
+            ? input.sourceNoteId
+                ?.trim() ||
+              null
+            : null,
       }
     );
 
@@ -259,4 +311,158 @@ export async function publishReadingUpdate(
   return String(
     postId
   );
+}
+
+export async function updateReadingUpdate(
+  postId: string,
+  input: PublishReadingUpdateInput
+): Promise<string> {
+  const parsed =
+    parseProgress(
+      input.progress ??
+        ''
+    );
+
+  const chapter =
+    input.chapter
+      ?.trim() ||
+    null;
+
+  const thought =
+    input.thought
+      ?.trim() ||
+    '';
+
+  const audioSeconds = parseAudioPosition(input.audioPosition ?? '');
+
+  if (
+    !postId.trim()
+  ) {
+    throw new Error(
+      'This Reading Update is unavailable.'
+    );
+  }
+
+  if (
+    !input.googleBookId
+      .trim()
+  ) {
+    throw new Error(
+      'This Reading Update is missing its book.'
+    );
+  }
+
+  if (
+    parsed.pageNumber ===
+      null &&
+    parsed.progressPercent ===
+      null &&
+    chapter ===
+      null &&
+    audioSeconds === null &&
+    !thought
+  ) {
+    throw new Error(
+      'Add a page, percentage, chapter, audio time, or thought before saving.'
+    );
+  }
+
+  if (
+    chapter &&
+    chapter.length >
+      200
+  ) {
+    throw new Error(
+      'Chapter can be up to 200 characters.'
+    );
+  }
+
+  if (
+    thought.length >
+    500
+  ) {
+    throw new Error(
+      'Your reading update can be up to 500 characters.'
+    );
+  }
+
+  const body =
+    buildPostBody(
+      input,
+      parsed
+    );
+
+  const {
+    data: {
+      user,
+    },
+    error:
+      authError,
+  } =
+    await supabase.auth.getUser();
+
+  if (
+    authError
+  ) {
+    throw authError;
+  }
+
+  if (
+    !user
+  ) {
+    throw new Error(
+      'You must be signed in.'
+    );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from(
+        'posts'
+      )
+      .update({
+        body,
+        updated_at:
+          new Date()
+            .toISOString(),
+      })
+      .eq(
+        'id',
+        postId
+      )
+      .eq(
+        'author_id',
+        user.id
+      )
+      .eq(
+        'post_type',
+        'reading_update'
+      )
+      .eq(
+        'google_book_id',
+        input.googleBookId
+      )
+      .select(
+        'id'
+      )
+      .single();
+
+  if (
+    error
+  ) {
+    throw error;
+  }
+
+  if (
+    !data?.id
+  ) {
+    throw new Error(
+      'Could not update this Reading Update.'
+    );
+  }
+
+  return data.id as string;
 }

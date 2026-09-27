@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 
 type TabScreenProps = PropsWithChildren<{
   scroll?: boolean;
@@ -20,6 +21,8 @@ export function TabScreen({
   scroll = false,
   contentStyle,
 }: TabScreenProps) {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   if (scroll) {
     return (
       <SafeAreaView
@@ -53,15 +56,15 @@ export function TabScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   scrollContent: {

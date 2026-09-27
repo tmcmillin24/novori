@@ -1,9 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  useFocusEffect,
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
-import { useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,8 +23,8 @@ import {
   View,
 } from 'react-native';
 
-import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
-import { COLORS } from '../../../constants/novori-theme';
+import { NovoriColors } from '../../../constants/novori-theme';
+import { useNovoriTheme } from '../../../context/theme-context';
 import { supabase } from '../../../lib/supabase';
 import {
   getUserBook,
@@ -125,6 +130,180 @@ function getBookISBN(book: GoogleBook) {
 
 function normalizeTitle(title?: string) {
   return title?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+}
+
+
+function normalizeAuthorName(
+  author?: string
+) {
+  return (
+    author
+      ?.toLowerCase()
+      .replace(
+        /[^a-z0-9]/g,
+        ''
+      ) ?? ''
+  );
+}
+
+function bookMatchesClickedIdentity(
+  candidate: GoogleBook,
+  clickedTitle:
+    string | undefined,
+  clickedAuthors:
+    string[]
+) {
+  if (!clickedTitle) {
+    return true;
+  }
+
+  const titleMatches =
+    normalizeTitle(
+      candidate.volumeInfo
+        .title
+    ) ===
+    normalizeTitle(
+      clickedTitle
+    );
+
+  if (!titleMatches) {
+    return false;
+  }
+
+  if (
+    clickedAuthors.length ===
+    0
+  ) {
+    return true;
+  }
+
+  const candidateAuthors =
+    candidate.volumeInfo
+      .authors ?? [];
+
+  return clickedAuthors.some(
+    (clickedAuthor) => {
+      const wanted =
+        normalizeAuthorName(
+          clickedAuthor
+        );
+
+      return candidateAuthors.some(
+        (
+          candidateAuthor
+        ) => {
+          const actual =
+            normalizeAuthorName(
+              candidateAuthor
+            );
+
+          return (
+            actual === wanted ||
+            actual.includes(
+              wanted
+            ) ||
+            wanted.includes(
+              actual
+            )
+          );
+        }
+      );
+    }
+  );
+}
+
+async function resolveClickedDiscoverBook(
+  initialBook: GoogleBook,
+  apiKey: string,
+  clickedTitle:
+    string | undefined,
+  clickedAuthors:
+    string[],
+  clickedIsbn:
+    string | undefined
+) {
+  if (
+    bookMatchesClickedIdentity(
+      initialBook,
+      clickedTitle,
+      clickedAuthors
+    )
+  ) {
+    return initialBook;
+  }
+
+  const queries: string[] =
+    [];
+
+  if (clickedIsbn) {
+    queries.push(
+      `isbn:${clickedIsbn}`
+    );
+  }
+
+  if (clickedTitle) {
+    const titleAndAuthor = [
+      `intitle:"${clickedTitle}"`,
+    ];
+
+    if (
+      clickedAuthors[0]
+    ) {
+      titleAndAuthor.push(
+        `inauthor:"${clickedAuthors[0]}"`
+      );
+    }
+
+    queries.push(
+      titleAndAuthor.join(
+        ' '
+      )
+    );
+  }
+
+  for (
+    const query of queries
+  ) {
+    try {
+      const response =
+        await fetch(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            query
+          )}&maxResults=20&printType=books&projection=full&key=${apiKey}`
+        );
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const data:
+        GoogleSearchResponse =
+        await response.json();
+
+      const matchingBook =
+        (
+          data.items ??
+          []
+        ).find(
+          (candidate) =>
+            bookMatchesClickedIdentity(
+              candidate,
+              clickedTitle,
+              clickedAuthors
+            )
+        );
+
+      if (
+        matchingBook
+      ) {
+        return matchingBook;
+      }
+    } catch {
+      // Try the next identity lookup.
+    }
+  }
+
+  return null;
 }
 
 function getYear(date?: string | null) {
@@ -321,13 +500,243 @@ function getDisplayTitle(
   return 'Unannounced';
 }
 
+
+function secureGoogleBooksImageUrl(
+  url?: string
+) {
+  return url?.replace(
+    'http://',
+    'https://'
+  );
+}
+
+function getGoogleBooksImageParam(
+  url: string,
+  key: string
+) {
+  const match =
+    url.match(
+      new RegExp(
+        `[?&]${key}=([^&]+)`,
+        'i'
+      )
+    );
+
+  return match?.[1]
+    ? decodeURIComponent(
+        match[1]
+      )
+    : null;
+}
+
+function isSameGoogleBooksCover(
+  referenceUrl: string,
+  candidateUrl: string
+) {
+  const reference =
+    secureGoogleBooksImageUrl(
+      referenceUrl
+    );
+
+  const candidate =
+    secureGoogleBooksImageUrl(
+      candidateUrl
+    );
+
+  if (
+    !reference ||
+    !candidate
+  ) {
+    return false;
+  }
+
+  const referenceId =
+    getGoogleBooksImageParam(
+      reference,
+      'id'
+    );
+
+  const candidateId =
+    getGoogleBooksImageParam(
+      candidate,
+      'id'
+    );
+
+  if (
+    referenceId &&
+    candidateId &&
+    referenceId !==
+      candidateId
+  ) {
+    return false;
+  }
+
+  const referencePrintSec =
+    getGoogleBooksImageParam(
+      reference,
+      'printsec'
+    );
+
+  const candidatePrintSec =
+    getGoogleBooksImageParam(
+      candidate,
+      'printsec'
+    );
+
+  if (
+    referencePrintSec &&
+    candidatePrintSec &&
+    referencePrintSec !==
+      candidatePrintSec
+  ) {
+    return false;
+  }
+
+  if (
+    referencePrintSec ===
+      'frontcover' &&
+    candidatePrintSec &&
+    candidatePrintSec !==
+      'frontcover'
+  ) {
+    return false;
+  }
+
+  if (
+    referenceId &&
+    candidateId
+  ) {
+    return true;
+  }
+
+  return (
+    reference.split('?')[0] ===
+    candidate.split('?')[0]
+  );
+}
+
+function getValidatedHighResolutionCover(
+  referenceCoverUrl:
+    string | undefined,
+  imageLinks:
+    | GoogleBook['volumeInfo']['imageLinks']
+    | undefined
+) {
+  const reference =
+    secureGoogleBooksImageUrl(
+      referenceCoverUrl
+    ) ||
+    secureGoogleBooksImageUrl(
+      imageLinks?.thumbnail
+    ) ||
+    secureGoogleBooksImageUrl(
+      imageLinks?.smallThumbnail
+    );
+
+  if (!reference) {
+    return (
+      secureGoogleBooksImageUrl(
+        imageLinks?.extraLarge
+      ) ||
+      secureGoogleBooksImageUrl(
+        imageLinks?.large
+      ) ||
+      secureGoogleBooksImageUrl(
+        imageLinks?.medium
+      ) ||
+      secureGoogleBooksImageUrl(
+        imageLinks?.small
+      )
+    );
+  }
+
+  const higherResolutionCandidates = [
+    imageLinks?.extraLarge,
+    imageLinks?.large,
+    imageLinks?.medium,
+    imageLinks?.small,
+  ]
+    .map(
+      secureGoogleBooksImageUrl
+    )
+    .filter(
+      (
+        candidate
+      ): candidate is string =>
+        Boolean(candidate)
+    );
+
+  const matchingCandidate =
+    higherResolutionCandidates.find(
+      (candidate) =>
+        isSameGoogleBooksCover(
+          reference,
+          candidate
+        )
+    );
+
+  return (
+    matchingCandidate ||
+    reference
+  );
+}
+
 export default function BookDetailsScreen() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
   const router = useRouter();
 
-  const { id, source } = useLocalSearchParams<{
+  const {
+    id,
+    source,
+    coverUrl: discoverCoverUrl,
+    clickedTitle,
+    clickedAuthors,
+    clickedIsbn,
+  } = useLocalSearchParams<{
     id: string;
     source?: string;
+    coverUrl?: string;
+    clickedTitle?: string;
+    clickedAuthors?: string;
+    clickedIsbn?: string;
   }>();
+
+  const discoverClickedAuthors =
+    (() => {
+      if (!clickedAuthors) {
+        return [] as string[];
+      }
+
+      try {
+        const parsed =
+          JSON.parse(
+            clickedAuthors
+          );
+
+        return Array.isArray(
+          parsed
+        )
+          ? parsed.filter(
+              (
+                author
+              ): author is string =>
+                typeof author ===
+                'string'
+            )
+          : [];
+      } catch {
+        return [];
+      }
+    })();
 
   const [book, setBook] = useState<GoogleBook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -349,8 +758,6 @@ export default function BookDetailsScreen() {
   const [savingStatus, setSavingStatus] =
     useState<UserBookStatus | null>(null);
   const [removingBook, setRemovingBook] =
-    useState(false);
-  const [removeConfirmVisible, setRemoveConfirmVisible] =
     useState(false);
   const [series, setSeries] =
     useState<HardcoverSeries | null>(null);
@@ -423,22 +830,49 @@ export default function BookDetailsScreen() {
           throw new Error('Google Books API key is missing.');
         }
 
-        const response = await fetch(
-          `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
-        );
+        const response =
+          await fetch(
+            `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
+          );
 
-        if (!response.ok) {
+        if (
+          !response.ok
+        ) {
           throw new Error(
             `Google Books request failed: ${response.status}`
           );
         }
 
-        const data: GoogleBook = await response.json();
+        const data:
+          GoogleBook =
+          await response.json();
 
-        setBook(data);
+        const resolvedBook =
+          source ===
+            'discover'
+            ? await resolveClickedDiscoverBook(
+                data,
+                apiKey,
+                clickedTitle,
+                discoverClickedAuthors,
+                clickedIsbn
+              )
+            : data;
+
+        if (!resolvedBook) {
+          throw new Error(
+            'Google Books returned conflicting metadata for this search result. Please choose another edition.'
+          );
+        }
+
+        setBook(
+          resolvedBook
+        );
 
         try {
-          const savedBook = await getUserBook(data.id);
+          const savedBook = await getUserBook(
+            resolvedBook.id
+          );
           setSavedBook(savedBook);
           setReadingStatus(savedBook?.status ?? null);
         } catch (statusError) {
@@ -450,10 +884,16 @@ export default function BookDetailsScreen() {
           setReadingStatus(null);
         }
 
-        await loadSeries(data);
+        await loadSeries(
+          resolvedBook
+        );
       } catch (err) {
         console.error('Book loading error:', err);
-        setError('Could not load this book.');
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Could not load this book.'
+        );
       } finally {
         setLoading(false);
       }
@@ -461,6 +901,120 @@ export default function BookDetailsScreen() {
 
     loadBook();
   }, [id]);
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        if (
+          !id ||
+          source !==
+            'library'
+        ) {
+          return;
+        }
+
+        let active =
+          true;
+
+        void getUserBook(
+          id
+        )
+          .then(
+            (
+              refreshedBook
+            ) => {
+              if (
+                !active
+              ) {
+                return;
+              }
+
+              setSavedBook(
+                refreshedBook
+              );
+              setReadingStatus(
+                refreshedBook
+                  ?.status ??
+                  null
+              );
+            }
+          )
+          .catch(
+            (
+              refreshError
+            ) => {
+              console.error(
+                'Could not refresh saved review:',
+                refreshError
+              );
+            }
+          );
+
+        return () => {
+          active =
+            false;
+        };
+      },
+      [
+        id,
+        source,
+      ]
+    )
+  );
+
+  function openRateReview() {
+    if (
+      !savedBook ||
+      (
+        savedBook.status !==
+          'read' &&
+        savedBook.status !==
+          'dnf'
+      )
+    ) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/rate-review',
+      params: {
+        googleBookId:
+          savedBook.google_book_id,
+      },
+    });
+  }
+
+  function shareSavedReview() {
+    if (
+      !savedBook ||
+      savedBook.status !==
+        'read' ||
+      !savedBook.review_text
+        ?.trim()
+    ) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/create-review',
+      params: {
+        bookId:
+          savedBook.google_book_id,
+        rating:
+          savedBook.rating !==
+          null
+            ? String(
+                savedBook.rating
+              )
+            : '',
+        review:
+          savedBook.review_text
+            .trim(),
+      },
+    });
+  }
 
   async function loadSeries(currentBook: GoogleBook) {
     const isbn = getBookISBN(currentBook);
@@ -595,10 +1149,13 @@ export default function BookDetailsScreen() {
     const info = book.volumeInfo;
 
     const coverUrl =
-      info.imageLinks?.extraLarge?.replace('http://', 'https://') ||
-      info.imageLinks?.large?.replace('http://', 'https://') ||
-      info.imageLinks?.medium?.replace('http://', 'https://') ||
-      info.imageLinks?.thumbnail?.replace('http://', 'https://') ||
+      getValidatedHighResolutionCover(
+        source === 'discover'
+          ? discoverCoverUrl
+          : savedBook?.cover_url ??
+              undefined,
+        info.imageLinks
+      ) ??
       null;
 
     try {
@@ -654,8 +1211,26 @@ export default function BookDetailsScreen() {
       return;
     }
 
-    setRemoveConfirmVisible(
-      true
+    const removalMessage =
+      savedBook?.status ===
+      'want_to_read'
+        ? `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`
+        : `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This permanently deletes its private Reading Details — including summary, notes, and checkpoints — along with its saved rating and review.`;
+
+    Alert.alert(
+      'Remove from Library?',
+      removalMessage,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: removeFromLibrary,
+        },
+      ]
     );
   }
 
@@ -686,8 +1261,6 @@ export default function BookDetailsScreen() {
         'Could not remove book',
         'Novori had trouble removing this book from your library. Please try again.'
       );
-
-      throw removeError;
     } finally {
       setRemovingBook(false);
     }
@@ -931,7 +1504,7 @@ export default function BookDetailsScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.gold} />
+        <ActivityIndicator size="large" color={colors.gold} />
         <Text style={styles.loadingText}>Opening book...</Text>
       </View>
     );
@@ -958,10 +1531,13 @@ export default function BookDetailsScreen() {
   const info = book.volumeInfo;
 
   const cover =
-    info.imageLinks?.extraLarge?.replace('http://', 'https://') ||
-    info.imageLinks?.large?.replace('http://', 'https://') ||
-    info.imageLinks?.medium?.replace('http://', 'https://') ||
-    info.imageLinks?.thumbnail?.replace('http://', 'https://');
+    getValidatedHighResolutionCover(
+      source === 'discover'
+        ? discoverCoverUrl
+        : savedBook?.cover_url ??
+            undefined,
+      info.imageLinks
+    );
 
   const categories =
     info.categories
@@ -1021,7 +1597,7 @@ export default function BookDetailsScreen() {
           <Ionicons
             name="chevron-back"
             size={25}
-            color={COLORS.text}
+            color={colors.text}
           />
           <Text style={styles.backText}>{backLabel}</Text>
         </Pressable>
@@ -1031,184 +1607,921 @@ export default function BookDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.hero}>
-          {cover ? (
-            <Image
-              source={{ uri: cover }}
-              style={styles.cover}
-            />
-          ) : (
-            <View style={styles.coverPlaceholder}>
-              <Ionicons
-                name="book-outline"
-                size={44}
-                color={COLORS.mutedText}
+        {source ===
+        'library' ? (
+          <View
+            style={
+              styles.libraryBookHero
+            }
+          >
+            {cover ? (
+              <Image
+                source={{
+                  uri:
+                    cover,
+                }}
+                style={
+                  styles.libraryBookCover
+                }
               />
-              <Text style={styles.noCoverText}>No Cover</Text>
-            </View>
-          )}
+            ) : (
+              <View
+                style={
+                  styles.libraryBookCoverPlaceholder
+                }
+              >
+                <Ionicons
+                  name="book-outline"
+                  size={34}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </View>
+            )}
 
-          <Text style={styles.title}>
-            {info.title ?? 'Untitled'}
-          </Text>
-
-          {info.subtitle ? (
-            <Text style={styles.subtitle}>
-              {info.subtitle}
-            </Text>
-          ) : null}
-
-          <Text style={styles.author}>
-            {info.authors?.join(', ') ?? 'Unknown author'}
-          </Text>
-
-          {series ? (
-            <View style={styles.seriesBadge}>
-              <Text style={styles.seriesBadgeText}>
-                {series.currentPosition
-                  ? `Book ${series.currentPosition}`
-                  : series.name}
+            <View
+              style={
+                styles.libraryBookHeroCopy
+              }
+            >
+              <Text
+                style={
+                  styles.libraryBookTitle
+                }
+                numberOfLines={
+                  3
+                }
+              >
+                {info.title ??
+                  'Untitled'}
               </Text>
-            </View>
-          ) : null}
-        </View>
 
-        <View style={styles.statusSection}>
-          <View style={styles.statusHeadingRow}>
-            <View>
-              <Text style={styles.statusHeading}>
-                Your Reading Status
+              <Text
+                style={
+                  styles.libraryBookAuthor
+                }
+                numberOfLines={
+                  2
+                }
+              >
+                {info.authors?.join(
+                  ', '
+                ) ??
+                  'Unknown author'}
               </Text>
-              <Text style={styles.statusSubheading}>
-                Keep this book organized in your library.
-              </Text>
+
+              <View
+                style={
+                  styles.libraryHeroMetaRow
+                }
+              >
+                {readingStatus ? (
+                  <View
+                    style={
+                      styles.libraryStatusPill
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.libraryStatusPillText
+                      }
+                    >
+                      {
+                        statuses.find(
+                          (
+                            status
+                          ) =>
+                            status.value ===
+                            readingStatus
+                        )?.label
+                      }
+                    </Text>
+                  </View>
+                ) : null}
+
+                {series ? (
+                  <Text
+                    style={
+                      styles.librarySeriesMeta
+                    }
+                  >
+                    {series.currentPosition
+                      ? `Book ${series.currentPosition}`
+                      : series.name}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           </View>
-
-          <View style={styles.statusGrid}>
-            {statuses.map((status) => {
-              const selected =
-                readingStatus === status.value;
-
-              const saving =
-                savingStatus === status.value;
-
-              return (
-                <Pressable
-                  key={status.value}
-                  disabled={savingStatus !== null}
-                  onPress={() =>
-                    saveReadingStatus(status.value)
+        ) : (
+          <View
+            style={
+              styles.hero
+            }
+          >
+            {cover ? (
+              <Image
+                source={{
+                  uri:
+                    cover,
+                }}
+                style={
+                  styles.cover
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.coverPlaceholder
+                }
+              >
+                <Ionicons
+                  name="book-outline"
+                  size={44}
+                  color={
+                    colors.mutedText
                   }
-                  style={({ pressed }) => [
-                    styles.statusButton,
-                    selected &&
-                      styles.statusButtonSelected,
+                />
+                <Text
+                  style={
+                    styles.noCoverText
+                  }
+                >
+                  No Cover
+                </Text>
+              </View>
+            )}
+
+            <Text
+              style={
+                styles.title
+              }
+            >
+              {info.title ??
+                'Untitled'}
+            </Text>
+
+            {info.subtitle ? (
+              <Text
+                style={
+                  styles.subtitle
+                }
+              >
+                {info.subtitle}
+              </Text>
+            ) : null}
+
+            <Text
+              style={
+                styles.author
+              }
+            >
+              {info.authors?.join(
+                ', '
+              ) ??
+                'Unknown author'}
+            </Text>
+
+            {series ? (
+              <View
+                style={
+                  styles.seriesBadge
+                }
+              >
+                <Text
+                  style={
+                    styles.seriesBadgeText
+                  }
+                >
+                  {series.currentPosition
+                    ? `Book ${series.currentPosition}`
+                    : series.name}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        {source ===
+          'library' &&
+        savedBook &&
+        (
+          savedBook.status ===
+            'read' ||
+          savedBook.status ===
+            'dnf'
+        ) ? (
+          <View
+            style={
+              styles.reviewSection
+            }
+          >
+            <Text
+              style={
+                styles.sectionLabel
+              }
+            >
+              YOUR REVIEW
+            </Text>
+
+            {savedBook.rating !==
+              null ||
+            Boolean(
+              savedBook.review_text
+                ?.trim()
+            ) ? (
+              <View
+                style={
+                  styles.reviewContent
+                }
+              >
+                <View
+                  style={
+                    styles.reviewRatingRow
+                  }
+                >
+                  <View
+                    style={
+                      styles.reviewStars
+                    }
+                  >
+                    {[
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                    ].map(
+                      (
+                        starNumber
+                      ) => {
+                        let icon:
+                          | 'star'
+                          | 'star-half'
+                          | 'star-outline' =
+                          'star-outline';
+
+                        if (
+                          savedBook.rating !==
+                            null &&
+                          savedBook.rating >=
+                            starNumber
+                        ) {
+                          icon =
+                            'star';
+                        } else if (
+                          savedBook.rating !==
+                            null &&
+                          savedBook.rating >=
+                            starNumber -
+                              0.5
+                        ) {
+                          icon =
+                            'star-half';
+                        }
+
+                        return (
+                          <Ionicons
+                            key={
+                              starNumber
+                            }
+                            name={
+                              icon
+                            }
+                            size={
+                              21
+                            }
+                            color={
+                              colors.gold
+                            }
+                          />
+                        );
+                      }
+                    )}
+                  </View>
+
+                  {savedBook.rating !==
+                  null ? (
+                    <Text
+                      style={
+                        styles.reviewRatingValue
+                      }
+                    >
+                      {savedBook.rating.toFixed(
+                        1
+                      )}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {savedBook.review_text
+                  ?.trim() ? (
+                  <Text
+                    style={
+                      styles.reviewBody
+                    }
+                  >
+                    {
+                      savedBook.review_text
+                    }
+                  </Text>
+                ) : (
+                  <Text
+                    style={
+                      styles.reviewEmptyText
+                    }
+                  >
+                    You rated this book but haven’t added a written review yet.
+                  </Text>
+                )}
+
+                <View
+                  style={
+                    styles.reviewActions
+                  }
+                >
+                  <Pressable
+                    onPress={
+                      openRateReview
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.reviewPrimaryButton,
+                      pressed &&
+                        styles.reviewButtonPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={
+                        17
+                      }
+                      color={
+                        colors.background
+                      }
+                    />
+                    <Text
+                      style={
+                        styles.reviewPrimaryButtonText
+                      }
+                    >
+                      {savedBook.review_text
+                        ?.trim()
+                        ? 'Edit Review'
+                        : 'Add Review'}
+                    </Text>
+                  </Pressable>
+
+                  {savedBook.status ===
+                    'read' &&
+                  Boolean(
+                    savedBook.review_text
+                      ?.trim()
+                  ) ? (
+                    <Pressable
+                      onPress={
+                        shareSavedReview
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.reviewSecondaryButton,
+                        pressed &&
+                          styles.reviewButtonPressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="share-social-outline"
+                        size={
+                          17
+                        }
+                        color={
+                          colors.gold
+                        }
+                      />
+                      <Text
+                        style={
+                          styles.reviewSecondaryButtonText
+                        }
+                      >
+                        Share Review
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : (
+              <View
+                style={
+                  styles.reviewEmptyContent
+                }
+              >
+                <View
+                  style={
+                    styles.reviewEmptyStars
+                  }
+                >
+                  {[
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                  ].map(
+                    (
+                      starNumber
+                    ) => (
+                      <Ionicons
+                        key={
+                          starNumber
+                        }
+                        name="star-outline"
+                        size={
+                          22
+                        }
+                        color={
+                          colors.gold
+                        }
+                      />
+                    )
+                  )}
+                </View>
+
+                <Text
+                  style={
+                    styles.reviewEmptyTitle
+                  }
+                >
+                  No review yet
+                </Text>
+
+                <Text
+                  style={
+                    styles.reviewEmptySubtitle
+                  }
+                >
+                  Add one whenever you want — it stays with this book.
+                </Text>
+
+                <Pressable
+                  onPress={
+                    openRateReview
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.reviewPrimaryButton,
+                    styles.reviewEmptyButton,
                     pressed &&
-                      savingStatus === null &&
-                      styles.statusButtonPressed,
-                    savingStatus !== null &&
-                      !saving &&
-                      styles.statusButtonDisabled,
+                      styles.reviewButtonPressed,
                   ]}
                 >
-                  {saving ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={COLORS.gold}
-                    />
-                  ) : (
-                    <>
-                      <View
-                        style={[
-                          styles.statusIconWrap,
-                          selected &&
-                            styles.statusIconWrapSelected,
-                        ]}
-                      >
-                        <Ionicons
-                          name={status.icon}
-                          size={18}
-                          color={
-                            selected
-                              ? COLORS.gold
-                              : COLORS.secondaryText
-                          }
-                        />
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.statusButtonText,
-                          selected &&
-                            styles.statusButtonTextSelected,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {status.label}
-                      </Text>
-                    </>
-                  )}
+                  <Ionicons
+                    name="star-outline"
+                    size={
+                      17
+                    }
+                    color={
+                      colors.background
+                    }
+                  />
+                  <Text
+                    style={
+                      styles.reviewPrimaryButtonText
+                    }
+                  >
+                    Rate & Review
+                  </Text>
                 </Pressable>
-              );
-            })}
+              </View>
+            )}
           </View>
+        ) : null}
 
-          {selectedStatusLabel ? (
-            <View style={styles.statusFooterRow}>
-              <View style={styles.savedStatusRow}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={14}
-                  color={COLORS.softGold}
-                />
-                <Text style={styles.statusConfirmation}>
-                  Saved to your library
+        {source ===
+          'library' &&
+        savedBook ? (
+          <View
+            style={
+              styles.libraryReadingPanel
+            }
+          >
+            <View
+              style={
+                styles.libraryReadingPanelHeader
+              }
+            >
+              <View>
+                <Text
+                  style={
+                    styles.sectionLabel
+                  }
+                >
+                  MY READING
+                </Text>
+
+                <Text
+                  style={
+                    styles.libraryReadingPanelTitle
+                  }
+                >
+                  Reading record
                 </Text>
               </View>
 
-              {readingStatus ? (
+              {savedBook.status !==
+                'want_to_read' ? (
                 <Pressable
-                  accessibilityLabel="Remove from Library"
-                  disabled={
-                    savingStatus !== null ||
-                    removingBook
-                  }
                   onPress={
-                    confirmRemoveFromLibrary
+                    openReadingDateEditor
                   }
-                  hitSlop={10}
-                  style={({ pressed }) => [
-                    styles.removeLibraryIconButton,
+                  hitSlop={
+                    8
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.libraryReadingEdit,
                     pressed &&
-                      styles.removeLibraryIconButtonPressed,
-                    (savingStatus !== null ||
-                      removingBook) &&
-                      styles.removeLibraryIconButtonDisabled,
+                      styles.reviewButtonPressed,
                   ]}
                 >
-                  {removingBook ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={COLORS.mutedText}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="trash-outline"
-                      size={16}
-                      color={COLORS.mutedText}
-                    />
-                  )}
+                  <Ionicons
+                    name="create-outline"
+                    size={
+                      15
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+                  <Text
+                    style={
+                      styles.libraryReadingEditText
+                    }
+                  >
+                    Dates
+                  </Text>
                 </Pressable>
               ) : null}
             </View>
-          ) : null}
-        </View>
 
-        {savedBook &&
+            <View
+              style={
+                styles.libraryStatusSelector
+              }
+            >
+              {statuses.map(
+                (
+                  status
+                ) => {
+                  const selected =
+                    readingStatus ===
+                    status.value;
+
+                  const saving =
+                    savingStatus ===
+                    status.value;
+
+                  return (
+                    <Pressable
+                      key={
+                        status.value
+                      }
+                      disabled={
+                        savingStatus !==
+                        null
+                      }
+                      onPress={() =>
+                        saveReadingStatus(
+                          status.value
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.libraryStatusChoice,
+                        selected &&
+                          styles.libraryStatusChoiceSelected,
+                        pressed &&
+                          savingStatus ===
+                            null &&
+                          styles.libraryStatusChoicePressed,
+                      ]}
+                    >
+                      {saving ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={
+                            colors.gold
+                          }
+                        />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name={
+                              status.icon
+                            }
+                            size={
+                              16
+                            }
+                            color={
+                              selected
+                                ? colors.gold
+                                : colors.mutedText
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.libraryStatusChoiceText,
+                              selected &&
+                                styles.libraryStatusChoiceTextSelected,
+                            ]}
+                            numberOfLines={
+                              1
+                            }
+                          >
+                            {
+                              status.label
+                            }
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                }
+              )}
+            </View>
+
+            {savedBook.status !==
+              'want_to_read' ? (
+              <View
+                style={
+                  styles.libraryDateSummary
+                }
+              >
+                <View
+                  style={
+                    styles.libraryDateSummaryItem
+                  }
+                >
+                  <Text
+                    style={
+                      styles.libraryDateSummaryLabel
+                    }
+                  >
+                    Started
+                  </Text>
+                  <Text
+                    style={
+                      styles.libraryDateSummaryValue
+                    }
+                  >
+                    {formatReadingDate(
+                      savedBook.started_at
+                    )}
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.libraryDateSummaryDivider
+                  }
+                />
+
+                <View
+                  style={
+                    styles.libraryDateSummaryItem
+                  }
+                >
+                  <Text
+                    style={
+                      styles.libraryDateSummaryLabel
+                    }
+                  >
+                    {savedBook.status ===
+                    'dnf'
+                      ? 'Stopped'
+                      : savedBook.status ===
+                        'read'
+                      ? 'Finished'
+                      : 'Status'}
+                  </Text>
+                  <Text
+                    style={
+                      styles.libraryDateSummaryValue
+                    }
+                  >
+                    {savedBook.status ===
+                    'read'
+                      ? formatReadingDate(
+                          savedBook.finished_at
+                        )
+                      : savedBook.status ===
+                        'dnf'
+                      ? formatReadingDate(
+                          savedBook.dnf_at
+                        )
+                      : 'Reading'}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <Text
+                style={
+                  styles.libraryTbrHint
+                }
+              >
+                Saved for later. Move it to Reading whenever you start.
+              </Text>
+            )}
+          </View>
+        ) : null}
+
+        {source !==
+          'library' ? (
+          source ===
+            'discover' &&
+          readingStatus &&
+          selectedStatusLabel ? (
+            <View
+              style={
+                styles.discoverLibraryConfirmation
+              }
+            >
+              <View
+                style={
+                  styles.discoverLibraryConfirmationIcon
+                }
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={24}
+                  color={colors.background}
+                />
+              </View>
+
+              <View
+                style={
+                  styles.discoverLibraryConfirmationCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.discoverLibraryConfirmationTitle
+                  }
+                >
+                  Added to your library
+                </Text>
+
+                <Text
+                  style={
+                    styles.discoverLibraryConfirmationText
+                  }
+                >
+                  {`Marked as ${selectedStatusLabel}. You can manage this book anytime from your Library.`}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View
+              style={
+                styles.statusSection
+              }
+            >
+              <View
+                style={
+                  styles.statusHeadingRow
+                }
+              >
+                <View>
+                  <Text
+                    style={
+                      styles.statusHeading
+                    }
+                  >
+                    Your Reading Status
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.statusSubheading
+                    }
+                  >
+                    Keep this book organized in your library.
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.statusGrid
+                }
+              >
+                {statuses.map(
+                  (
+                    status
+                  ) => {
+                    const saving =
+                      savingStatus ===
+                      status.value;
+
+                    return (
+                      <Pressable
+                        key={
+                          status.value
+                        }
+                        disabled={
+                          savingStatus !==
+                          null
+                        }
+                        onPress={() =>
+                          saveReadingStatus(
+                            status.value
+                          )
+                        }
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.statusButton,
+                          pressed &&
+                            savingStatus ===
+                              null &&
+                            styles.statusButtonPressed,
+                          savingStatus !==
+                            null &&
+                            !saving &&
+                            styles.statusButtonDisabled,
+                        ]}
+                      >
+                        {saving ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={
+                              colors.gold
+                            }
+                          />
+                        ) : (
+                          <>
+                            <View
+                              style={
+                                styles.statusIconWrap
+                              }
+                            >
+                              <Ionicons
+                                name={
+                                  status.icon
+                                }
+                                size={
+                                  18
+                                }
+                                color={
+                                  colors.secondaryText
+                                }
+                              />
+                            </View>
+
+                            <Text
+                              style={
+                                styles.statusButtonText
+                              }
+                              numberOfLines={
+                                1
+                              }
+                            >
+                              {
+                                status.label
+                              }
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    );
+                  }
+                )}
+              </View>
+            </View>
+          )
+        ) : null}
+
+        {source !==
+          'library' &&
+        source !==
+          'discover' &&
+        savedBook &&
         savedBook.status !==
           'want_to_read' ? (
-          <View style={styles.readingDatesSection}>
+          <View
+            style={[
+              styles.readingDatesSection,
+              source ===
+                'library' &&
+                styles.libraryReadingDatesSection,
+            ]}
+          >
             <View style={styles.readingDatesHeader}>
               <View>
                 <Text style={styles.sectionLabel}>
@@ -1234,7 +2547,7 @@ export default function BookDetailsScreen() {
                 <Ionicons
                   name="create-outline"
                   size={15}
-                  color={COLORS.gold}
+                  color={colors.gold}
                 />
 
                 <Text style={styles.editDatesText}>
@@ -1243,13 +2556,27 @@ export default function BookDetailsScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.readingDatesCard}>
-              <View style={styles.readingDateItem}>
+            <View
+              style={[
+                styles.readingDatesCard,
+                source ===
+                  'library' &&
+                  styles.libraryReadingDatesCard,
+              ]}
+            >
+              <View
+                style={[
+                  styles.readingDateItem,
+                  source ===
+                    'library' &&
+                    styles.libraryReadingDateItem,
+                ]}
+              >
                 <View style={styles.readingDateIcon}>
                   <Ionicons
                     name="play-outline"
                     size={17}
-                    color={COLORS.gold}
+                    color={colors.gold}
                   />
                 </View>
 
@@ -1271,12 +2598,19 @@ export default function BookDetailsScreen() {
                 <>
                   <View style={styles.readingDateDivider} />
 
-                  <View style={styles.readingDateItem}>
+                  <View
+                    style={[
+                      styles.readingDateItem,
+                      source ===
+                        'library' &&
+                        styles.libraryReadingDateItem,
+                    ]}
+                  >
                     <View style={styles.readingDateIcon}>
                       <Ionicons
                         name="checkmark-outline"
                         size={17}
-                        color={COLORS.gold}
+                        color={colors.gold}
                       />
                     </View>
 
@@ -1300,12 +2634,19 @@ export default function BookDetailsScreen() {
                 <>
                   <View style={styles.readingDateDivider} />
 
-                  <View style={styles.readingDateItem}>
+                  <View
+                    style={[
+                      styles.readingDateItem,
+                      source ===
+                        'library' &&
+                        styles.libraryReadingDateItem,
+                    ]}
+                  >
                     <View style={styles.readingDateIcon}>
                       <Ionicons
                         name="stop-outline"
                         size={17}
-                        color={COLORS.gold}
+                        color={colors.gold}
                       />
                     </View>
 
@@ -1327,19 +2668,33 @@ export default function BookDetailsScreen() {
           </View>
         ) : null}
 
-        <View style={styles.detailsSection}>
+        <View
+          style={[
+            styles.detailsSection,
+            source ===
+              'library' &&
+              styles.libraryDetailsSection,
+          ]}
+        >
           <Text style={styles.sectionLabel}>
             BOOK DETAILS
           </Text>
 
-          <View style={styles.metadataCard}>
+          <View
+            style={[
+              styles.metadataCard,
+              source ===
+                'library' &&
+                styles.libraryMetadataCard,
+            ]}
+          >
             <View style={styles.metadataTopRow}>
               <View style={styles.metadataStat}>
                 <View style={styles.metadataIconWrap}>
                   <Ionicons
                     name="calendar-outline"
                     size={17}
-                    color={COLORS.gold}
+                    color={colors.gold}
                   />
                 </View>
 
@@ -1362,7 +2717,7 @@ export default function BookDetailsScreen() {
                   <Ionicons
                     name="document-text-outline"
                     size={17}
-                    color={COLORS.gold}
+                    color={colors.gold}
                   />
                 </View>
 
@@ -1390,7 +2745,7 @@ export default function BookDetailsScreen() {
                     <Ionicons
                       name="pricetag-outline"
                       size={17}
-                      color={COLORS.gold}
+                      color={colors.gold}
                     />
                   </View>
 
@@ -1416,7 +2771,7 @@ export default function BookDetailsScreen() {
           <View style={styles.seriesSection}>
             <Text style={styles.sectionHeading}>Series</Text>
             <View style={styles.seriesLoading}>
-              <ActivityIndicator color={COLORS.gold} />
+              <ActivityIndicator color={colors.gold} />
               <Text style={styles.seriesLoadingText}>
                 Checking series...
               </Text>
@@ -1439,7 +2794,7 @@ export default function BookDetailsScreen() {
                 <Ionicons
                   name="library-outline"
                   size={21}
-                  color={COLORS.gold}
+                  color={colors.gold}
                 />
               </View>
 
@@ -1464,12 +2819,19 @@ export default function BookDetailsScreen() {
                     : 'chevron-down'
                 }
                 size={20}
-                color={COLORS.softGold}
+                color={colors.softGold}
               />
             </Pressable>
 
             {seriesExpanded ? (
-              <View style={styles.seriesCard}>
+              <View
+                style={[
+                  styles.seriesCard,
+                  source ===
+                    'library' &&
+                    styles.librarySeriesCard,
+                ]}
+              >
                 {seriesBooks.map((seriesBook, index) => {
                   const isCurrent =
                     series.currentPosition ===
@@ -1518,7 +2880,7 @@ export default function BookDetailsScreen() {
                           <Ionicons
                             name="book-outline"
                             size={20}
-                            color={COLORS.mutedText}
+                            color={colors.mutedText}
                           />
                         </View>
                       )}
@@ -1548,7 +2910,7 @@ export default function BookDetailsScreen() {
                             <Ionicons
                               name="eye-outline"
                               size={13}
-                              color={COLORS.softGold}
+                              color={colors.softGold}
                             />
                             <Text style={styles.currentBookLabel}>
                               Currently viewing
@@ -1568,13 +2930,13 @@ export default function BookDetailsScreen() {
                       {isOpening ? (
                         <ActivityIndicator
                           size="small"
-                          color={COLORS.gold}
+                          color={colors.gold}
                         />
                       ) : !isCurrent && hasUsableTitle ? (
                         <Ionicons
                           name="chevron-forward"
                           size={19}
-                          color={COLORS.mutedText}
+                          color={colors.mutedText}
                         />
                       ) : null}
                     </Pressable>
@@ -1623,7 +2985,7 @@ export default function BookDetailsScreen() {
             <Ionicons
               name="chatbubbles-outline"
               size={24}
-              color={COLORS.gold}
+              color={colors.gold}
             />
           </View>
 
@@ -1639,39 +3001,10 @@ export default function BookDetailsScreen() {
           <Ionicons
             name="chevron-forward"
             size={21}
-            color={COLORS.mutedText}
+            color={colors.mutedText}
           />
         </Pressable>
       </ScrollView>
-
-      <RemoveBookConfirmSheet
-        visible={
-          removeConfirmVisible
-        }
-        bookTitle={
-          book?.volumeInfo
-            .title ??
-          'this book'
-        }
-        hasReadingDetails={
-          Boolean(
-            savedBook &&
-            savedBook.status !==
-              'want_to_read'
-          )
-        }
-        busy={
-          removingBook
-        }
-        onDismiss={() =>
-          setRemoveConfirmVisible(
-            false
-          )
-        }
-        onConfirm={
-          removeFromLibrary
-        }
-      />
 
       <Modal
         visible={dateEditorVisible}
@@ -1713,7 +3046,7 @@ export default function BookDetailsScreen() {
                 <Ionicons
                   name="close"
                   size={20}
-                  color={COLORS.mutedText}
+                  color={colors.mutedText}
                 />
               </Pressable>
             </View>
@@ -1730,7 +3063,7 @@ export default function BookDetailsScreen() {
                 }
                 placeholder="MM/DD/YYYY"
                 placeholderTextColor={
-                  COLORS.mutedText
+                  colors.mutedText
                 }
                 keyboardType="numbers-and-punctuation"
                 autoCorrect={false}
@@ -1761,7 +3094,7 @@ export default function BookDetailsScreen() {
                   }
                   placeholder="MM/DD/YYYY"
                   placeholderTextColor={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                   keyboardType="numbers-and-punctuation"
                   autoCorrect={false}
@@ -1803,7 +3136,7 @@ export default function BookDetailsScreen() {
                 {savingDates ? (
                   <ActivityIndicator
                     size="small"
-                    color={COLORS.background}
+                    color={colors.background}
                   />
                 ) : (
                   <Text style={styles.dateSaveText}>
@@ -1819,22 +3152,25 @@ export default function BookDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(
+  colors: NovoriColors
+) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   centered: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
 
   loadingText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_400Regular',
     marginTop: 14,
   },
@@ -1854,7 +3190,7 @@ const styles = StyleSheet.create({
   },
 
   backText: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_500Medium',
     fontSize: 15,
     marginLeft: 1,
@@ -1874,29 +3210,29 @@ const styles = StyleSheet.create({
     width: 155,
     height: 232,
     borderRadius: 10,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
   },
 
   coverPlaceholder: {
     width: 155,
     height: 232,
     borderRadius: 10,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   noCoverText: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     marginTop: 8,
   },
 
   title: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'PlayfairDisplay_700Bold',
     fontSize: 30,
     lineHeight: 37,
@@ -1905,7 +3241,7 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: 17,
     textAlign: 'center',
@@ -1913,7 +3249,7 @@ const styles = StyleSheet.create({
   },
 
   author: {
-    color: COLORS.softGold,
+    color: colors.softGold,
     fontFamily: 'Inter_500Medium',
     fontSize: 15,
     textAlign: 'center',
@@ -1921,9 +3257,9 @@ const styles = StyleSheet.create({
   },
 
   seriesBadge: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
@@ -1931,9 +3267,346 @@ const styles = StyleSheet.create({
   },
 
   seriesBadgeText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
+  },
+
+  libraryHero: {
+    paddingTop: 4,
+  },
+
+  libraryCover: {
+    width: 132,
+    height: 198,
+  },
+
+  libraryTitle: {
+    fontSize: 27,
+    lineHeight: 33,
+    marginTop: 17,
+  },
+
+  libraryStatusSection: {
+    marginTop: 20,
+  },
+
+
+
+
+
+  libraryReadingDatesSection: {
+    marginTop: 18,
+  },
+
+
+
+
+
+  libraryStatusButton: {
+    minHeight: 46,
+    paddingVertical: 4,
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+  },
+
+  libraryStatusButtonSelected: {
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+    borderBottomWidth: 2,
+    borderBottomColor:
+      colors.gold,
+  },
+
+  libraryStatusIconWrap: {
+    width: 25,
+    height: 25,
+    borderRadius: 8,
+    marginBottom: 4,
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+  },
+
+  libraryStatusIconWrapSelected: {
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+  },
+
+  libraryReadingDatesCard: {
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor:
+      'transparent',
+    paddingHorizontal: 0,
+  },
+
+  libraryReadingDateItem: {
+    minHeight: 46,
+    paddingHorizontal: 0,
+  },
+
+  libraryMetadataCard: {
+    marginTop: 8,
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+  },
+
+  librarySeriesCard: {
+    backgroundColor:
+      'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+    paddingHorizontal: 0,
+  },
+
+  libraryBookHero: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    paddingTop: 6,
+    paddingBottom: 8,
+  },
+
+  libraryBookCover: {
+    width: 108,
+    height: 162,
+    borderRadius: 12,
+    backgroundColor:
+      colors.surface,
+  },
+
+  libraryBookCoverPlaceholder: {
+    width: 108,
+    height: 162,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent:
+      'center',
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+  },
+
+  libraryBookHeroCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingTop: 5,
+  },
+
+  libraryBookTitle: {
+    color:
+      colors.text,
+    fontFamily:
+      'PlayfairDisplay_700Bold',
+    fontSize: 27,
+    lineHeight: 32,
+  },
+
+  libraryBookAuthor: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+
+  libraryHeroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+
+  libraryStatusPill: {
+    minHeight: 27,
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+  },
+
+  libraryStatusPillText: {
+    color:
+      colors.gold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 10.5,
+    letterSpacing: 0.2,
+  },
+
+  librarySeriesMeta: {
+    color:
+      colors.mutedText,
+    fontFamily:
+      'Inter_500Medium',
+    fontSize: 11,
+  },
+
+  libraryReadingPanel: {
+    marginTop: 22,
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+
+  libraryReadingPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent:
+      'space-between',
+  },
+
+  libraryReadingPanelTitle: {
+    color:
+      colors.text,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 15,
+    marginTop: 3,
+  },
+
+  libraryReadingEdit: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    borderRadius: 10,
+    backgroundColor:
+      colors.elevated,
+  },
+
+  libraryReadingEditText: {
+    color:
+      colors.gold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 11.5,
+  },
+
+  libraryStatusSelector: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 5,
+    marginTop: 14,
+  },
+
+  libraryStatusChoice: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent:
+      'center',
+    gap: 4,
+    borderRadius: 11,
+    backgroundColor:
+      colors.elevated,
+    borderWidth: 1,
+    borderColor:
+      'transparent',
+    paddingHorizontal: 3,
+  },
+
+  libraryStatusChoiceSelected: {
+    borderColor:
+      colors.gold,
+    backgroundColor:
+      colors.surface,
+  },
+
+  libraryStatusChoicePressed: {
+    opacity: 0.68,
+  },
+
+  libraryStatusChoiceText: {
+    color:
+      colors.mutedText,
+    fontFamily:
+      'Inter_600SemiBold',
+    fontSize: 9.5,
+  },
+
+  libraryStatusChoiceTextSelected: {
+    color:
+      colors.gold,
+  },
+
+  libraryDateSummary: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 13,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor:
+      colors.border,
+  },
+
+  libraryDateSummaryItem: {
+    flex: 1,
+  },
+
+  libraryDateSummaryDivider: {
+    width: 1,
+    backgroundColor:
+      colors.border,
+    marginHorizontal: 14,
+  },
+
+  libraryDateSummaryLabel: {
+    color:
+      colors.mutedText,
+    fontFamily:
+      'Inter_600SemiBold',
+    fontSize: 9.5,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+
+  libraryDateSummaryValue: {
+    color:
+      colors.text,
+    fontFamily:
+      'Inter_600SemiBold',
+    fontSize: 12.5,
+    marginTop: 4,
+  },
+
+  libraryTbrHint: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor:
+      colors.border,
   },
 
   statusSection: {
@@ -1948,13 +3621,13 @@ const styles = StyleSheet.create({
   },
 
   statusHeading: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: 20,
   },
 
   statusSubheading: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 11,
     lineHeight: 16,
@@ -1962,7 +3635,7 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
     letterSpacing: 1.5,
@@ -1977,9 +3650,9 @@ const styles = StyleSheet.create({
   statusButton: {
     flex: 1,
     minHeight: 74,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1988,8 +3661,8 @@ const styles = StyleSheet.create({
   },
 
   statusButtonSelected: {
-    backgroundColor: COLORS.elevated,
-    borderColor: COLORS.gold,
+    backgroundColor: colors.elevated,
+    borderColor: colors.gold,
     borderWidth: 1.5,
   },
 
@@ -2005,24 +3678,24 @@ const styles = StyleSheet.create({
     width: 31,
     height: 31,
     borderRadius: 10,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 7,
   },
 
   statusIconWrapSelected: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   statusButtonText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 10,
   },
 
   statusButtonTextSelected: {
-    color: COLORS.softGold,
+    color: colors.softGold,
   },
 
   statusFooterRow: {
@@ -2039,7 +3712,7 @@ const styles = StyleSheet.create({
   },
 
   statusConfirmation: {
-    color: COLORS.softGold,
+    color: colors.softGold,
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
     marginLeft: 5,
@@ -2054,7 +3727,7 @@ const styles = StyleSheet.create({
   },
 
   removeLibraryIconButtonPressed: {
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
   },
 
   removeLibraryIconButtonDisabled: {
@@ -2063,7 +3736,7 @@ const styles = StyleSheet.create({
 
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 28,
   },
 
@@ -2079,7 +3752,7 @@ const styles = StyleSheet.create({
   },
 
   readingDatesTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
     marginTop: -4,
@@ -2095,20 +3768,20 @@ const styles = StyleSheet.create({
   },
 
   editDatesButtonPressed: {
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
   },
 
   editDatesText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 11,
     marginLeft: 4,
   },
 
   readingDatesCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 15,
     paddingHorizontal: 14,
   },
@@ -2123,7 +3796,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 11,
@@ -2134,13 +3807,13 @@ const styles = StyleSheet.create({
   },
 
   readingDateLabel: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_500Medium',
     fontSize: 10,
   },
 
   readingDateValue: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
     marginTop: 3,
@@ -2148,7 +3821,7 @@ const styles = StyleSheet.create({
 
   readingDateDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginLeft: 45,
   },
 
@@ -2163,9 +3836,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 20,
     padding: 18,
   },
@@ -2182,13 +3855,13 @@ const styles = StyleSheet.create({
   },
 
   dateModalTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: 21,
   },
 
   dateModalSubtitle: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 11,
     lineHeight: 16,
@@ -2204,7 +3877,7 @@ const styles = StyleSheet.create({
   },
 
   dateModalClosePressed: {
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
   },
 
   dateField: {
@@ -2212,7 +3885,7 @@ const styles = StyleSheet.create({
   },
 
   dateFieldLabel: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 11,
     marginBottom: 7,
@@ -2221,17 +3894,17 @@ const styles = StyleSheet.create({
   dateInput: {
     height: 46,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: COLORS.background,
-    color: COLORS.text,
+    backgroundColor: colors.background,
+    color: colors.text,
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
     paddingHorizontal: 13,
   },
 
   dateFieldHint: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 10,
     lineHeight: 14,
@@ -2250,7 +3923,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 11,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
@@ -2260,7 +3933,7 @@ const styles = StyleSheet.create({
     minWidth: 110,
     height: 42,
     borderRadius: 11,
-    backgroundColor: COLORS.gold,
+    backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
@@ -2275,15 +3948,159 @@ const styles = StyleSheet.create({
   },
 
   dateCancelText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
   },
 
   dateSaveText: {
-    color: COLORS.background,
+    color: colors.background,
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
+  },
+
+  reviewSection: {
+    marginTop: 16,
+    paddingHorizontal: 2,
+  },
+
+  reviewContent: {
+    marginTop: 7,
+    paddingBottom: 4,
+  },
+
+  reviewRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent:
+      'space-between',
+  },
+
+  reviewStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+
+  reviewRatingValue: {
+    color:
+      colors.softGold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 13,
+  },
+
+  reviewBody: {
+    color:
+      colors.text,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginTop: 10,
+  },
+
+  reviewEmptyText: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 13,
+  },
+
+  reviewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginTop: 12,
+  },
+
+  reviewPrimaryButton: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor:
+      colors.gold,
+    borderRadius: 13,
+    paddingHorizontal: 15,
+  },
+
+  reviewPrimaryButtonText: {
+    color:
+      colors.background,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 13,
+  },
+
+  reviewSecondaryButton: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor:
+      colors.elevated,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+    borderRadius: 13,
+    paddingHorizontal: 15,
+  },
+
+  reviewSecondaryButtonText: {
+    color:
+      colors.gold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 13,
+  },
+
+  reviewButtonPressed: {
+    opacity: 0.72,
+  },
+
+  reviewEmptyContent: {
+    marginTop: 7,
+    alignItems: 'flex-start',
+    paddingBottom: 3,
+  },
+
+  reviewEmptyStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+
+  reviewEmptyTitle: {
+    color:
+      colors.text,
+    fontFamily:
+      'Inter_600SemiBold',
+    fontSize: 13.5,
+    marginTop: 8,
+  },
+
+  reviewEmptySubtitle: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  reviewEmptyButton: {
+    marginTop: 12,
+  },
+
+  libraryDetailsSection: {
+    marginTop: 24,
   },
 
   detailsSection: {
@@ -2291,9 +4108,9 @@ const styles = StyleSheet.create({
   },
 
   metadataCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 17,
     padding: 15,
   },
@@ -2315,7 +4132,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 7,
@@ -2323,25 +4140,25 @@ const styles = StyleSheet.create({
 
   metadataVerticalDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
 
   metadataHorizontalDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 13,
   },
 
   metadataLabel: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_500Medium',
     fontSize: 10,
     letterSpacing: 0.25,
   },
 
   metadataStatValue: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
     marginTop: 4,
@@ -2357,7 +4174,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 11,
@@ -2368,7 +4185,7 @@ const styles = StyleSheet.create({
   },
 
   genreValue: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     lineHeight: 18,
@@ -2385,7 +4202,7 @@ const styles = StyleSheet.create({
   },
 
   seriesLoadingText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_400Regular',
     fontSize: 13,
     marginLeft: 10,
@@ -2394,9 +4211,9 @@ const styles = StyleSheet.create({
   seriesToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 14,
   },
@@ -2409,10 +4226,51 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+
+
+  discoverLibraryConfirmation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: 18,
+    paddingHorizontal: 17,
+    paddingVertical: 16,
+    marginTop: 24,
+  },
+
+  discoverLibraryConfirmationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  discoverLibraryConfirmationCopy: {
+    flex: 1,
+  },
+
+  discoverLibraryConfirmationTitle: {
+    color: colors.text,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+
+  discoverLibraryConfirmationText: {
+    color: colors.secondaryText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
 
   seriesToggleText: {
@@ -2421,22 +4279,22 @@ const styles = StyleSheet.create({
   },
 
   seriesToggleName: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
   },
 
   seriesToggleMeta: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     marginTop: 4,
   },
 
   seriesCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 16,
     overflow: 'hidden',
     marginTop: 10,
@@ -2447,7 +4305,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 13,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
 
   seriesRowLast: {
@@ -2462,7 +4320,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 69,
     borderRadius: 5,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     marginRight: 12,
   },
 
@@ -2470,7 +4328,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 69,
     borderRadius: 5,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2487,7 +4345,7 @@ const styles = StyleSheet.create({
   },
 
   seriesNumber: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontFamily: 'Inter_700Bold',
     fontSize: 13,
     marginRight: 6,
@@ -2496,23 +4354,23 @@ const styles = StyleSheet.create({
 
   seriesBookTitle: {
     flex: 1,
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
     lineHeight: 19,
   },
 
   seriesBookTitleCurrent: {
-    color: COLORS.softGold,
+    color: colors.softGold,
   },
 
   seriesBookTitleUnavailable: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontStyle: 'italic',
   },
 
   seriesBookMeta: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 11,
     marginTop: 5,
@@ -2525,7 +4383,7 @@ const styles = StyleSheet.create({
   },
 
   currentBookLabel: {
-    color: COLORS.softGold,
+    color: colors.softGold,
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
     marginLeft: 4,
@@ -2536,28 +4394,28 @@ const styles = StyleSheet.create({
   },
 
   sectionHeading: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: 25,
     marginBottom: 12,
   },
 
   description: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_400Regular',
     fontSize: 15,
     lineHeight: 24,
   },
 
   noDescription: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     lineHeight: 22,
   },
 
   readMore: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
     marginTop: 10,
@@ -2566,9 +4424,9 @@ const styles = StyleSheet.create({
   communityCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 17,
     marginTop: 32,
@@ -2578,7 +4436,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2590,13 +4448,13 @@ const styles = StyleSheet.create({
   },
 
   communityTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
   },
 
   communityDescription: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     lineHeight: 17,
@@ -2604,13 +4462,13 @@ const styles = StyleSheet.create({
   },
 
   errorTitle: {
-    color: COLORS.text,
+    color: colors.text,
     fontFamily: 'PlayfairDisplay_700Bold',
     fontSize: 25,
   },
 
   errorText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     marginTop: 8,
@@ -2618,7 +4476,7 @@ const styles = StyleSheet.create({
   },
 
   backButtonLarge: {
-    backgroundColor: COLORS.gold,
+    backgroundColor: colors.gold,
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 12,
@@ -2626,8 +4484,9 @@ const styles = StyleSheet.create({
   },
 
   backButtonLargeText: {
-    color: COLORS.background,
+    color: colors.background,
     fontFamily: 'Inter_700Bold',
     fontSize: 14,
   },
-});
+  });
+}

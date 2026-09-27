@@ -14,6 +14,8 @@ import {
 
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -26,7 +28,14 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 function AppNavigator() {
-  const { colors, ready } = useNovoriTheme();
+  const { colors, theme, ready } = useNovoriTheme();
+
+  useEffect(() => {
+    if (ready) {
+      void SystemUI.setBackgroundColorAsync(colors.background);
+      void SplashScreen.hideAsync();
+    }
+  }, [ready, colors.background]);
 
   if (!ready) {
     return (
@@ -46,6 +55,7 @@ function AppNavigator() {
         backgroundColor: colors.background,
       }}
     >
+      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -74,12 +84,6 @@ export default function RootLayout() {
   const appReady =
     playfairLoaded &&
     interLoaded;
-
-  useEffect(() => {
-    if (appReady) {
-      SplashScreen.hideAsync();
-    }
-  }, [appReady]);
 
   if (!appReady) {
     return null;

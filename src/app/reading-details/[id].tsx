@@ -1,52 +1,62 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-    useFocusEffect,
-    useLocalSearchParams,
-    useRouter,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
 } from 'expo-router';
 import {
-    useCallback,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Easing,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    PanResponder,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  UIManager,
+  View,
 } from 'react-native';
 import {
-    SafeAreaView,
+  SafeAreaView,
 } from 'react-native-safe-area-context';
 
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
+
 import {
-    NovoriColors,
+  NovoriColors,
 } from '../../constants/novori-theme';
 import {
-    useNovoriTheme,
+  useNovoriTheme,
 } from '../../context/theme-context';
 import {
-    addReadingNote,
-    getReadingDetails,
-    ReadingCheckpoint,
-    ReadingDetailsData,
-    saveReadingCheckpoint,
-    saveReadingSummary,
-    updateReadingDetailsDates,
+  addReadingNote,
+  deleteReadingNote,
+  getReadingDetails,
+  ReadingCheckpoint,
+  ReadingDetailsData,
+  ReadingNote,
+  saveReadingCheckpoint,
+  saveReadingSummary,
+  updateReadingDetailsDates,
+  updateReadingNote,
 } from '../../lib/reading-details';
 
 function formatDate(
@@ -321,6 +331,44 @@ function parseLocationInput(
           number,
         progressPercent: null,
       };
+}
+
+function parseAudioPosition(value: string): number | null {
+  const cleaned = value.trim();
+  if (!cleaned) return null;
+
+  const parts = cleaned.split(':');
+  if (
+    (parts.length !== 2 && parts.length !== 3) ||
+    parts.some((part) => !/^\d+$/.test(part))
+  ) {
+    throw new Error('Enter an audio time like 23:45 or 1:23:45.');
+  }
+
+  const numbers = parts.map(Number);
+  const seconds = numbers[numbers.length - 1];
+  const minutes = numbers[numbers.length - 2];
+  const hours = parts.length === 3 ? numbers[0] : 0;
+
+  if ((parts.length === 3 && minutes > 59) || seconds > 59) {
+    throw new Error('Minutes and seconds must be below 60.');
+  }
+
+  const total = hours * 3600 + minutes * 60 + seconds;
+  if (!Number.isSafeInteger(total) || total > 2147483647) {
+    throw new Error('Audio time is too long.');
+  }
+  return total;
+}
+
+function formatAudioPosition(seconds: number | null): string {
+  if (seconds === null) return '';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
 function checkpointInputValue(
@@ -887,6 +935,9 @@ export default function ReadingDetailsScreen() {
   ] =
     useState('');
 
+  const [noteLocationMode, setNoteLocationMode] =
+    useState<'page' | 'percent' | 'audio'>('page');
+
   const [
     noteChapterInput,
     setNoteChapterInput,
@@ -894,8 +945,41 @@ export default function ReadingDetailsScreen() {
     useState('');
 
   const [
+    noteAudioInput,
+    setNoteAudioInput,
+  ] = useState('');
+
+  const [
     savingNote,
     setSavingNote,
+  ] =
+    useState(false);
+
+  const [
+    editingNoteId,
+    setEditingNoteId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    editingNotePosted,
+    setEditingNotePosted,
+  ] =
+    useState(false);
+
+  const [
+    notePendingDelete,
+    setNotePendingDelete,
+  ] =
+    useState<ReadingNote | null>(
+      null
+    );
+
+  const [
+    deletingNote,
+    setDeletingNote,
   ] =
     useState(false);
 
@@ -910,6 +994,7 @@ export default function ReadingDetailsScreen() {
     setShowHistory,
   ] =
     useState(false);
+
 
   const [
     dateEditorVisible,
@@ -945,11 +1030,28 @@ export default function ReadingDetailsScreen() {
 
   const noteSheet =
     useNovoriSheet(
-      () =>
+      () => {
         setNoteEditorOpen(
           false
+        );
+        setEditingNoteId(
+          null
+        );
+        setEditingNotePosted(
+          false
+        );
+      }
+    );
+
+  const deleteNoteSheet =
+    useNovoriSheet(
+      () =>
+        setNotePendingDelete(
+          null
         )
     );
+
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   const historySheet =
     useNovoriSheet(
@@ -1073,6 +1175,40 @@ export default function ReadingDetailsScreen() {
       ? 'READING STOPPED'
       : 'YOU LEFT OFF HERE';
 
+  const lastPosition = useMemo(() => {
+    const checkpoint = data?.latest_checkpoint ?? null;
+    const latestNote = (data?.notes ?? [])
+      .filter((note) =>
+        note.page_number !== null ||
+        note.progress_percent !== null ||
+        Boolean(note.chapter?.trim()) ||
+        note.audio_position_seconds !== null
+      )
+      .reduce<ReadingNote | null>((latest, note) =>
+        !latest || new Date(note.created_at).getTime() > new Date(latest.created_at).getTime()
+          ? note
+          : latest, null);
+
+    if (latestNote && (!checkpoint ||
+      new Date(latestNote.created_at).getTime() >= new Date(checkpoint.created_at).getTime())) {
+      return {
+        label: noteLocation(
+          latestNote.page_number,
+          latestNote.progress_percent,
+          latestNote.chapter,
+          latestNote.audio_position_seconds
+        ),
+        createdAt: latestNote.created_at,
+        checkpointNote: null as string | null,
+      };
+    }
+    return checkpoint ? {
+      label: checkpointLabel(checkpoint),
+      createdAt: checkpoint.created_at,
+      checkpointNote: checkpoint.checkpoint_note,
+    } : null;
+  }, [data?.latest_checkpoint, data?.notes]);
+
   const displayedNotes =
     useMemo(
       () =>
@@ -1091,6 +1227,46 @@ export default function ReadingDetailsScreen() {
         showAllNotes,
       ]
     );
+
+  // Show every saved note unless its linked checkpoint already represents it.
+  const readingHistory = useMemo(() => {
+    const checkpoints = (data?.checkpoints ?? []).map((checkpoint) => {
+      const linkedNoteId =
+        (checkpoint as ReadingCheckpoint & { source_note_id?: string | null })
+          .source_note_id;
+      const linkedNote = (data?.notes ?? []).find((note) => note.id === linkedNoteId);
+      return {
+        id: `checkpoint-${checkpoint.id}`,
+        createdAt: checkpoint.created_at,
+        label: checkpointLabel(checkpoint),
+        detail: checkpoint.checkpoint_note || linkedNote?.body || null,
+      };
+    });
+    const linkedNoteIds = new Set(
+      (data?.checkpoints ?? [])
+        .map((checkpoint) =>
+          (checkpoint as ReadingCheckpoint & { source_note_id?: string | null })
+            .source_note_id
+        )
+        .filter((id): id is string => Boolean(id))
+    );
+    const privateNotes = (data?.notes ?? [])
+      .filter((note) => !linkedNoteIds.has(note.id))
+      .map((note) => ({
+        id: `note-${note.id}`,
+        createdAt: note.created_at,
+        label: noteLocation(
+          note.page_number,
+          note.progress_percent,
+          note.chapter,
+          note.audio_position_seconds
+        ) || 'Private note',
+        detail: note.body,
+      }));
+    return [...checkpoints, ...privateNotes].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [data?.checkpoints, data?.notes]);
 
   async function refresh() {
     try {
@@ -1254,25 +1430,154 @@ export default function ReadingDetailsScreen() {
     }
   }
 
-  function openNoteEditor() {
-    const latest =
-      data?.latest_checkpoint;
+  function openNoteEditor(
+    note?: ReadingNote
+  ) {
+    if (note) {
+      setEditingNoteId(
+        note.id
+      );
+      setEditingNotePosted(
+        Boolean(
+          note.source_post_id
+        )
+      );
+      setNoteBodyInput(
+        note.body
+      );
+      setNoteLocationInput(
+        progressParam(
+          note.page_number,
+          note.progress_percent
+        ).replace('%', '')
+      );
+      setNoteLocationMode(
+        note.page_number !== null
+          ? 'page'
+          : note.progress_percent !== null
+          ? 'percent'
+          : note.audio_position_seconds !== null
+          ? 'audio'
+          : 'page'
+      );
+      setNoteChapterInput(
+        note.chapter ??
+          ''
+      );
+      setNoteAudioInput(
+        formatAudioPosition(note.audio_position_seconds)
+      );
+      setNoteEditorOpen(
+        true
+      );
+      return;
+    }
 
+    const latestCheckpoint =
+      data?.latest_checkpoint ??
+      null;
+
+    const latestNoteWithLocation =
+      (data?.notes ?? [])
+        .filter(
+          (currentNote) =>
+            currentNote.page_number !==
+              null ||
+            currentNote.progress_percent !==
+              null ||
+            currentNote.audio_position_seconds !==
+              null ||
+            Boolean(
+              currentNote.chapter
+                ?.trim()
+            )
+        )
+        .reduce<
+          ReadingDetailsData['notes'][number] | null
+        >(
+          (latest, currentNote) =>
+            !latest ||
+            new Date(
+              currentNote.created_at
+            ).getTime() >
+              new Date(
+                latest.created_at
+              ).getTime()
+              ? currentNote
+              : latest,
+          null
+        );
+
+    const useLatestNote =
+      latestNoteWithLocation &&
+      (
+        !latestCheckpoint ||
+        new Date(
+          latestNoteWithLocation.created_at
+        ).getTime() >
+          new Date(
+            latestCheckpoint.created_at
+          ).getTime()
+      );
+
+    const pageNumber =
+      useLatestNote
+        ? latestNoteWithLocation
+            ?.page_number ??
+          null
+        : latestCheckpoint
+            ?.page_number ??
+          null;
+
+    const progressPercent =
+      useLatestNote
+        ? latestNoteWithLocation
+            ?.progress_percent ??
+          null
+        : latestCheckpoint
+            ?.progress_percent ??
+          null;
+
+    const audioSeconds =
+      useLatestNote
+        ? latestNoteWithLocation
+            ?.audio_position_seconds ??
+          null
+        : null;
+
+    const chapter =
+      useLatestNote
+        ? latestNoteWithLocation
+            ?.chapter ??
+          ''
+        : latestCheckpoint
+            ?.chapter ??
+          '';
+
+    setEditingNoteId(
+      null
+    );
+    setEditingNotePosted(
+      false
+    );
     setNoteBodyInput(
       ''
     );
-
     setNoteLocationInput(
-      checkpointInputValue(
-        latest
-      )
+      progressParam(
+        pageNumber,
+        progressPercent
+      ).replace('%', '')
     );
-
-    setNoteChapterInput(
-      latest?.chapter ??
-      ''
+    setNoteLocationMode(
+      audioSeconds !== null && pageNumber === null && progressPercent === null
+        ? 'audio'
+        : progressPercent !== null && pageNumber === null
+        ? 'percent'
+        : 'page'
     );
-
+    setNoteChapterInput(chapter);
+    setNoteAudioInput(formatAudioPosition(audioSeconds));
     setNoteEditorOpen(
       true
     );
@@ -1296,20 +1601,44 @@ export default function ReadingDetailsScreen() {
         progressPercent,
       } =
         parseLocationInput(
-          noteLocationInput
+          noteLocationInput.trim()
+            ? noteLocationMode === 'percent'
+              ? `${noteLocationInput.replace(/%/g, '')}%`
+              : noteLocationInput.replace(/%/g, '')
+            : ''
         );
 
-      await addReadingNote(
-        data.session.id,
-        {
-          body:
-            noteBodyInput,
-          pageNumber,
-          progressPercent,
-          chapter:
-            noteChapterInput,
-        }
-      );
+      if (
+        noteLocationInput.trim() &&
+        pageNumber === null &&
+        progressPercent === null
+      ) {
+        throw new Error('Enter a valid page number or percentage.');
+      }
+
+      const input = {
+        body:
+          noteBodyInput,
+        pageNumber,
+        progressPercent,
+        chapter:
+          noteChapterInput,
+        audioPositionSeconds:
+          parseAudioPosition(noteAudioInput),
+      };
+
+      if (editingNoteId) {
+        await updateReadingNote(
+          editingNoteId,
+          data.session.id,
+          input
+        );
+      } else {
+        await addReadingNote(
+          data.session.id,
+          input
+        );
+      }
 
       noteSheet.closeSmoothly();
 
@@ -1320,7 +1649,9 @@ export default function ReadingDetailsScreen() {
       saveError
     ) {
       Alert.alert(
-        'Could not save note',
+        editingNoteId
+          ? 'Could not update note'
+          : 'Could not save note',
         saveError instanceof
           Error
           ? saveError.message
@@ -1333,6 +1664,57 @@ export default function ReadingDetailsScreen() {
     }
   }
 
+  function confirmDeleteNote(
+    note: ReadingNote
+  ) {
+    if (deletingNote) {
+      return;
+    }
+
+    setNotePendingDelete(
+      note
+    );
+  }
+
+  async function removeReadingNote() {
+    if (
+      !notePendingDelete ||
+      deletingNote
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingNote(
+        true
+      );
+
+      await deleteReadingNote(
+        notePendingDelete.id,
+        notePendingDelete.session_id
+      );
+
+      deleteNoteSheet.closeSmoothly();
+
+      await loadData(
+        false
+      );
+    } catch (
+      deleteError
+    ) {
+      Alert.alert(
+        'Could not delete note',
+        deleteError instanceof
+          Error
+          ? deleteError.message
+          : 'Please try again.'
+      );
+    } finally {
+      setDeletingNote(
+        false
+      );
+    }
+  }
 
   function openBookPage() {
     router.push({
@@ -1556,6 +1938,9 @@ export default function ReadingDetailsScreen() {
       | null,
     chapter:
       | string
+      | null,
+    audioSeconds:
+      | number
       | null
   ) {
     const parts:
@@ -1575,7 +1960,7 @@ export default function ReadingDetailsScreen() {
       null
     ) {
       parts.push(
-        `${percent}%`
+        `${percent}% complete`
       );
     }
 
@@ -1591,8 +1976,89 @@ export default function ReadingDetailsScreen() {
       );
     }
 
+    if (audioSeconds !== null) {
+      parts.push(`Audio ${formatAudioPosition(audioSeconds)}`);
+    }
+
     return parts.join(
       ' · '
+    );
+  }
+
+  function progressParam(
+    page: number | null,
+    percent: number | null
+  ) {
+    if (page !== null) {
+      return String(page);
+    }
+
+    if (percent !== null) {
+      return `${percent}%`;
+    }
+
+    return '';
+  }
+
+  function shareAsReadingUpdate(
+    thought: string,
+    page: number | null,
+    percent: number | null,
+    chapter: string | null,
+    sourceNoteId?: string,
+    audioSeconds?: number | null
+  ) {
+    router.push({
+      pathname:
+        '/create-reading-update',
+      params: {
+        bookId:
+          googleBookId,
+        progress:
+          progressParam(
+            page,
+            percent
+          ),
+        chapter:
+          chapter ??
+          '',
+        audioPosition:
+          audioSeconds != null
+            ? formatAudioPosition(audioSeconds)
+            : '',
+        thought,
+        ...(sourceNoteId
+          ? {
+              sourceNoteId,
+            }
+          : {}),
+      },
+    });
+  }
+
+  function shareSummaryAsReadingUpdate() {
+    const summary =
+      data?.session
+        .summary_text
+        ?.trim() ||
+      '';
+
+    if (!summary) {
+      return;
+    }
+
+    const latest =
+      data?.latest_checkpoint ??
+      null;
+
+    shareAsReadingUpdate(
+      summary,
+      latest?.page_number ??
+        null,
+      latest?.progress_percent ??
+        null,
+      latest?.chapter ??
+        null
     );
   }
 
@@ -2064,9 +2530,7 @@ export default function ReadingDetailsScreen() {
                   }
                 >
                   {
-                    checkpointLabel(
-                      data.latest_checkpoint
-                    )
+                    lastPosition?.label || 'No checkpoint saved yet'
                   }
                 </Text>
 
@@ -2076,26 +2540,17 @@ export default function ReadingDetailsScreen() {
                   }
                 >
                   {
-                    data.latest_checkpoint
+                    lastPosition
                       ? isFinished
-                        ? `Final checkpoint · ${formatDate(
-                            data.latest_checkpoint
-                              .created_at
-                          )}`
+                        ? `Final position · ${formatDate(lastPosition.createdAt)}`
                         : isDnf
-                        ? `Last checkpoint · ${formatDate(
-                            data.latest_checkpoint
-                              .created_at
-                          )}`
-                        : `Updated ${formatDate(
-                            data.latest_checkpoint
-                              .created_at
-                          )}`
+                        ? `Last position · ${formatDate(lastPosition.createdAt)}`
+                        : `Updated ${formatDate(lastPosition.createdAt)}`
                       : isFinished
                       ? 'This reading session is complete.'
                       : isDnf
-                      ? 'No checkpoint was saved before this reading session ended.'
-                      : 'Save your first checkpoint whenever you stop reading.'
+                      ? 'No position was saved before this reading session ended.'
+                      : 'Save your first reading position whenever you stop.'
                   }
                 </Text>
               </View>
@@ -2115,17 +2570,14 @@ export default function ReadingDetailsScreen() {
               </View>
             </View>
 
-            {data
-              .latest_checkpoint
-              ?.checkpoint_note ? (
+            {lastPosition?.checkpointNote ? (
               <Text
                 style={
                   styles.checkpointNote
                 }
               >
                 {
-                  data.latest_checkpoint
-                    .checkpoint_note
+                  lastPosition.checkpointNote
                 }
               </Text>
             ) : null}
@@ -2428,6 +2880,40 @@ export default function ReadingDetailsScreen() {
                 No summary yet. Add a few lines about what you want to remember.
               </Text>
             )}
+
+            {data.session
+              .summary_text ? (
+              <Pressable
+                onPress={
+                  shareSummaryAsReadingUpdate
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.shareUpdateButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Share summary as a reading update"
+              >
+                <Ionicons
+                  name="share-social-outline"
+                  size={15}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.shareUpdateText
+                  }
+                >
+                  Share as Reading Update
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <View
@@ -2458,13 +2944,13 @@ export default function ReadingDetailsScreen() {
                     styles.sectionSubtitle
                   }
                 >
-                  Private thoughts tied to this read.
+                  Your private notes and archived Reading Updates, all in one place.
                 </Text>
               </View>
 
               <Pressable
-                onPress={
-                  openNoteEditor
+                onPress={() =>
+                  openNoteEditor()
                 }
                 hitSlop={8}
                 style={({
@@ -2500,7 +2986,8 @@ export default function ReadingDetailsScreen() {
                       noteLocation(
                         note.page_number,
                         note.progress_percent,
-                        note.chapter
+                        note.chapter,
+                        note.audio_position_seconds
                       );
 
                     return (
@@ -2517,30 +3004,55 @@ export default function ReadingDetailsScreen() {
                             styles.noteMetaRow
                           }
                         >
-                          <Text
+                          <View
                             style={
-                              styles.noteDate
+                              styles.noteMetaLeft
                             }
                           >
-                            {
-                              formatDate(
-                                note.created_at
-                              )
-                            }
-                          </Text>
+                            {note.source_type ===
+                            'reading_update' ? (
+                              <View
+                                style={
+                                  styles.readingUpdateBadge
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.readingUpdateBadgeText
+                                  }
+                                >
+                                  Reading Update
+                                </Text>
+                              </View>
+                            ) : (
+                              <Ionicons
+                                name="lock-closed-outline"
+                                size={12}
+                                color={colors.mutedText}
+                              />
+                            )}
 
-                          {location ? (
                             <Text
                               style={
-                                styles.noteLocation
+                                styles.noteDate
                               }
                             >
                               {
-                                location
+                                formatDate(
+                                  note.created_at
+                                )
                               }
                             </Text>
-                          ) : null}
+                          </View>
+
                         </View>
+
+                        {location ? (
+                          <View style={styles.noteLocationPill}>
+                            <Ionicons name="bookmark-outline" size={11} color={colors.gold} />
+                            <Text style={styles.noteLocation}>{location}</Text>
+                          </View>
+                        ) : null}
 
                         <Text
                           style={
@@ -2551,6 +3063,163 @@ export default function ReadingDetailsScreen() {
                             note.body
                           }
                         </Text>
+
+                        {!note.source_post_id ? (
+                          <Pressable
+                            onPress={() =>
+                              shareAsReadingUpdate(
+                                note.body,
+                                note.page_number,
+                                note.progress_percent,
+                                note.chapter,
+                                note.id,
+                                note.audio_position_seconds
+                              )
+                            }
+                            style={({
+                              pressed,
+                            }) => [
+                              styles.noteShareButton,
+                              pressed &&
+                                styles.pressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Share note as a reading update"
+                          >
+                            <Ionicons
+                              name="share-social-outline"
+                              size={14}
+                              color={
+                                colors.gold
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.noteShareText
+                              }
+                            >
+                              Share as Reading Update
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <View
+                            style={
+                              styles.postedProfileRow
+                            }
+                          >
+                            <Ionicons
+                              name="checkmark-circle-outline"
+                              size={14}
+                              color={
+                                colors.gold
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.postedProfileText
+                              }
+                            >
+                              Posted to Profile
+                            </Text>
+                            <Pressable
+                              onPress={() =>
+                                router.push({
+                                  pathname: '/post/[id]',
+                                  params: {
+                                    id: note.source_post_id!,
+                                  },
+                                })
+                              }
+                              style={({ pressed }) => [
+                                styles.viewLinkedPostButton,
+                                pressed && styles.pressed,
+                              ]}
+                              accessibilityRole="button"
+                              accessibilityLabel="View the current public post"
+                            >
+                              <Text style={styles.viewLinkedPostText}>
+                                View Post
+                              </Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={12}
+                                color={colors.gold}
+                              />
+                            </Pressable>
+                          </View>
+                        )}
+
+                        <View
+                          style={
+                            styles.noteManageRow
+                          }
+                        >
+                          <Pressable
+                            onPress={() =>
+                              openNoteEditor(
+                                note
+                              )
+                            }
+                            style={({
+                              pressed,
+                            }) => [
+                              styles.noteManageButton,
+                              pressed &&
+                                styles.pressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Edit note"
+                          >
+                            <Ionicons
+                              name="pencil-outline"
+                              size={14}
+                              color={
+                                colors.mutedText
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.noteManageText
+                              }
+                            >
+                              Edit
+                            </Text>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={() =>
+                              confirmDeleteNote(
+                                note
+                              )
+                            }
+                            style={({
+                              pressed,
+                            }) => [
+                              styles.noteManageButton,
+                              pressed &&
+                                styles.pressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Delete note"
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={14}
+                              color="#D86A6A"
+                            />
+
+                            <Text
+                              style={
+                                styles.noteDeleteText
+                              }
+                            >
+                              Delete
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     );
                   }
@@ -2639,14 +3308,14 @@ export default function ReadingDetailsScreen() {
                   }
                 >
                   {
-                    data.checkpoints
+                    readingHistory
                       .length
                   } {
-                    data.checkpoints
+                    readingHistory
                       .length ===
                     1
-                      ? 'checkpoint'
-                      : 'checkpoints'
+                      ? 'entry'
+                      : 'entries'
                   }
                 </Text>
               </View>
@@ -3167,6 +3836,170 @@ export default function ReadingDetailsScreen() {
 
         <Modal
           visible={
+            Boolean(
+              notePendingDelete
+            )
+          }
+          transparent
+          animationType="none"
+          onShow={
+            deleteNoteSheet.animateIn
+          }
+          onRequestClose={
+            deleteNoteSheet.closeSmoothly
+          }
+        >
+          <Pressable
+            style={
+              styles.modalBackdrop
+            }
+            onPress={
+              deleteNoteSheet.closeSmoothly
+            }
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                styles.modalBackdropVisual,
+                {
+                  opacity:
+                    deleteNoteSheet.backdropOpacity,
+                },
+              ]}
+            />
+
+            <Animated.View
+              {...deleteNoteSheet.panResponder.panHandlers}
+              onLayout={(event) => {
+                deleteNoteSheet.sheetHeight.current =
+                  event.nativeEvent.layout.height;
+              }}
+              style={[
+                styles.modalSheet,
+                styles.deleteNoteModalSheet,
+                {
+                  opacity:
+                    deleteNoteSheet.sheetOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        deleteNoteSheet.translateY,
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={(event) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  style={
+                    styles.modalHandle
+                  }
+                />
+
+                <View
+                  style={
+                    styles.deleteNoteIcon
+                  }
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={22}
+                    color="#D86A6A"
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.deleteNoteTitle
+                  }
+                >
+                  Delete this note?
+                </Text>
+
+                <Text
+                  style={
+                    styles.deleteNoteCopy
+                  }
+                >
+                  {notePendingDelete?.source_post_id
+                    ? 'This removes the private note and its linked Reading history entry. The post on your profile stays until you delete it separately.'
+                    : 'This permanently removes the note and its linked Reading history entry. Independently saved checkpoints remain.'}
+                </Text>
+
+                <View
+                  style={
+                    styles.deleteNoteActions
+                  }
+                >
+                  <Pressable
+                    onPress={
+                      deleteNoteSheet.closeSmoothly
+                    }
+                    disabled={
+                      deletingNote
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.deleteNoteCancelButton,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.secondaryButtonText
+                      }
+                    >
+                      Keep Note
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() =>
+                      void removeReadingNote()
+                    }
+                    disabled={
+                      deletingNote
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.deleteNoteButton,
+                      (
+                        pressed ||
+                        deletingNote
+                      ) &&
+                        styles.pressed,
+                    ]}
+                  >
+                    {deletingNote ? (
+                      <ActivityIndicator
+                        color="#FFFFFF"
+                      />
+                    ) : (
+                      <Text
+                        style={
+                          styles.deleteNoteButtonText
+                        }
+                      >
+                        Delete Note
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Animated.View>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          visible={
             noteEditorOpen
           }
           transparent
@@ -3255,7 +4088,9 @@ export default function ReadingDetailsScreen() {
                       styles.modalTitle
                     }
                   >
-                    Add note
+                    {editingNoteId
+                      ? 'Edit note'
+                      : 'Add note'}
                   </Text>
 
                   <Text
@@ -3263,7 +4098,9 @@ export default function ReadingDetailsScreen() {
                       styles.modalSubtitle
                     }
                   >
-                    Private to you. Location is optional.
+                    {editingNotePosted
+                      ? 'This note stays private. View Post opens the current public version.'
+                      : 'Private to you. Location is optional.'}
                   </Text>
                 </View>
 
@@ -3286,32 +4123,66 @@ export default function ReadingDetailsScreen() {
                 </Pressable>
               </View>
 
-              <Text
-                style={
-                  styles.fieldLabelNoTop
-                }
+              <ScrollView
+                style={styles.noteEditorScroll}
+                contentContainerStyle={styles.noteEditorScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                Note
-              </Text>
+              <View style={styles.noteLocationGroup}>
+              <Text style={styles.fieldLabelNoTop}>Location (optional)</Text>
+              <View style={styles.noteModeRow}>
+                {(['page', 'percent', 'audio'] as const).map((modeChoice) => (
+                  <Pressable
+                    key={modeChoice}
+                    onPress={() => {
+                      if (modeChoice !== noteLocationMode) {
+                        setNoteLocationInput('');
+                        setNoteChapterInput('');
+                        setNoteAudioInput('');
+                        setNoteLocationMode(modeChoice);
+                      }
+                    }}
+                    style={[
+                      styles.noteModeButton,
+                      noteLocationMode === modeChoice && styles.noteModeButtonSelected,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: noteLocationMode === modeChoice }}
+                  >
+                    {modeChoice === 'audio' ? (
+                      <Ionicons
+                        name="headset-outline"
+                        size={13}
+                        color={noteLocationMode === 'audio' ? colors.gold : colors.mutedText}
+                      />
+                    ) : null}
+                    <Text style={[
+                      styles.noteModeText,
+                      noteLocationMode === modeChoice && styles.noteModeTextSelected,
+                    ]}>
+                      {modeChoice === 'page' ? 'Page' : modeChoice === 'percent' ? 'Percent' : 'Audiobook'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {noteLocationMode === 'audio' ? (
+              <View style={styles.noteAudioField}>
+                <Text style={styles.fieldLabelNoTop}>
+                  Audiobook timestamp (optional)
+                </Text>
+                <TextInput
+                  value={noteAudioInput}
+                  onChangeText={setNoteAudioInput}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="1:23:45 or 23:45"
+                  placeholderTextColor={colors.mutedText}
+                  style={styles.input}
+                  accessibilityLabel="Audiobook timestamp"
+                />
+              </View>
 
-              <TextInput
-                value={
-                  noteBodyInput
-                }
-                onChangeText={
-                  setNoteBodyInput
-                }
-                multiline
-                placeholder="What do you want to remember?"
-                placeholderTextColor={
-                  colors.mutedText
-                }
-                style={[
-                  styles.input,
-                  styles.noteBodyInput,
-                ]}
-              />
-
+              ) : (
               <View
                 style={
                   styles.noteLocationRow
@@ -3327,7 +4198,7 @@ export default function ReadingDetailsScreen() {
                       styles.fieldLabelNoTop
                     }
                   >
-                    Page / %
+                    {noteLocationMode === 'page' ? 'Page number' : 'Percent complete'}
                   </Text>
 
                   <TextInput
@@ -3338,7 +4209,7 @@ export default function ReadingDetailsScreen() {
                       setNoteLocationInput
                     }
                     keyboardType="numbers-and-punctuation"
-                    placeholder="Page / %"
+                    placeholder={noteLocationMode === 'page' ? '245' : '63'}
                     placeholderTextColor={
                       colors.mutedText
                     }
@@ -3379,13 +4250,42 @@ export default function ReadingDetailsScreen() {
                 </View>
               </View>
 
+              )}
               <Text
                 style={
                   styles.locationHint
                 }
               >
-                Example: 214 for a page, or 63% for Kindle progress.
+                {noteLocationMode === 'audio' ? 'Enter the playback time from your audiobook.' : 'Add a reading position and an optional chapter.'}
               </Text>
+
+              </View>
+
+              <Text
+                style={
+                  styles.fieldLabelNoTop
+                }
+              >
+                Note
+              </Text>
+
+              <TextInput
+                value={
+                  noteBodyInput
+                }
+                onChangeText={
+                  setNoteBodyInput
+                }
+                multiline
+                placeholder="What do you want to remember?"
+                placeholderTextColor={
+                  colors.mutedText
+                }
+                style={[
+                  styles.input,
+                  styles.noteBodyInput,
+                ]}
+              />
 
               <View
                 style={
@@ -3443,11 +4343,14 @@ export default function ReadingDetailsScreen() {
                         styles.primaryButtonText
                       }
                     >
-                      Save note
+                      {editingNoteId
+                        ? 'Save changes'
+                        : 'Save note'}
                     </Text>
                   )}
                 </Pressable>
               </View>
+              </ScrollView>
                 </Pressable>
               </Animated.View>
             </Pressable>
@@ -3547,14 +4450,14 @@ export default function ReadingDetailsScreen() {
                     }
                   >
                     {
-                      data.checkpoints
+                      readingHistory
                         .length
                     } {
-                      data.checkpoints
+                      readingHistory
                         .length ===
                       1
-                        ? 'checkpoint'
-                        : 'checkpoints'
+                        ? 'entry'
+                        : 'entries'
                     }
                   </Text>
                 </View>
@@ -3578,7 +4481,7 @@ export default function ReadingDetailsScreen() {
                 </Pressable>
               </View>
 
-              {data.checkpoints
+              {readingHistory
                 .length >
               0 ? (
                 <ScrollView
@@ -3592,17 +4495,23 @@ export default function ReadingDetailsScreen() {
                     false
                   }
                 >
-                  {data.checkpoints.map(
+                  {readingHistory.map(
                     (
                       checkpoint
                     ) => (
-                      <View
-                        key={
-                          checkpoint.id
-                        }
-                        style={
-                          styles.historyItem
-                        }
+                      <Pressable
+                        key={checkpoint.id}
+                        onPress={() => {
+                          if (!checkpoint.detail) return;
+                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          setExpandedHistoryId((current) =>
+                            current === checkpoint.id ? null : checkpoint.id
+                          );
+                        }}
+                        style={styles.historyItem}
+                        accessibilityRole={checkpoint.detail ? 'button' : undefined}
+                        accessibilityState={checkpoint.detail ? { expanded: expandedHistoryId === checkpoint.id } : undefined}
+                        accessibilityLabel={checkpoint.detail ? `Show note for ${checkpoint.label}` : undefined}
                       >
                         <View
                           style={
@@ -3621,9 +4530,7 @@ export default function ReadingDetailsScreen() {
                             }
                           >
                             {
-                              checkpointLabel(
-                                checkpoint
-                              )
+                              checkpoint.label
                             }
                           </Text>
 
@@ -3634,13 +4541,12 @@ export default function ReadingDetailsScreen() {
                           >
                             {
                               formatDate(
-                                checkpoint.created_at
+                                checkpoint.createdAt
                               )
                             }
                           </Text>
 
-                          {checkpoint
-                            .checkpoint_note ? (
+                          {checkpoint.detail && expandedHistoryId === checkpoint.id ? (
                             <Text
                               style={
                                 styles.historyNote
@@ -3648,12 +4554,20 @@ export default function ReadingDetailsScreen() {
                             >
                               {
                                 checkpoint
-                                  .checkpoint_note
+                                  .detail
                               }
                             </Text>
                           ) : null}
                         </View>
-                      </View>
+                        {checkpoint.detail ? (
+                          <Ionicons
+                            name={expandedHistoryId === checkpoint.id ? 'chevron-up' : 'chevron-down'}
+                            size={16}
+                            color={colors.mutedText}
+                            style={styles.historyChevron}
+                          />
+                        ) : null}
+                      </Pressable>
                     )
                   )}
                 </ScrollView>
@@ -3663,7 +4577,7 @@ export default function ReadingDetailsScreen() {
                     styles.emptyModalText
                   }
                 >
-                  Your checkpoints will appear here as you update your progress.
+                  Your notes and reading updates will appear here as you save them.
                 </Text>
               )}
                 </Pressable>
@@ -4306,28 +5220,72 @@ function createStyles(
         13,
     },
     noteList: {
-      marginTop:
-        12,
+      marginTop: 14,
+      gap: 12,
     },
     noteItem: {
-      paddingVertical:
-        12,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14,
     },
-    noteMetaRow: {
+    shareUpdateButton: {
+      alignSelf:
+        'flex-start',
       flexDirection:
         'row',
       alignItems:
         'center',
-      justifyContent:
-        'space-between',
       gap:
-        8,
-      marginBottom:
         6,
+      marginTop:
+        14,
+      paddingVertical:
+        6,
+    },
+    shareUpdateText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12,
+    },
+    noteMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    noteMetaLeft: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+      flexShrink:
+        1,
+    },
+    readingUpdateBadge: {
+      borderRadius:
+        999,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        colors.gold,
+      paddingHorizontal:
+        7,
+      paddingVertical:
+        3,
+    },
+    readingUpdateBadgeText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
     },
     noteDate: {
       color:
@@ -4337,17 +5295,23 @@ function createStyles(
       fontSize:
         10.5,
     },
+    noteLocationPill: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      marginBottom: 10,
+    },
     noteLocation: {
-      flexShrink:
-        1,
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        10.5,
-      textAlign:
-        'right',
+      color: colors.gold,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 10.5,
+      flexShrink: 1,
     },
     noteBody: {
       color:
@@ -4358,6 +5322,98 @@ function createStyles(
         13,
       lineHeight:
         20,
+    },
+    noteShareButton: {
+      alignSelf:
+        'flex-start',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      marginTop:
+        8,
+      paddingVertical:
+        4,
+    },
+    noteShareText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11,
+    },
+    postedProfileRow: {
+      alignSelf:
+        'flex-start',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      marginTop:
+        8,
+      paddingVertical:
+        4,
+    },
+    postedProfileText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11,
+    },
+    viewLinkedPostButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      marginLeft: 8,
+      paddingVertical: 4,
+      paddingHorizontal: 3,
+    },
+    viewLinkedPostText: {
+      color: colors.gold,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+    },
+    noteManageRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      marginTop: 8,
+    },
+    noteManageButton: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      paddingVertical:
+        4,
+    },
+    noteManageText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11,
+    },
+    noteDeleteText: {
+      color:
+        '#D86A6A',
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        11,
     },
     inlineLink: {
       alignSelf:
@@ -4436,6 +5492,10 @@ function createStyles(
         10.5,
       marginTop:
         2,
+    },
+    historyChevron: {
+      marginTop: 2,
+      marginLeft: 8,
     },
     historyNote: {
       color:
@@ -4533,6 +5593,121 @@ function createStyles(
     noteModalSheet: {
       maxHeight:
         '82%',
+    },
+    noteLocationGroup: {
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 17,
+      backgroundColor: colors.elevated,
+      marginBottom: 18,
+    },
+    noteEditorScroll: {
+      flexShrink: 1,
+    },
+    noteEditorScrollContent: {
+      paddingBottom: 12,
+    },
+    deleteNoteModalSheet: {
+      paddingBottom:
+        Platform.OS ===
+        'ios'
+          ? 30
+          : 22,
+    },
+    deleteNoteIcon: {
+      width:
+        44,
+      height:
+        44,
+      borderRadius:
+        22,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      alignSelf:
+        'center',
+      backgroundColor:
+        'rgba(216, 106, 106, 0.12)',
+      marginTop:
+        2,
+      marginBottom:
+        12,
+    },
+    deleteNoteTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        18,
+      textAlign:
+        'center',
+    },
+    deleteNoteCopy: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        19,
+      textAlign:
+        'center',
+      marginTop:
+        8,
+      paddingHorizontal:
+        6,
+    },
+    deleteNoteActions: {
+      flexDirection:
+        'row',
+      gap:
+        10,
+      marginTop:
+        20,
+    },
+    deleteNoteCancelButton: {
+      flex:
+        1,
+      minHeight:
+        46,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        13,
+      backgroundColor:
+        colors.elevated,
+    },
+    deleteNoteButton: {
+      flex:
+        1,
+      minHeight:
+        46,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      borderRadius:
+        13,
+      backgroundColor:
+        '#D86A6A',
+    },
+    deleteNoteButtonText: {
+      color:
+        '#FFFFFF',
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        13,
     },
     historyModalSheet: {
       maxHeight:
@@ -4643,6 +5818,39 @@ function createStyles(
         1,
       minWidth:
         0,
+    },
+    noteAudioField: {
+      width: '100%',
+    },
+    noteModeRow: {
+      flexDirection: 'row',
+      width: '100%',
+      gap: 0,
+      marginTop: 1,
+      marginBottom: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    noteModeButton: {
+      flex: 1,
+      minHeight: 36,
+      flexDirection: 'row',
+      gap: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    noteModeButtonSelected: {
+      borderBottomColor: colors.gold,
+    },
+    noteModeText: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+    noteModeTextSelected: {
+      color: colors.gold,
     },
     locationHint: {
       color:

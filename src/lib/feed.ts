@@ -14,6 +14,10 @@ export type FeedPost = {
   google_book_id: string | null;
   book_title: string | null;
   book_cover_url: string | null;
+  book_authors: string[] | null;
+  book_series_name: string | null;
+  book_series_position: number | null;
+  post_image_url: string | null;
   rating: number | null;
   created_at: string;
   updated_at: string;
@@ -28,8 +32,6 @@ export type FeedPost = {
   vote_score: number;
   viewer_vote: -1 | 0 | 1;
   comment_count: number;
-  is_blocked_author?:
-    boolean;
 };
 
 export type PostVoteValue =
@@ -65,6 +67,233 @@ async function getCurrentUserId() {
   return user.id;
 }
 
+async function attachPostImageUrls(
+  posts: FeedPost[]
+): Promise<FeedPost[]> {
+  if (
+    posts.length === 0
+  ) {
+    return posts;
+  }
+
+  const postIds =
+    posts.map(
+      (post) =>
+        post.id
+    );
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from('posts')
+      .select(
+        'id, post_image_url, book_authors, book_series_name, book_series_position'
+      )
+      .in(
+        'id',
+        postIds
+      );
+
+  if (error) {
+    console.warn(
+      'Could not load post media:',
+      error
+    );
+
+    return posts.map(
+      (post) => ({
+        ...post,
+        post_image_url:
+          post.post_image_url ??
+          null,
+        book_authors:
+          post.book_authors ??
+          null,
+        book_series_name:
+          post.book_series_name ??
+          null,
+        book_series_position:
+          post.book_series_position ??
+          null,
+      })
+    );
+  }
+
+  const metadataByPostId =
+    new Map(
+      (data ?? []).map(
+        (row) => [
+          row.id as string,
+          {
+            imageUrl:
+              (row.post_image_url ??
+                null) as
+                | string
+                | null,
+            authors:
+              Array.isArray(
+                row.book_authors
+              )
+                ? row.book_authors
+                    .filter(
+                      (
+                        author
+                      ): author is string =>
+                        typeof author ===
+                        'string' &&
+                        author.trim()
+                          .length >
+                          0
+                    )
+                : null,
+            seriesName:
+              typeof row.book_series_name ===
+                'string' &&
+              row.book_series_name.trim()
+                .length >
+                0
+                ? row.book_series_name
+                : null,
+            seriesPosition:
+              row.book_series_position !==
+                null &&
+              row.book_series_position !==
+                undefined
+                ? Number(
+                    row.book_series_position
+                  )
+                : null,
+          },
+        ]
+      )
+    );
+
+  return posts.map(
+    (post) => {
+      const metadata =
+        metadataByPostId.get(
+          post.id
+        );
+
+      return {
+        ...post,
+        post_image_url:
+          metadata
+            ?.imageUrl ??
+          post.post_image_url ??
+          null,
+        book_authors:
+          metadata
+            ?.authors ??
+          post.book_authors ??
+          null,
+        book_series_name:
+          metadata
+            ?.seriesName ??
+          post.book_series_name ??
+          null,
+        book_series_position:
+          metadata
+            ?.seriesPosition ??
+          post.book_series_position ??
+          null,
+      };
+    }
+  );
+}
+
+export type PostImageUpload = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+};
+
+export async function uploadPostImage(
+  photo: PostImageUpload
+) {
+  const userId =
+    await getCurrentUserId();
+
+  const response =
+    await fetch(
+      photo.uri
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      'Could not read the selected photo.'
+    );
+  }
+
+  const blob =
+    await response.blob();
+
+  const rawExtension =
+    photo.fileName
+      ?.split('.')
+      .pop()
+      ?.toLowerCase() ||
+    photo.mimeType
+      ?.split('/')
+      .pop()
+      ?.toLowerCase() ||
+    'jpg';
+
+  const extension =
+    rawExtension.replace(
+      /[^a-z0-9]/g,
+      ''
+    ) ||
+    'jpg';
+
+  const filePath =
+    `${userId}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${extension}`;
+
+  const {
+    error:
+      uploadError,
+  } =
+    await supabase.storage
+      .from(
+        'post-media'
+      )
+      .upload(
+        filePath,
+        blob,
+        {
+          contentType:
+            photo.mimeType ??
+            'image/jpeg',
+          upsert:
+            false,
+        }
+      );
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  const {
+    data:
+      publicUrlData,
+  } =
+    supabase.storage
+      .from(
+        'post-media'
+      )
+      .getPublicUrl(
+        filePath
+      );
+
+  return (
+    publicUrlData.publicUrl
+  );
+}
+
 export async function getHomeFeed(
   limit = 50
 ): Promise<FeedPost[]> {
@@ -86,10 +315,17 @@ export async function getHomeFeed(
     throw error;
   }
 
+  const posts =
+    (
+      data ??
+      []
+    ) as FeedPost[];
+
   return (
-    data ??
-    []
-  ) as FeedPost[];
+    await attachPostImageUrls(
+      posts
+    )
+  );
 }
 
 export async function getPostDetail(
@@ -124,7 +360,14 @@ export async function getPostDetail(
     );
   }
 
-  return row as FeedPost;
+  const [
+    hydratedPost,
+  ] =
+    await attachPostImageUrls([
+      row as FeedPost,
+    ]);
+
+  return hydratedPost;
 }
 
 export async function getClubPosts(
@@ -151,10 +394,17 @@ export async function getClubPosts(
     throw error;
   }
 
+  const posts =
+    (
+      data ??
+      []
+    ) as FeedPost[];
+
   return (
-    data ??
-    []
-  ) as FeedPost[];
+    await attachPostImageUrls(
+      posts
+    )
+  );
 }
 
 export async function togglePostVote(
@@ -231,6 +481,10 @@ export async function createPost(input: {
   googleBookId?: string | null;
   bookTitle?: string | null;
   bookCoverUrl?: string | null;
+  bookAuthors?: string[] | null;
+  bookSeriesName?: string | null;
+  bookSeriesPosition?: number | null;
+  imageUrl?: string | null;
   rating?: number | null;
 }) {
   const userId =
@@ -273,6 +527,18 @@ export async function createPost(input: {
         book_cover_url:
           input.bookCoverUrl ??
           null,
+        book_authors:
+          input.bookAuthors ??
+          null,
+        book_series_name:
+          input.bookSeriesName ??
+          null,
+        book_series_position:
+          input.bookSeriesPosition ??
+          null,
+        post_image_url:
+          input.imageUrl ??
+          null,
         rating:
           input.rating ??
           null,
@@ -293,6 +559,13 @@ export async function updatePost(
   input: {
     body: string;
     clubId?: string | null;
+    googleBookId?: string | null;
+    bookTitle?: string | null;
+    bookCoverUrl?: string | null;
+    bookAuthors?: string[] | null;
+    bookSeriesName?: string | null;
+    bookSeriesPosition?: number | null;
+    imageUrl?: string | null;
   }
 ) {
   const userId =
@@ -320,6 +593,27 @@ export async function updatePost(
         body,
         club_id:
           input.clubId ??
+          null,
+        google_book_id:
+          input.googleBookId ??
+          null,
+        book_title:
+          input.bookTitle ??
+          null,
+        book_cover_url:
+          input.bookCoverUrl ??
+          null,
+        book_authors:
+          input.bookAuthors ??
+          null,
+        book_series_name:
+          input.bookSeriesName ??
+          null,
+        book_series_position:
+          input.bookSeriesPosition ??
+          null,
+        post_image_url:
+          input.imageUrl ??
           null,
       })
       .eq(

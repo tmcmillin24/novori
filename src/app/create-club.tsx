@@ -3,31 +3,33 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ClubPhotoCropper, { ClubCropAsset } from '../components/ClubPhotoCropper';
+import PhotoSourceSheet from '../components/PhotoSourceSheet';
 import {
-    CLUB_GENRES,
-    ClubGenreKey,
+  CLUB_GENRES,
+  ClubGenreKey,
 } from '../constants/club-genres';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import {
-    ClubCoverUpload,
-    ClubPrivacy,
-    createClub,
-    uploadClubCover,
+  ClubCoverUpload,
+  ClubPrivacy,
+  createClub,
+  uploadClubCover,
 } from '../lib/clubs';
 
 export default function CreateClubScreen() {
@@ -48,6 +50,20 @@ export default function CreateClubScreen() {
       []
     );
   const [saving, setSaving] =
+    useState(false);
+  const [photoSourceVisible, setPhotoSourceVisible] =
+    useState(false);
+  const [
+    cropAsset,
+    setCropAsset,
+  ] =
+    useState<ClubCropAsset | null>(
+      null
+    );
+  const [
+    cropVisible,
+    setCropVisible,
+  ] =
     useState(false);
   const [
     pendingPhoto,
@@ -118,68 +134,113 @@ export default function CreateClubScreen() {
     );
   }
 
-  async function choosePhoto() {
-    try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (
-        !permission.granted
-      ) {
-        Alert.alert(
-          'Photo access needed',
-          'Allow Novori to access your photos so you can choose a club picture.'
-        );
-
-        return;
-      }
-
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: [
-            'images',
-          ],
-          allowsEditing:
-            true,
-          aspect: [
-            1,
-            1,
-          ],
-          quality:
-            0.9,
-        });
-
-      if (
-        result.canceled ||
-        !result.assets[0]
-      ) {
-        return;
-      }
-
-      const asset =
-        result.assets[0];
-
-      setPendingPhoto({
-        uri:
-          asset.uri,
-        fileName:
-          asset.fileName,
-        mimeType:
-          asset.mimeType,
-      });
-    } catch (
-      error
+  function useSelectedPhoto(
+    asset: ImagePicker.ImagePickerAsset
+  ) {
+    if (
+      !asset.width ||
+      !asset.height
     ) {
+      Alert.alert(
+        'Could not use photo',
+        'Novori could not read the dimensions of this photo.'
+      );
+      return;
+    }
+
+    setCropAsset({
+      uri:
+        asset.uri,
+      width:
+        asset.width,
+      height:
+        asset.height,
+    });
+
+    setCropVisible(
+      true
+    );
+  }
+
+  function useCroppedClubPhoto(
+    uri: string
+  ) {
+    setPendingPhoto({
+      uri,
+      fileName:
+        'club-photo.jpg',
+      mimeType:
+        'image/jpeg',
+    });
+
+    setCropVisible(
+      false
+    );
+
+    setCropAsset(
+      null
+    );
+  }
+
+  async function choosePhotoFromLibrary() {
+    try {
+      // Use the system picker without requesting broad library access first.
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      useSelectedPhoto(result.assets[0]);
+    } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Something went wrong while opening your photos.';
 
-      Alert.alert(
-        'Could not choose photo',
-        message
-      );
+      Alert.alert('Could not choose photo', message);
     }
+  }
+
+  async function takePhoto() {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Camera access needed',
+          'Allow Novori to use your camera so you can take a club picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      useSelectedPhoto(result.assets[0]);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong while opening the camera.';
+
+      Alert.alert('Could not take photo', message);
+    }
+  }
+
+  function openPhotoOptions() {
+    setPhotoSourceVisible(true);
   }
 
   async function handleCreate() {
@@ -305,7 +366,7 @@ export default function CreateClubScreen() {
 
           <View style={styles.photoSection}>
             <Pressable
-              onPress={choosePhoto}
+              onPress={openPhotoOptions}
               style={({ pressed }) => [
                 styles.photoPreviewButton,
                 pressed && styles.pressed,
@@ -378,7 +439,7 @@ export default function CreateClubScreen() {
               >
                 <Pressable
                   onPress={
-                    choosePhoto
+                    openPhotoOptions
                   }
                   style={({
                     pressed,
@@ -702,6 +763,45 @@ export default function CreateClubScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ClubPhotoCropper
+        visible={
+          cropVisible
+        }
+        asset={
+          cropAsset
+        }
+        colors={
+          colors
+        }
+        title="Position Club Photo"
+        onCancel={() => {
+          setCropVisible(
+            false
+          );
+          setCropAsset(
+            null
+          );
+        }}
+        onUse={
+          useCroppedClubPhoto
+        }
+      />
+
+      <PhotoSourceSheet
+        visible={photoSourceVisible}
+        title={
+          pendingPhoto
+            ? 'Change Club Photo'
+            : 'Add Club Photo'
+        }
+        colors={colors}
+        onClose={() =>
+          setPhotoSourceVisible(false)
+        }
+        onTakePhoto={takePhoto}
+        onChooseLibrary={choosePhotoFromLibrary}
+      />
     </SafeAreaView>
   );
 }

@@ -4,23 +4,25 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    PanResponder,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
+import PhotoSourceSheet from '../components/PhotoSourceSheet';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 import { supabase } from '../lib/supabase';
 
 const CROP_SIZE = 280;
@@ -60,6 +62,8 @@ function distanceBetweenTouches(
 }
 
 export default function EditProfileScreen() {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -74,6 +78,7 @@ export default function EditProfileScreen() {
 
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [cropVisible, setCropVisible] = useState(false);
+  const [photoSourceVisible, setPhotoSourceVisible] = useState(false);
 
   const [zoom, setZoom] = useState(1);
   const [translateX, setTranslateX] = useState(0);
@@ -321,19 +326,26 @@ export default function EditProfileScreen() {
     pinchStartDistanceRef.current = null;
   }
 
-  async function choosePhoto() {
+  function useSelectedPhoto(asset: ImagePicker.ImagePickerAsset) {
+    if (!asset.width || !asset.height) {
+      throw new Error(
+        'Novori could not read the dimensions of this photo.'
+      );
+    }
+
+    setPendingPhoto({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    });
+
+    resetCropPosition();
+    setCropVisible(true);
+  }
+
+  async function choosePhotoFromLibrary() {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert(
-          'Photo access needed',
-          'Allow Novori to access your photos so you can choose a profile picture.'
-        );
-        return;
-      }
-
+      // iOS/Android system picker grants access only to the selected image.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
@@ -344,33 +356,52 @@ export default function EditProfileScreen() {
         return;
       }
 
-      const asset = result.assets[0];
-
-      if (!asset.width || !asset.height) {
-        throw new Error(
-          'Novori could not read the dimensions of this photo.'
-        );
-      }
-
-      setPendingPhoto({
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-      });
-
-      resetCropPosition();
-      setCropVisible(true);
+      useSelectedPhoto(result.assets[0]);
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Something went wrong while opening your photos.';
 
-      Alert.alert(
-        'Could not choose photo',
-        message
-      );
+      Alert.alert('Could not choose photo', message);
     }
+  }
+
+  async function takePhoto() {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Camera access needed',
+          'Allow Novori to use your camera so you can take a profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      useSelectedPhoto(result.assets[0]);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong while opening the camera.';
+
+      Alert.alert('Could not take photo', message);
+    }
+  }
+
+  function openPhotoOptions() {
+    setPhotoSourceVisible(true);
   }
 
   function cancelCrop() {
@@ -579,7 +610,7 @@ export default function EditProfileScreen() {
         <View style={styles.loadingWrap}>
           <ActivityIndicator
             size="large"
-            color={COLORS.gold}
+            color={colors.gold}
           />
         </View>
       </SafeAreaView>
@@ -607,7 +638,7 @@ export default function EditProfileScreen() {
             <Ionicons
               name="chevron-back"
               size={24}
-              color={COLORS.text}
+              color={colors.text}
             />
           </Pressable>
 
@@ -627,7 +658,7 @@ export default function EditProfileScreen() {
             {saving ? (
               <ActivityIndicator
                 size="small"
-                color={COLORS.gold}
+                color={colors.gold}
               />
             ) : (
               <Text style={styles.saveHeaderText}>
@@ -658,7 +689,7 @@ export default function EditProfileScreen() {
 
             <Pressable
               disabled={uploadingPhoto}
-              onPress={choosePhoto}
+              onPress={openPhotoOptions}
               style={({ pressed }) => [
                 styles.changePhotoButton,
                 pressed && !uploadingPhoto && styles.pressed,
@@ -680,7 +711,7 @@ export default function EditProfileScreen() {
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Your name"
-              placeholderTextColor={COLORS.mutedText}
+              placeholderTextColor={colors.mutedText}
               autoCapitalize="words"
               autoCorrect={false}
               maxLength={50}
@@ -698,7 +729,7 @@ export default function EditProfileScreen() {
               <Ionicons
                 name="lock-closed-outline"
                 size={16}
-                color={COLORS.mutedText}
+                color={colors.mutedText}
               />
             </View>
 
@@ -721,7 +752,7 @@ export default function EditProfileScreen() {
               value={bio}
               onChangeText={setBio}
               placeholder="Tell readers a little about yourself"
-              placeholderTextColor={COLORS.mutedText}
+              placeholderTextColor={colors.mutedText}
               multiline
               textAlignVertical="top"
               maxLength={160}
@@ -729,6 +760,17 @@ export default function EditProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PhotoSourceSheet
+        visible={photoSourceVisible}
+        title="Change Profile Photo"
+        colors={colors}
+        onClose={() =>
+          setPhotoSourceVisible(false)
+        }
+        onTakePhoto={takePhoto}
+        onChooseLibrary={choosePhotoFromLibrary}
+      />
 
       <Modal
         visible={cropVisible}
@@ -775,7 +817,7 @@ export default function EditProfileScreen() {
               {uploadingPhoto ? (
                 <ActivityIndicator
                   size="small"
-                  color={COLORS.gold}
+                  color={colors.gold}
                 />
               ) : (
                 <Text style={styles.cropUseText}>
@@ -824,7 +866,7 @@ export default function EditProfileScreen() {
               <Ionicons
                 name="refresh-outline"
                 size={17}
-                color={COLORS.secondaryText}
+                color={colors.secondaryText}
               />
 
               <Text style={styles.resetText}>
@@ -838,10 +880,10 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   keyboardView: {
@@ -860,7 +902,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
 
   headerButton: {
@@ -872,7 +914,7 @@ const styles = StyleSheet.create({
 
   headerTitle: {
     flex: 1,
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 20,
     fontFamily: 'PlayfairDisplay_700Bold',
     textAlign: 'center',
@@ -886,7 +928,7 @@ const styles = StyleSheet.create({
   },
 
   saveHeaderText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontSize: 14,
     fontFamily: 'Inter_700Bold',
   },
@@ -909,9 +951,9 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 52,
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     borderWidth: 2,
-    borderColor: COLORS.gold,
+    borderColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -921,12 +963,12 @@ const styles = StyleSheet.create({
     height: 104,
     borderRadius: 52,
     borderWidth: 2,
-    borderColor: COLORS.gold,
-    backgroundColor: COLORS.elevated,
+    borderColor: colors.gold,
+    backgroundColor: colors.elevated,
   },
 
   avatarText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontSize: 40,
     fontFamily: 'Inter_700Bold',
   },
@@ -940,7 +982,7 @@ const styles = StyleSheet.create({
   },
 
   changePhotoText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
   },
@@ -956,7 +998,7 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 8,
@@ -964,7 +1006,7 @@ const styles = StyleSheet.create({
   },
 
   counter: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     marginTop: 16,
@@ -975,9 +1017,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.text,
     paddingHorizontal: 15,
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
@@ -993,8 +1035,8 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.elevated,
+    borderColor: colors.border,
+    backgroundColor: colors.elevated,
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1002,13 +1044,13 @@ const styles = StyleSheet.create({
   },
 
   lockedValue: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
   },
 
   helperText: {
-    color: COLORS.mutedText,
+    color: colors.mutedText,
     fontSize: 12,
     lineHeight: 18,
     fontFamily: 'Inter_400Regular',
@@ -1025,7 +1067,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
     paddingHorizontal: 10,
   },
 
@@ -1040,20 +1082,20 @@ const styles = StyleSheet.create({
   },
 
   cropCancelText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
   },
 
   cropUseText: {
-    color: COLORS.gold,
+    color: colors.gold,
     fontSize: 14,
     fontFamily: 'Inter_700Bold',
   },
 
   cropTitle: {
     flex: 1,
-    color: COLORS.text,
+    color: colors.text,
     textAlign: 'center',
     fontSize: 18,
     fontFamily: 'PlayfairDisplay_700Bold',
@@ -1067,7 +1109,7 @@ const styles = StyleSheet.create({
   },
 
   cropHelp: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
     marginBottom: 22,
@@ -1078,9 +1120,9 @@ const styles = StyleSheet.create({
     height: CROP_SIZE,
     borderRadius: CROP_SIZE / 2,
     overflow: 'hidden',
-    backgroundColor: COLORS.elevated,
+    backgroundColor: colors.elevated,
     borderWidth: 3,
-    borderColor: COLORS.gold,
+    borderColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1100,7 +1142,7 @@ const styles = StyleSheet.create({
   },
 
   resetText: {
-    color: COLORS.secondaryText,
+    color: colors.secondaryText,
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },

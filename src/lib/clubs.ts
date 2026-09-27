@@ -189,6 +189,85 @@ export async function createClub(input: {
   return data as Club;
 }
 
+
+export async function updateClub(
+  clubId: string,
+  input: {
+    name: string;
+    description: string;
+    privacy: ClubPrivacy;
+    genres?: ClubGenreKey[];
+  }
+): Promise<Club> {
+  const userId =
+    await getCurrentUserId();
+
+  const name =
+    input.name.trim();
+
+  const description =
+    input.description.trim();
+
+  const genres =
+    Array.from(
+      new Set(
+        input.genres ??
+        []
+      )
+    ).slice(
+      0,
+      3
+    );
+
+  if (
+    name.length < 3 ||
+    name.length > 60
+  ) {
+    throw new Error(
+      'Club names must be between 3 and 60 characters.'
+    );
+  }
+
+  if (
+    description.length >
+    1000
+  ) {
+    throw new Error(
+      'Club descriptions cannot exceed 1,000 characters.'
+    );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from('clubs')
+      .update({
+        name,
+        description,
+        privacy:
+          input.privacy,
+        genres,
+      })
+      .eq(
+        'id',
+        clubId
+      )
+      .eq(
+        'owner_id',
+        userId
+      )
+      .select('*')
+      .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as Club;
+}
+
 export async function updateClubGenres(
   clubId: string,
   genres:

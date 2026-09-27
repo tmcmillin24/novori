@@ -1,14 +1,12 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
+import { useNovoriTheme } from '@/context/theme-context';
 
-import { Colors } from '@/constants/novori-theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
+// Keep shared components on the same palette as the app screens.
 export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
-
-  return Colors[theme];
+  const { colors } = useNovoriTheme();
+  return {
+    ...colors,
+    textSecondary: colors.secondaryText,
+    backgroundElement: colors.surface,
+    backgroundSelected: colors.elevated,
+  };
 }

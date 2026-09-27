@@ -38,14 +38,15 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import FeedPostImage from '../../components/FeedPostImage';
 
-import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import {
   CLUB_GENRES,
   ClubGenreKey,
   getClubGenreLabel,
 } from '../../constants/club-genres';
-import { COLORS } from '../../constants/novori-theme';
+import { NovoriColors } from '../../constants/novori-theme';
+import { useNovoriTheme } from '../../context/theme-context';
 import {
   ClubWithMembership,
   getDiscoverClubs,
@@ -160,100 +161,20 @@ const POST_REPORT_REASONS:
     },
   ];
 
-
-type ReadingUpdateDisplay = {
-  pageLabel: string | null;
-  chapterLabel: string | null;
-  thought: string;
-};
-
-function parseReadingUpdateDisplay(
-  body: string
-): ReadingUpdateDisplay {
-  const normalized =
-    body.replace(
-      /\r\n/g,
-      '\n'
-    );
-
-  const [
-    firstBlock,
-    ...restBlocks
-  ] =
-    normalized.split(
-      /\n\s*\n/
-    );
-
-  const pieces =
-    firstBlock
-      .split('·')
-      .map(
-        (piece) =>
-          piece.trim()
-      )
-      .filter(
-        Boolean
-      );
-
-  let pageLabel:
-    string | null =
-    null;
-
-  let chapterLabel:
-    string | null =
-    null;
-
-  let recognizedProgress =
-    false;
-
-  for (
-    const piece of
-    pieces
-  ) {
-    if (
-      /^Page\s+\d+$/i.test(
-        piece
-      ) ||
-      /^\d+(?:\.\d+)?%$/.test(
-        piece
-      )
-    ) {
-      pageLabel =
-        piece;
-      recognizedProgress =
-        true;
-      continue;
-    }
-
-    if (
-      /^Chapter\s+.+$/i.test(
-        piece
-      )
-    ) {
-      chapterLabel =
-        piece;
-      recognizedProgress =
-        true;
-    }
-  }
-
-  const thought =
-    recognizedProgress
-      ? restBlocks
-          .join(
-            '\n\n'
-          )
-          .trim()
-      : normalized.trim();
-
-  return {
-    pageLabel,
-    chapterLabel,
-    thought,
-  };
-}
+const HOME_FOCUS_REFRESH_MS =
+  60 * 1000;
 
 export default function HomeScreen() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -577,16 +498,6 @@ export default function HomeScreen() {
     );
 
   const [
-    blockConfirmTarget,
-    setBlockConfirmTarget,
-  ] =
-    useState<PostComment | null>(
-      null
-    );
-
-  const blockedReaderAfterDismiss = useRef<string | null>(null);
-
-  const [
     holdingCommentId,
     setHoldingCommentId,
   ] =
@@ -796,6 +707,12 @@ export default function HomeScreen() {
   const preserveHomeStateOnNextBlur =
     useRef(false);
 
+  const hasLoadedHomeData =
+    useRef(false);
+
+  const lastHomeDataLoadAt =
+    useRef(0);
+
   const [
     clubSearch,
     setClubSearch,
@@ -991,6 +908,12 @@ export default function HomeScreen() {
           setClubsLoading(false);
           setFeedLoading(false);
         }
+
+        hasLoadedHomeData.current =
+          true;
+
+        lastHomeDataLoadAt.current =
+          Date.now();
       },
       []
     );
@@ -1202,18 +1125,31 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (
-        preserveHomeStateOnNextBlur.current
-      ) {
-        preserveHomeStateOnNextBlur.current =
-          false;
+      const now =
+        Date.now();
 
-        return () => {
-          Keyboard.dismiss();
-        };
+      const homeDataIsStale =
+        !hasLoadedHomeData.current ||
+        now -
+          lastHomeDataLoadAt.current >=
+          HOME_FOCUS_REFRESH_MS;
+
+      if (
+        !hasLoadedHomeData.current
+      ) {
+        void loadHomeData(
+          true
+        );
+      } else if (
+        homeDataIsStale
+      ) {
+        // Keep the existing Home/Clubs UI visible and
+        // quietly refresh stale data in the background.
+        void loadHomeData(
+          false
+        );
       }
 
-      loadHomeData(true);
       void loadComposerProfile();
 
       return () => {
@@ -1222,6 +1158,8 @@ export default function HomeScreen() {
         if (
           preserveHomeStateOnNextBlur.current
         ) {
+          preserveHomeStateOnNextBlur.current =
+            false;
           return;
         }
 
@@ -1244,12 +1182,108 @@ export default function HomeScreen() {
         setClubSearchError(
           ''
         );
+
+        setActiveClubGenre(
+          'all'
+        );
       };
     }, [
-      loadHomeData,
       loadComposerProfile,
+      loadHomeData,
     ])
   );
+
+  useEffect(() => {
+    let active =
+      true;
+
+    let channel:
+      ReturnType<
+        typeof supabase.channel
+      > | null =
+      null;
+
+    async function subscribeToNotificationCount() {
+      const {
+        data: {
+          user,
+        },
+        error,
+      } =
+        await supabase.auth.getUser();
+
+      if (
+        error ||
+        !user ||
+        !active
+      ) {
+        return;
+      }
+
+      const refreshAttentionCount =
+        async () => {
+          try {
+            const count =
+              await getNotificationAttentionCount();
+
+            if (
+              active
+            ) {
+              setAttentionCount(
+                count
+              );
+            }
+          } catch (
+            attentionError
+          ) {
+            console.error(
+              'Could not refresh realtime notification attention count:',
+              attentionError
+            );
+          }
+        };
+
+      channel =
+        supabase
+          .channel(
+            `home-notification-count-${user.id}-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`
+          )
+          .on(
+            'postgres_changes',
+            {
+              event:
+                '*',
+              schema:
+                'public',
+              table:
+                'notifications',
+              filter:
+                `recipient_id=eq.${user.id}`,
+            },
+            () => {
+              void refreshAttentionCount();
+            }
+          )
+          .subscribe();
+    }
+
+    void subscribeToNotificationCount();
+
+    return () => {
+      active =
+        false;
+
+      if (
+        channel
+      ) {
+        void supabase.removeChannel(
+          channel
+        );
+      }
+    };
+  }, []);
 
   async function handleRefresh() {
     try {
@@ -1284,22 +1318,6 @@ export default function HomeScreen() {
       params: {
         id:
           readerId,
-      },
-    });
-  }
-
-  function openBook(
-    googleBookId: string
-  ) {
-    preserveHomeStateOnNextBlur.current =
-      true;
-
-    router.push({
-      pathname:
-        '/book/[id]',
-      params: {
-        id:
-          googleBookId,
       },
     });
   }
@@ -1689,13 +1707,9 @@ export default function HomeScreen() {
     closeCommentsSheet();
   }
 
-  function closeCommentsSheet(
-    force =
-      false
-  ) {
+  function closeCommentsSheet() {
     if (
-      commentsSheetAnimating.current &&
-      !force
+      commentsSheetAnimating.current
     ) {
       return;
     }
@@ -3010,12 +3024,39 @@ export default function HomeScreen() {
     const target =
       commentActionTarget;
 
-    // Finish removing the comment menu before opening its confirmation.
+    const displayName =
+      target.author_display_name
+        ?.trim() ||
+      target.author_username
+        ?.trim() ||
+      'this reader';
+
     beginCommentActionHandoff(
       () => {
-        setBlockConfirmTarget(target);
+        Alert.alert(
+          `Block ${displayName}?`,
+          'Their comments and posts will be hidden from you, and any follow relationship between you will be removed.',
+          [
+            {
+              text:
+                'Cancel',
+              style:
+                'cancel',
+            },
+            {
+              text:
+                'Block',
+              style:
+                'destructive',
+              onPress: () =>
+                void blockSelectedReader(
+                  target
+                ),
+            },
+          ]
+        );
       },
-      0
+      105
     );
   }
 
@@ -3038,10 +3079,43 @@ export default function HomeScreen() {
         comment.author_id
       );
 
-      // Keep the comments modal intact until the confirmation's native
-      // dismissal completes, even when blocking the post's author.
-      blockedReaderAfterDismiss.current = comment.author_id;
+      setSheetComments(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              item
+            ) =>
+              item.author_id !==
+              comment.author_id
+          )
+      );
 
+      setFeedPosts(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              item
+            ) =>
+              item.author_id !==
+              comment.author_id
+          )
+      );
+
+      if (
+        commentsPost?.author_id ===
+        comment.author_id
+      ) {
+        closeCommentsSheet();
+      }
+
+      Alert.alert(
+        'Reader blocked',
+        'You will no longer see this reader’s comments or posts.'
+      );
     } catch (
       error
     ) {
@@ -3054,58 +3128,9 @@ export default function HomeScreen() {
         'Could not block reader',
         'Please try again.'
       );
-
-      throw error;
     } finally {
       setBlockingReaderId(
         null
-      );
-    }
-  }
-
-  async function finishBlockAfterDismiss() {
-    const readerId =
-      blockedReaderAfterDismiss.current;
-
-    blockedReaderAfterDismiss.current =
-      null;
-
-    if (!readerId) {
-      return;
-    }
-
-    const blockedPostAuthor =
-      commentsPost?.author_id ===
-      readerId;
-
-    // A successful block can change the data backing the currently
-    // open comments modal. Close that native modal first so a refresh
-    // can never leave an invisible full-screen surface intercepting taps.
-    if (blockedPostAuthor) {
-      closeCommentsSheet(
-        true
-      );
-    }
-
-    try {
-      if (
-        !blockedPostAuthor &&
-        commentsPost
-      ) {
-        await loadCommentsSheet(
-          commentsPost.id
-        );
-      }
-
-      await loadHomeData(
-        false
-      );
-    } catch (
-      error
-    ) {
-      console.error(
-        'Could not refresh after blocking reader:',
-        error
       );
     }
   }
@@ -3796,80 +3821,6 @@ export default function HomeScreen() {
         3
       );
 
-    if (
-      comment.is_blocked_author
-    ) {
-      return (
-        <View
-          key={
-            comment.id
-          }
-          style={[
-            styles.sheetCommentThread,
-            {
-              marginLeft:
-                visualDepth *
-                14,
-            },
-          ]}
-        >
-          <View
-            style={
-              styles.blockedCommentCard
-            }
-          >
-            <View
-              style={
-                styles.blockedCommentIcon
-              }
-            >
-              <Ionicons
-                name="ban-outline"
-                size={
-                  16
-                }
-                color={
-                  COLORS.mutedText
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.blockedCommentCopy
-              }
-            >
-              <Text
-                style={
-                  styles.blockedCommentTitle
-                }
-              >
-                Blocked reader
-              </Text>
-
-              <Text
-                style={
-                  styles.blockedCommentText
-                }
-              >
-                This comment is hidden.
-              </Text>
-            </View>
-          </View>
-
-          {children.map(
-            (
-              child
-            ) =>
-              renderSheetComment(
-                child,
-                depth + 1
-              )
-          )}
-        </View>
-      );
-    }
-
     return (
       <View
         key={
@@ -4088,8 +4039,8 @@ export default function HomeScreen() {
                     color={
                       comment.viewer_vote ===
                       1
-                        ? COLORS.gold
-                        : COLORS.mutedText
+                        ? colors.gold
+                        : colors.mutedText
                     }
                   />
                 </Pressable>
@@ -4145,8 +4096,8 @@ export default function HomeScreen() {
                     color={
                       comment.viewer_vote ===
                       -1
-                        ? COLORS.gold
-                        : COLORS.mutedText
+                        ? colors.gold
+                        : colors.mutedText
                     }
                   />
                 </Pressable>
@@ -4319,7 +4270,7 @@ export default function HomeScreen() {
               }
               size={12}
               color={
-                COLORS.softGold
+                colors.softGold
               }
             />
 
@@ -4464,7 +4415,7 @@ export default function HomeScreen() {
           name="chevron-forward"
           size={18}
           color={
-            COLORS.mutedText
+            colors.mutedText
           }
         />
       </Pressable>
@@ -4627,7 +4578,7 @@ export default function HomeScreen() {
                 17
               }
               color={
-                COLORS.gold
+                colors.gold
               }
             />
 
@@ -5555,17 +5506,6 @@ export default function HomeScreen() {
         .toUpperCase() ||
       'C';
 
-    const isReadingUpdate =
-      post.post_type ===
-      'reading_update';
-
-    const readingUpdate =
-      isReadingUpdate
-        ? parseReadingUpdateDisplay(
-            post.body
-          )
-        : null;
-
     return (
       <Pressable
         key={
@@ -5806,7 +5746,7 @@ export default function HomeScreen() {
                 <ActivityIndicator
                   size="small"
                   color={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                 />
               ) : (
@@ -5816,7 +5756,7 @@ export default function HomeScreen() {
                     20
                   }
                   color={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                 />
               )}
@@ -5829,358 +5769,296 @@ export default function HomeScreen() {
             styles.feedPostContent
           }
         >
-          {isReadingUpdate ? (
-            <>
-              <View
-                style={
-                  styles.feedReadingUpdateLabel
+          {renderExplicitContentWarning(
+            post.body,
+            'post',
+            post.id,
+            styles.feedBody,
+            Boolean(
+              currentUserId &&
+              post.author_id ===
+                currentUserId
+            )
+          )}
+
+          {post.post_image_url ? (
+            <FeedPostImage
+              uri={
+                post.post_image_url
+              }
+              colors={
+                colors
+              }
+            />
+          ) : null}
+
+          {post.book_title ? (
+            post.post_image_url ? (
+              <Pressable
+                disabled={
+                  !post.google_book_id
                 }
+                onPress={(event) => {
+                  event.stopPropagation();
+
+                  if (
+                    !post.google_book_id
+                  ) {
+                    return;
+                  }
+
+                  router.push({
+                    pathname:
+                      '/book/[id]',
+                    params: {
+                      id:
+                        post.google_book_id,
+                    },
+                  });
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.feedCompactBookLink,
+                  pressed &&
+                    Boolean(
+                      post.google_book_id
+                    ) &&
+                    styles.pressed,
+                ]}
               >
                 <Ionicons
                   name="book-outline"
                   size={
-                    13
+                    14
                   }
                   color={
-                    COLORS.gold
+                    colors.gold
                   }
                 />
 
-                <Text
-                  style={
-                    styles.feedReadingUpdateLabelText
-                  }
-                >
-                  READING UPDATE
-                </Text>
-              </View>
-
-              {post.book_title ? (
-                <Pressable
-                  disabled={
-                    !post.google_book_id
-                  }
-                  onPress={(event) => {
-                    event.stopPropagation();
-
-                    if (
-                      post.google_book_id
-                    ) {
-                      openBook(
-                        post.google_book_id
-                      );
-                    }
-                  }}
-                  accessibilityRole={
-                    post.google_book_id
-                      ? 'button'
-                      : undefined
-                  }
-                  accessibilityLabel={
-                    post.google_book_id
-                      ? `Open ${post.book_title}`
-                      : undefined
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.feedReadingBookCard,
-                    pressed &&
-                      post.google_book_id &&
-                      styles.feedReadingBookCardPressed,
-                  ]}
-                >
-                  {post.book_cover_url ? (
-                    <Image
-                      source={{
-                        uri:
-                          post.book_cover_url,
-                      }}
-                      style={
-                        styles.feedReadingBookCover
-                      }
-                    />
-                  ) : (
-                    <View
-                      style={
-                        styles.feedReadingBookCoverFallback
-                      }
-                    >
-                      <Ionicons
-                        name="book-outline"
-                        size={
-                          24
-                        }
-                        color={
-                          COLORS.gold
-                        }
-                      />
-                    </View>
-                  )}
-
-                  <View
-                    style={
-                      styles.feedReadingBookCopy
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.feedReadingBookTitle
-                      }
-                      numberOfLines={
-                        2
-                      }
-                    >
-                      {
-                        post.book_title
-                      }
-                    </Text>
-
-                    {readingUpdate &&
-                    (
-                      readingUpdate.pageLabel ||
-                      readingUpdate.chapterLabel
-                    ) ? (
-                      <View
-                        style={
-                          styles.feedReadingProgressPills
-                        }
-                      >
-                        {readingUpdate.pageLabel ? (
-                          <View
-                            style={
-                              styles.feedReadingProgressPill
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.feedReadingProgressPillText
-                              }
-                            >
-                              {
-                                readingUpdate.pageLabel
-                              }
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {readingUpdate.chapterLabel ? (
-                          <View
-                            style={
-                              styles.feedReadingProgressPill
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.feedReadingProgressPillText
-                              }
-                            >
-                              {
-                                readingUpdate.chapterLabel
-                              }
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    ) : null}
-                  </View>
-
-                  {post.google_book_id ? (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={
-                        18
-                      }
-                      color={
-                        COLORS.mutedText
-                      }
-                    />
-                  ) : null}
-                </Pressable>
-              ) : null}
-
-              {readingUpdate
-                ?.thought ? (
                 <View
                   style={
-                    styles.feedReadingThoughtWrap
+                    styles.feedCompactBookCopy
                   }
                 >
-                  {renderExplicitContentWarning(
-                    readingUpdate.thought,
-                    'post',
-                    post.id,
-                    styles.feedReadingThought,
-                    Boolean(
-                      currentUserId &&
-                      post.author_id ===
-                        currentUserId
-                    )
-                  )}
-                </View>
-              ) : (
-                <Text
-                  style={
-                    styles.feedReadingMuted
-                  }
-                >
-                  Progress update
-                </Text>
-              )}
-            </>
-          ) : (
-            <>
-              {renderExplicitContentWarning(
-                post.body,
-                'post',
-                post.id,
-                styles.feedBody,
-                Boolean(
-                  currentUserId &&
-                  post.author_id ===
-                    currentUserId
-                )
-              )}
-
-              {post.book_title ? (
-                <Pressable
-                  disabled={
-                    !post.google_book_id
-                  }
-                  onPress={(event) => {
-                    event.stopPropagation();
-
-                    if (
-                      post.google_book_id
-                    ) {
-                      openBook(
-                        post.google_book_id
-                      );
-                    }
-                  }}
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.feedBookCard,
-                    pressed &&
-                      post.google_book_id &&
-                      styles.pressed,
-                  ]}
-                >
-                  {post.book_cover_url ? (
-                    <Image
-                      source={{
-                        uri:
-                          post.book_cover_url,
-                      }}
-                      style={
-                        styles.feedBookCover
-                      }
-                    />
-                  ) : (
-                    <View
-                      style={
-                        styles.feedBookCoverFallback
-                      }
-                    >
-                      <Ionicons
-                        name="book-outline"
-                        size={
-                          22
-                        }
-                        color={
-                          COLORS.gold
-                        }
-                      />
-                    </View>
-                  )}
-
-                  <View
+                  <Text
                     style={
-                      styles.feedBookCopy
+                      styles.feedCompactBookTitle
+                    }
+                    numberOfLines={
+                      1
                     }
                   >
+                    {post.book_title}
+                  </Text>
+
+                  {(post.book_authors &&
+                    post.book_authors.length >
+                      0) ||
+                  post.book_series_name ? (
+                    <Text
+                      style={
+                        styles.feedCompactBookMeta
+                      }
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      {post.book_authors &&
+                      post.book_authors.length >
+                        0
+                        ? post.book_authors.join(
+                            ', '
+                          )
+                        : ''}
+                      {post.book_authors &&
+                      post.book_authors.length >
+                        0 &&
+                      post.book_series_name
+                        ? ' · '
+                        : ''}
+                      {post.book_series_name
+                        ? `${post.book_series_name}${post.book_series_position !== null
+                            ? ` #${post.book_series_position}`
+                            : ''}`
+                        : ''}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {post.google_book_id ? (
+                  <Ionicons
+                    name="chevron-forward"
+                    size={
+                      15
+                    }
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                ) : null}
+              </Pressable>
+            ) : (
+              <Pressable
+                disabled={
+                  !post.google_book_id
+                }
+                onPress={(event) => {
+                  event.stopPropagation();
+
+                  if (
+                    !post.google_book_id
+                  ) {
+                    return;
+                  }
+
+                  router.push({
+                    pathname:
+                      '/book/[id]',
+                    params: {
+                      id:
+                        post.google_book_id,
+                    },
+                  });
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.feedBookCard,
+                  pressed &&
+                    Boolean(
+                      post.google_book_id
+                    ) &&
+                    styles.pressed,
+                ]}
+              >
+                {post.book_cover_url ? (
+                  <Image
+                    source={{
+                      uri:
+                        post.book_cover_url,
+                    }}
+                    style={
+                      styles.feedBookCover
+                    }
+                  />
+                ) : (
+                  <View
+                    style={
+                      styles.feedBookCoverFallback
+                    }
+                  >
+                    <Ionicons
+                      name="book-outline"
+                      size={
+                        22
+                      }
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+                )}
+
+                <View
+                  style={
+                    styles.feedBookCopy
+                  }
+                >
+                  <View
+                    style={
+                      styles.feedBookEyebrow
+                    }
+                  >
+                    <Ionicons
+                      name="book-outline"
+                      size={
+                        12
+                      }
+                      color={
+                        colors.gold
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.feedBookEyebrowText
+                      }
+                    >
+                      Book
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.feedBookTitle
+                    }
+                    numberOfLines={
+                      2
+                    }
+                  >
+                    {post.book_title}
+                  </Text>
+
+                  {post.book_authors &&
+                  post.book_authors.length >
+                    0 ? (
+                    <Text
+                      style={
+                        styles.feedBookAuthor
+                      }
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      {post.book_authors.join(
+                        ', '
+                      )}
+                    </Text>
+                  ) : null}
+
+                  {post.rating ? (
                     <View
                       style={
-                        styles.feedBookEyebrow
+                        styles.feedBookRatingRow
                       }
                     >
                       <Ionicons
-                        name="book-outline"
+                        name="star"
                         size={
-                          12
+                          13
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
 
                       <Text
                         style={
-                          styles.feedBookEyebrowText
+                          styles.feedBookRating
                         }
                       >
-                        Book
+                        {post.rating}
                       </Text>
                     </View>
-
-                    <Text
-                      style={
-                        styles.feedBookTitle
-                      }
-                      numberOfLines={
-                        2
-                      }
-                    >
-                      {
-                        post.book_title
-                      }
-                    </Text>
-
-                    {post.rating ? (
-                      <View
-                        style={
-                          styles.feedBookRatingRow
-                        }
-                      >
-                        <Ionicons
-                          name="star"
-                          size={
-                            13
-                          }
-                          color={
-                            COLORS.gold
-                          }
-                        />
-
-                        <Text
-                          style={
-                            styles.feedBookRating
-                          }
-                        >
-                          {
-                            post.rating
-                          }
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  {post.google_book_id ? (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={
-                        17
-                      }
-                      color={
-                        COLORS.mutedText
-                      }
-                    />
                   ) : null}
-                </Pressable>
-              ) : null}
-            </>
-          )}
+                </View>
+
+                {post.google_book_id ? (
+                  <Ionicons
+                    name="chevron-forward"
+                    size={
+                      17
+                    }
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                ) : null}
+              </Pressable>
+            )
+          ) : null}
         </View>
 
         <View
@@ -6233,8 +6111,8 @@ export default function HomeScreen() {
                 color={
                   post.viewer_vote ===
                   1
-                    ? COLORS.gold
-                    : COLORS.mutedText
+                    ? colors.gold
+                    : colors.mutedText
                 }
               />
             </Pressable>
@@ -6291,8 +6169,8 @@ export default function HomeScreen() {
                 color={
                   post.viewer_vote ===
                   -1
-                    ? COLORS.gold
-                    : COLORS.mutedText
+                    ? colors.gold
+                    : colors.mutedText
                 }
               />
             </Pressable>
@@ -6320,7 +6198,7 @@ export default function HomeScreen() {
                 16
               }
               color={
-                COLORS.mutedText
+                colors.mutedText
               }
             />
 
@@ -6356,7 +6234,7 @@ export default function HomeScreen() {
           <ActivityIndicator
             size="small"
             color={
-              COLORS.gold
+              colors.gold
             }
           />
         </View>
@@ -6378,7 +6256,7 @@ export default function HomeScreen() {
               27
             }
             color={
-              COLORS.mutedText
+              colors.mutedText
             }
           />
 
@@ -6443,7 +6321,7 @@ export default function HomeScreen() {
                 27
               }
               color={
-                COLORS.gold
+                colors.gold
               }
             />
           </View>
@@ -6482,7 +6360,7 @@ export default function HomeScreen() {
                 17
               }
               color={
-                COLORS.background
+                colors.background
               }
             />
 
@@ -6545,7 +6423,7 @@ export default function HomeScreen() {
                 17
               }
               color={
-                COLORS.background
+                colors.background
               }
             />
 
@@ -6579,7 +6457,7 @@ export default function HomeScreen() {
           <ActivityIndicator
             size="small"
             color={
-              COLORS.gold
+              colors.gold
             }
           />
         </View>
@@ -6613,7 +6491,7 @@ export default function HomeScreen() {
             name="search-outline"
             size={19}
             color={
-              COLORS.mutedText
+              colors.mutedText
             }
           />
 
@@ -6626,7 +6504,7 @@ export default function HomeScreen() {
             }
             placeholder="Search clubs by name or ID"
             placeholderTextColor={
-              COLORS.mutedText
+              colors.mutedText
             }
             autoCapitalize="none"
             autoCorrect={
@@ -6642,7 +6520,7 @@ export default function HomeScreen() {
             <ActivityIndicator
               size="small"
               color={
-                COLORS.gold
+                colors.gold
               }
             />
           ) : clubSearch ? (
@@ -6669,7 +6547,7 @@ export default function HomeScreen() {
                   19
                 }
                 color={
-                  COLORS.mutedText
+                  colors.mutedText
                 }
               />
             </Pressable>
@@ -6727,7 +6605,7 @@ export default function HomeScreen() {
                     25
                   }
                   color={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                 />
 
@@ -6756,7 +6634,7 @@ export default function HomeScreen() {
                 <ActivityIndicator
                   size="small"
                   color={
-                    COLORS.gold
+                    colors.gold
                   }
                 />
               </View>
@@ -6786,7 +6664,7 @@ export default function HomeScreen() {
                     25
                   }
                   color={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                 />
 
@@ -6849,7 +6727,7 @@ export default function HomeScreen() {
               name="add"
               size={17}
               color={
-                COLORS.background
+                colors.background
               }
             />
 
@@ -6900,7 +6778,7 @@ export default function HomeScreen() {
                 name="people-outline"
                 size={24}
                 color={
-                  COLORS.gold
+                  colors.gold
                 }
               />
             </View>
@@ -6931,7 +6809,7 @@ export default function HomeScreen() {
               name="chevron-forward"
               size={18}
               color={
-                COLORS.mutedText
+                colors.mutedText
               }
             />
           </Pressable>
@@ -7057,7 +6935,7 @@ export default function HomeScreen() {
               name="compass-outline"
               size={26}
               color={
-                COLORS.mutedText
+                colors.mutedText
               }
             />
 
@@ -7149,7 +7027,7 @@ export default function HomeScreen() {
               handleRefresh
             }
             tintColor={
-              COLORS.gold
+              colors.gold
             }
           />
         }
@@ -7215,8 +7093,8 @@ export default function HomeScreen() {
                 color={
                   attentionCount >
                   0
-                    ? COLORS.gold
-                    : COLORS.text
+                    ? colors.gold
+                    : colors.text
                 }
               />
 
@@ -7304,9 +7182,7 @@ export default function HomeScreen() {
             : renderClubs()}
         </View>
       </ScrollView>
-
-
-    </SafeAreaView>
+      </SafeAreaView>
 
       <Modal
         visible={
@@ -7390,7 +7266,7 @@ export default function HomeScreen() {
                       19
                     }
                     color={
-                      COLORS.gold
+                      colors.gold
                     }
                   />
                 </View>
@@ -7444,7 +7320,7 @@ export default function HomeScreen() {
                         20
                       }
                       color={
-                        COLORS.gold
+                        colors.gold
                       }
                     />
                   </View>
@@ -7477,7 +7353,7 @@ export default function HomeScreen() {
                       18
                     }
                     color={
-                      COLORS.mutedText
+                      colors.mutedText
                     }
                   />
                 </Pressable>
@@ -7510,7 +7386,7 @@ export default function HomeScreen() {
                         20
                       }
                       color={
-                        COLORS.danger
+                        colors.danger
                       }
                     />
                   </View>
@@ -7666,7 +7542,7 @@ export default function HomeScreen() {
                     21
                   }
                   color={
-                    COLORS.text
+                    colors.text
                   }
                 />
               </Pressable>
@@ -7712,7 +7588,7 @@ export default function HomeScreen() {
                           18
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
                     </View>
@@ -7733,7 +7609,7 @@ export default function HomeScreen() {
                         17
                       }
                       color={
-                        COLORS.mutedText
+                        colors.mutedText
                       }
                     />
                   </Pressable>
@@ -7758,7 +7634,7 @@ export default function HomeScreen() {
                 <ActivityIndicator
                   size="small"
                   color={
-                    COLORS.gold
+                    colors.gold
                   }
                 />
               </View>
@@ -7780,7 +7656,9 @@ export default function HomeScreen() {
         onDismiss={
           handleCommentsModalDismiss
         }
-        onRequestClose={() => closeCommentsSheet()}
+        onRequestClose={
+          closeCommentsSheet
+        }
       >
         <View
           style={
@@ -7966,7 +7844,7 @@ export default function HomeScreen() {
                           15
                         }
                         color={
-                          COLORS.mutedText
+                          colors.mutedText
                         }
                       />
 
@@ -8085,7 +7963,7 @@ export default function HomeScreen() {
                             25
                           }
                           color={
-                            COLORS.mutedText
+                            colors.mutedText
                           }
                         />
 
@@ -8159,7 +8037,7 @@ export default function HomeScreen() {
                           18
                         }
                         color={
-                          COLORS.mutedText
+                          colors.mutedText
                         }
                       />
                     </Pressable>
@@ -8200,7 +8078,7 @@ export default function HomeScreen() {
                           18
                         }
                         color={
-                          COLORS.mutedText
+                          colors.mutedText
                         }
                       />
                     </Pressable>
@@ -8291,7 +8169,7 @@ export default function HomeScreen() {
                           : 'Add a comment…'
                       }
                       placeholderTextColor={
-                        COLORS.mutedText
+                        colors.mutedText
                       }
                       multiline
                       maxLength={
@@ -8322,7 +8200,7 @@ export default function HomeScreen() {
                         <ActivityIndicator
                           size="small"
                           color={
-                            COLORS.background
+                            colors.background
                           }
                         />
                       ) : (
@@ -8336,7 +8214,7 @@ export default function HomeScreen() {
                             18
                           }
                           color={
-                            COLORS.background
+                            colors.background
                           }
                         />
                       )}
@@ -8455,7 +8333,7 @@ export default function HomeScreen() {
                       19
                     }
                     color={
-                      COLORS.gold
+                      colors.gold
                     }
                   />
                 </View>
@@ -8499,7 +8377,7 @@ export default function HomeScreen() {
                           19
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
                     </View>
@@ -8541,7 +8419,7 @@ export default function HomeScreen() {
                           19
                         }
                         color={
-                          COLORS.danger
+                          colors.danger
                         }
                       />
                     </View>
@@ -8585,7 +8463,7 @@ export default function HomeScreen() {
                           19
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
                     </View>
@@ -8632,7 +8510,7 @@ export default function HomeScreen() {
                           19
                         }
                         color={
-                          COLORS.danger
+                          colors.danger
                         }
                       />
                     </View>
@@ -8783,7 +8661,7 @@ export default function HomeScreen() {
                               21
                             }
                             color={
-                              COLORS.text
+                              colors.text
                             }
                           />
                         </Pressable>
@@ -8829,7 +8707,7 @@ export default function HomeScreen() {
                                     18
                                   }
                                   color={
-                                    COLORS.gold
+                                    colors.gold
                                   }
                                 />
                               </View>
@@ -8848,7 +8726,7 @@ export default function HomeScreen() {
                                   17
                                 }
                                 color={
-                                  COLORS.mutedText
+                                  colors.mutedText
                                 }
                               />
                             </Pressable>
@@ -8873,7 +8751,7 @@ export default function HomeScreen() {
                           <ActivityIndicator
                             size="small"
                             color={
-                              COLORS.gold
+                              colors.gold
                             }
                           />
                         </View>
@@ -8886,41 +8764,6 @@ export default function HomeScreen() {
               </Animated.View>
             </Animated.View>
           </View>
-        <BlockReaderConfirmSheet
-        embedded
-        visible={
-          Boolean(
-            blockConfirmTarget
-          )
-        }
-        readerName={
-          blockConfirmTarget?.author_display_name
-            ?.trim() ||
-          blockConfirmTarget?.author_username
-            ?.trim() ||
-          'this reader'
-        }
-        busy={
-          Boolean(
-            blockingReaderId
-          )
-        }
-        onConfirm={() =>
-          blockConfirmTarget
-            ? blockSelectedReader(
-                blockConfirmTarget
-              )
-            : Promise.resolve()
-        }
-        onDismissed={() => {
-          void finishBlockAfterDismiss();
-        }}
-        onDismiss={() =>
-          setBlockConfirmTarget(
-            null
-          )
-        }
-      />
         </View>
       </Modal>
 
@@ -8928,17 +8771,19 @@ export default function HomeScreen() {
   );
 }
 
-const styles =
-  StyleSheet.create({
+function createStyles(
+  colors: NovoriColors
+) {
+  return StyleSheet.create({
     safeArea: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     screen: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     scrollContent: {
       flexGrow: 1,
@@ -8966,7 +8811,7 @@ const styles =
     },
     logo: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize: 43,
       fontFamily:
         'PlayfairDisplay_700Bold',
@@ -8974,7 +8819,7 @@ const styles =
     },
     slogan: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 15,
@@ -8988,10 +8833,10 @@ const styles =
       marginTop: 4,
       marginLeft: 12,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -9009,10 +8854,10 @@ const styles =
       borderRadius: 9,
       paddingHorizontal: 4,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       borderWidth: 2,
       borderColor:
-        COLORS.background,
+        colors.background,
       alignItems:
         'center',
       justifyContent:
@@ -9020,7 +8865,7 @@ const styles =
     },
     notificationBadgeText: {
       color:
-        COLORS.background,
+        colors.background,
       fontSize: 9,
       fontFamily:
         'Inter_700Bold',
@@ -9030,10 +8875,10 @@ const styles =
       flexDirection:
         'row',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 14,
       padding: 4,
       gap: 4,
@@ -9051,31 +8896,31 @@ const styles =
     },
     sectionSwitchButtonActive: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     sectionSwitchText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 13,
     },
     sectionSwitchTextActive: {
       color:
-        COLORS.gold,
+        colors.gold,
     },
     feedCard: {
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderRadius: 18,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       padding: 21,
     },
     eyebrow: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 11,
       fontFamily:
         'Inter_700Bold',
@@ -9084,7 +8929,7 @@ const styles =
     },
     cardTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 24,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -9092,7 +8937,7 @@ const styles =
     },
     cardText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize: 15,
       fontFamily:
         'Inter_400Regular',
@@ -9106,10 +8951,10 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 15,
       paddingHorizontal: 13,
       gap: 9,
@@ -9117,7 +8962,7 @@ const styles =
     clubSearchInput: {
       flex: 1,
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_400Regular',
       fontSize: 14,
@@ -9133,7 +8978,7 @@ const styles =
     },
     clubSearchHint: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 10,
@@ -9159,17 +9004,17 @@ const styles =
       justifyContent:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 17,
       paddingHorizontal: 24,
       marginTop: 13,
     },
     searchEmptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
@@ -9177,7 +9022,7 @@ const styles =
     },
     searchEmptyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
@@ -9214,7 +9059,7 @@ const styles =
       borderRadius:
         12,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       flexDirection:
         'row',
       alignItems:
@@ -9225,7 +9070,7 @@ const styles =
     },
     feedComposeButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontFamily:
         'Inter_700Bold',
       fontSize: 12,
@@ -9237,10 +9082,10 @@ const styles =
       justifyContent:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 18,
       paddingHorizontal:
         26,
@@ -9252,7 +9097,7 @@ const styles =
       height: 54,
       borderRadius: 17,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -9261,7 +9106,7 @@ const styles =
     },
     feedEmptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 21,
@@ -9271,7 +9116,7 @@ const styles =
     },
     feedEmptyText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -9285,7 +9130,7 @@ const styles =
       minHeight: 40,
       borderRadius: 12,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       flexDirection:
         'row',
       alignItems:
@@ -9299,17 +9144,17 @@ const styles =
     },
     feedActionButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontFamily:
         'Inter_700Bold',
       fontSize: 12,
     },
     feedPostCard: {
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 22,
       overflow:
         'hidden',
@@ -9372,11 +9217,11 @@ const styles =
       borderRadius:
         23,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       marginRight:
         12,
     },
@@ -9388,11 +9233,11 @@ const styles =
       borderRadius:
         23,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -9402,7 +9247,7 @@ const styles =
     },
     feedAvatarText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -9442,7 +9287,7 @@ const styles =
     },
     feedAuthorName: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -9454,7 +9299,7 @@ const styles =
     },
     feedUsername: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -9466,7 +9311,7 @@ const styles =
     },
     feedTime: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -9474,7 +9319,7 @@ const styles =
     },
     feedAudienceText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -9504,11 +9349,11 @@ const styles =
       borderRadius:
         6,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
     feedClubIconFallback: {
       width:
@@ -9518,11 +9363,11 @@ const styles =
       borderRadius:
         6,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -9530,7 +9375,7 @@ const styles =
     },
     feedClubIconText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -9538,7 +9383,7 @@ const styles =
     },
     feedClubText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -9552,163 +9397,57 @@ const styles =
       paddingTop:
         14,
     },
-    feedReadingUpdateLabel: {
+    feedBody: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        15,
+      lineHeight:
+        22,
+    },
+    feedCompactBookLink: {
+      minHeight:
+        42,
       flexDirection:
         'row',
       alignItems:
         'center',
       gap:
-        5,
-      marginBottom:
-        11,
+        8,
+      marginTop:
+        7,
+      paddingHorizontal:
+        2,
+      paddingVertical:
+        7,
     },
-    feedReadingUpdateLabelText: {
-      color:
-        COLORS.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        10,
-      letterSpacing:
-        0.9,
-    },
-    feedReadingBookCard: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      backgroundColor:
-        COLORS.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        COLORS.border,
-      borderRadius:
-        18,
-      padding:
-        12,
-    },
-    feedReadingBookCardPressed: {
-      opacity:
-        0.82,
-    },
-    feedReadingBookCover: {
-      width:
-        60,
-      height:
-        88,
-      borderRadius:
-        9,
-      backgroundColor:
-        COLORS.surface,
-      marginRight:
-        13,
-    },
-    feedReadingBookCoverFallback: {
-      width:
-        60,
-      height:
-        88,
-      borderRadius:
-        9,
-      backgroundColor:
-        COLORS.surface,
-      borderWidth:
-        1,
-      borderColor:
-        COLORS.border,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight:
-        13,
-    },
-    feedReadingBookCopy: {
+    feedCompactBookCopy: {
       flex:
         1,
       minWidth:
         0,
-      paddingRight:
-        8,
     },
-    feedReadingBookTitle: {
+    feedCompactBookTitle: {
       color:
-        COLORS.text,
+        colors.gold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        15,
-      lineHeight:
-        20,
+        12.5,
     },
-    feedReadingProgressPills: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      gap:
-        7,
-      marginTop:
-        10,
-    },
-    feedReadingProgressPill: {
-      borderRadius:
-        999,
-      borderWidth:
-        1,
-      borderColor:
-        COLORS.border,
-      backgroundColor:
-        COLORS.surface,
-      paddingHorizontal:
-        9,
-      paddingVertical:
-        5,
-    },
-    feedReadingProgressPillText: {
+    feedCompactBookMeta: {
       color:
-        COLORS.secondaryText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        11,
-    },
-    feedReadingThoughtWrap: {
-      marginTop:
-        14,
-    },
-    feedReadingThought: {
-      color:
-        COLORS.text,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        15,
-      lineHeight:
-        22,
-    },
-    feedReadingMuted: {
-      color:
-        COLORS.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        13,
-      lineHeight:
-        19,
+        10.5,
+      fontStyle:
+        'italic',
       marginTop:
-        12,
-    },
-    feedBody: {
-      color:
-        COLORS.text,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        15,
-      lineHeight:
-        22,
+        2,
     },
     feedBookCard: {
       flexDirection:
@@ -9716,11 +9455,11 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         16,
       padding:
@@ -9736,7 +9475,7 @@ const styles =
       borderRadius:
         8,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       marginRight:
         12,
     },
@@ -9748,11 +9487,11 @@ const styles =
       borderRadius:
         8,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -9780,7 +9519,7 @@ const styles =
     },
     feedBookEyebrowText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -9792,13 +9531,23 @@ const styles =
     },
     feedBookTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
         13,
       lineHeight:
         18,
+    },
+    feedBookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      marginTop:
+        4,
     },
     feedBookRatingRow: {
       flexDirection:
@@ -9812,7 +9561,7 @@ const styles =
     },
     feedBookRating: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -9838,7 +9587,7 @@ const styles =
       borderTopWidth:
         1,
       borderTopColor:
-        COLORS.border,
+        colors.border,
     },
     voteControl: {
       flexDirection:
@@ -9848,11 +9597,11 @@ const styles =
       minHeight:
         36,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         18,
       paddingHorizontal:
@@ -9872,7 +9621,7 @@ const styles =
     },
     voteButtonActive: {
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
     },
     voteButtonDisabled: {
       opacity:
@@ -9884,7 +9633,7 @@ const styles =
       textAlign:
         'center',
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -9892,7 +9641,7 @@ const styles =
     },
     voteScoreActive: {
       color:
-        COLORS.gold,
+        colors.gold,
     },
     commentAction: {
       minHeight:
@@ -9906,11 +9655,11 @@ const styles =
       gap:
         6,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         18,
       paddingHorizontal:
@@ -9918,7 +9667,7 @@ const styles =
     },
     commentActionText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -9942,14 +9691,14 @@ const styles =
     },
     sectionTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 21,
     },
     sectionSubtitle: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -9961,7 +9710,7 @@ const styles =
       paddingHorizontal: 12,
       borderRadius: 12,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       flexDirection:
         'row',
       alignItems:
@@ -9972,7 +9721,7 @@ const styles =
     },
     createClubButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontFamily:
         'Inter_700Bold',
       fontSize: 12,
@@ -9988,10 +9737,10 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 16,
       padding: 11,
     },
@@ -10002,10 +9751,10 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 17,
       padding: 12,
     },
@@ -10014,7 +9763,7 @@ const styles =
       height: 52,
       borderRadius: 14,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       marginRight: 12,
     },
     compactClubImageFallback: {
@@ -10022,7 +9771,7 @@ const styles =
       height: 52,
       borderRadius: 14,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10031,7 +9780,7 @@ const styles =
     },
     compactClubInitial: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 23,
@@ -10041,7 +9790,7 @@ const styles =
       height: 66,
       borderRadius: 16,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       marginRight: 13,
     },
     clubImageFallback: {
@@ -10049,7 +9798,7 @@ const styles =
       height: 66,
       borderRadius: 16,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10058,7 +9807,7 @@ const styles =
     },
     clubInitial: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 28,
@@ -10077,19 +9826,19 @@ const styles =
     },
     clubMetaText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
     },
     clubMetaDot: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 9,
     },
     clubName: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize: 15,
@@ -10097,7 +9846,7 @@ const styles =
     },
     clubDescription: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -10116,21 +9865,21 @@ const styles =
     },
     clubGenreBadge: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderRadius: 8,
       paddingHorizontal: 7,
       paddingVertical: 3,
     },
     clubGenreBadgeText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 9,
     },
     clubGenreMore: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 9,
@@ -10139,7 +9888,7 @@ const styles =
       alignSelf:
         'flex-start',
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderRadius: 9,
       paddingHorizontal: 7,
       paddingVertical: 3,
@@ -10147,7 +9896,7 @@ const styles =
     },
     membershipBadgeText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 9,
@@ -10159,10 +9908,10 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 17,
       padding: 14,
       marginTop: 13,
@@ -10172,7 +9921,7 @@ const styles =
       height: 46,
       borderRadius: 14,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10185,14 +9934,14 @@ const styles =
     },
     emptyClubsTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
     },
     emptyClubsText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
@@ -10216,9 +9965,9 @@ const styles =
       borderRadius: 17,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       paddingHorizontal: 12,
       alignItems:
         'center',
@@ -10227,29 +9976,29 @@ const styles =
     },
     clubGenreFilterChipActive: {
       borderColor:
-        COLORS.gold,
+        colors.gold,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     clubGenreFilterText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 10,
     },
     clubGenreFilterTextActive: {
       color:
-        COLORS.gold,
+        colors.gold,
     },
     discoverEmpty: {
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 17,
       paddingHorizontal: 24,
       paddingVertical: 28,
@@ -10257,7 +10006,7 @@ const styles =
     },
     discoverEmptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
@@ -10265,7 +10014,7 @@ const styles =
     },
     discoverEmptyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
@@ -10291,7 +10040,7 @@ const styles =
       alignSelf:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingHorizontal: 16,
@@ -10305,7 +10054,7 @@ const styles =
       height: 4,
       borderRadius: 2,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       alignSelf:
         'center',
       marginBottom: 16,
@@ -10323,7 +10072,7 @@ const styles =
       height: 38,
       borderRadius: 12,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10335,14 +10084,14 @@ const styles =
     },
     ownPostOptionsTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 20,
     },
     ownPostOptionsSubtitle: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -10351,12 +10100,12 @@ const styles =
     ownPostOptionsList: {
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 16,
       overflow:
         'hidden',
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     ownPostOptionsRow: {
       minHeight: 66,
@@ -10367,18 +10116,18 @@ const styles =
       paddingHorizontal: 13,
       paddingVertical: 10,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     ownPostOptionsRowPressed: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     ownPostOptionsRowIcon: {
       width: 36,
       height: 36,
       borderRadius: 12,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10395,21 +10144,21 @@ const styles =
     },
     ownPostOptionsRowTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
     },
     ownPostOptionsDangerTitle: {
       color:
-        COLORS.danger,
+        colors.danger,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
     },
     ownPostOptionsRowSubtitle: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
@@ -10420,12 +10169,12 @@ const styles =
       height:
         StyleSheet.hairlineWidth,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       marginLeft: 61,
     },
     ownPostOptionsHint: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 10,
@@ -10469,11 +10218,11 @@ const styles =
       paddingVertical:
         14,
       backgroundColor:
-        'rgba(68,68,68,0.94)',
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        'rgba(255,255,255,0.10)',
+        colors.border,
     },
     explicitWarningHeading: {
       flexDirection:
@@ -10485,7 +10234,7 @@ const styles =
     },
     explicitWarningTitle: {
       color:
-        '#FFFFFF',
+        colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -10495,7 +10244,7 @@ const styles =
     },
     explicitWarningText: {
       color:
-        '#F2F2F2',
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -10533,21 +10282,21 @@ const styles =
       justifyContent:
         'center',
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
     explicitWarningButtonPrimary: {
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       borderColor:
-        COLORS.gold,
+        colors.gold,
     },
     explicitWarningButtonText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -10555,7 +10304,7 @@ const styles =
     },
     explicitWarningButtonPrimaryText: {
       color:
-        COLORS.background,
+        colors.background,
     },
     reportBackdrop: {
       flex: 1,
@@ -10574,7 +10323,7 @@ const styles =
       alignSelf:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       overflow: 'hidden',
@@ -10587,7 +10336,7 @@ const styles =
       height: 4,
       borderRadius: 2,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       alignSelf:
         'center',
       marginBottom: 13,
@@ -10605,14 +10354,14 @@ const styles =
     },
     reportTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize: 20,
     },
     reportSubtitle: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -10623,7 +10372,7 @@ const styles =
       height: 34,
       borderRadius: 17,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10635,7 +10384,7 @@ const styles =
         'hidden',
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
     reportReasonButton: {
       minHeight: 54,
@@ -10645,22 +10394,22 @@ const styles =
         'center',
       paddingHorizontal: 12,
       backgroundColor:
-        COLORS.background,
+        colors.background,
       borderBottomWidth:
         StyleSheet.hairlineWidth,
       borderBottomColor:
-        COLORS.border,
+        colors.border,
     },
     reportReasonButtonPressed: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     reportReasonIcon: {
       width: 32,
       height: 32,
       borderRadius: 16,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -10670,14 +10419,14 @@ const styles =
     reportReasonText: {
       flex: 1,
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 13,
     },
     reportPrivacyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 10,
@@ -10732,7 +10481,7 @@ const styles =
       flex:
         1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
       borderTopLeftRadius:
         26,
       borderTopRightRadius:
@@ -10746,7 +10495,7 @@ const styles =
       minHeight:
         66,
       backgroundColor:
-        COLORS.background,
+        colors.background,
       paddingBottom:
         7,
     },
@@ -10760,7 +10509,7 @@ const styles =
       borderRadius:
         2,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       marginTop:
         9,
       marginBottom:
@@ -10778,7 +10527,7 @@ const styles =
     },
     commentsSheetTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -10802,7 +10551,7 @@ const styles =
       flex:
         1,
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -10812,7 +10561,7 @@ const styles =
     },
     commentsIdentityName: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -10840,7 +10589,7 @@ const styles =
     },
     commentsSortTriggerText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -10860,9 +10609,9 @@ const styles =
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       shadowColor:
         '#000000',
       shadowOpacity:
@@ -10908,7 +10657,7 @@ const styles =
     },
     commentsSortMenuTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -10916,7 +10665,7 @@ const styles =
     },
     commentsSortMenuSubtitle: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -10930,7 +10679,7 @@ const styles =
       marginLeft:
         35,
       backgroundColor:
-        COLORS.border,
+        colors.border,
     },
     commentsSideRail: {
       position:
@@ -11004,7 +10753,7 @@ const styles =
     },
     commentsEmptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11014,7 +10763,7 @@ const styles =
     },
     commentsEmptyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11060,7 +10809,7 @@ const styles =
       borderRadius:
         2,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       zIndex:
         2,
     },
@@ -11072,7 +10821,7 @@ const styles =
     },
     sheetCommentPressed: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     sheetCommentAvatarButton: {
       marginRight:
@@ -11086,7 +10835,7 @@ const styles =
       borderRadius:
         17,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     sheetCommentAvatarFallback: {
       width:
@@ -11096,7 +10845,7 @@ const styles =
       borderRadius:
         17,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -11104,7 +10853,7 @@ const styles =
     },
     sheetCommentAvatarText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -11136,7 +10885,7 @@ const styles =
     },
     sheetCommentName: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -11146,7 +10895,7 @@ const styles =
     },
     sheetCommentUsername: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11156,7 +10905,7 @@ const styles =
     },
     sheetCommentTime: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11166,7 +10915,7 @@ const styles =
     },
     sheetCommentBody: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11208,13 +10957,13 @@ const styles =
     },
     commentVoteButtonActive: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     commentVoteScore: {
       minWidth:
         18,
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11224,7 +10973,7 @@ const styles =
     },
     commentVoteScoreActive: {
       color:
-        COLORS.gold,
+        colors.gold,
     },
     sheetReplyButton: {
       minHeight:
@@ -11234,7 +10983,7 @@ const styles =
     },
     sheetReplyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11248,7 +10997,7 @@ const styles =
     },
     sheetDeleteText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11264,7 +11013,7 @@ const styles =
     },
     sheetReportText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11292,11 +11041,11 @@ const styles =
       height:
         1,
       backgroundColor:
-        COLORS.border,
+        colors.border,
     },
     viewMoreRepliesText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11304,7 +11053,7 @@ const styles =
     },
     commentsComposerWrap: {
       backgroundColor:
-        COLORS.background,
+        colors.background,
       paddingHorizontal:
         14,
       paddingTop:
@@ -11326,7 +11075,7 @@ const styles =
       borderRadius:
         21,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       marginBottom:
         5,
     },
@@ -11338,7 +11087,7 @@ const styles =
       borderRadius:
         21,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -11348,7 +11097,7 @@ const styles =
     },
     commentsComposerAvatarText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -11372,7 +11121,7 @@ const styles =
       flex:
         1,
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize:
@@ -11402,11 +11151,11 @@ const styles =
       alignItems:
         'flex-end',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         20,
       paddingLeft:
@@ -11424,7 +11173,7 @@ const styles =
       maxHeight:
         108,
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11446,7 +11195,7 @@ const styles =
       borderRadius:
         20,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -11455,66 +11204,6 @@ const styles =
     commentsSendButtonDisabled: {
       opacity:
         0.35,
-    },
-    blockedCommentCard: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      borderWidth:
-        1,
-      borderColor:
-        COLORS.border,
-      backgroundColor:
-        COLORS.elevated,
-      borderRadius:
-        14,
-      paddingHorizontal:
-        12,
-      paddingVertical:
-        11,
-      marginVertical:
-        4,
-    },
-    blockedCommentIcon: {
-      width:
-        30,
-      height:
-        30,
-      borderRadius:
-        10,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        COLORS.surface,
-      marginRight:
-        10,
-    },
-    blockedCommentCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
-    },
-    blockedCommentTitle: {
-      color:
-        COLORS.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12.5,
-    },
-    blockedCommentText: {
-      color:
-        COLORS.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        11.5,
-      marginTop:
-        2,
     },
     pressed: {
       opacity: 0.68,
@@ -11551,7 +11240,7 @@ const styles =
       alignSelf:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderTopLeftRadius:
         24,
       borderTopRightRadius:
@@ -11565,7 +11254,7 @@ const styles =
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
     },
     longPressCommentActionHandle: {
       width:
@@ -11575,7 +11264,7 @@ const styles =
       borderRadius:
         2,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       alignSelf:
         'center',
       marginBottom:
@@ -11583,7 +11272,7 @@ const styles =
     },
     longPressCommentActionTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -11593,7 +11282,7 @@ const styles =
     },
     longPressCommentActionHint: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -11613,9 +11302,9 @@ const styles =
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     longPressCommentActionRow: {
       minHeight:
@@ -11627,11 +11316,11 @@ const styles =
       paddingHorizontal:
         13,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
     longPressCommentActionRowPressed: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     longPressCommentActionIcon: {
       width:
@@ -11641,7 +11330,7 @@ const styles =
       borderRadius:
         12,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -11657,7 +11346,7 @@ const styles =
       flex:
         1,
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -11665,13 +11354,13 @@ const styles =
     },
     longPressCommentActionDangerText: {
       color:
-        COLORS.danger,
+        colors.danger,
     },
     longPressCommentActionDivider: {
       height:
         StyleSheet.hairlineWidth,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       marginLeft:
         61,
     },
@@ -11687,14 +11376,15 @@ const styles =
       borderRadius:
         14,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
     longPressCommentActionCancelText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
         13,
     },
-  });
+    });
+}

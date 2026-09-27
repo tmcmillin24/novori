@@ -1,118 +1,245 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import {
-    createContext,
-    PropsWithChildren,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from 'react';
-
 import { Appearance } from 'react-native';
 
 import {
-    DARK_COLORS,
-    LIGHT_COLORS,
-    NovoriColors,
-    NovoriThemeName,
+  getNovoriColors,
+  NovoriColors,
+  NovoriReadingThemeName,
+  NovoriThemeName,
 } from '../constants/novori-theme';
 
-const STORAGE_KEY = 'novori-theme';
+const THEME_STORAGE_KEY =
+  'novori-theme';
+
+const READING_THEME_STORAGE_KEY =
+  'novori-reading-theme';
 
 type ThemeContextValue = {
   theme: NovoriThemeName;
+  readingTheme: NovoriReadingThemeName;
   colors: NovoriColors;
-  setTheme: (theme: NovoriThemeName) => Promise<void>;
+  setTheme: (
+    theme: NovoriThemeName
+  ) => Promise<void>;
+  setReadingTheme: (
+    readingTheme:
+      NovoriReadingThemeName
+  ) => Promise<void>;
   ready: boolean;
 };
 
 const ThemeContext =
-  createContext<ThemeContextValue | null>(null);
+  createContext<ThemeContextValue | null>(
+    null
+  );
+
+function isReadingTheme(
+  value: string | null
+): value is NovoriReadingThemeName {
+  return [
+    'classic',
+    'fantasy',
+    'romance',
+    'scifi',
+    'history',
+    'mystery',
+    'horror',
+  ].includes(
+    value ?? ''
+  );
+}
 
 export function NovoriThemeProvider({
   children,
 }: PropsWithChildren) {
-  const [theme, setThemeState] =
-    useState<NovoriThemeName>('dark');
+  const [
+    theme,
+    setThemeState,
+  ] =
+    useState<NovoriThemeName>(
+      'dark'
+    );
 
-  const [ready, setReady] = useState(false);
+  const [
+    readingTheme,
+    setReadingThemeState,
+  ] =
+    useState<NovoriReadingThemeName>(
+      'classic'
+    );
 
-  useEffect(() => {
-    let mounted = true;
+  const [
+    ready,
+    setReady,
+  ] =
+    useState(false);
 
-    async function loadTheme() {
-      try {
-        const savedTheme =
-          await AsyncStorage.getItem(STORAGE_KEY);
+  useEffect(
+    () => {
+      let mounted =
+        true;
 
-        const nextTheme: NovoriThemeName =
-          savedTheme === 'light'
-            ? 'light'
-            : 'dark';
+      async function loadTheme() {
+        try {
+          const [
+            savedTheme,
+            savedReadingTheme,
+          ] =
+            await Promise.all([
+              AsyncStorage.getItem(
+                THEME_STORAGE_KEY
+              ),
+              AsyncStorage.getItem(
+                READING_THEME_STORAGE_KEY
+              ),
+            ]);
 
-        Appearance.setColorScheme(nextTheme);
+          const nextTheme:
+            NovoriThemeName =
+              savedTheme ===
+              'light'
+                ? 'light'
+                : 'dark';
 
-        if (mounted) {
-          setThemeState(nextTheme);
-        }
-      } catch {
-        Appearance.setColorScheme('dark');
+          const nextReadingTheme:
+            NovoriReadingThemeName =
+              isReadingTheme(
+                savedReadingTheme
+              )
+                ? savedReadingTheme
+                : 'classic';
 
-        if (mounted) {
-          setThemeState('dark');
-        }
-      } finally {
-        if (mounted) {
-          setReady(true);
+          Appearance.setColorScheme(
+            nextTheme
+          );
+
+          if (mounted) {
+            setThemeState(
+              nextTheme
+            );
+            setReadingThemeState(
+              nextReadingTheme
+            );
+          }
+        } catch {
+          Appearance.setColorScheme(
+            'dark'
+          );
+
+          if (mounted) {
+            setThemeState(
+              'dark'
+            );
+            setReadingThemeState(
+              'classic'
+            );
+          }
+        } finally {
+          if (mounted) {
+            setReady(
+              true
+            );
+          }
         }
       }
-    }
 
-    loadTheme();
+      void loadTheme();
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      return () => {
+        mounted =
+          false;
+      };
+    },
+    []
+  );
 
   async function setTheme(
-    nextTheme: NovoriThemeName
+    nextTheme:
+      NovoriThemeName
   ) {
-    setThemeState(nextTheme);
+    setThemeState(
+      nextTheme
+    );
 
-    Appearance.setColorScheme(nextTheme);
+    Appearance.setColorScheme(
+      nextTheme
+    );
 
     await AsyncStorage.setItem(
-      STORAGE_KEY,
+      THEME_STORAGE_KEY,
       nextTheme
     );
   }
 
-  const colors =
-    theme === 'light'
-      ? LIGHT_COLORS
-      : DARK_COLORS;
+  async function setReadingTheme(
+    nextReadingTheme:
+      NovoriReadingThemeName
+  ) {
+    setReadingThemeState(
+      nextReadingTheme
+    );
 
-  const value = useMemo(
-    () => ({
-      theme,
-      colors,
-      setTheme,
-      ready,
-    }),
-    [theme, colors, ready]
-  );
+    await AsyncStorage.setItem(
+      READING_THEME_STORAGE_KEY,
+      nextReadingTheme
+    );
+  }
+
+  const colors =
+    useMemo(
+      () =>
+        getNovoriColors(
+          theme,
+          readingTheme
+        ),
+      [
+        theme,
+        readingTheme,
+      ]
+    );
+
+  const value =
+    useMemo(
+      () => ({
+        theme,
+        readingTheme,
+        colors,
+        setTheme,
+        setReadingTheme,
+        ready,
+      }),
+      [
+        theme,
+        readingTheme,
+        colors,
+        ready,
+      ]
+    );
 
   return (
-    <ThemeContext.Provider value={value}>
+    <ThemeContext.Provider
+      value={
+        value
+      }
+    >
       {children}
     </ThemeContext.Provider>
   );
 }
 
 export function useNovoriTheme() {
-  const context = useContext(ThemeContext);
+  const context =
+    useContext(
+      ThemeContext
+    );
 
   if (!context) {
     throw new Error(

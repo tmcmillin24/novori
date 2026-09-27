@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../constants/novori-theme';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 import { supabase } from '../lib/supabase';
 
 type AuthMode = 'sign-in' | 'sign-up';
@@ -25,6 +26,8 @@ const USERNAME_MAX_LENGTH = 20;
 const USERNAME_PATTERN = /^[a-z0-9._]+$/;
 
 export default function AuthScreen() {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
 
   const [mode, setMode] =
@@ -380,7 +383,7 @@ export default function AuthScreen() {
                   }
                   placeholder="Display name"
                   placeholderTextColor={
-                    COLORS.mutedText
+                    colors.mutedText
                   }
                   value={
                     displayName
@@ -422,7 +425,7 @@ export default function AuthScreen() {
                     }
                     placeholder="username"
                     placeholderTextColor={
-                      COLORS.mutedText
+                      colors.mutedText
                     }
                     value={
                       username
@@ -470,7 +473,7 @@ export default function AuthScreen() {
               }
               placeholder="Email"
               placeholderTextColor={
-                COLORS.mutedText
+                colors.mutedText
               }
               value={
                 email
@@ -494,7 +497,7 @@ export default function AuthScreen() {
               ]}
               placeholder="Password"
               placeholderTextColor={
-                COLORS.mutedText
+                colors.mutedText
               }
               value={
                 password
@@ -521,7 +524,7 @@ export default function AuthScreen() {
                 }
                 placeholder="Confirm password"
                 placeholderTextColor={
-                  COLORS.mutedText
+                  colors.mutedText
                 }
                 value={
                   confirmPassword
@@ -590,7 +593,7 @@ export default function AuthScreen() {
                 <ActivityIndicator
                   size="small"
                   color={
-                    COLORS.background
+                    colors.background
                   }
                 />
               ) : (
@@ -645,12 +648,11 @@ export default function AuthScreen() {
   );
 }
 
-const styles =
-  StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
     safeArea: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
 
     keyboardView: {
@@ -680,7 +682,7 @@ const styles =
 
     logo: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize:
         46,
       fontFamily:
@@ -691,7 +693,7 @@ const styles =
 
     slogan: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize:
         15,
       fontFamily:
@@ -707,7 +709,7 @@ const styles =
 
     title: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize:
         28,
       fontFamily:
@@ -718,7 +720,7 @@ const styles =
 
     subtitle: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize:
         14,
       lineHeight:
@@ -737,13 +739,13 @@ const styles =
       minHeight:
         52,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       color:
-        COLORS.text,
+        colors.text,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         14,
       paddingHorizontal:
@@ -776,7 +778,7 @@ const styles =
 
     forgotText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize:
         12,
       fontFamily:
@@ -787,11 +789,11 @@ const styles =
       minHeight:
         52,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius:
         14,
       flexDirection:
@@ -804,7 +806,7 @@ const styles =
 
     atSymbol: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize:
         15,
       fontFamily:
@@ -818,7 +820,7 @@ const styles =
       minHeight:
         50,
       color:
-        COLORS.text,
+        colors.text,
       fontSize:
         15,
       fontFamily:
@@ -829,7 +831,7 @@ const styles =
 
     usernameHelp: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize:
         12,
       lineHeight:
@@ -850,7 +852,7 @@ const styles =
       borderRadius:
         14,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -861,7 +863,7 @@ const styles =
 
     primaryButtonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontSize:
         15,
       fontFamily:
@@ -881,7 +883,7 @@ const styles =
 
     switchText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize:
         14,
       fontFamily:
@@ -890,7 +892,7 @@ const styles =
 
     switchTextGold: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontFamily:
         'Inter_600SemiBold',
     },

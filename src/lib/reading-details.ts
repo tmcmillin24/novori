@@ -1,9 +1,9 @@
 import { supabase } from './supabase';
 import {
-    getUserBook,
-    updateBookReadingDates,
-    UserBook,
-    UserBookStatus,
+  getUserBook,
+  updateBookReadingDates,
+  UserBook,
+  UserBookStatus,
 } from './user-books';
 
 export type ReadingSession = {
@@ -38,7 +38,10 @@ export type ReadingNote = {
   page_number: number | null;
   progress_percent: number | null;
   chapter: string | null;
+  audio_position_seconds: number | null;
   is_pinned: boolean;
+  source_type: 'reading_update' | null;
+  source_post_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -65,7 +68,17 @@ type NoteInput = {
   pageNumber?: number | null;
   progressPercent?: number | null;
   chapter?: string | null;
+  audioPositionSeconds?: number | null;
 };
+
+function validateAudioPosition(seconds: number | null | undefined) {
+  if (
+    seconds != null &&
+    (!Number.isSafeInteger(seconds) || seconds < 0)
+  ) {
+    throw new Error('Enter an audio timestamp like 1:23:45 or 23:45.');
+  }
+}
 
 async function requireUser() {
   const {
@@ -131,6 +144,10 @@ function normalizeNote(
         : Number(
             row.progress_percent
           ),
+    audio_position_seconds:
+      row.audio_position_seconds == null
+        ? null
+        : Number(row.audio_position_seconds),
     is_pinned:
       Boolean(
         row.is_pinned
@@ -455,6 +472,8 @@ export async function addReadingNote(
   const body =
     input.body.trim();
 
+  validateAudioPosition(input.audioPositionSeconds);
+
   if (!body) {
     throw new Error(
       'Write something before saving your note.'
@@ -527,6 +546,8 @@ export async function addReadingNote(
           input.chapter
             ?.trim() ||
           null,
+        audio_position_seconds:
+          input.audioPositionSeconds ?? null,
       })
       .select('*')
       .single();
@@ -538,6 +559,163 @@ export async function addReadingNote(
   return normalizeNote(
     data
   );
+}
+
+
+export async function updateReadingNote(
+  noteId: string,
+  sessionId: string,
+  input: NoteInput
+): Promise<ReadingNote> {
+  const user = await requireUser();
+
+  const body =
+    input.body.trim();
+
+  validateAudioPosition(input.audioPositionSeconds);
+
+  if (!body) {
+    throw new Error(
+      'Write something before saving your note.'
+    );
+  }
+
+  if (
+    body.length >
+    5000
+  ) {
+    throw new Error(
+      'Notes can be up to 5,000 characters.'
+    );
+  }
+
+  const pageNumber =
+    input.pageNumber ??
+    null;
+
+  const progressPercent =
+    input.progressPercent ??
+    null;
+
+  if (
+    pageNumber !== null &&
+    (
+      !Number.isInteger(
+        pageNumber
+      ) ||
+      pageNumber < 1
+    )
+  ) {
+    throw new Error(
+      'Page number must be a whole number greater than 0.'
+    );
+  }
+
+  if (
+    progressPercent !==
+      null &&
+    (
+      progressPercent < 0 ||
+      progressPercent > 100
+    )
+  ) {
+    throw new Error(
+      'Percentage must be between 0 and 100.'
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('reading_notes')
+    .update({
+      body,
+      page_number: pageNumber,
+      progress_percent: progressPercent,
+      chapter: input.chapter?.trim() || null,
+      audio_position_seconds: input.audioPositionSeconds ?? null,
+    })
+    .eq('id', noteId)
+    .eq('session_id', sessionId)
+    .eq('user_id', user.id)
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    throw new Error(
+      'Could not update this note.'
+    );
+  }
+
+  return normalizeNote(
+    row
+  );
+}
+
+export async function deleteReadingNote(
+  noteId: string,
+  sessionId: string
+): Promise<string> {
+  const user =
+    await requireUser();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from(
+        'reading_notes'
+      )
+      .delete()
+      .eq(
+        'id',
+        noteId
+      )
+      .eq(
+        'session_id',
+        sessionId
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .select('id')
+      .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data.id as string;
+}
+
+export async function deleteReadingCheckpoint(
+  checkpointId: string,
+  sessionId: string
+): Promise<string> {
+  await requireUser();
+
+  const { data, error } = await supabase.rpc(
+    'delete_reading_checkpoint',
+    {
+      target_checkpoint_id: checkpointId,
+      target_session_id: sessionId,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return String(data);
 }
 
 

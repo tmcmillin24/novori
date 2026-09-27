@@ -5039,11 +5039,11 @@ function createStyles(
       paddingVertical:
         15,
       backgroundColor:
-        'rgba(68,68,68,0.94)',
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        'rgba(255,255,255,0.10)',
+        colors.border,
     },
     explicitWarningHeading: {
       flexDirection:
@@ -5055,7 +5055,7 @@ function createStyles(
     },
     explicitWarningTitle: {
       color:
-        '#FFFFFF',
+        colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -5065,7 +5065,7 @@ function createStyles(
     },
     explicitWarningText: {
       color:
-        '#F2F2F2',
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -5103,11 +5103,11 @@ function createStyles(
       justifyContent:
         'center',
       backgroundColor:
-        'rgba(255,255,255,0.12)',
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        'rgba(255,255,255,0.24)',
+        colors.border,
     },
     explicitWarningButtonPrimary: {
       backgroundColor:
@@ -5117,7 +5117,7 @@ function createStyles(
     },
     explicitWarningButtonText: {
       color:
-        '#FFFFFF',
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
@@ -5125,7 +5125,7 @@ function createStyles(
     },
     explicitWarningButtonPrimaryText: {
       color:
-        '#161616',
+        colors.background,
     },
     commentFooter: {
       flexDirection:

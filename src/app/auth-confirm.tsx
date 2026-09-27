@@ -19,9 +19,8 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import {
-  COLORS,
-} from '../constants/novori-theme';
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
 import {
   supabase,
 } from '../lib/supabase';
@@ -158,6 +157,8 @@ function getUrlParams(
 }
 
 export default function AuthConfirmScreen() {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   const router =
     useRouter();
 
@@ -745,7 +746,7 @@ export default function AuthConfirmScreen() {
           <ActivityIndicator
             size="large"
             color={
-              COLORS.gold
+              colors.gold
             }
           />
         ) : (
@@ -811,13 +812,12 @@ export default function AuthConfirmScreen() {
   );
 }
 
-const styles =
-  StyleSheet.create({
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
     safeArea: {
       flex:
         1,
       backgroundColor:
-        COLORS.background,
+        colors.background,
     },
 
     content: {
@@ -847,11 +847,11 @@ const styles =
       borderRadius:
         32,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth:
         1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -860,7 +860,7 @@ const styles =
 
     errorIconText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -869,7 +869,7 @@ const styles =
 
     title: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
@@ -882,7 +882,7 @@ const styles =
 
     message: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize:
@@ -905,7 +905,7 @@ const styles =
       borderRadius:
         14,
       backgroundColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -916,7 +916,7 @@ const styles =
 
     buttonText: {
       color:
-        COLORS.background,
+        colors.background,
       fontFamily:
         'Inter_700Bold',
       fontSize:

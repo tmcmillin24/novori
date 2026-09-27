@@ -21,15 +21,11 @@ import {
   TabScreen,
 } from '../../components/tab-screen';
 import {
-  COLORS,
+  NovoriColors,
 } from '../../constants/novori-theme';
 import {
-  ClubWithMembership,
-  getMyClubs,
-} from '../../lib/clubs';
-import {
-  getFollowCounts,
-} from '../../lib/feed';
+  useNovoriTheme,
+} from '../../context/theme-context';
 import {
   supabase,
 } from '../../lib/supabase';
@@ -52,6 +48,16 @@ type Profile = {
 };
 
 export default function ProfileScreen() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
   const router = useRouter();
 
   const [
@@ -77,26 +83,6 @@ export default function ProfileScreen() {
     useState<UserBook[]>(
       []
     );
-
-  const [
-    clubs,
-    setClubs,
-  ] =
-    useState<ClubWithMembership[]>(
-      []
-    );
-
-  const [
-    followerCount,
-    setFollowerCount,
-  ] =
-    useState(0);
-
-  const [
-    followingCount,
-    setFollowingCount,
-  ] =
-    useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -156,42 +142,6 @@ export default function ProfileScreen() {
         }
 
         try {
-          const counts =
-            await getFollowCounts(
-              user.id
-            );
-
-          if (
-            isMounted
-          ) {
-            setFollowerCount(
-              counts.followers
-            );
-            setFollowingCount(
-              counts.following
-            );
-          }
-        } catch (
-          followError
-        ) {
-          console.error(
-            'Could not load follow counts:',
-            followError
-          );
-
-          if (
-            isMounted
-          ) {
-            setFollowerCount(
-              0
-            );
-            setFollowingCount(
-              0
-            );
-          }
-        }
-
-        try {
           const savedBooks =
             await getUserBooks();
 
@@ -214,34 +164,6 @@ export default function ProfileScreen() {
             isMounted
           ) {
             setBooks(
-              []
-            );
-          }
-        }
-
-        try {
-          const joinedClubs =
-            await getMyClubs();
-
-          if (
-            isMounted
-          ) {
-            setClubs(
-              joinedClubs
-            );
-          }
-        } catch (
-          clubError
-        ) {
-          console.error(
-            'Could not load profile clubs:',
-            clubError
-          );
-
-          if (
-            isMounted
-          ) {
-            setClubs(
               []
             );
           }
@@ -409,43 +331,6 @@ export default function ProfileScreen() {
     });
   }
 
-  function openClub(
-    clubId: string
-  ) {
-    router.push({
-      pathname:
-        '/club/[id]',
-      params: {
-        id:
-          clubId,
-      },
-    });
-  }
-
-  function openConnections(
-    mode:
-      | 'followers'
-      | 'following'
-  ) {
-    if (
-      !profile
-    ) {
-      return;
-    }
-
-    router.push({
-      pathname:
-        '/reader-connections',
-      params: {
-        readerId:
-          profile.id,
-        mode,
-        name:
-          displayName,
-      },
-    });
-  }
-
   function renderRating(
     rating: number
   ) {
@@ -542,7 +427,7 @@ export default function ProfileScreen() {
                   16
                 }
                 color={
-                  COLORS.softGold
+                  colors.softGold
                 }
               />
             </Pressable>
@@ -599,7 +484,7 @@ export default function ProfileScreen() {
                           24
                         }
                         color={
-                          COLORS.gold
+                          colors.gold
                         }
                       />
                     </View>
@@ -679,7 +564,7 @@ export default function ProfileScreen() {
                   23
                 }
                 color={
-                  COLORS.gold
+                  colors.gold
                 }
               />
             </View>
@@ -795,7 +680,7 @@ export default function ProfileScreen() {
                         27
                       }
                       color={
-                        COLORS.gold
+                        colors.gold
                       }
                     />
                   </View>
@@ -845,7 +730,7 @@ export default function ProfileScreen() {
                       11
                     }
                     color={
-                      COLORS.gold
+                      colors.gold
                     }
                   />
 
@@ -959,7 +844,7 @@ export default function ProfileScreen() {
                         20
                       }
                       color={
-                        COLORS.gold
+                        colors.gold
                       }
                     />
                   </View>
@@ -1013,7 +898,7 @@ export default function ProfileScreen() {
                             14
                           }
                           color={
-                            COLORS.gold
+                            colors.gold
                           }
                         />
 
@@ -1073,40 +958,24 @@ export default function ProfileScreen() {
     );
   }
 
-  function renderClubsTab() {
+  function renderTabContent() {
     if (
-      clubs.length ===
-      0
+      activeTab ===
+      'reviews'
+    ) {
+      return renderReviewsTab();
+    }
+
+    if (
+      activeTab ===
+      'clubs'
     ) {
       return (
-        <Pressable
-          onPress={() =>
-            router.push(
-              '/create-club'
-            )
+        <View
+          style={
+            styles.emptyActivity
           }
-          style={({ pressed }) => [
-            styles.emptyActivity,
-            pressed &&
-              styles.pressed,
-          ]}
         >
-          <View
-            style={
-              styles.emptyClubIcon
-            }
-          >
-            <Ionicons
-              name="people-outline"
-              size={
-                24
-              }
-              color={
-                COLORS.gold
-              }
-            />
-          </View>
-
           <Text
             style={
               styles.emptyActivityTitle
@@ -1120,181 +989,10 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Join a public club or create your own reading community.
+            Clubs you join or create will appear on your profile.
           </Text>
-
-          <Text
-            style={
-              styles.emptyClubAction
-            }
-          >
-            Create a Club
-          </Text>
-        </Pressable>
+        </View>
       );
-    }
-
-    return (
-      <View
-        style={
-          styles.profileClubList
-        }
-      >
-        {clubs.map(
-          (
-            club
-          ) => {
-            const initial =
-              club.name
-                .charAt(0)
-                .toUpperCase();
-
-            return (
-              <Pressable
-                key={
-                  club.id
-                }
-                onPress={() =>
-                  openClub(
-                    club.id
-                  )
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.profileClubCard,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                {club.cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        club.cover_url,
-                    }}
-                    style={
-                      styles.profileClubImage
-                    }
-                  />
-                ) : (
-                  <View
-                    style={
-                      styles.profileClubImageFallback
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.profileClubInitial
-                      }
-                    >
-                      {initial}
-                    </Text>
-                  </View>
-                )}
-
-                <View
-                  style={
-                    styles.profileClubCopy
-                  }
-                >
-                  <Text
-                    style={
-                      styles.profileClubName
-                    }
-                    numberOfLines={
-                      1
-                    }
-                  >
-                    {club.name}
-                  </Text>
-
-                  <View
-                    style={
-                      styles.profileClubMeta
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        club.privacy ===
-                        'public'
-                          ? 'earth-outline'
-                          : 'lock-closed-outline'
-                      }
-                      size={
-                        11
-                      }
-                      color={
-                        COLORS.mutedText
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.profileClubMetaText
-                      }
-                    >
-                      {club.member_count}{' '}
-                      {club.member_count ===
-                      1
-                        ? 'member'
-                        : 'members'}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.profileClubMetaText
-                      }
-                    >
-                      •
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.profileClubRole
-                      }
-                    >
-                      {club.membership_role ===
-                      'owner'
-                        ? 'Owner'
-                        : club.membership_role ===
-                          'admin'
-                        ? 'Admin'
-                        : 'Member'}
-                    </Text>
-                  </View>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={
-                    18
-                  }
-                  color={
-                    COLORS.mutedText
-                  }
-                />
-              </Pressable>
-            );
-          }
-        )}
-      </View>
-    );
-  }
-
-  function renderTabContent() {
-    if (
-      activeTab ===
-      'reviews'
-    ) {
-      return renderReviewsTab();
-    }
-
-    if (
-      activeTab ===
-      'clubs'
-    ) {
-      return renderClubsTab();
     }
 
     return renderBooksTab();
@@ -1336,7 +1034,7 @@ export default function ProfileScreen() {
               23
             }
             color={
-              COLORS.text
+              colors.text
             }
           />
         </Pressable>
@@ -1447,8 +1145,9 @@ export default function ProfileScreen() {
               styles.pressed,
           ]}
           onPress={() =>
-            openConnections(
-              'followers'
+            Alert.alert(
+              'Followers',
+              'Your followers list will open here.'
             )
           }
         >
@@ -1457,9 +1156,7 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            {
-              followerCount
-            }
+            0
           </Text>
 
           <Text
@@ -1480,8 +1177,9 @@ export default function ProfileScreen() {
               styles.pressed,
           ]}
           onPress={() =>
-            openConnections(
-              'following'
+            Alert.alert(
+              'Following',
+              'The readers you follow will open here.'
             )
           }
         >
@@ -1490,9 +1188,7 @@ export default function ProfileScreen() {
               styles.statNumber
             }
           >
-            {
-              followingCount
-            }
+            0
           </Text>
 
           <Text
@@ -1636,6 +1332,8 @@ function ProfileTabButton({
   active: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
   return (
     <Pressable
       onPress={
@@ -1660,8 +1358,8 @@ function ProfileTabButton({
         }
         color={
           active
-            ? COLORS.gold
-            : COLORS.mutedText
+            ? colors.gold
+            : colors.mutedText
         }
       />
 
@@ -1678,8 +1376,10 @@ function ProfileTabButton({
   );
 }
 
-const styles =
-  StyleSheet.create({
+function createStyles(
+  colors: NovoriColors
+) {
+  return StyleSheet.create({
     topBar: {
       minHeight: 34,
       flexDirection:
@@ -1715,10 +1415,10 @@ const styles =
       height: 86,
       borderRadius: 43,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth: 2,
       borderColor:
-        COLORS.gold,
+        colors.gold,
       alignItems:
         'center',
       justifyContent:
@@ -1731,14 +1431,14 @@ const styles =
       borderRadius: 43,
       borderWidth: 2,
       borderColor:
-        COLORS.gold,
+        colors.gold,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     avatarText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontSize: 35,
       fontFamily:
         'Inter_700Bold',
@@ -1746,7 +1446,7 @@ const styles =
 
     name: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 24,
       fontFamily:
         'PlayfairDisplay_700Bold',
@@ -1755,7 +1455,7 @@ const styles =
 
     username: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 14,
       fontFamily:
         'Inter_400Regular',
@@ -1764,7 +1464,7 @@ const styles =
 
     bio: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontSize: 14,
       lineHeight: 20,
       fontFamily:
@@ -1793,7 +1493,7 @@ const styles =
 
     statNumber: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 20,
       fontFamily:
         'Inter_700Bold',
@@ -1801,7 +1501,7 @@ const styles =
 
     statLabel: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontSize: 12,
       fontFamily:
         'Inter_400Regular',
@@ -1820,9 +1520,9 @@ const styles =
       borderRadius: 12,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       alignItems:
         'center',
       justifyContent:
@@ -1831,7 +1531,7 @@ const styles =
 
     actionButtonText: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 13,
@@ -1844,7 +1544,7 @@ const styles =
     divider: {
       height: 1,
       backgroundColor:
-        COLORS.border,
+        colors.border,
       marginVertical: 18,
     },
 
@@ -1865,7 +1565,7 @@ const styles =
 
     sectionTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontSize: 20,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
@@ -1873,7 +1573,7 @@ const styles =
 
     sectionSubtitle: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
@@ -1890,7 +1590,7 @@ const styles =
 
     sectionAction: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 12,
       fontFamily:
         'Inter_600SemiBold',
@@ -1913,7 +1613,7 @@ const styles =
       height: 112,
       borderRadius: 8,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     readingPreviewPlaceholder: {
@@ -1921,10 +1621,10 @@ const styles =
       height: 112,
       borderRadius: 8,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -1933,7 +1633,7 @@ const styles =
 
     readingPreviewTitle: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
@@ -1952,10 +1652,10 @@ const styles =
       height: 52,
       borderRadius: 26,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -1964,7 +1664,7 @@ const styles =
 
     moreReadingBadgeText: {
       color:
-        COLORS.softGold,
+        colors.softGold,
       fontSize: 15,
       fontFamily:
         'Inter_700Bold',
@@ -1972,7 +1672,7 @@ const styles =
 
     moreReadingText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
@@ -1985,10 +1685,10 @@ const styles =
       alignItems:
         'center',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 14,
       padding: 14,
     },
@@ -1998,7 +1698,7 @@ const styles =
       height: 48,
       borderRadius: 14,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -2012,7 +1712,7 @@ const styles =
 
     emptyTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
@@ -2020,7 +1720,7 @@ const styles =
 
     emptyText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -2032,10 +1732,10 @@ const styles =
       flexDirection:
         'row',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 14,
       padding: 4,
       gap: 4,
@@ -2056,12 +1756,12 @@ const styles =
 
     profileTabActive: {
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
     },
 
     profileTabText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 12,
@@ -2069,7 +1769,7 @@ const styles =
 
     profileTabTextActive: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 12,
@@ -2084,7 +1784,7 @@ const styles =
 
     emptyActivityTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
       fontSize: 19,
@@ -2094,7 +1794,7 @@ const styles =
 
     emptyActivityText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 13,
@@ -2102,117 +1802,6 @@ const styles =
       textAlign:
         'center',
       marginTop: 7,
-    },
-
-    emptyClubIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 16,
-      backgroundColor:
-        COLORS.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginBottom: 13,
-    },
-
-    emptyClubAction: {
-      color:
-        COLORS.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 12,
-      marginTop: 13,
-    },
-
-    profileClubList: {
-      gap: 10,
-      marginTop: 18,
-    },
-
-    profileClubCard: {
-      minHeight: 76,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      backgroundColor:
-        COLORS.surface,
-      borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      borderRadius: 16,
-      padding: 11,
-    },
-
-    profileClubImage: {
-      width: 52,
-      height: 52,
-      borderRadius: 14,
-      backgroundColor:
-        COLORS.elevated,
-      marginRight: 12,
-    },
-
-    profileClubImageFallback: {
-      width: 52,
-      height: 52,
-      borderRadius: 14,
-      backgroundColor:
-        COLORS.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight: 12,
-    },
-
-    profileClubInitial: {
-      color:
-        COLORS.gold,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize: 22,
-    },
-
-    profileClubCopy: {
-      flex: 1,
-      minWidth: 0,
-      paddingRight: 8,
-    },
-
-    profileClubName: {
-      color:
-        COLORS.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 14,
-    },
-
-    profileClubMeta: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 4,
-      marginTop: 5,
-    },
-
-    profileClubMetaText: {
-      color:
-        COLORS.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 10,
-    },
-
-    profileClubRole: {
-      color:
-        COLORS.softGold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 10,
     },
 
     bookGrid: {
@@ -2237,10 +1826,10 @@ const styles =
       borderRadius: 9,
       overflow: 'hidden',
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       position: 'relative',
     },
 
@@ -2254,7 +1843,7 @@ const styles =
     gridCoverPlaceholder: {
       flex: 1,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -2270,15 +1859,15 @@ const styles =
       paddingHorizontal: 7,
       paddingVertical: 4,
       backgroundColor:
-        COLORS.background,
+        colors.background,
       borderWidth: 1,
       borderColor:
-        COLORS.danger,
+        colors.danger,
     },
 
     gridDnfBadgeText: {
       color:
-        COLORS.danger,
+        colors.danger,
       fontFamily:
         'Inter_700Bold',
       fontSize: 8,
@@ -2287,7 +1876,7 @@ const styles =
 
     gridBookTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 11,
@@ -2305,7 +1894,7 @@ const styles =
 
     gridRatingText: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 10,
@@ -2324,10 +1913,10 @@ const styles =
 
     reviewCard: {
       backgroundColor:
-        COLORS.surface,
+        colors.surface,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       borderRadius: 16,
       padding: 14,
     },
@@ -2344,7 +1933,7 @@ const styles =
       height: 66,
       borderRadius: 6,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       marginRight: 11,
     },
 
@@ -2353,10 +1942,10 @@ const styles =
       height: 66,
       borderRadius: 6,
       backgroundColor:
-        COLORS.elevated,
+        colors.elevated,
       borderWidth: 1,
       borderColor:
-        COLORS.border,
+        colors.border,
       alignItems:
         'center',
       justifyContent:
@@ -2370,7 +1959,7 @@ const styles =
 
     reviewBookTitle: {
       color:
-        COLORS.text,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 14,
@@ -2379,7 +1968,7 @@ const styles =
 
     reviewBookAuthor: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -2399,7 +1988,7 @@ const styles =
 
     reviewRating: {
       color:
-        COLORS.gold,
+        colors.gold,
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 11,
@@ -2407,7 +1996,7 @@ const styles =
 
     reviewStatus: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 11,
@@ -2416,7 +2005,7 @@ const styles =
 
     reviewText: {
       color:
-        COLORS.secondaryText,
+        colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 13,
@@ -2426,7 +2015,7 @@ const styles =
 
     ratingOnlyText: {
       color:
-        COLORS.mutedText,
+        colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 12,
@@ -2434,4 +2023,5 @@ const styles =
         'italic',
       marginTop: 12,
     },
-  });
+    });
+}

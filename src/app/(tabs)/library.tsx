@@ -713,6 +713,70 @@ export default function LibraryScreen() {
     });
   }
 
+  function openSelectedReview() {
+    if (
+      !selectedBook ||
+      (
+        selectedBook.status !==
+          'read' &&
+        selectedBook.status !==
+          'dnf'
+      )
+    ) {
+      return;
+    }
+
+    const googleBookId =
+      selectedBook.google_book_id;
+
+    dismissBookSheet(() => {
+      router.push({
+        pathname:
+          '/rate-review',
+        params: {
+          googleBookId,
+        },
+      });
+    });
+  }
+
+  function shareSelectedReview() {
+    if (
+      !selectedBook ||
+      selectedBook.status !==
+        'read' ||
+      !selectedBook.review_text
+        ?.trim()
+    ) {
+      return;
+    }
+
+    const book =
+      selectedBook;
+
+    dismissBookSheet(() => {
+      router.push({
+        pathname:
+          '/create-review',
+        params: {
+          bookId:
+            book.google_book_id,
+          rating:
+            book.rating !==
+            null
+              ? String(
+                  book.rating
+                )
+              : '',
+          review:
+            book.review_text
+              ?.trim() ??
+            '',
+        },
+      });
+    });
+  }
+
   function removeSelectedBook() {
     if (!selectedBook) {
       return;
@@ -1615,6 +1679,289 @@ export default function LibraryScreen() {
                       styles.sheetActions
                     }
                   >
+                    {(
+                      selectedBook.status ===
+                        'read' ||
+                      selectedBook.status ===
+                        'dnf'
+                    ) ? (
+                      <>
+                        {selectedBook.rating !==
+                          null ||
+                        Boolean(
+                          selectedBook.review_text
+                            ?.trim()
+                        ) ? (
+                          <View
+                            style={
+                              styles.reviewPreviewCard
+                            }
+                          >
+                            <View
+                              style={
+                                styles.reviewPreviewTop
+                              }
+                            >
+                              <View
+                                style={
+                                  styles.reviewStarsRow
+                                }
+                              >
+                                {[
+                                  1,
+                                  2,
+                                  3,
+                                  4,
+                                  5,
+                                ].map(
+                                  (
+                                    starNumber
+                                  ) => {
+                                    let icon:
+                                      | 'star'
+                                      | 'star-half'
+                                      | 'star-outline' =
+                                      'star-outline';
+
+                                    if (
+                                      selectedBook.rating !==
+                                        null &&
+                                      selectedBook.rating >=
+                                        starNumber
+                                    ) {
+                                      icon =
+                                        'star';
+                                    } else if (
+                                      selectedBook.rating !==
+                                        null &&
+                                      selectedBook.rating >=
+                                        starNumber -
+                                          0.5
+                                    ) {
+                                      icon =
+                                        'star-half';
+                                    }
+
+                                    return (
+                                      <Ionicons
+                                        key={
+                                          starNumber
+                                        }
+                                        name={
+                                          icon
+                                        }
+                                        size={
+                                          16
+                                        }
+                                        color={
+                                          colors.gold
+                                        }
+                                      />
+                                    );
+                                  }
+                                )}
+                              </View>
+
+                              {selectedBook.rating !==
+                              null ? (
+                                <Text
+                                  style={
+                                    styles.reviewRatingText
+                                  }
+                                >
+                                  {selectedBook.rating.toFixed(
+                                    1
+                                  )}
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            <Text
+                              style={
+                                styles.reviewPreviewLabel
+                              }
+                            >
+                              YOUR REVIEW
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.reviewPreviewText
+                              }
+                              numberOfLines={
+                                3
+                              }
+                            >
+                              {selectedBook.review_text
+                                ?.trim() ||
+                                'You rated this book but have not added a written review yet.'}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        <Pressable
+                          onPress={
+                            openSelectedReview
+                          }
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.sheetRow,
+                            pressed &&
+                              styles.sheetRowPressed,
+                          ]}
+                        >
+                          <View
+                            style={
+                              styles.sheetRowIcon
+                            }
+                          >
+                            <Ionicons
+                              name={
+                                selectedBook.rating !==
+                                  null ||
+                                Boolean(
+                                  selectedBook.review_text
+                                    ?.trim()
+                                )
+                                  ? 'create-outline'
+                                  : 'star-outline'
+                              }
+                              size={
+                                20
+                              }
+                              color={
+                                colors.gold
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.sheetRowText
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.sheetRowTitle
+                              }
+                            >
+                              {selectedBook.rating !==
+                                null ||
+                              Boolean(
+                                selectedBook.review_text
+                                  ?.trim()
+                              )
+                                ? selectedBook.review_text
+                                    ?.trim()
+                                  ? 'Edit Review'
+                                  : 'Add Review'
+                                : 'Rate & Review'}
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.sheetRowSubtitle
+                              }
+                            >
+                              {selectedBook.rating !==
+                                null ||
+                              Boolean(
+                                selectedBook.review_text
+                                  ?.trim()
+                              )
+                                ? 'Update your saved rating or review'
+                                : 'Add your rating and thoughts whenever you are ready'}
+                            </Text>
+                          </View>
+
+                          <Ionicons
+                            name="chevron-forward"
+                            size={
+                              18
+                            }
+                            color={
+                              colors.mutedText
+                            }
+                          />
+                        </Pressable>
+
+                        {selectedBook.status ===
+                          'read' &&
+                        Boolean(
+                          selectedBook.review_text
+                            ?.trim()
+                        ) ? (
+                          <Pressable
+                            onPress={
+                              shareSelectedReview
+                            }
+                            style={({
+                              pressed,
+                            }) => [
+                              styles.sheetRow,
+                              pressed &&
+                                styles.sheetRowPressed,
+                            ]}
+                          >
+                            <View
+                              style={
+                                styles.sheetRowIcon
+                              }
+                            >
+                              <Ionicons
+                                name="share-social-outline"
+                                size={
+                                  20
+                                }
+                                color={
+                                  colors.gold
+                                }
+                              />
+                            </View>
+
+                            <View
+                              style={
+                                styles.sheetRowText
+                              }
+                            >
+                              <Text
+                                style={
+                                  styles.sheetRowTitle
+                                }
+                              >
+                                Share Review
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.sheetRowSubtitle
+                                }
+                              >
+                                Share this saved review to your Feed or a Club
+                              </Text>
+                            </View>
+
+                            <Ionicons
+                              name="chevron-forward"
+                              size={
+                                18
+                              }
+                              color={
+                                colors.mutedText
+                              }
+                            />
+                          </Pressable>
+                        ) : null}
+
+                        <View
+                          style={
+                            styles.sheetDivider
+                          }
+                        />
+                      </>
+                    ) : null}
+
                     <Pressable
                       onPress={
                         openSelectedBook
@@ -2459,6 +2806,80 @@ function createStyles(
       borderTopColor:
         colors.border,
       paddingTop: 7,
+    },
+
+    reviewPreviewCard: {
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        14,
+      paddingHorizontal:
+        13,
+      paddingVertical:
+        12,
+      marginHorizontal:
+        4,
+      marginTop:
+        3,
+      marginBottom:
+        5,
+    },
+
+    reviewPreviewTop: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      marginBottom:
+        8,
+    },
+
+    reviewStarsRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        2,
+    },
+
+    reviewRatingText: {
+      color:
+        colors.softGold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        12,
+    },
+
+    reviewPreviewLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9.5,
+      letterSpacing:
+        1.15,
+      marginBottom:
+        4,
+    },
+
+    reviewPreviewText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12,
+      lineHeight:
+        18,
     },
 
     sheetRow: {
