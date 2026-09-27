@@ -33,6 +33,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import FeedPostImage from '../../components/FeedPostImage';
+import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import LeaveClubConfirmSheet from '../../components/LeaveClubConfirmSheet';
@@ -72,6 +73,7 @@ import {
   FeedPost,
   getClubPosts,
   PostVoteValue,
+  splitQuestionPostBody,
   togglePostVote,
 } from '../../lib/feed';
 import {
@@ -3574,6 +3576,14 @@ export default function ClubDetailScreen() {
         .charAt(0)
         .toUpperCase();
 
+    const questionContent =
+      post.post_type ===
+        'question'
+        ? splitQuestionPostBody(
+            post.body
+          )
+        : null;
+
     return (
       <View
         key={post.id}
@@ -3635,9 +3645,47 @@ export default function ClubDetailScreen() {
           </View>
         </Pressable>
 
-        <Text style={styles.postBody}>
-          {post.body}
-        </Text>
+        <PostTypeIdentifier
+          postType={
+            post.post_type
+          }
+          rating={
+            post.rating
+          }
+          colors={
+            colors
+          }
+        />
+
+        {questionContent ? (
+          <>
+            <Text
+              style={
+                styles.questionPostTitle
+              }
+            >
+              {questionContent.question}
+            </Text>
+
+            {questionContent.context ? (
+              <Text
+                style={
+                  styles.questionPostContext
+                }
+              >
+                {questionContent.context}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text
+            style={
+              styles.postBody
+            }
+          >
+            {post.body}
+          </Text>
+        )}
 
         {post.post_image_url ? (
           <FeedPostImage
@@ -8320,6 +8368,30 @@ function createStyles(colors: NovoriColors) {
       color: colors.mutedText,
       fontFamily: 'Inter_400Regular',
       fontSize: 10,
+    },
+    questionPostTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize:
+        18,
+      lineHeight:
+        25,
+      marginTop:
+        12,
+    },
+    questionPostContext: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        13.5,
+      lineHeight:
+        20,
+      marginTop:
+        7,
     },
     postBody: {
       color: colors.text,

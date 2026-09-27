@@ -3,7 +3,8 @@ import { supabase } from './supabase';
 export type FeedPostType =
   | 'post'
   | 'reading_update'
-  | 'review';
+  | 'review'
+  | 'question';
 
 export type FeedPost = {
   id: string;
@@ -33,6 +34,34 @@ export type FeedPost = {
   viewer_vote: -1 | 0 | 1;
   comment_count: number;
 };
+
+export function splitQuestionPostBody(
+  body: string
+) {
+  const parts =
+    body
+      .trim()
+      .split(
+        /\n\s*\n/
+      );
+
+  const question =
+    parts.shift()
+      ?.trim() ??
+    '';
+
+  const context =
+    parts
+      .join(
+        '\n\n'
+      )
+      .trim();
+
+  return {
+    question,
+    context,
+  };
+}
 
 export type PostVoteValue =
   | -1

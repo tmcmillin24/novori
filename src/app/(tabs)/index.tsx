@@ -39,6 +39,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import FeedPostImage from '../../components/FeedPostImage';
+import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
 import {
   CLUB_GENRES,
@@ -74,6 +75,7 @@ import {
   FeedPost,
   getHomeFeed,
   PostVoteValue,
+  splitQuestionPostBody,
   togglePostVote,
 } from '../../lib/feed';
 import {
@@ -5506,6 +5508,14 @@ export default function HomeScreen() {
         .toUpperCase() ||
       'C';
 
+    const questionContent =
+      post.post_type ===
+        'question'
+        ? splitQuestionPostBody(
+            post.body
+          )
+        : null;
+
     return (
       <Pressable
         key={
@@ -5769,15 +5779,63 @@ export default function HomeScreen() {
             styles.feedPostContent
           }
         >
-          {renderExplicitContentWarning(
-            post.body,
-            'post',
-            post.id,
-            styles.feedBody,
-            Boolean(
-              currentUserId &&
-              post.author_id ===
-                currentUserId
+          <PostTypeIdentifier
+            postType={
+              post.post_type
+            }
+            rating={
+              post.rating
+            }
+            colors={
+              colors
+            }
+          />
+
+          {questionContent ? (
+            <>
+              {renderExplicitContentWarning(
+                questionContent.question,
+                'post',
+                post.id,
+                styles.feedQuestionTitle,
+                Boolean(
+                  currentUserId &&
+                  post.author_id ===
+                    currentUserId
+                )
+              )}
+
+              {questionContent.context ? (
+                <View
+                  style={
+                    styles.feedQuestionContextWrap
+                  }
+                >
+                  {renderExplicitContentWarning(
+                    questionContent.context,
+                    'post',
+                    post.id,
+                    styles.feedQuestionContext,
+                    Boolean(
+                      currentUserId &&
+                      post.author_id ===
+                        currentUserId
+                    )
+                  )}
+                </View>
+              ) : null}
+            </>
+          ) : (
+            renderExplicitContentWarning(
+              post.body,
+              'post',
+              post.id,
+              styles.feedBody,
+              Boolean(
+                currentUserId &&
+                post.author_id ===
+                  currentUserId
+              )
             )
           )}
 
@@ -9406,6 +9464,30 @@ function createStyles(
         15,
       lineHeight:
         22,
+    },
+    feedQuestionTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize:
+        19,
+      lineHeight:
+        26,
+    },
+    feedQuestionContextWrap: {
+      marginTop:
+        8,
+    },
+    feedQuestionContext: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        14,
+      lineHeight:
+        21,
     },
     feedCompactBookLink: {
       minHeight:

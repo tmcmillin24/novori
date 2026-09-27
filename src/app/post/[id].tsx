@@ -35,6 +35,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import {
   NovoriColors,
 } from '../../constants/novori-theme';
@@ -61,6 +62,7 @@ import {
   FeedPost,
   getPostDetail,
   PostVoteValue,
+  splitQuestionPostBody,
   togglePostVote,
 } from '../../lib/feed';
 import {
@@ -3315,15 +3317,73 @@ export default function PostDetailScreen() {
               </View>
             </View>
 
-            {renderExplicitContentWarning(
-              post.body,
-              'post',
-              post.id,
-              styles.postBody,
-              Boolean(
-                currentUserId &&
-                post.author_id ===
-                  currentUserId
+            <PostTypeIdentifier
+              postType={
+                post.post_type
+              }
+              rating={
+                post.rating
+              }
+              colors={
+                colors
+              }
+            />
+
+            {post.post_type ===
+            'question' ? (
+              (() => {
+                const questionContent =
+                  splitQuestionPostBody(
+                    post.body
+                  );
+
+                return (
+                  <>
+                    {renderExplicitContentWarning(
+                      questionContent.question,
+                      'post',
+                      post.id,
+                      styles.questionPostTitle,
+                      Boolean(
+                        currentUserId &&
+                        post.author_id ===
+                          currentUserId
+                      )
+                    )}
+
+                    {questionContent.context ? (
+                      <View
+                        style={
+                          styles.questionPostContextWrap
+                        }
+                      >
+                        {renderExplicitContentWarning(
+                          questionContent.context,
+                          'post',
+                          post.id,
+                          styles.questionPostContext,
+                          Boolean(
+                            currentUserId &&
+                            post.author_id ===
+                              currentUserId
+                          )
+                        )}
+                      </View>
+                    ) : null}
+                  </>
+                );
+              })()
+            ) : (
+              renderExplicitContentWarning(
+                post.body,
+                'post',
+                post.id,
+                styles.postBody,
+                Boolean(
+                  currentUserId &&
+                  post.author_id ===
+                    currentUserId
+                )
               )
             )}
 
@@ -4621,6 +4681,32 @@ function createStyles(
         'PlayfairDisplay_700Bold',
       fontSize:
         8,
+    },
+    questionPostTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize:
+        22,
+      lineHeight:
+        30,
+      marginTop:
+        10,
+    },
+    questionPostContextWrap: {
+      marginTop:
+        9,
+    },
+    questionPostContext: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        14.5,
+      lineHeight:
+        22,
     },
     postBody: {
       color:
