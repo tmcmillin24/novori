@@ -476,7 +476,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="library-outline"
             title="Library Books"
-            subtitle="Show your Reading, Read, and DNF books on your profile"
+            subtitle="Show your Reading, TBR, Read, and DNF books on your profile"
             value={
               preferences.showReadingActivity
             }
