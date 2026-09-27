@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -79,6 +80,14 @@ export default function CreateBookStackScreen() {
     setSearchOpen,
   ] =
     useState(false);
+
+  const [
+    pendingItems,
+    setPendingItems,
+  ] =
+    useState<
+      BookStackDraftItem[]
+    >([]);
 
   const [
     query,
@@ -243,36 +252,69 @@ export default function CreateBookStackScreen() {
     }
   }
 
-  function isAdded(
+  function openBookSearch() {
+    setPendingItems(
+      items
+    );
+    setSearchOpen(
+      true
+    );
+  }
+
+  function closeBookSearch() {
+    setPendingItems(
+      items
+    );
+    setSearchOpen(
+      false
+    );
+  }
+
+  function isPending(
     googleBookId: string
   ) {
-    return items.some(
+    return pendingItems.some(
       (item) =>
         item.googleBookId ===
         googleBookId
     );
   }
 
-  function addBook(
+  function toggleBookSelection(
     book:
       GoogleBookSearchItem
   ) {
+    const alreadySelected =
+      isPending(
+        book.id
+      );
+
     if (
-      items.length >=
+      alreadySelected
+    ) {
+      setPendingItems(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              item
+            ) =>
+              item.googleBookId !==
+              book.id
+          )
+      );
+      return;
+    }
+
+    if (
+      pendingItems.length >=
       MAX_STACK_BOOKS
     ) {
       Alert.alert(
         'Stack is full',
         'Book Stacks can contain up to 10 books.'
       );
-      return;
-    }
-
-    if (
-      isAdded(
-        book.id
-      )
-    ) {
       return;
     }
 
@@ -293,13 +335,22 @@ export default function CreateBookStackScreen() {
           ) ?? null,
       };
 
-    setItems(
+    setPendingItems(
       (
         current
       ) => [
         ...current,
         next,
       ]
+    );
+  }
+
+  function saveBookSelection() {
+    setItems(
+      pendingItems
+    );
+    setSearchOpen(
+      false
     );
   }
 
@@ -321,18 +372,18 @@ export default function CreateBookStackScreen() {
     );
   }
 
-  function moveBook(
-    index: number,
-    direction:
-      -1 | 1
+  function moveBookTo(
+    fromIndex: number,
+    toIndex: number
   ) {
-    const target =
-      index +
-      direction;
-
     if (
-      target < 0 ||
-      target >=
+      fromIndex ===
+        toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >=
+        items.length ||
+      toIndex >=
         items.length
     ) {
       return;
@@ -350,12 +401,12 @@ export default function CreateBookStackScreen() {
           moved,
         ] =
           next.splice(
-            index,
+            fromIndex,
             1
           );
 
         next.splice(
-          target,
+          toIndex,
           0,
           moved
         );
@@ -935,9 +986,7 @@ export default function CreateBookStackScreen() {
           ) : (
             <Pressable
               onPress={() =>
-                setSearchOpen(
-                  true
-                )
+                openBookSearch()
               }
               style={({ pressed }) => [
                 styles.emptyStack,
@@ -1034,7 +1083,7 @@ export default function CreateBookStackScreen() {
                 styles.sectionSubtext
               }
             >
-              Move books up or down to set the stack order.
+              Hold the grip, then drag up or down. The stack preview updates as you move.
             </Text>
 
             <View
@@ -1115,66 +1164,20 @@ export default function CreateBookStackScreen() {
                         styles.arrangeControls
                       }
                     >
-                      <Pressable
-                        disabled={
-                          index === 0
+                      <DragHandle
+                        index={
+                          index
                         }
-                        hitSlop={6}
-                        onPress={() =>
-                          moveBook(
-                            index,
-                            -1
-                          )
+                        itemCount={
+                          items.length
                         }
-                        style={({ pressed }) => [
-                          styles.arrangeControl,
-                          index ===
-                            0 &&
-                            styles.disabled,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="chevron-up"
-                          size={18}
-                          color={
-                            colors.secondaryText
-                          }
-                        />
-                      </Pressable>
-
-                      <Pressable
-                        disabled={
-                          index ===
-                          items.length -
-                            1
+                        onMoveTo={
+                          moveBookTo
                         }
-                        hitSlop={6}
-                        onPress={() =>
-                          moveBook(
-                            index,
-                            1
-                          )
+                        colors={
+                          colors
                         }
-                        style={({ pressed }) => [
-                          styles.arrangeControl,
-                          index ===
-                            items.length -
-                              1 &&
-                            styles.disabled,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="chevron-down"
-                          size={18}
-                          color={
-                            colors.secondaryText
-                          }
-                        />
-                      </Pressable>
+                      />
 
                       <Pressable
                         hitSlop={6}
@@ -1305,10 +1308,8 @@ export default function CreateBookStackScreen() {
         }
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() =>
-          setSearchOpen(
-            false
-          )
+        onRequestClose={
+          closeBookSearch
         }
       >
         <SafeAreaView
@@ -1322,10 +1323,8 @@ export default function CreateBookStackScreen() {
             }
           >
             <Pressable
-              onPress={() =>
-                setSearchOpen(
-                  false
-                )
+              onPress={
+                closeBookSearch
               }
               hitSlop={10}
               style={
@@ -1354,7 +1353,7 @@ export default function CreateBookStackScreen() {
                 styles.searchCount
               }
             >
-              {items.length}/10
+              {pendingItems.length}/10
             </Text>
           </View>
 
@@ -1438,7 +1437,7 @@ export default function CreateBookStackScreen() {
                 book
               ) => {
                 const added =
-                  isAdded(
+                  isPending(
                     book.id
                   );
 
@@ -1452,18 +1451,15 @@ export default function CreateBookStackScreen() {
                     key={
                       book.id
                     }
-                    disabled={
-                      added
-                    }
                     onPress={() =>
-                      addBook(
+                      toggleBookSelection(
                         book
                       )
                     }
                     style={({ pressed }) => [
                       styles.searchResult,
                       added &&
-                        styles.searchResultAdded,
+                        styles.searchResultSelected,
                       pressed &&
                         styles.pressed,
                     ]}
@@ -1542,9 +1538,247 @@ export default function CreateBookStackScreen() {
               }
             )}
           </ScrollView>
+
+          <View
+            style={
+              styles.searchFooter
+            }
+          >
+            <Text
+              style={
+                styles.searchFooterText
+              }
+            >
+              {pendingItems.length}{' '}
+              {pendingItems.length ===
+              1
+                ? 'book selected'
+                : 'books selected'}
+            </Text>
+
+            <Pressable
+              onPress={
+                saveBookSelection
+              }
+              style={({ pressed }) => [
+                styles.saveBooksButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.saveBooksButtonText
+                }
+              >
+                Save Books
+              </Text>
+
+              <Ionicons
+                name="checkmark"
+                size={18}
+                color={
+                  colors.background
+                }
+              />
+            </Pressable>
+          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function DragHandle({
+  index,
+  itemCount,
+  onMoveTo,
+  colors,
+}: {
+  index: number;
+  itemCount: number;
+  onMoveTo: (
+    fromIndex: number,
+    toIndex: number
+  ) => void;
+  colors: NovoriColors;
+}) {
+  const [
+    dragging,
+    setDragging,
+  ] =
+    useState(false);
+
+  const indexRef =
+    useRef(index);
+
+  const itemCountRef =
+    useRef(
+      itemCount
+    );
+
+  const moveRef =
+    useRef(
+      onMoveTo
+    );
+
+  const startIndexRef =
+    useRef(index);
+
+  const currentIndexRef =
+    useRef(index);
+
+  const holdTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
+
+  const activeRef =
+    useRef(false);
+
+  indexRef.current =
+    index;
+  itemCountRef.current =
+    itemCount;
+  moveRef.current =
+    onMoveTo;
+
+  const panResponder =
+    useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder:
+          () => true,
+        onMoveShouldSetPanResponder:
+          () => true,
+        onPanResponderGrant:
+          () => {
+            startIndexRef.current =
+              indexRef.current;
+            currentIndexRef.current =
+              indexRef.current;
+            activeRef.current =
+              false;
+
+            holdTimerRef.current =
+              setTimeout(
+                () => {
+                  activeRef.current =
+                    true;
+                  setDragging(
+                    true
+                  );
+                },
+                180
+              );
+          },
+        onPanResponderMove: (
+          _,
+          gesture
+        ) => {
+          if (
+            !activeRef.current
+          ) {
+            return;
+          }
+
+          const offset =
+            Math.round(
+              gesture.dy /
+                66
+            );
+
+          const target =
+            Math.max(
+              0,
+              Math.min(
+                itemCountRef.current -
+                  1,
+                startIndexRef.current +
+                  offset
+              )
+            );
+
+          if (
+            target ===
+            currentIndexRef.current
+          ) {
+            return;
+          }
+
+          moveRef.current(
+            currentIndexRef.current,
+            target
+          );
+
+          currentIndexRef.current =
+            target;
+        },
+        onPanResponderRelease:
+          () => {
+            if (
+              holdTimerRef.current
+            ) {
+              clearTimeout(
+                holdTimerRef.current
+              );
+            }
+
+            activeRef.current =
+              false;
+            setDragging(
+              false
+            );
+          },
+        onPanResponderTerminate:
+          () => {
+            if (
+              holdTimerRef.current
+            ) {
+              clearTimeout(
+                holdTimerRef.current
+              );
+            }
+
+            activeRef.current =
+              false;
+            setDragging(
+              false
+            );
+          },
+      })
+    ).current;
+
+  return (
+    <View
+      {...panResponder.panHandlers}
+      style={[
+        {
+          width: 34,
+          height: 34,
+          alignItems:
+            'center',
+          justifyContent:
+            'center',
+          borderRadius: 10,
+          backgroundColor:
+            dragging
+              ? colors.elevated
+              : 'transparent',
+        },
+      ]}
+    >
+      <Ionicons
+        name="reorder-three-outline"
+        size={23}
+        color={
+          dragging
+            ? colors.gold
+            : colors.secondaryText
+        }
+      />
+    </View>
   );
 }
 
@@ -2048,8 +2282,59 @@ function createStyles(
       paddingVertical: 10,
     },
 
-    searchResultAdded: {
-      opacity: 0.48,
+    searchResultSelected: {
+      backgroundColor:
+        colors.elevated,
+    },
+
+    searchFooter: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 16,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+      borderTopColor:
+        colors.border,
+      backgroundColor:
+        colors.background,
+    },
+
+    searchFooterText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 11,
+    },
+
+    saveBooksButton: {
+      minHeight: 44,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap: 7,
+      borderRadius: 12,
+      paddingHorizontal: 18,
+      backgroundColor:
+        colors.gold,
+    },
+
+    saveBooksButtonText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 12,
     },
 
     resultCover: {
