@@ -432,3 +432,32 @@ export async function getBookStack(
 
   return stack;
 }
+
+
+export async function deleteBookStack(
+  stackId: string
+): Promise<void> {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    error,
+  } =
+    await supabase
+      .from(
+        'book_stacks'
+      )
+      .delete()
+      .eq(
+        'id',
+        stackId
+      )
+      .eq(
+        'user_id',
+        userId
+      );
+
+  if (error) {
+    throw error;
+  }
+}
