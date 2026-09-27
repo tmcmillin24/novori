@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 
+import BookStackVisual from '../../components/BookStackVisual';
 import {
   TabScreen,
 } from '../../components/tab-screen';
@@ -26,6 +27,10 @@ import {
 import {
   useNovoriTheme,
 } from '../../context/theme-context';
+import {
+  BookStack,
+  getMyBookStacks,
+} from '../../lib/book-stacks';
 import {
   ClubWithMembership,
 } from '../../lib/clubs';
@@ -138,6 +143,14 @@ export default function ProfileScreen() {
       []
     );
 
+  const [
+    stacks,
+    setStacks,
+  ] =
+    useState<BookStack[]>(
+      []
+    );
+
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -201,6 +214,7 @@ export default function ProfileScreen() {
             socialProfile,
             profilePosts,
             publicClubs,
+            savedStacks,
           ] = await Promise.all([
             getUserBooks(),
             getReaderProfile(
@@ -212,6 +226,7 @@ export default function ProfileScreen() {
             getReaderPublicClubs(
               user.id
             ),
+            getMyBookStacks(),
           ]);
 
           if (
@@ -231,6 +246,9 @@ export default function ProfileScreen() {
             );
             setClubs(
               publicClubs
+            );
+            setStacks(
+              savedStacks
             );
           }
         } catch (
@@ -257,6 +275,9 @@ export default function ProfileScreen() {
               []
             );
             setClubs(
+              []
+            );
+            setStacks(
               []
             );
           }
@@ -1046,6 +1067,108 @@ export default function ProfileScreen() {
     );
   }
 
+  function renderStacksTab() {
+    if (
+      stacks.length ===
+      0
+    ) {
+      return (
+        <View
+          style={
+            styles.emptyActivity
+          }
+        >
+          <Text
+            style={
+              styles.emptyActivityTitle
+            }
+          >
+            Your Book Stacks will show up here.
+          </Text>
+
+          <Text
+            style={
+              styles.emptyActivityText
+            }
+          >
+            Build a stack from Create, then save it to your profile.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={
+          styles.stackGrid
+        }
+      >
+        {stacks.map(
+          (
+            stack
+          ) => (
+            <Pressable
+              key={
+                stack.id
+              }
+              onPress={() =>
+                router.push({
+                  pathname:
+                    '/stack/[id]',
+                  params: {
+                    id:
+                      stack.id,
+                  },
+                })
+              }
+              style={({ pressed }) => [
+                styles.stackTile,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <View
+                style={
+                  styles.stackTileVisual
+                }
+              >
+                <BookStackVisual
+                  compact
+                  items={
+                    stack.items
+                  }
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.stackTileTitle
+                }
+                numberOfLines={2}
+              >
+                {
+                  stack.name
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.stackTileMeta
+                }
+              >
+                {stack.items.length}{' '}
+                {stack.items.length ===
+                1
+                  ? 'book'
+                  : 'books'}
+              </Text>
+            </Pressable>
+          )
+        )}
+      </View>
+    );
+  }
+
   function renderTabContent() {
     if (
       activeTab ===
@@ -1072,29 +1195,7 @@ export default function ProfileScreen() {
       libraryTab ===
       'stacks'
     ) {
-      return (
-        <View
-          style={
-            styles.emptyActivity
-          }
-        >
-          <Text
-            style={
-              styles.emptyActivityTitle
-            }
-          >
-            Your Book Stacks will show up here.
-          </Text>
-
-          <Text
-            style={
-              styles.emptyActivityText
-            }
-          >
-            Saved Book Stacks will appear here when the feature is added.
-          </Text>
-        </View>
-      );
+      return renderStacksTab();
     }
 
     return renderBooksTab();
@@ -1828,6 +1929,59 @@ function createStyles(
       fontFamily:
         'Inter_700Bold',
       fontSize: 12,
+    },
+
+    stackGrid: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      columnGap: 12,
+      rowGap: 18,
+      marginTop: 18,
+    },
+
+    stackTile: {
+      width: '48%',
+      minHeight: 300,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      backgroundColor:
+        colors.surface,
+      padding: 12,
+      overflow:
+        'hidden',
+    },
+
+    stackTileVisual: {
+      height: 220,
+      alignItems:
+        'center',
+      justifyContent:
+        'flex-start',
+      overflow:
+        'hidden',
+    },
+
+    stackTileTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      marginTop: 8,
+    },
+
+    stackTileMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10,
+      marginTop: 5,
     },
 
     activityList: {
