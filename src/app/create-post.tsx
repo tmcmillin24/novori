@@ -3375,6 +3375,8 @@ function createStyles(
         16,
       paddingTop:
         14,
+      paddingBottom:
+        15,
     },
     feedPreviewBodyInput: {
       minHeight:
