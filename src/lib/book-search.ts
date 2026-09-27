@@ -24,6 +24,7 @@ export type GoogleBookSearchItem = {
     categories?: string[];
     averageRating?: number;
     ratingsCount?: number;
+    language?: string;
   };
 };
 
@@ -506,17 +507,97 @@ function sortAuthorSearchResults(
     );
 }
 
+function getCanonicalWorkTitle(
+  value?: string
+) {
+  let title =
+    normalizeTitle(
+      value
+    );
+
+  const editionMarkers = [
+    'limited edition',
+    'deluxe edition',
+    'special edition',
+    'collectors edition',
+    'collector s edition',
+    'exclusive edition',
+    'anniversary edition',
+    'hardcover edition',
+    'paperback edition',
+    'international edition',
+    'movie tie in edition',
+  ];
+
+  for (
+    const marker of
+      editionMarkers
+  ) {
+    const markerIndex =
+      title.indexOf(
+        ` ${marker}`
+      );
+
+    if (
+      markerIndex >
+      0
+    ) {
+      title =
+        title.slice(
+          0,
+          markerIndex
+        );
+    }
+  }
+
+  return title.trim();
+}
+
 function collapseDuplicateEditions(
   books:
-    GoogleBookSearchItem[]
+    GoogleBookSearchItem[],
+  searchTerm: string
 ) {
+  const normalizedQuery =
+    normalizeTitle(
+      searchTerm
+    );
+
+  const englishResults =
+    books.filter(
+      (book) =>
+        !book.volumeInfo.language ||
+        book.volumeInfo.language ===
+          'en'
+    );
+
+  const candidates =
+    englishResults.length >
+    0
+      ? englishResults
+      : books;
+
+  const exactTitleExists =
+    candidates.some(
+      (book) =>
+        normalizeTitle(
+          book.volumeInfo.title
+        ) ===
+        normalizedQuery
+    );
+
   const seen =
     new Set<string>();
 
-  return books.filter(
+  return candidates.filter(
     (book) => {
       const title =
         normalizeTitle(
+          book.volumeInfo.title
+        );
+
+      const canonicalTitle =
+        getCanonicalWorkTitle(
           book.volumeInfo.title
         );
 
@@ -525,11 +606,21 @@ function collapseDuplicateEditions(
           book.volumeInfo.authors?.[0]
         );
 
+      if (
+        exactTitleExists &&
+        title !==
+          normalizedQuery &&
+        canonicalTitle ===
+          normalizedQuery
+      ) {
+        return false;
+      }
+
       const identity =
-        `${title}::${primaryAuthor}`;
+        `${canonicalTitle}::${primaryAuthor}`;
 
       if (
-        !title ||
+        !canonicalTitle ||
         seen.has(
           identity
         )
@@ -880,7 +971,8 @@ export async function searchNovoriBooks(
         merged,
         searchTerm,
         hardcoverPopularity
-      )
+      ),
+      searchTerm
     );
   }
 
@@ -894,6 +986,7 @@ export async function searchNovoriBooks(
       initialResults,
       searchTerm,
       hardcoverPopularity
-    )
+    ),
+    searchTerm
   );
 }
