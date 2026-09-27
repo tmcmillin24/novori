@@ -70,10 +70,14 @@ import {
 } from '../../lib/social';
 
 type ReaderTab =
+  | 'library'
+  | 'activity'
+  | 'clubs';
+
+type ReaderLibraryTab =
   | 'books'
   | 'reviews'
-  | 'posts'
-  | 'clubs';
+  | 'stacks';
 
 const PROFILE_REPORT_REASONS:
   Array<{
@@ -213,6 +217,14 @@ export default function ReaderProfileScreen() {
     setActiveTab,
   ] =
     useState<ReaderTab>(
+      'library'
+    );
+
+  const [
+    libraryTab,
+    setLibraryTab,
+  ] =
+    useState<ReaderLibraryTab>(
       'books'
     );
 
@@ -2503,21 +2515,15 @@ export default function ReaderProfileScreen() {
             [
               {
                 key:
-                  'books',
+                  'library',
                 label:
-                  'Books',
+                  'Library',
               },
               {
                 key:
-                  'reviews',
+                  'activity',
                 label:
-                  'Reviews',
-              },
-              {
-                key:
-                  'posts',
-                label:
-                  'Posts',
+                  'Activity',
               },
               {
                 key:
@@ -2565,163 +2571,254 @@ export default function ReaderProfileScreen() {
         </View>
 
         {activeTab ===
-        'books' ? (
-          !profile.can_view_books ? (
+        'library' ? (
+          <>
             <View
               style={
-                styles.emptyCard
+                styles.libraryTabRow
               }
             >
-              <Ionicons
-                name="lock-closed-outline"
-                size={
-                  26
-                }
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.emptyTitle
-                }
-              >
-                Books are private.
-              </Text>
-
-              <Text
-                style={
-                  styles.emptyText
-                }
-              >
-                This reader has chosen not to show their reading history publicly.
-              </Text>
-            </View>
-          ) : books.length >
-            0 ? (
-            <View
-              style={
-                styles.publicBookGrid
-              }
-            >
-              {books.map(
-                renderBook
+              {(
+                [
+                  {
+                    key:
+                      'books',
+                    label:
+                      'Books',
+                  },
+                  {
+                    key:
+                      'reviews',
+                    label:
+                      'Reviews',
+                  },
+                  {
+                    key:
+                      'stacks',
+                    label:
+                      'Stacks',
+                  },
+                ] as {
+                  key:
+                    ReaderLibraryTab;
+                  label:
+                    string;
+                }[]
+              ).map(
+                (tab) => (
+                  <Pressable
+                    key={
+                      tab.key
+                    }
+                    onPress={() =>
+                      setLibraryTab(
+                        tab.key
+                      )
+                    }
+                    style={[
+                      styles.libraryTabButton,
+                      libraryTab ===
+                        tab.key &&
+                        styles.libraryTabButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.libraryTabText,
+                        libraryTab ===
+                          tab.key &&
+                          styles.libraryTabTextActive,
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                )
               )}
             </View>
-          ) : (
-            <View
-              style={
-                styles.emptyCard
-              }
-            >
-              <Ionicons
-                name="library-outline"
-                size={
-                  26
-                }
-                color={
-                  colors.gold
-                }
-              />
 
-              <Text
+            {libraryTab ===
+            'books' ? (
+              !profile.can_view_books ? (
+                <View
+                  style={
+                    styles.emptyCard
+                  }
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={26}
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
+                    Books are private.
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
+                    This reader has chosen not to show their reading history publicly.
+                  </Text>
+                </View>
+              ) : books.length >
+                0 ? (
+                <View
+                  style={
+                    styles.publicBookGrid
+                  }
+                >
+                  {books.map(
+                    renderBook
+                  )}
+                </View>
+              ) : (
+                <View
+                  style={
+                    styles.emptyCard
+                  }
+                >
+                  <Ionicons
+                    name="library-outline"
+                    size={26}
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
+                    No books to show yet.
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
+                    Reading, Read, and DNF books will appear here. TBR books stay private.
+                  </Text>
+                </View>
+              )
+            ) : libraryTab ===
+              'reviews' ? (
+              !profile.can_view_reviews ? (
+                <View
+                  style={
+                    styles.emptyCard
+                  }
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={26}
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
+                    Reviews are private.
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
+                    This reader has chosen not to show ratings and reviews publicly.
+                  </Text>
+                </View>
+              ) : reviews.length >
+                0 ? (
+                <View
+                  style={
+                    styles.list
+                  }
+                >
+                  {reviews.map(
+                    renderReview
+                  )}
+                </View>
+              ) : (
+                <View
+                  style={
+                    styles.emptyCard
+                  }
+                >
+                  <Ionicons
+                    name="star-outline"
+                    size={26}
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
+                    No reviews yet.
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
+                    Ratings and written reviews will appear here.
+                  </Text>
+                </View>
+              )
+            ) : (
+              <View
                 style={
-                  styles.emptyTitle
+                  styles.emptyCard
                 }
               >
-                No books to show yet.
-              </Text>
+                <Ionicons
+                  name="layers-outline"
+                  size={26}
+                  color={
+                    colors.gold
+                  }
+                />
 
-              <Text
-                style={
-                  styles.emptyText
-                }
-              >
-                Reading, Read, and DNF books will appear here. TBR books stay private.
-              </Text>
-            </View>
-          )
+                <Text
+                  style={
+                    styles.emptyTitle
+                  }
+                >
+                  No Book Stacks yet.
+                </Text>
+
+                <Text
+                  style={
+                    styles.emptyText
+                  }
+                >
+                  Saved Book Stacks will appear here when the feature is added.
+                </Text>
+              </View>
+            )}
+          </>
         ) : activeTab ===
-          'reviews' ? (
-          !profile.can_view_reviews ? (
-            <View
-              style={
-                styles.emptyCard
-              }
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={
-                  26
-                }
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.emptyTitle
-                }
-              >
-                Reviews are private.
-              </Text>
-
-              <Text
-                style={
-                  styles.emptyText
-                }
-              >
-                This reader has chosen not to show ratings and reviews publicly.
-              </Text>
-            </View>
-          ) : reviews.length >
-            0 ? (
-            <View
-              style={
-                styles.list
-              }
-            >
-              {reviews.map(
-                renderReview
-              )}
-            </View>
-          ) : (
-            <View
-              style={
-                styles.emptyCard
-              }
-            >
-              <Ionicons
-                name="star-outline"
-                size={
-                  26
-                }
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No reviews yet.
-              </Text>
-
-              <Text
-                style={
-                  styles.emptyText
-                }
-              >
-                Ratings and written reviews will appear here.
-              </Text>
-            </View>
-          )
-        ) : activeTab ===
-          'posts' ? (
+          'activity' ? (
           posts.length >
           0 ? (
             <View
@@ -2741,9 +2838,7 @@ export default function ReaderProfileScreen() {
             >
               <Ionicons
                 name="chatbubble-ellipses-outline"
-                size={
-                  26
-                }
+                size={26}
                 color={
                   colors.gold
                 }
@@ -2754,7 +2849,7 @@ export default function ReaderProfileScreen() {
                   styles.emptyTitle
                 }
               >
-                No profile posts yet.
+                No activity yet.
               </Text>
 
               <Text
@@ -2762,7 +2857,7 @@ export default function ReaderProfileScreen() {
                   styles.emptyText
                 }
               >
-                Posts shared to this reader’s profile will appear here.
+                Posts, reading updates, Ask Readers questions, and shared reviews will appear here.
               </Text>
             </View>
           )
@@ -2785,9 +2880,7 @@ export default function ReaderProfileScreen() {
           >
             <Ionicons
               name="people-outline"
-              size={
-                26
-              }
+              size={26}
               color={
                 colors.gold
               }
@@ -3616,6 +3709,39 @@ function createStyles(
       marginTop: 28,
       marginBottom: 14,
     },
+    libraryTabRow: {
+      flexDirection: 'row',
+      alignSelf: 'center',
+      marginTop: 12,
+      marginBottom: 16,
+      gap: 18,
+      paddingHorizontal: 4,
+    },
+
+    libraryTabButton: {
+      minHeight: 32,
+      justifyContent: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+      paddingHorizontal: 4,
+    },
+
+    libraryTabButtonActive: {
+      borderBottomColor: colors.gold,
+    },
+
+    libraryTabText: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    libraryTabTextActive: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 12,
+    },
+
     tabButton: {
       flex: 1,
       alignItems:
