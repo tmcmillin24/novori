@@ -49,6 +49,7 @@ export type PublicReaderBook = {
   published_date: string | null;
   status:
     | 'reading'
+    | 'want_to_read'
     | 'read'
     | 'dnf';
   started_at: string | null;
