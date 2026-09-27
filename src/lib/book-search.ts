@@ -506,6 +506,46 @@ function sortAuthorSearchResults(
     );
 }
 
+function collapseDuplicateEditions(
+  books:
+    GoogleBookSearchItem[]
+) {
+  const seen =
+    new Set<string>();
+
+  return books.filter(
+    (book) => {
+      const title =
+        normalizeTitle(
+          book.volumeInfo.title
+        );
+
+      const primaryAuthor =
+        normalizeTitle(
+          book.volumeInfo.authors?.[0]
+        );
+
+      const identity =
+        `${title}::${primaryAuthor}`;
+
+      if (
+        !title ||
+        seen.has(
+          identity
+        )
+      ) {
+        return false;
+      }
+
+      seen.add(
+        identity
+      );
+
+      return true;
+    }
+  );
+}
+
 function mergeGoogleBookResults(
   ...groups:
     GoogleBookSearchItem[][]
@@ -835,10 +875,12 @@ export async function searchNovoriBooks(
         merged
       );
 
-    return sortAuthorSearchResults(
-      merged,
-      searchTerm,
-      hardcoverPopularity
+    return collapseDuplicateEditions(
+      sortAuthorSearchResults(
+        merged,
+        searchTerm,
+        hardcoverPopularity
+      )
     );
   }
 
@@ -847,9 +889,11 @@ export async function searchNovoriBooks(
       initialResults
     );
 
-  return sortTitleSearchResults(
-    initialResults,
-    searchTerm,
-    hardcoverPopularity
+  return collapseDuplicateEditions(
+    sortTitleSearchResults(
+      initialResults,
+      searchTerm,
+      hardcoverPopularity
+    )
   );
 }
