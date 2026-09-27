@@ -24,6 +24,10 @@ import {
 import {
     useNovoriTheme,
 } from '../context/theme-context';
+import {
+    getProfilePrivacy,
+    updateProfilePrivacy,
+} from '../lib/profile-privacy';
 
 const STORAGE_KEY =
   'novori-privacy-preferences';
@@ -33,7 +37,6 @@ type PrivacyPreferences = {
 
   showReadingActivity: boolean;
   showReviews: boolean;
-  showClubs: boolean;
 
   discoverableByReaders: boolean;
 
@@ -46,7 +49,6 @@ const DEFAULT_PREFERENCES: PrivacyPreferences = {
 
   showReadingActivity: true,
   showReviews: true,
-  showClubs: true,
 
   discoverableByReaders: true,
 
@@ -189,24 +191,36 @@ export default function PrivacySettingsScreen() {
 
     async function loadPreferences() {
       try {
-        const saved =
-          await AsyncStorage
+        const [
+          saved,
+          profilePrivacy,
+        ] = await Promise.all([
+          AsyncStorage
             .getItem(
               STORAGE_KEY
-            );
+            ),
+          getProfilePrivacy(),
+        ]);
 
         if (
-          saved &&
           mounted
         ) {
           const parsed =
-            JSON.parse(
-              saved
-            );
+            saved
+              ? JSON.parse(
+                  saved
+                )
+              : {};
 
           setPreferences({
             ...DEFAULT_PREFERENCES,
             ...parsed,
+            privateProfile:
+              profilePrivacy.is_private,
+            showReadingActivity:
+              profilePrivacy.show_books,
+            showReviews:
+              profilePrivacy.show_reviews,
           });
         }
       } catch {
@@ -255,6 +269,39 @@ export default function PrivacySettingsScreen() {
     setPreferences(
       next
     );
+
+    if (
+      key ===
+        'privateProfile' ||
+      key ===
+        'showReadingActivity' ||
+      key ===
+        'showReviews'
+    ) {
+      try {
+        await updateProfilePrivacy({
+          is_private:
+            next.privateProfile,
+          show_books:
+            next.showReadingActivity,
+          show_reviews:
+            next.showReviews,
+        });
+      } catch (
+        error
+      ) {
+        console.error(
+          'Could not update profile privacy:',
+          error
+        );
+
+        setPreferences(
+          preferences
+        );
+
+        return;
+      }
+    }
 
     await AsyncStorage
       .setItem(
@@ -427,9 +474,9 @@ export default function PrivacySettingsScreen() {
           }
         >
           <PreferenceRow
-            icon="book-outline"
-            title="Reading Activity"
-            subtitle="Show books you start, finish, or add to your library"
+            icon="library-outline"
+            title="Library Books"
+            subtitle="Show your Reading, Read, and DNF books on your profile"
             value={
               preferences.showReadingActivity
             }
@@ -478,25 +525,47 @@ export default function PrivacySettingsScreen() {
             }
           />
 
-          <PreferenceRow
-            icon="people-outline"
-            title="Clubs"
-            subtitle="Show clubs you join or create on your profile"
-            value={
-              preferences.showClubs
+          <View
+            style={
+              styles.preferenceRow
             }
-            colors={
-              colors
-            }
-            onValueChange={(
-              value
-            ) =>
-              updatePreference(
-                'showClubs',
-                value
-              )
-            }
-          />
+          >
+            <View
+              style={
+                styles.iconContainer
+              }
+            >
+              <Ionicons
+                name="pulse-outline"
+                size={19}
+                color={
+                  colors.gold
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.preferenceText
+              }
+            >
+              <Text
+                style={
+                  styles.preferenceTitle
+                }
+              >
+                Posts & Activity
+              </Text>
+
+              <Text
+                style={
+                  styles.preferenceSubtitle
+                }
+              >
+                Activity follows your profile privacy. Private profiles limit it to approved followers.
+              </Text>
+            </View>
+          </View>
         </View>
 
         <Text
