@@ -1471,15 +1471,15 @@ function createStyles(colors: NovoriColors) {
     },
     feedPreviewQuestion: {
       color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 16,
-      lineHeight: 23,
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 19,
+      lineHeight: 26,
     },
     feedPreviewContext: {
-      color: colors.text,
+      color: colors.secondaryText,
       fontFamily: 'Inter_400Regular',
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 14,
+      lineHeight: 21,
       marginTop: 8,
     },
     feedPreviewBookCard: {
