@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
+import {
+  getBestSearchCover,
+  GoogleBookSearchItem,
+  searchNovoriBooks,
+} from '../lib/book-search';
 import { ClubWithMembership, getMyClubs } from '../lib/clubs';
 import {
   createPost,
@@ -43,39 +48,6 @@ type AttachedBook = {
   authors: string[];
   coverUrl: string | null;
 };
-
-type GoogleBookSearchItem = {
-  id: string;
-  volumeInfo: {
-    title?: string;
-    authors?: string[];
-    imageLinks?: {
-      smallThumbnail?: string;
-      thumbnail?: string;
-      small?: string;
-      medium?: string;
-    };
-  };
-};
-
-type GoogleBooksResponse = {
-  items?: GoogleBookSearchItem[];
-};
-
-function secureImageUrl(value?: string) {
-  return value?.replace('http://', 'https://') ?? null;
-}
-
-function getBookCover(item: GoogleBookSearchItem) {
-  const links = item.volumeInfo.imageLinks;
-
-  return (
-    secureImageUrl(links?.medium) ||
-    secureImageUrl(links?.small) ||
-    secureImageUrl(links?.thumbnail) ||
-    secureImageUrl(links?.smallThumbnail)
-  );
-}
 
 export default function AskReadersScreen() {
   const router = useRouter();
@@ -124,6 +96,10 @@ export default function AskReadersScreen() {
     useState<GoogleBookSearchItem[]>([]);
   const [bookSearching, setBookSearching] = useState(false);
   const [bookSearchError, setBookSearchError] = useState('');
+  const bookSearchTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bookSearchRequestRef =
+    useRef(0);
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
@@ -283,52 +259,102 @@ export default function AskReadersScreen() {
     context.length <= 1200 &&
     !publishing;
 
-  async function searchBooks() {
-    const query = bookQuery.trim();
+  useEffect(() => {
+    if (
+      bookSearchTimerRef.current
+    ) {
+      clearTimeout(
+        bookSearchTimerRef.current
+      );
+    }
 
-    if (!query) {
+    const query =
+      bookQuery.trim();
+
+    if (
+      !bookPickerVisible ||
+      query.length < 2
+    ) {
+      bookSearchRequestRef.current +=
+        1;
       setBookResults([]);
       setBookSearchError('');
+      setBookSearching(false);
       return;
     }
 
+    const requestId =
+      ++bookSearchRequestRef.current;
+
+    bookSearchTimerRef.current =
+      setTimeout(() => {
+        void performBookSearch(
+          query,
+          requestId
+        );
+      }, 350);
+
+    return () => {
+      if (
+        bookSearchTimerRef.current
+      ) {
+        clearTimeout(
+          bookSearchTimerRef.current
+        );
+      }
+    };
+  }, [
+    bookPickerVisible,
+    bookQuery,
+  ]);
+
+  async function performBookSearch(
+    query: string,
+    requestId: number
+  ) {
     try {
       setBookSearching(true);
       setBookSearchError('');
 
-      const key =
-        process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+      const results =
+        await searchNovoriBooks(
+          query
+        );
 
-      const queryParams = new URLSearchParams({
-        q: query,
-        maxResults: '20',
-        printType: 'books',
-      });
-
-      if (key) {
-        queryParams.set('key', key);
+      if (
+        requestId !==
+        bookSearchRequestRef.current
+      ) {
+        return;
       }
 
-      const response = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?${queryParams.toString()}`
+      setBookResults(
+        results
+      );
+    } catch (error) {
+      if (
+        requestId !==
+        bookSearchRequestRef.current
+      ) {
+        return;
+      }
+
+      console.error(
+        'Could not search books:',
+        error
       );
 
-      if (!response.ok) {
-        throw new Error('Book search is unavailable right now.');
-      }
-
-      const data = (await response.json()) as GoogleBooksResponse;
-
-      setBookResults(data.items ?? []);
-    } catch (error) {
       setBookResults([]);
       setBookSearchError(
-        error instanceof Error
-          ? error.message
-          : 'Could not search books.'
+        'Could not search books. Please try again.'
       );
     } finally {
-      setBookSearching(false);
+      if (
+        requestId ===
+        bookSearchRequestRef.current
+      ) {
+        setBookSearching(false);
+      }
     }
   }
 
@@ -337,7 +363,7 @@ export default function AskReadersScreen() {
       id: item.id,
       title: item.volumeInfo.title?.trim() || 'Untitled book',
       authors: item.volumeInfo.authors ?? [],
-      coverUrl: getBookCover(item),
+      coverUrl: getBestSearchCover(item.volumeInfo.imageLinks) ?? null,
     });
 
     setBookPickerVisible(false);
@@ -1028,36 +1054,46 @@ export default function AskReadersScreen() {
             <TextInput
               value={bookQuery}
               onChangeText={setBookQuery}
-              onSubmitEditing={() => void searchBooks()}
               placeholder="Search title or author"
               placeholderTextColor={colors.mutedText}
-              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
               autoFocus
               style={styles.searchInput}
             />
 
-            <Pressable
-              disabled={!bookQuery.trim() || bookSearching}
-              onPress={() => void searchBooks()}
-              style={({ pressed }) => [
-                styles.searchButton,
-                (!bookQuery.trim() || bookSearching) &&
-                  styles.searchButtonDisabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              {bookSearching ? (
-                <ActivityIndicator
-                  size="small"
-                  color={colors.background}
+            {bookSearching ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.gold}
+              />
+            ) : bookQuery ? (
+              <Pressable
+                onPress={() => {
+                  setBookQuery('');
+                  setBookResults([]);
+                  setBookSearchError('');
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.clearSearchButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color={colors.mutedText}
                 />
-              ) : (
-                <Text style={styles.searchButtonText}>
-                  Search
-                </Text>
-              )}
-            </Pressable>
+              </Pressable>
+            ) : null}
           </View>
+
+          {bookQuery.trim().length === 1 ? (
+            <Text style={styles.searchHint}>
+              Type at least 2 characters to search.
+            </Text>
+          ) : null}
 
           {bookSearchError ? (
             <Text style={styles.searchError}>
@@ -1070,7 +1106,7 @@ export default function AskReadersScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {bookResults.map((item) => {
-              const cover = getBookCover(item);
+              const cover = getBestSearchCover(item.volumeInfo.imageLinks);
 
               return (
                 <Pressable
@@ -1110,6 +1146,15 @@ export default function AskReadersScreen() {
                       {item.volumeInfo.authors?.join(', ') ||
                         'Unknown author'}
                     </Text>
+
+                    {item.volumeInfo.publishedDate ? (
+                      <Text
+                        style={styles.resultYear}
+                        numberOfLines={1}
+                      >
+                        {item.volumeInfo.publishedDate.slice(0, 4)}
+                      </Text>
+                    ) : null}
                   </View>
 
                   <Ionicons
@@ -1716,22 +1761,19 @@ function createStyles(colors: NovoriColors) {
       fontFamily: 'Inter_400Regular',
       fontSize: 13,
     },
-    searchButton: {
-      minWidth: 70,
-      minHeight: 42,
-      borderRadius: 12,
+    clearSearchButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.gold,
-      paddingHorizontal: 12,
     },
-    searchButtonDisabled: {
-      opacity: 0.38,
-    },
-    searchButtonText: {
-      color: colors.background,
-      fontFamily: 'Inter_700Bold',
-      fontSize: 11.5,
+    searchHint: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      paddingHorizontal: 18,
+      paddingBottom: 4,
     },
     searchError: {
       color: colors.danger,
@@ -1785,6 +1827,12 @@ function createStyles(colors: NovoriColors) {
       fontFamily: 'Inter_400Regular',
       fontSize: 10.5,
       marginTop: 4,
+    },
+    resultYear: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 9.5,
+      marginTop: 3,
     },
     pressed: {
       opacity: 0.7,
