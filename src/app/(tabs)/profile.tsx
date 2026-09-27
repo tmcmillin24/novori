@@ -1195,7 +1195,7 @@ export default function ProfileScreen() {
                   displayName,
               },
             });
-          }
+          }}
         >
           <Text
             style={
@@ -1243,7 +1243,7 @@ export default function ProfileScreen() {
                   displayName,
               },
             });
-          }
+          }}
         >
           <Text
             style={
