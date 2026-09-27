@@ -83,14 +83,6 @@ export default function CreateBookStackScreen() {
     useState(false);
 
   const [
-    pendingItems,
-    setPendingItems,
-  ] =
-    useState<
-      BookStackDraftItem[]
-    >([]);
-
-  const [
     query,
     setQuery,
   ] =
@@ -139,6 +131,14 @@ export default function CreateBookStackScreen() {
     setPublishing,
   ] =
     useState(false);
+
+  const [
+    draggingBookId,
+    setDraggingBookId,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const timerRef =
     useRef<
@@ -254,27 +254,21 @@ export default function CreateBookStackScreen() {
   }
 
   function openBookSearch() {
-    setPendingItems(
-      items
-    );
     setSearchOpen(
       true
     );
   }
 
   function closeBookSearch() {
-    setPendingItems(
-      items
-    );
     setSearchOpen(
       false
     );
   }
 
-  function isPending(
+  function isAdded(
     googleBookId: string
   ) {
-    return pendingItems.some(
+    return items.some(
       (item) =>
         item.googleBookId ===
         googleBookId
@@ -286,14 +280,14 @@ export default function CreateBookStackScreen() {
       GoogleBookSearchItem
   ) {
     const alreadySelected =
-      isPending(
+      isAdded(
         book.id
       );
 
     if (
       alreadySelected
     ) {
-      setPendingItems(
+      setItems(
         (
           current
         ) =>
@@ -309,7 +303,7 @@ export default function CreateBookStackScreen() {
     }
 
     if (
-      pendingItems.length >=
+      items.length >=
       MAX_STACK_BOOKS
     ) {
       Alert.alert(
@@ -336,22 +330,13 @@ export default function CreateBookStackScreen() {
           ) ?? null,
       };
 
-    setPendingItems(
+    setItems(
       (
         current
       ) => [
         ...current,
         next,
       ]
-    );
-  }
-
-  function saveBookSelection() {
-    setItems(
-      pendingItems
-    );
-    setSearchOpen(
-      false
     );
   }
 
@@ -904,6 +889,9 @@ export default function CreateBookStackScreen() {
         contentContainerStyle={
           styles.content
         }
+        scrollEnabled={
+          !draggingBookId
+        }
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={
           false
@@ -1220,6 +1208,16 @@ export default function CreateBookStackScreen() {
                         onMoveTo={
                           moveBookTo
                         }
+                        onDragStart={() =>
+                          setDraggingBookId(
+                            item.googleBookId
+                          )
+                        }
+                        onDragEnd={() =>
+                          setDraggingBookId(
+                            null
+                          )
+                        }
                         colors={
                           colors
                         }
@@ -1399,7 +1397,7 @@ export default function CreateBookStackScreen() {
                 styles.searchCount
               }
             >
-              {pendingItems.length}/10
+              {items.length}/10
             </Text>
           </View>
 
@@ -1483,7 +1481,7 @@ export default function CreateBookStackScreen() {
                 book
               ) => {
                 const added =
-                  isPending(
+                  isAdded(
                     book.id
                   );
 
@@ -1585,50 +1583,6 @@ export default function CreateBookStackScreen() {
             )}
           </ScrollView>
 
-          <View
-            style={
-              styles.searchFooter
-            }
-          >
-            <Text
-              style={
-                styles.searchFooterText
-              }
-            >
-              {pendingItems.length}{' '}
-              {pendingItems.length ===
-              1
-                ? 'book selected'
-                : 'books selected'}
-            </Text>
-
-            <Pressable
-              onPress={
-                saveBookSelection
-              }
-              style={({ pressed }) => [
-                styles.saveBooksButton,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Text
-                style={
-                  styles.saveBooksButtonText
-                }
-              >
-                Save Books
-              </Text>
-
-              <Ionicons
-                name="checkmark"
-                size={18}
-                color={
-                  colors.background
-                }
-              />
-            </Pressable>
-          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -1639,6 +1593,8 @@ function DragHandle({
   index,
   itemCount,
   onMoveTo,
+  onDragStart,
+  onDragEnd,
   colors,
 }: {
   index: number;
@@ -1647,6 +1603,8 @@ function DragHandle({
     fromIndex: number,
     toIndex: number
   ) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
   colors: NovoriColors;
 }) {
   const [
@@ -1666,6 +1624,16 @@ function DragHandle({
   const moveRef =
     useRef(
       onMoveTo
+    );
+
+  const onDragStartRef =
+    useRef(
+      onDragStart
+    );
+
+  const onDragEndRef =
+    useRef(
+      onDragEnd
     );
 
   const startIndexRef =
@@ -1690,20 +1658,59 @@ function DragHandle({
     itemCount;
   moveRef.current =
     onMoveTo;
+  onDragStartRef.current =
+    onDragStart;
+  onDragEndRef.current =
+    onDragEnd;
+
+  function finishDrag() {
+    if (
+      holdTimerRef.current
+    ) {
+      clearTimeout(
+        holdTimerRef.current
+      );
+      holdTimerRef.current =
+        null;
+    }
+
+    if (
+      activeRef.current
+    ) {
+      onDragEndRef.current();
+    }
+
+    activeRef.current =
+      false;
+    setDragging(
+      false
+    );
+  }
 
   const panResponder =
     useRef(
       PanResponder.create({
         onStartShouldSetPanResponder:
           () => true,
+
         onMoveShouldSetPanResponder:
           () => true,
+
+        onPanResponderTerminationRequest:
+          () =>
+            !activeRef.current,
+
+        onShouldBlockNativeResponder:
+          () => true,
+
         onPanResponderGrant:
           () => {
             startIndexRef.current =
               indexRef.current;
+
             currentIndexRef.current =
               indexRef.current;
+
             activeRef.current =
               false;
 
@@ -1712,13 +1719,17 @@ function DragHandle({
                 () => {
                   activeRef.current =
                     true;
+
                   setDragging(
                     true
                   );
+
+                  onDragStartRef.current();
                 },
-                180
+                160
               );
           },
+
         onPanResponderMove: (
           _,
           gesture
@@ -1729,10 +1740,13 @@ function DragHandle({
             return;
           }
 
+          const rowDistance =
+            58;
+
           const offset =
             Math.round(
               gesture.dy /
-                66
+                rowDistance
             );
 
           const target =
@@ -1761,63 +1775,35 @@ function DragHandle({
           currentIndexRef.current =
             target;
         },
+
         onPanResponderRelease:
-          () => {
-            if (
-              holdTimerRef.current
-            ) {
-              clearTimeout(
-                holdTimerRef.current
-              );
-            }
+          finishDrag,
 
-            activeRef.current =
-              false;
-            setDragging(
-              false
-            );
-          },
         onPanResponderTerminate:
-          () => {
-            if (
-              holdTimerRef.current
-            ) {
-              clearTimeout(
-                holdTimerRef.current
-              );
-            }
-
-            activeRef.current =
-              false;
-            setDragging(
-              false
-            );
-          },
+          finishDrag,
       })
     ).current;
 
   return (
     <View
       {...panResponder.panHandlers}
-      style={[
-        {
-          width: 34,
-          height: 34,
-          alignItems:
-            'center',
-          justifyContent:
-            'center',
-          borderRadius: 10,
-          backgroundColor:
-            dragging
-              ? colors.elevated
-              : 'transparent',
-        },
-      ]}
+      style={{
+        width: 38,
+        height: 38,
+        alignItems:
+          'center',
+        justifyContent:
+          'center',
+        borderRadius: 10,
+        backgroundColor:
+          dragging
+            ? colors.elevated
+            : 'transparent',
+      }}
     >
       <Ionicons
         name="reorder-three-outline"
-        size={23}
+        size={25}
         color={
           dragging
             ? colors.gold
@@ -2333,55 +2319,13 @@ function createStyles(
         colors.elevated,
     },
 
-    searchFooter: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'space-between',
-      gap: 12,
-      paddingHorizontal: 16,
-      paddingTop: 10,
-      paddingBottom: 16,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-      backgroundColor:
-        colors.background,
-    },
 
-    searchFooterText: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 11,
-    },
 
-    saveBooksButton: {
-      minHeight: 44,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 7,
-      borderRadius: 12,
-      paddingHorizontal: 18,
-      backgroundColor:
-        colors.gold,
-    },
 
-    saveBooksButtonText: {
-      color:
-        colors.background,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 12,
-    },
+
+
+
+
 
     resultCover: {
       width: 43,
