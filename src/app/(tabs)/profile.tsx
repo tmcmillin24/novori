@@ -33,6 +33,10 @@ import {
   FeedPost,
 } from '../../lib/feed';
 import {
+  PROFILE_BOOK_STATUS_LABELS,
+  sortProfileBooks,
+} from '../../lib/profile-book-order';
+import {
   getReaderProfile,
   getReaderProfilePosts,
   getReaderPublicClubs,
@@ -296,55 +300,10 @@ export default function ProfileScreen() {
         'reading'
     );
 
-  const readBooks =
-    books.filter(
-      (book) =>
-        book.status ===
-        'read'
+  const publicBooks =
+    sortProfileBooks(
+      books
     );
-
-  const dnfBooks =
-    books.filter(
-      (book) =>
-        book.status ===
-        'dnf'
-    );
-
-  const publicBooks = [
-    ...readBooks,
-    ...dnfBooks,
-  ].sort(
-    (a, b) => {
-      const aDate =
-        a.status ===
-        'dnf'
-          ? a.dnf_at ??
-            a.updated_at ??
-            a.created_at
-          : a.finished_at ??
-            a.updated_at ??
-            a.created_at;
-
-      const bDate =
-        b.status ===
-        'dnf'
-          ? b.dnf_at ??
-            b.updated_at ??
-            b.created_at
-          : b.finished_at ??
-            b.updated_at ??
-            b.created_at;
-
-      return (
-        new Date(
-          bDate
-        ).getTime() -
-        new Date(
-          aDate
-        ).getTime()
-      );
-    }
-  );
 
   const reviewedBooks =
     books.filter(
@@ -357,8 +316,7 @@ export default function ProfileScreen() {
     );
 
   const profileBookCount =
-    currentlyReadingBooks.length +
-    publicBooks.length;
+    books.length;
 
   const previewBooks =
     currentlyReadingBooks.slice(
@@ -431,28 +389,11 @@ export default function ProfileScreen() {
   function renderBookStatus(
     book: UserBook
   ) {
-    if (
-      book.status ===
-      'read'
-    ) {
-      return 'Read';
-    }
-
-    if (
-      book.status ===
-      'dnf'
-    ) {
-      return 'DNF';
-    }
-
-    if (
-      book.status ===
-      'reading'
-    ) {
-      return 'Reading';
-    }
-
-    return 'TBR';
+    return (
+      PROFILE_BOOK_STATUS_LABELS[
+        book.status
+      ]
+    );
   }
 
   function renderCurrentlyReading() {
@@ -709,7 +650,7 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Books you finish or mark as DNF will appear on your profile.
+            Reading, TBR, Read, and DNF books will appear here in that order.
           </Text>
         </View>
       );
@@ -775,22 +716,23 @@ export default function ProfileScreen() {
                   </View>
                 )}
 
-                {book.status ===
-                'dnf' ? (
-                  <View
+                <View
+                  style={
+                    styles.gridStatusBadge
+                  }
+                >
+                  <Text
                     style={
-                      styles.gridDnfBadge
+                      styles.gridStatusBadgeText
                     }
                   >
-                    <Text
-                      style={
-                        styles.gridDnfBadgeText
-                      }
-                    >
-                      DNF
-                    </Text>
-                  </View>
-                ) : null}
+                    {
+                      renderBookStatus(
+                        book
+                      )
+                    }
+                  </Text>
+                </View>
               </View>
 
               <Text
@@ -2574,28 +2516,28 @@ function createStyles(
         'center',
     },
 
-    gridDnfBadge: {
+    gridStatusBadge: {
       position:
         'absolute',
       left: 6,
       bottom: 6,
-      borderRadius: 999,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
+      borderRadius: 7,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
       backgroundColor:
         colors.background,
       borderWidth: 1,
       borderColor:
-        colors.danger,
+        colors.border,
     },
 
-    gridDnfBadgeText: {
+    gridStatusBadgeText: {
       color:
-        colors.danger,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize: 8,
-      letterSpacing: 0.4,
+      letterSpacing: 0.3,
     },
 
     gridBookTitle: {
