@@ -31,6 +31,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import BookStackVisual from '../../components/BookStackVisual';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
   NovoriColors,
@@ -38,6 +39,10 @@ import {
 import {
   useNovoriTheme,
 } from '../../context/theme-context';
+import {
+  BookStack,
+  getPublicBookStacks,
+} from '../../lib/book-stacks';
 import {
   ClubWithMembership,
   getMyClubs,
@@ -205,6 +210,14 @@ export default function ReaderProfileScreen() {
     setClubs,
   ] =
     useState<ClubWithMembership[]>(
+      []
+    );
+
+  const [
+    stacks,
+    setStacks,
+  ] =
+    useState<BookStack[]>(
       []
     );
 
@@ -441,6 +454,9 @@ export default function ReaderProfileScreen() {
             setClubs(
               []
             );
+            setStacks(
+              []
+            );
             return;
           }
 
@@ -449,6 +465,7 @@ export default function ReaderProfileScreen() {
             reviewData,
             postData,
             clubData,
+            stackData,
           ] =
             await Promise.all([
               getReaderPublicBooks(
@@ -461,6 +478,9 @@ export default function ReaderProfileScreen() {
                 readerId
               ),
               getReaderPublicClubs(
+                readerId
+              ),
+              getPublicBookStacks(
                 readerId
               ),
             ]);
@@ -478,6 +498,9 @@ export default function ReaderProfileScreen() {
           );
           setClubs(
             clubData
+          );
+          setStacks(
+            stackData
           );
         } catch (
           loadError
@@ -2787,6 +2810,76 @@ export default function ReaderProfileScreen() {
                   </Text>
                 </View>
               )
+            ) : stacks.length >
+              0 ? (
+              <View
+                style={
+                  styles.stackGrid
+                }
+              >
+                {stacks.map(
+                  (
+                    stack
+                  ) => (
+                    <Pressable
+                      key={
+                        stack.id
+                      }
+                      onPress={() =>
+                        router.push({
+                          pathname:
+                            '/stack/[id]',
+                          params: {
+                            id:
+                              stack.id,
+                          },
+                        })
+                      }
+                      style={({ pressed }) => [
+                        styles.stackTile,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.stackTileVisual
+                        }
+                      >
+                        <BookStackVisual
+                          compact
+                          items={
+                            stack.items
+                          }
+                        />
+                      </View>
+
+                      <Text
+                        style={
+                          styles.stackTileTitle
+                        }
+                        numberOfLines={2}
+                      >
+                        {
+                          stack.name
+                        }
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.stackTileMeta
+                        }
+                      >
+                        {stack.items.length}{' '}
+                        {stack.items.length ===
+                        1
+                          ? 'book'
+                          : 'books'}
+                      </Text>
+                    </Pressable>
+                  )
+                )}
+              </View>
             ) : (
               <View
                 style={
@@ -2794,7 +2887,7 @@ export default function ReaderProfileScreen() {
                 }
               >
                 <Ionicons
-                  name="layers-outline"
+                  name="albums-outline"
                   size={26}
                   color={
                     colors.gold
@@ -2814,7 +2907,7 @@ export default function ReaderProfileScreen() {
                     styles.emptyText
                   }
                 >
-                  Saved Book Stacks will appear here when the feature is added.
+                  Book Stacks saved to this profile will appear here.
                 </Text>
               </View>
             )}
@@ -3773,6 +3866,59 @@ function createStyles(
     list: {
       gap: 11,
     },
+    stackGrid: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      columnGap: 12,
+      rowGap: 18,
+      marginTop: 16,
+    },
+
+    stackTile: {
+      width: '48%',
+      minHeight: 300,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 17,
+      backgroundColor:
+        colors.surface,
+      padding: 12,
+      overflow:
+        'hidden',
+    },
+
+    stackTileVisual: {
+      height: 220,
+      alignItems:
+        'center',
+      justifyContent:
+        'flex-start',
+      overflow:
+        'hidden',
+    },
+
+    stackTileTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      marginTop: 8,
+    },
+
+    stackTileMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10,
+      marginTop: 5,
+    },
+
     publicBookGrid: {
       flexDirection:
         'row',
