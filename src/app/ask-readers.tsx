@@ -997,4 +997,710 @@ export default function AskReadersScreen() {
                   {cover ? (
                     <Image
                       source={{ uri: cover }}
-                      style={styles.resultCover}
+                      style={styles.resultCover}                    />
+                  ) : (
+                    <View style={styles.resultCoverFallback}>
+                      <Ionicons
+                        name="book-outline"
+                        size={18}
+                        color={colors.gold}
+                      />
+                    </View>
+                  )}
+
+                  <View style={styles.resultCopy}>
+                    <Text
+                      style={styles.resultTitle}
+                      numberOfLines={2}
+                    >
+                      {item.volumeInfo.title || 'Untitled book'}
+                    </Text>
+
+                    <Text
+                      style={styles.resultMeta}
+                      numberOfLines={1}
+                    >
+                      {item.volumeInfo.authors?.join(', ') ||
+                        'Unknown author'}
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={22}
+                    color={colors.gold}
+                  />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+function createStyles(colors: NovoriColors) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      minHeight: 68,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    headerButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerCopy: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    headerEyebrow: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 9.5,
+      letterSpacing: 1.5,
+    },
+    headerTitle: {
+      color: colors.text,
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 19,
+      marginTop: 2,
+    },
+    headerSpacer: {
+      width: 40,
+    },
+    content: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 40,
+      gap: 16,
+    },
+    questionCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 20,
+      padding: 16,
+    },
+    questionIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.elevated,
+      marginBottom: 14,
+    },
+    sectionLabel: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 10,
+      letterSpacing: 1.3,
+    },
+    questionInput: {
+      minHeight: 96,
+      color: colors.text,
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 24,
+      lineHeight: 31,
+      paddingTop: 10,
+      paddingBottom: 8,
+      textAlignVertical: 'top',
+    },
+    characterCount: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10.5,
+      textAlign: 'right',
+    },
+    section: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 15,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    sectionHeaderCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 14,
+    },
+    sectionSubtitle: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11.5,
+      lineHeight: 16,
+      marginTop: 3,
+    },
+    smallCount: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10,
+    },
+    contextInput: {
+      minHeight: 96,
+      color: colors.text,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13.5,
+      lineHeight: 20,
+      marginTop: 12,
+      padding: 12,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+      textAlignVertical: 'top',
+    },
+    actionRow: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+    },
+    actionIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.elevated,
+      marginRight: 11,
+    },
+    actionCopy: {
+      flex: 1,
+    },
+    actionTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+    actionSubtitle: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 2,
+    },
+    attachedBook: {
+      minHeight: 78,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      padding: 10,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+    },
+    bookCover: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      backgroundColor: colors.elevated,
+      marginRight: 10,
+    },
+    bookCoverFallback: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.elevated,
+      marginRight: 10,
+    },
+    bookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    bookTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    bookMeta: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 4,
+    },
+    removeBook: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+    destinationRow: {
+      minHeight: 68,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+    },
+    destinationIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.elevated,
+      marginRight: 11,
+    },
+    destinationCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    destinationTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+    },
+    destinationSubtitle: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      lineHeight: 15,
+      marginTop: 2,
+    },
+    destinationMenu: {
+      marginTop: 8,
+      borderRadius: 14,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    destinationOption: {
+      minHeight: 50,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    destinationOptionPressed: {
+      backgroundColor: colors.elevated,
+    },
+    destinationOptionText: {
+      flex: 1,
+      minWidth: 0,
+      color: colors.text,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12.5,
+    },
+    previewLabel: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 10,
+      letterSpacing: 1.1,
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    feedPreviewCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 22,
+      overflow: 'hidden',
+      shadowColor: '#000000',
+      shadowOpacity: 0.10,
+      shadowRadius: 14,
+      shadowOffset: {
+        width: 0,
+        height: 5,
+      },
+      elevation: 3,
+    },
+    feedPreviewHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: 16,
+      paddingTop: 15,
+    },
+    feedPreviewAvatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: colors.elevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginRight: 12,
+    },
+    feedPreviewAvatarFallback: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: colors.elevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    feedPreviewAvatarText: {
+      color: colors.text,
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 18,
+    },
+    feedPreviewAuthorCopy: {
+      flex: 1,
+      minWidth: 0,
+      paddingTop: 2,
+    },
+    feedPreviewIdentity: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      columnGap: 6,
+      minWidth: 0,
+    },
+    feedPreviewAuthorName: {
+      color: colors.text,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 13.5,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    feedPreviewUsername: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11.5,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    feedPreviewAudienceRow: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 5,
+      maxWidth: '100%',
+    },
+    feedPreviewAudienceText: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+    },
+    feedPreviewClubIcon: {
+      width: 18,
+      height: 18,
+      borderRadius: 6,
+      backgroundColor: colors.elevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    feedPreviewClubIconText: {
+      color: colors.gold,
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 8,
+    },
+    feedPreviewClubText: {
+      color: colors.softGold,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 10.5,
+      flexShrink: 1,
+    },
+    feedPreviewTime: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+    },
+    feedPreviewMore: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+      marginTop: -2,
+    },
+    feedPreviewContent: {
+      paddingHorizontal: 16,
+      paddingTop: 14,
+    },
+    askReadersBadge: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: colors.elevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 10,
+    },
+    askReadersBadgeText: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 9,
+      letterSpacing: 0.8,
+    },
+    feedPreviewQuestion: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 16,
+      lineHeight: 23,
+    },
+    feedPreviewContext: {
+      color: colors.text,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      marginTop: 8,
+    },
+    feedPreviewBookCard: {
+      minHeight: 84,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.elevated,
+      borderRadius: 13,
+      padding: 10,
+      marginTop: 13,
+    },
+    feedPreviewBookCover: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      backgroundColor: colors.surface,
+      marginRight: 10,
+    },
+    feedPreviewBookCoverFallback: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
+    feedPreviewBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    feedPreviewBookEyebrow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: 3,
+    },
+    feedPreviewBookEyebrowText: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 9.5,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    feedPreviewBookTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    feedPreviewBookAuthor: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 3,
+    },
+    feedPreviewFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginTop: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+    },
+    feedPreviewVoteControl: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
+    feedPreviewVoteScore: {
+      minWidth: 14,
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      textAlign: 'center',
+    },
+    feedPreviewCommentCount: {
+      height: 32,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    feedPreviewCommentCountText: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+    },
+    publishButton: {
+      minHeight: 52,
+      borderRadius: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.gold,
+      marginTop: 2,
+    },
+    publishButtonDisabled: {
+      opacity: 0.38,
+    },
+    publishButtonPressed: {
+      opacity: 0.82,
+    },
+    publishButtonText: {
+      color: colors.background,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 14,
+    },
+    bookPickerSafeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    bookPickerHeader: {
+      height: 58,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    bookPickerTitle: {
+      flex: 1,
+      color: colors.text,
+      fontFamily: 'PlayfairDisplay_700Bold',
+      fontSize: 20,
+      textAlign: 'center',
+    },
+    searchRow: {
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      margin: 16,
+      marginBottom: 8,
+      paddingLeft: 12,
+      paddingRight: 5,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.text,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+    },
+    searchButton: {
+      minWidth: 70,
+      minHeight: 42,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.gold,
+      paddingHorizontal: 12,
+    },
+    searchButtonDisabled: {
+      opacity: 0.38,
+    },
+    searchButtonText: {
+      color: colors.background,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11.5,
+    },
+    searchError: {
+      color: colors.danger,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      paddingHorizontal: 18,
+      paddingBottom: 4,
+    },
+    bookResults: {
+      paddingHorizontal: 16,
+      paddingBottom: 30,
+    },
+    bookResult: {
+      minHeight: 82,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 9,
+      paddingHorizontal: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    resultCover: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      backgroundColor: colors.elevated,
+      marginRight: 11,
+    },
+    resultCoverFallback: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      backgroundColor: colors.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 11,
+    },
+    resultCopy: {
+      flex: 1,
+      minWidth: 0,
+      marginRight: 10,
+    },
+    resultTitle: {
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    resultMeta: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 4,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });
+}
