@@ -26,6 +26,9 @@ import {
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { NovoriColors } from '../../constants/novori-theme';
+import {
+  searchNovoriBooks,
+} from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
 import {
   cancelFollowRequest,
@@ -2061,162 +2064,16 @@ export default function DiscoverScreen() {
       setLoading(true);
       setError('');
 
-      const apiKey =
-        process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-      if (!apiKey) {
-        throw new Error(
-          'Google Books API key is missing from the .env file.'
-        );
-      }
-
-      const encodedQuery =
-        encodeURIComponent(
+      const rankedResults =
+        await searchNovoriBooks(
           searchTerm
         );
-
-      const response =
-        await fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full&key=${apiKey}`
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          `Google Books request failed: ${response.status}`
-        );
-      }
-
-      const data:
-        GoogleBooksResponse =
-        await response.json();
 
       if (
         requestId !==
         latestRequestRef.current
       ) {
         return;
-      }
-
-      const initialResults =
-        data.items ?? [];
-
-      const normalizedQuery =
-        normalizeTitle(
-          searchTerm
-        );
-
-      // If Google Books is clearly matching the
-      // query to an author, switch into an
-      // author-first search. This lets "Stephen
-      // King", "Sarah J Maas", etc. show that
-      // author's books from most popular downward.
-      const authorMatches =
-        initialResults.filter(
-          (book) =>
-            getAuthorSearchRelevance(
-              book,
-              normalizedQuery
-            ) >= 200
-        );
-
-      const exactAuthorMatch =
-        initialResults.some(
-          (book) =>
-            getAuthorSearchRelevance(
-              book,
-              normalizedQuery
-            ) >= 400
-        );
-
-      const strongTitleMatch =
-        initialResults.some(
-          (book) =>
-            getTitleSearchRelevance(
-              book,
-              normalizedQuery
-            ) >= 300
-        );
-
-      const looksLikeAuthorSearch =
-        exactAuthorMatch ||
-        (
-          authorMatches.length >= 2 &&
-          !strongTitleMatch
-        );
-
-      let rankedResults:
-        GoogleBookItem[];
-
-      if (looksLikeAuthorSearch) {
-        const authorResponse =
-          await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-              `inauthor:"${searchTerm}"`
-            )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
-          );
-
-        let authorSpecificResults:
-          GoogleBookItem[] = [];
-
-        if (authorResponse.ok) {
-          const authorData:
-            GoogleBooksResponse =
-            await authorResponse.json();
-
-          authorSpecificResults =
-            authorData.items ?? [];
-        }
-
-        if (
-          requestId !==
-          latestRequestRef.current
-        ) {
-          return;
-        }
-
-        const merged =
-          mergeGoogleBookResults(
-            authorSpecificResults,
-            initialResults
-          );
-
-        const hardcoverPopularity =
-          await getHardcoverPopularity(
-            merged
-          );
-
-        if (
-          requestId !==
-          latestRequestRef.current
-        ) {
-          return;
-        }
-
-        rankedResults =
-          sortAuthorSearchResults(
-            merged,
-            searchTerm,
-            hardcoverPopularity
-          );
-      } else {
-        const hardcoverPopularity =
-          await getHardcoverPopularity(
-            initialResults
-          );
-
-        if (
-          requestId !==
-          latestRequestRef.current
-        ) {
-          return;
-        }
-
-        rankedResults =
-          sortTitleSearchResults(
-            initialResults,
-            searchTerm,
-            hardcoverPopularity
-          );
       }
 
       setBooks(
