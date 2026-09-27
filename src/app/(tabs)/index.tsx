@@ -38,6 +38,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import FeedPostImage from '../../components/FeedPostImage';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
@@ -5854,6 +5855,22 @@ export default function HomeScreen() {
               )
             )
           )}
+
+          {post.post_type ===
+            'book_stack' &&
+          post.book_stack_id ? (
+            <View
+              onStartShouldSetResponder={() =>
+                true
+              }
+            >
+              <BookStackPostAttachment
+                stackId={
+                  post.book_stack_id
+                }
+              />
+            </View>
+          ) : null}
 
           {post.post_image_url ? (
             <FeedPostImage
