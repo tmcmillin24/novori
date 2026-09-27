@@ -226,7 +226,17 @@ export default function ProfileScreen() {
             getReaderPublicClubs(
               user.id
             ),
-            getMyBookStacks(),
+            getMyBookStacks().catch(
+              (
+                stackError
+              ) => {
+                console.warn(
+                  'Could not load Book Stacks:',
+                  stackError
+                );
+                return [];
+              }
+            ),
           ]);
 
           if (
