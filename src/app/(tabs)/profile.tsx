@@ -1527,14 +1527,14 @@ export default function ProfileScreen() {
             pressed &&
               styles.pressed,
           ]}
-          onPress={() =>
+          onPress={() => {
             setActiveTab(
               'library'
             );
             setLibraryTab(
               'books'
-            )
-          }
+            );
+          }}
         >
           <Text
             style={
