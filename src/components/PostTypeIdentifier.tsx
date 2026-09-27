@@ -54,6 +54,14 @@ function getIdentity(
           'star-outline',
       };
 
+    case 'book_stack':
+      return {
+        label:
+          'BOOK STACK',
+        icon:
+          'albums-outline',
+      };
+
     default:
       return null;
   }
