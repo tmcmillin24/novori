@@ -19,7 +19,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import { ClubWithMembership, getMyClubs } from '../lib/clubs';
-import { createPost } from '../lib/feed';
+import {
+  createPost,
+  getPostDetail,
+  splitQuestionPostBody,
+  updatePost,
+} from '../lib/feed';
 import { supabase } from '../lib/supabase';
 
 type ViewerProfile = {
@@ -77,10 +82,19 @@ export default function AskReadersScreen() {
 
   const params = useLocalSearchParams<{
     clubId?: string;
+    editPostId?: string;
   }>();
 
   const requestedClubId =
     typeof params.clubId === 'string' ? params.clubId : '';
+
+  const editPostId =
+    typeof params.editPostId === 'string'
+      ? params.editPostId
+      : '';
+
+  const isEditing =
+    Boolean(editPostId);
 
   const { colors } = useNovoriTheme();
 
@@ -120,16 +134,71 @@ export default function AskReadersScreen() {
         const [
           clubResult,
           authResult,
+          editingPost,
         ] = await Promise.all([
           getMyClubs(),
           supabase.auth.getUser(),
+          editPostId
+            ? getPostDetail(editPostId)
+            : Promise.resolve(null),
         ]);
 
         if (!active) return;
 
         setClubs(clubResult);
 
-        if (
+        const user =
+          authResult.data.user;
+
+        if (editingPost) {
+          if (
+            !user ||
+            editingPost.author_id !== user.id ||
+            editingPost.post_type !== 'question'
+          ) {
+            throw new Error(
+              'This Ask Readers post cannot be edited.'
+            );
+          }
+
+          const parsed =
+            splitQuestionPostBody(
+              editingPost.body
+            );
+
+          setQuestion(
+            parsed.question
+          );
+          setContext(
+            parsed.context
+          );
+
+          setDestination(
+            editingPost.club_id
+              ? {
+                  type: 'club',
+                  clubId: editingPost.club_id,
+                }
+              : {
+                  type: 'profile',
+                  clubId: null,
+                }
+          );
+
+          if (
+            editingPost.google_book_id &&
+            editingPost.book_title
+          ) {
+            setAttachedBook({
+              id: editingPost.google_book_id,
+              title: editingPost.book_title,
+              authors:
+                editingPost.book_authors ?? [],
+              coverUrl:
+                editingPost.book_cover_url,
+            });
+          }
+        } else if (
           requestedClubId &&
           clubResult.some(
             (club) =>
@@ -141,9 +210,6 @@ export default function AskReadersScreen() {
             clubId: requestedClubId,
           });
         }
-
-        const user =
-          authResult.data.user;
 
         if (user) {
           const {
@@ -186,7 +252,10 @@ export default function AskReadersScreen() {
     return () => {
       active = false;
     };
-  }, [requestedClubId]);
+  }, [
+    editPostId,
+    requestedClubId,
+  ]);
 
   const selectedClub =
     destination.type === 'club'
@@ -312,9 +381,8 @@ export default function AskReadersScreen() {
     try {
       setPublishing(true);
 
-      await createPost({
+      const postInput = {
         body,
-        postType: 'question',
         clubId:
           destination.type === 'club'
             ? destination.clubId
@@ -323,8 +391,23 @@ export default function AskReadersScreen() {
         bookTitle: attachedBook?.title ?? null,
         bookCoverUrl: attachedBook?.coverUrl ?? null,
         bookAuthors: attachedBook?.authors ?? null,
-        rating: null,
-      });
+        bookSeriesName: null,
+        bookSeriesPosition: null,
+        imageUrl: null,
+      };
+
+      if (isEditing) {
+        await updatePost(
+          editPostId,
+          postInput
+        );
+      } else {
+        await createPost({
+          ...postInput,
+          postType: 'question',
+          rating: null,
+        });
+      }
 
       router.replace('/(tabs)');
     } catch (error) {
@@ -366,7 +449,9 @@ export default function AskReadersScreen() {
           </Text>
 
           <Text style={styles.headerTitle}>
-            Start a conversation
+            {isEditing
+              ? 'Edit your question'
+              : 'Start a conversation'}
           </Text>
         </View>
 
@@ -400,7 +485,7 @@ export default function AskReadersScreen() {
             placeholderTextColor={colors.mutedText}
             multiline
             maxLength={280}
-            autoFocus
+            autoFocus={!isEditing}
             style={styles.questionInput}
           />
 
@@ -891,7 +976,9 @@ export default function AskReadersScreen() {
               />
 
               <Text style={styles.publishButtonText}>
-                Ask Readers
+                {isEditing
+                  ? 'Save Changes'
+                  : 'Ask Readers'}
               </Text>
             </>
           )}
