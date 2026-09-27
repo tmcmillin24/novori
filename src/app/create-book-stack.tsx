@@ -36,7 +36,6 @@ import {
   searchNovoriBooks,
 } from '../lib/book-search';
 import {
-  BookStack,
   BookStackDraftItem,
   createBookStack,
 } from '../lib/book-stacks';
@@ -118,14 +117,6 @@ export default function CreateBookStackScreen() {
     setPreviewing,
   ] =
     useState(false);
-
-  const [
-    savedStack,
-    setSavedStack,
-  ] =
-    useState<
-      BookStack | null
-    >(null);
 
   const [
     postText,
@@ -413,27 +404,22 @@ export default function CreateBookStackScreen() {
       return;
     }
 
+    if (
+      openPreview
+    ) {
+      setPreviewing(
+        true
+      );
+      return;
+    }
+
     try {
       setSaving(true);
 
-      const stack =
-        await createBookStack(
-          name,
-          items
-        );
-
-      setSavedStack(
-        stack
+      await createBookStack(
+        name,
+        items
       );
-
-      if (
-        openPreview
-      ) {
-        setPreviewing(
-          true
-        );
-        return;
-      }
 
       router.replace(
         '/(tabs)/profile'
@@ -459,8 +445,8 @@ export default function CreateBookStackScreen() {
 
   async function publishStack() {
     if (
-      !savedStack ||
-      publishing
+      publishing ||
+      !validateStack()
     ) {
       return;
     }
@@ -470,14 +456,20 @@ export default function CreateBookStackScreen() {
         true
       );
 
+      const stack =
+        await createBookStack(
+          name,
+          items
+        );
+
       await createPost({
         body:
           postText.trim() ||
-          savedStack.name,
+          stack.name,
         postType:
           'book_stack',
         bookStackId:
-          savedStack.id,
+          stack.id,
       });
 
       router.replace(
@@ -530,8 +522,7 @@ export default function CreateBookStackScreen() {
     );
 
   if (
-    previewing &&
-    savedStack
+    previewing
   ) {
     return (
       <SafeAreaView
@@ -621,7 +612,7 @@ export default function CreateBookStackScreen() {
             }
           >
             {
-              savedStack.name
+              name.trim()
             }
           </Text>
 
@@ -650,7 +641,7 @@ export default function CreateBookStackScreen() {
           >
             <BookStackVisual
               items={
-                savedStack.items
+                visualItems
               }
             />
           </View>
@@ -666,10 +657,10 @@ export default function CreateBookStackScreen() {
               }
             >
               {
-                savedStack.items.length
+                items.length
               }{' '}
               {
-                savedStack.items.length ===
+                items.length ===
                 1
                   ? 'book'
                   : 'books'
@@ -689,7 +680,7 @@ export default function CreateBookStackScreen() {
                 styles.previewMetaText
               }
             >
-              Saved to your profile
+              Will save to your profile
             </Text>
           </View>
 
