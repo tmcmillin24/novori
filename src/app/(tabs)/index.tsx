@@ -5142,6 +5142,22 @@ export default function HomeScreen() {
   function editOwnPost(
     post: FeedPost
   ) {
+    if (
+      post.post_type ===
+      'question'
+    ) {
+      router.push({
+        pathname:
+          '/ask-readers',
+        params: {
+          editPostId:
+            post.id,
+        },
+      });
+
+      return;
+    }
+
     router.push({
       pathname:
         '/create-post',
