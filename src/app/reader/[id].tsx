@@ -31,6 +31,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
@@ -1389,6 +1390,12 @@ export default function ReaderProfileScreen() {
                 : post.post_type ===
                   'reading_update'
                 ? 'book-outline'
+                : post.post_type ===
+                  'question'
+                ? 'help-circle-outline'
+                : post.post_type ===
+                  'book_stack'
+                ? 'albums-outline'
                 : 'chatbubble-ellipses-outline'
             }
             size={
@@ -1410,6 +1417,12 @@ export default function ReaderProfileScreen() {
               : post.post_type ===
                 'reading_update'
               ? 'Reading update'
+              : post.post_type ===
+                'question'
+              ? 'Ask Readers'
+              : post.post_type ===
+                'book_stack'
+              ? 'Book Stack'
               : 'Post'}
           </Text>
 
@@ -1432,6 +1445,16 @@ export default function ReaderProfileScreen() {
         >
           {post.body}
         </Text>
+
+        {post.post_type ===
+          'book_stack' &&
+        post.book_stack_id ? (
+          <BookStackPostAttachment
+            stackId={
+              post.book_stack_id
+            }
+          />
+        ) : null}
 
         {post.book_title ? (
           <View
