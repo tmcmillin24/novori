@@ -52,6 +52,10 @@ import {
   unfollowReader,
 } from '../../lib/feed';
 import {
+  PROFILE_BOOK_STATUS_LABELS,
+  sortProfileBooks,
+} from '../../lib/profile-book-order';
+import {
   ReportReason,
   submitProfileReport,
 } from '../../lib/reports';
@@ -462,7 +466,9 @@ export default function ReaderProfileScreen() {
             ]);
 
           setBooks(
-            bookData
+            sortProfileBooks(
+              bookData
+            )
           );
           setReviews(
             reviewData
@@ -1578,13 +1584,9 @@ export default function ReaderProfileScreen() {
       PublicReaderBook
   ) {
     const statusLabel =
-      book.status ===
-      'reading'
-        ? 'Reading'
-        : book.status ===
-          'dnf'
-        ? 'DNF'
-        : 'Read';
+      PROFILE_BOOK_STATUS_LABELS[
+        book.status
+      ];
 
     return (
       <Pressable
@@ -2707,7 +2709,7 @@ export default function ReaderProfileScreen() {
                       styles.emptyText
                     }
                   >
-                    Reading, Read, and DNF books will appear here. TBR books stay private.
+                    Reading, TBR, Read, and DNF books appear here in that order when they are visible on this profile.
                   </Text>
                 </View>
               )
