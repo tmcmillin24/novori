@@ -27,7 +27,15 @@ import {
   useNovoriTheme,
 } from '../../context/theme-context';
 import {
+  ClubWithMembership,
+} from '../../lib/clubs';
+import {
+  FeedPost,
+} from '../../lib/feed';
+import {
   getReaderProfile,
+  getReaderProfilePosts,
+  getReaderPublicClubs,
 } from '../../lib/social';
 import {
   supabase,
@@ -38,9 +46,14 @@ import {
 } from '../../lib/user-books';
 
 type ProfileTab =
+  | 'library'
+  | 'activity'
+  | 'clubs';
+
+type ProfileLibraryTab =
   | 'books'
   | 'reviews'
-  | 'clubs';
+  | 'stacks';
 
 type Profile = {
   id: string;
@@ -68,6 +81,14 @@ export default function ProfileScreen() {
     setActiveTab,
   ] =
     useState<ProfileTab>(
+      'library'
+    );
+
+  const [
+    libraryTab,
+    setLibraryTab,
+  ] =
+    useState<ProfileLibraryTab>(
       'books'
     );
 
@@ -96,6 +117,22 @@ export default function ProfileScreen() {
     followingCount,
     setFollowingCount,
   ] = useState(0);
+
+  const [
+    posts,
+    setPosts,
+  ] =
+    useState<FeedPost[]>(
+      []
+    );
+
+  const [
+    clubs,
+    setClubs,
+  ] =
+    useState<ClubWithMembership[]>(
+      []
+    );
 
   useFocusEffect(
     useCallback(() => {
@@ -158,9 +195,17 @@ export default function ProfileScreen() {
           const [
             savedBooks,
             socialProfile,
+            profilePosts,
+            publicClubs,
           ] = await Promise.all([
             getUserBooks(),
             getReaderProfile(
+              user.id
+            ),
+            getReaderProfilePosts(
+              user.id
+            ),
+            getReaderPublicClubs(
               user.id
             ),
           ]);
@@ -176,6 +221,12 @@ export default function ProfileScreen() {
             );
             setFollowingCount(
               socialProfile.following_count
+            );
+            setPosts(
+              profilePosts
+            );
+            setClubs(
+              publicClubs
             );
           }
         } catch (
@@ -197,6 +248,12 @@ export default function ProfileScreen() {
             );
             setFollowingCount(
               0
+            );
+            setPosts(
+              []
+            );
+            setClubs(
+              []
             );
           }
         }
@@ -990,17 +1047,10 @@ export default function ProfileScreen() {
     );
   }
 
-  function renderTabContent() {
+  function renderActivityTab() {
     if (
-      activeTab ===
-      'reviews'
-    ) {
-      return renderReviewsTab();
-    }
-
-    if (
-      activeTab ===
-      'clubs'
+      posts.length ===
+      0
     ) {
       return (
         <View
@@ -1013,7 +1063,7 @@ export default function ProfileScreen() {
               styles.emptyActivityTitle
             }
           >
-            Your clubs will show up here.
+            Your activity will show up here.
           </Text>
 
           <Text
@@ -1021,7 +1071,341 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Clubs you join or create will appear on your profile.
+            Posts, reading updates, Ask Readers questions, and shared reviews will appear here.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={
+          styles.activityList
+        }
+      >
+        {posts.map(
+          (
+            post
+          ) => (
+            <Pressable
+              key={
+                post.id
+              }
+              onPress={() =>
+                router.push({
+                  pathname:
+                    '/post/[id]',
+                  params: {
+                    id:
+                      post.id,
+                  },
+                })
+              }
+              style={({ pressed }) => [
+                styles.activityCard,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <View
+                style={
+                  styles.activityMetaRow
+                }
+              >
+                <Ionicons
+                  name={
+                    post.post_type ===
+                    'review'
+                      ? 'star-outline'
+                      : post.post_type ===
+                        'reading_update'
+                      ? 'book-outline'
+                      : post.post_type ===
+                        'question'
+                      ? 'help-circle-outline'
+                      : 'chatbubble-ellipses-outline'
+                  }
+                  size={14}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.activityMetaText
+                  }
+                >
+                  {post.post_type ===
+                  'review'
+                    ? 'Review'
+                    : post.post_type ===
+                      'reading_update'
+                    ? 'Reading update'
+                    : post.post_type ===
+                      'question'
+                    ? 'Ask Readers'
+                    : 'Post'}
+                </Text>
+              </View>
+
+              <Text
+                style={
+                  styles.activityBody
+                }
+                numberOfLines={6}
+              >
+                {
+                  post.body
+                }
+              </Text>
+
+              {post.book_title ? (
+                <View
+                  style={
+                    styles.activityBook
+                  }
+                >
+                  {post.book_cover_url ? (
+                    <Image
+                      source={{
+                        uri:
+                          post.book_cover_url,
+                      }}
+                      style={
+                        styles.activityBookCover
+                      }
+                    />
+                  ) : (
+                    <View
+                      style={
+                        styles.activityBookCoverFallback
+                      }
+                    >
+                      <Ionicons
+                        name="book-outline"
+                        size={18}
+                        color={
+                          colors.gold
+                        }
+                      />
+                    </View>
+                  )}
+
+                  <View
+                    style={
+                      styles.activityBookCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.activityBookTitle
+                      }
+                      numberOfLines={2}
+                    >
+                      {
+                        post.book_title
+                      }
+                    </Text>
+
+                    {post.book_authors?.length ? (
+                      <Text
+                        style={
+                          styles.activityBookAuthor
+                        }
+                        numberOfLines={1}
+                      >
+                        {post.book_authors.join(
+                          ', '
+                        )}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+            </Pressable>
+          )
+        )}
+      </View>
+    );
+  }
+
+  function renderClubsTab() {
+    if (
+      clubs.length ===
+      0
+    ) {
+      return (
+        <View
+          style={
+            styles.emptyActivity
+          }
+        >
+          <Text
+            style={
+              styles.emptyActivityTitle
+            }
+          >
+            Your public clubs will show up here.
+          </Text>
+
+          <Text
+            style={
+              styles.emptyActivityText
+            }
+          >
+            Public clubs you join or create will appear here. Private memberships stay private.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={
+          styles.clubList
+        }
+      >
+        {clubs.map(
+          (
+            club
+          ) => (
+            <Pressable
+              key={
+                club.id
+              }
+              onPress={() =>
+                router.push({
+                  pathname:
+                    '/club/[id]',
+                  params: {
+                    id:
+                      club.id,
+                  },
+                })
+              }
+              style={({ pressed }) => [
+                styles.clubCard,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              {club.cover_url ? (
+                <Image
+                  source={{
+                    uri:
+                      club.cover_url,
+                  }}
+                  style={
+                    styles.clubCover
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.clubCoverFallback
+                  }
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={20}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+              )}
+
+              <View
+                style={
+                  styles.clubCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.clubTitle
+                  }
+                  numberOfLines={1}
+                >
+                  {
+                    club.name
+                  }
+                </Text>
+
+                <Text
+                  style={
+                    styles.clubMeta
+                  }
+                  numberOfLines={1}
+                >
+                  {club.member_count}{' '}
+                  {club.member_count ===
+                  1
+                    ? 'member'
+                    : 'members'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={
+                  colors.mutedText
+                }
+              />
+            </Pressable>
+          )
+        )}
+      </View>
+    );
+  }
+
+  function renderTabContent() {
+    if (
+      activeTab ===
+      'activity'
+    ) {
+      return renderActivityTab();
+    }
+
+    if (
+      activeTab ===
+      'clubs'
+    ) {
+      return renderClubsTab();
+    }
+
+    if (
+      libraryTab ===
+      'reviews'
+    ) {
+      return renderReviewsTab();
+    }
+
+    if (
+      libraryTab ===
+      'stacks'
+    ) {
+      return (
+        <View
+          style={
+            styles.emptyActivity
+          }
+        >
+          <Text
+            style={
+              styles.emptyActivityTitle
+            }
+          >
+            Your Book Stacks will show up here.
+          </Text>
+
+          <Text
+            style={
+              styles.emptyActivityText
+            }
+          >
+            Saved Book Stacks will appear here when the feature is added.
           </Text>
         </View>
       );
@@ -1145,6 +1529,9 @@ export default function ProfileScreen() {
           ]}
           onPress={() =>
             setActiveTab(
+              'library'
+            );
+            setLibraryTab(
               'books'
             )
           }
@@ -1335,29 +1722,29 @@ export default function ProfileScreen() {
         }
       >
         <ProfileTabButton
-          label="Books"
-          icon="book-outline"
+          label="Library"
+          icon="library-outline"
           active={
             activeTab ===
-            'books'
+            'library'
           }
           onPress={() =>
             setActiveTab(
-              'books'
+              'library'
             )
           }
         />
 
         <ProfileTabButton
-          label="Reviews"
-          icon="star-outline"
+          label="Activity"
+          icon="pulse-outline"
           active={
             activeTab ===
-            'reviews'
+            'activity'
           }
           onPress={() =>
             setActiveTab(
-              'reviews'
+              'activity'
             )
           }
         />
@@ -1376,6 +1763,73 @@ export default function ProfileScreen() {
           }
         />
       </View>
+
+      {activeTab ===
+      'library' ? (
+        <View
+          style={
+            styles.libraryTabs
+          }
+        >
+          {(
+            [
+              {
+                key:
+                  'books',
+                label:
+                  'Books',
+              },
+              {
+                key:
+                  'reviews',
+                label:
+                  'Reviews',
+              },
+              {
+                key:
+                  'stacks',
+                label:
+                  'Stacks',
+              },
+            ] as {
+              key:
+                ProfileLibraryTab;
+              label:
+                string;
+            }[]
+          ).map(
+            (tab) => (
+              <Pressable
+                key={
+                  tab.key
+                }
+                onPress={() =>
+                  setLibraryTab(
+                    tab.key
+                  )
+                }
+                style={[
+                  styles.libraryTab,
+                  libraryTab ===
+                    tab.key &&
+                    styles.libraryTabActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.libraryTabText,
+                    libraryTab ===
+                      tab.key &&
+                      styles.libraryTabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            )
+          )}
+        </View>
+      ) : null}
 
       {
         renderTabContent()
@@ -1837,6 +2291,212 @@ function createStyles(
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 12,
+    },
+
+    libraryTabs: {
+      flexDirection:
+        'row',
+      alignSelf:
+        'center',
+      gap: 18,
+      marginTop: 12,
+      paddingHorizontal: 4,
+    },
+
+    libraryTab: {
+      minHeight: 32,
+      justifyContent:
+        'center',
+      borderBottomWidth: 2,
+      borderBottomColor:
+        'transparent',
+      paddingHorizontal: 4,
+    },
+
+    libraryTabActive: {
+      borderBottomColor:
+        colors.gold,
+    },
+
+    libraryTabText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    libraryTabTextActive: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 12,
+    },
+
+    activityList: {
+      marginTop: 18,
+      gap: 12,
+    },
+
+    activityCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      padding: 14,
+    },
+
+    activityMetaRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+    },
+
+    activityMetaText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.5,
+      textTransform:
+        'uppercase',
+    },
+
+    activityBody: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13.5,
+      lineHeight: 20,
+      marginTop: 10,
+    },
+
+    activityBook: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      borderRadius: 12,
+      padding: 9,
+      marginTop: 12,
+    },
+
+    activityBookCover: {
+      width: 38,
+      height: 56,
+      borderRadius: 5,
+      marginRight: 10,
+      backgroundColor:
+        colors.surface,
+    },
+
+    activityBookCoverFallback: {
+      width: 38,
+      height: 56,
+      borderRadius: 5,
+      marginRight: 10,
+      backgroundColor:
+        colors.surface,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    activityBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    activityBookTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12.5,
+      lineHeight: 17,
+    },
+
+    activityBookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 3,
+    },
+
+    clubList: {
+      marginTop: 18,
+      gap: 10,
+    },
+
+    clubCard: {
+      minHeight: 70,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 15,
+      padding: 10,
+    },
+
+    clubCover: {
+      width: 48,
+      height: 48,
+      borderRadius: 13,
+      marginRight: 11,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    clubCoverFallback: {
+      width: 48,
+      height: 48,
+      borderRadius: 13,
+      marginRight: 11,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    clubCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    clubTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 13.5,
+    },
+
+    clubMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 4,
     },
 
     emptyActivity: {
