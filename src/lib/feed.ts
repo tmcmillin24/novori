@@ -4,7 +4,8 @@ export type FeedPostType =
   | 'post'
   | 'reading_update'
   | 'review'
-  | 'question';
+  | 'question'
+  | 'book_stack';
 
 export type FeedPost = {
   id: string;
@@ -20,6 +21,7 @@ export type FeedPost = {
   book_series_position: number | null;
   post_image_url: string | null;
   rating: number | null;
+  book_stack_id: string | null;
   created_at: string;
   updated_at: string;
   author_display_name: string | null;
@@ -118,7 +120,7 @@ async function attachPostImageUrls(
     await supabase
       .from('posts')
       .select(
-        'id, post_image_url, book_authors, book_series_name, book_series_position'
+        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id'
       )
       .in(
         'id',
@@ -194,6 +196,11 @@ async function attachPostImageUrls(
                     row.book_series_position
                   )
                 : null,
+            bookStackId:
+              typeof row.book_stack_id ===
+                'string'
+                ? row.book_stack_id
+                : null,
           },
         ]
       )
@@ -227,6 +234,11 @@ async function attachPostImageUrls(
           metadata
             ?.seriesPosition ??
           post.book_series_position ??
+          null,
+        book_stack_id:
+          metadata
+            ?.bookStackId ??
+          post.book_stack_id ??
           null,
       };
     }
@@ -515,6 +527,7 @@ export async function createPost(input: {
   bookSeriesPosition?: number | null;
   imageUrl?: string | null;
   rating?: number | null;
+  bookStackId?: string | null;
 }) {
   const userId =
     await getCurrentUserId();
@@ -570,6 +583,9 @@ export async function createPost(input: {
           null,
         rating:
           input.rating ??
+          null,
+        book_stack_id:
+          input.bookStackId ??
           null,
       })
       .select('*')
