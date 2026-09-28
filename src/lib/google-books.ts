@@ -500,8 +500,7 @@ export async function fetchGoogleBooksJson<T>(
 
       return {
         ok: true,
-        status:
-          response.status,
+        status,
         data,
         fromCache:
           false,
