@@ -24,6 +24,7 @@ import { useNovoriTheme } from '../../context/theme-context';
 import {
   AuthorBookResult,
   searchAuthorBooks,
+  shouldFrameBookCover,
 } from '../../lib/book-search';
 
 function getCoverUrl(
@@ -470,8 +471,26 @@ export default function AuthorScreen() {
               uri:
                 coverUrl,
             }}
-            style={
-              styles.cover
+            style={[
+              styles.cover,
+              shouldFrameBookCover(
+                coverUrl
+              )
+                ? {
+                    backgroundColor:
+                      '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor:
+                      '#E5E5E5',
+                  }
+                : null,
+            ]}
+            resizeMode={
+              shouldFrameBookCover(
+                coverUrl
+              )
+                ? 'contain'
+                : 'cover'
             }
           />
         ) : (
