@@ -710,6 +710,297 @@ export async function deletePost(
   return data.id as string;
 }
 
+
+export type CommunityBookReview = {
+  id: string;
+  author_id: string;
+  body: string;
+  rating: number | null;
+  created_at: string;
+  author_display_name: string | null;
+  author_username: string | null;
+  author_avatar_url: string | null;
+};
+
+export async function getCommunityBookReviews(
+  googleBookId: string,
+  bookTitle?: string | null,
+  limit = 30
+): Promise<CommunityBookReview[]> {
+  await getCurrentUserId();
+
+  async function loadReviewRows(
+    mode:
+      | 'id'
+      | 'title'
+  ) {
+    let query =
+      supabase
+        .from(
+          'posts'
+        )
+        .select(
+          'id, author_id, body, rating, created_at'
+        )
+        .eq(
+          'post_type',
+          'review'
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false,
+          }
+        )
+        .limit(
+          limit
+        );
+
+    if (
+      mode ===
+      'id'
+    ) {
+      query =
+        query.eq(
+          'google_book_id',
+          googleBookId
+        );
+    } else {
+      query =
+        query.eq(
+          'book_title',
+          bookTitle?.trim() ??
+          ''
+        );
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return (
+      data ?? []
+    );
+  }
+
+  const exactRows =
+    await loadReviewRows(
+      'id'
+    );
+
+  let combinedRows = [
+    ...exactRows,
+  ];
+
+  if (
+    combinedRows.length <
+      limit &&
+    bookTitle?.trim()
+  ) {
+    try {
+      const titleRows =
+        await loadReviewRows(
+          'title'
+        );
+
+      const seen =
+        new Set(
+          combinedRows.map(
+            (
+              row
+            ) =>
+              String(
+                row.id
+              )
+          )
+        );
+
+      for (
+        const row of
+        titleRows
+      ) {
+        const rowId =
+          String(
+            row.id
+          );
+
+        if (
+          seen.has(
+            rowId
+          )
+        ) {
+          continue;
+        }
+
+        combinedRows.push(
+          row
+        );
+        seen.add(
+          rowId
+        );
+
+        if (
+          combinedRows.length >=
+          limit
+        ) {
+          break;
+        }
+      }
+    } catch (
+      error
+    ) {
+      console.warn(
+        'Could not supplement community reviews by title:',
+        error
+      );
+    }
+  }
+
+  combinedRows =
+    combinedRows.slice(
+      0,
+      limit
+    );
+
+  if (
+    combinedRows.length ===
+    0
+  ) {
+    return [];
+  }
+
+  const authorIds =
+    Array.from(
+      new Set(
+        combinedRows.map(
+          (
+            row
+          ) =>
+            String(
+              row.author_id
+            )
+        )
+      )
+    );
+
+  const {
+    data:
+      profileRows,
+    error:
+      profileError,
+  } =
+    await supabase
+      .from(
+        'profiles'
+      )
+      .select(
+        'id, display_name, username, avatar_url'
+      )
+      .in(
+        'id',
+        authorIds
+      );
+
+  if (
+    profileError
+  ) {
+    console.warn(
+      'Could not load community review authors:',
+      profileError
+    );
+  }
+
+  const profiles =
+    new Map(
+      (
+        profileRows ??
+        []
+      ).map(
+        (
+          profile
+        ) => [
+          String(
+            profile.id
+          ),
+          profile,
+        ]
+      )
+    );
+
+  return combinedRows.map(
+    (
+      row
+    ) => {
+      const profile =
+        profiles.get(
+          String(
+            row.author_id
+          )
+        );
+
+      const numericRating =
+        row.rating ===
+          null ||
+        row.rating ===
+          undefined
+          ? null
+          : Number(
+              row.rating
+            );
+
+      return {
+        id:
+          String(
+            row.id
+          ),
+        author_id:
+          String(
+            row.author_id
+          ),
+        body:
+          String(
+            row.body ??
+            ''
+          ),
+        rating:
+          numericRating !==
+            null &&
+          Number.isFinite(
+            numericRating
+          )
+            ? numericRating
+            : null,
+        created_at:
+          String(
+            row.created_at ??
+            ''
+          ),
+        author_display_name:
+          typeof profile?.display_name ===
+            'string'
+            ? profile.display_name
+            : null,
+        author_username:
+          typeof profile?.username ===
+            'string'
+            ? profile.username
+            : null,
+        author_avatar_url:
+          typeof profile?.avatar_url ===
+            'string'
+            ? profile.avatar_url
+            : null,
+      };
+    }
+  );
+}
+
 export type FollowActionResult =
   | 'following'
   | 'requested';
