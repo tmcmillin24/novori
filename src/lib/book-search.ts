@@ -1338,7 +1338,7 @@ export async function searchAuthorBooks(
     );
 
   const pageIndexes =
-    [0, 40];
+    [0];
 
   const responses =
     await Promise.all(
@@ -1523,120 +1523,8 @@ export async function searchAuthorBooks(
     initialBooks
   );
 
-  const resolvedBooks:
-    AuthorBookResult[] =
-    [];
-
-  async function resolveAuthorBook(
-    book: GoogleBookSearchItem
-  ) {
-    const fastResolved =
-      fastPopularity[
-        book.id
-      ];
-
-    let resolved:
-      ResolvedHardcoverRating |
-      null =
-      null;
-
-    for (
-      let attempt = 0;
-      attempt < 2;
-      attempt += 1
-    ) {
-      resolved =
-        await resolveHardcoverRating({
-          googleBookId:
-            book.id,
-          title:
-            book.volumeInfo
-              .title ??
-            '',
-          authors:
-            book.volumeInfo
-              .authors ??
-            [],
-        });
-
-      if (
-        resolved
-      ) {
-        break;
-      }
-
-      if (
-        attempt ===
-        0
-      ) {
-        await new Promise(
-          (
-            resolve
-          ) =>
-            setTimeout(
-              resolve,
-              200
-            )
-        );
-      }
-    }
-
-    return {
-      book,
-      usersCount:
-        resolved
-          ?.usersCount ??
-        fastResolved
-          ?.usersCount ??
-        0,
-      ratingsCount:
-        resolved
-          ?.ratingsCount ??
-        fastResolved
-          ?.ratingsCount ??
-        book.novoriWork
-          ?.hardcoverRatingsCount ??
-        book.volumeInfo
-          .ratingsCount ??
-        0,
-      reviewsCount:
-        resolved
-          ?.reviewsCount ??
-        fastResolved
-          ?.reviewsCount ??
-        0,
-      rating:
-        resolved
-          ?.rating ??
-        fastResolved
-          ?.rating ??
-        book.novoriWork
-          ?.hardcoverRating ??
-        book.volumeInfo
-          .averageRating ??
-        null,
-    } satisfies AuthorBookResult;
-  }
-
-  for (
-    const book of
-    filtered
-  ) {
-    resolvedBooks.push(
-      await resolveAuthorBook(
-        book
-      )
-    );
-
-    options?.onProgress?.(
-      [
-        ...resolvedBooks,
-        ...initialBooks.slice(
-          resolvedBooks.length
-        ),
-      ]
-    );
-  }
+  const resolvedBooks =
+    initialBooks;
 
   return resolvedBooks
     .sort(
