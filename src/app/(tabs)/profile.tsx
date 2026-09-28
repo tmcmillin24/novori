@@ -22,6 +22,9 @@ import {
 
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
+import CanonicalBookRating from '../../components/CanonicalBookRating';
+import FeedPostImage from '../../components/FeedPostImage';
+import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import {
@@ -43,6 +46,8 @@ import {
 } from '../../lib/clubs';
 import {
   FeedPost,
+  getHomeFeed,
+  splitQuestionPostBody,
 } from '../../lib/feed';
 import {
   PROFILE_BOOK_STATUS_LABELS,
@@ -62,7 +67,78 @@ import {
 } from '../../lib/user-books';
 import {
   shareBookStackLink,
+  sharePostLink,
 } from '../../lib/share-links';
+
+function formatActivityTime(
+  value: string
+) {
+  const created =
+    new Date(
+      value
+    );
+
+  const difference =
+    Date.now() -
+    created.getTime();
+
+  const minute =
+    60 * 1000;
+  const hour =
+    60 * minute;
+  const day =
+    24 * hour;
+
+  if (
+    difference <
+    minute
+  ) {
+    return 'now';
+  }
+
+  if (
+    difference <
+    hour
+  ) {
+    return `${Math.max(
+      1,
+      Math.floor(
+        difference /
+          minute
+      )
+    )}m`;
+  }
+
+  if (
+    difference <
+    day
+  ) {
+    return `${Math.floor(
+      difference /
+        hour
+    )}h`;
+  }
+
+  if (
+    difference <
+    7 * day
+  ) {
+    return `${Math.floor(
+      difference /
+        day
+    )}d`;
+  }
+
+  return created.toLocaleDateString(
+    undefined,
+    {
+      month:
+        'short',
+      day:
+        'numeric',
+    }
+  );
+}
 
 type ProfileTab =
   | 'library'
@@ -393,6 +469,7 @@ export default function ProfileScreen() {
             savedBooks,
             socialProfile,
             profilePosts,
+            homeFeedPosts,
             publicClubs,
             savedStacks,
           ] = await Promise.all([
@@ -402,6 +479,20 @@ export default function ProfileScreen() {
             ),
             getReaderProfilePosts(
               user.id
+            ),
+            getHomeFeed(
+              100
+            ).catch(
+              (
+                feedError
+              ) => {
+                console.warn(
+                  'Could not merge Home posts into Profile Activity:',
+                  feedError
+                );
+
+                return [] as FeedPost[];
+              }
             ),
             getReaderPublicClubs(
               user.id
@@ -423,6 +514,40 @@ export default function ProfileScreen() {
             ),
           ]);
 
+          const mergedProfilePosts =
+            Array.from(
+              new Map(
+                [
+                  ...profilePosts,
+                  ...homeFeedPosts.filter(
+                    (
+                      post
+                    ) =>
+                      post.author_id ===
+                      user.id
+                  ),
+                ].map(
+                  (
+                    post
+                  ) => [
+                    post.id,
+                    post,
+                  ]
+                )
+              ).values()
+            ).sort(
+              (
+                a,
+                b
+              ) =>
+                new Date(
+                  b.created_at
+                ).getTime() -
+                new Date(
+                  a.created_at
+                ).getTime()
+            );
+
           const snapshot:
             ProfileCacheSnapshot = {
               profile:
@@ -434,7 +559,7 @@ export default function ProfileScreen() {
               followingCount:
                 socialProfile.following_count,
               posts:
-                profilePosts,
+                mergedProfilePosts,
               clubs:
                 publicClubs,
               stacks:
@@ -996,7 +1121,7 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Posts, reading updates, Ask Readers questions, and shared reviews will appear here.
+            Posts, reading updates, Ask Readers questions, reviews, and Book Stacks will appear here.
           </Text>
         </View>
       );
@@ -1011,165 +1136,435 @@ export default function ProfileScreen() {
         {posts.map(
           (
             post
-          ) => (
-            <Pressable
-              key={
-                post.id
-              }
-              onPress={() =>
-                router.push({
-                  pathname:
-                    '/post/[id]',
-                  params: {
-                    id:
-                      post.id,
-                  },
-                })
-              }
-              style={({ pressed }) => [
-                styles.activityCard,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <View
-                style={
-                  styles.activityMetaRow
+          ) => {
+            const displayName =
+              post.author_display_name
+                ?.trim() ||
+              post.author_username
+                ?.trim() ||
+              'Novori Reader';
+
+            const username =
+              post.author_username
+                ?.trim()
+                ? `@${post.author_username.trim()}`
+                : '';
+
+            const initial =
+              displayName
+                .charAt(0)
+                .toUpperCase();
+
+            const questionContent =
+              post.post_type ===
+                'question'
+                ? splitQuestionPostBody(
+                    post.body
+                  )
+                : null;
+
+            return (
+              <Pressable
+                key={
+                  post.id
                 }
+                onPress={() =>
+                  router.push({
+                    pathname:
+                      '/post/[id]',
+                    params: {
+                      id:
+                        post.id,
+                    },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.activityFeedCard,
+                  pressed &&
+                    styles.activityFeedCardPressed,
+                ]}
               >
-                <Ionicons
-                  name={
-                    post.post_type ===
-                    'review'
-                      ? 'star-outline'
-                      : post.post_type ===
-                        'reading_update'
-                      ? 'book-outline'
-                      : post.post_type ===
-                        'question'
-                      ? 'help-circle-outline'
-                      : post.post_type ===
-                        'book_stack'
-                      ? 'albums-outline'
-                      : 'chatbubble-ellipses-outline'
-                  }
-                  size={14}
-                  color={
-                    colors.gold
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.activityMetaText
-                  }
-                >
-                  {post.post_type ===
-                  'review'
-                    ? 'Review'
-                    : post.post_type ===
-                      'reading_update'
-                    ? 'Reading update'
-                    : post.post_type ===
-                      'question'
-                    ? 'Ask Readers'
-                    : post.post_type ===
-                      'book_stack'
-                    ? 'Book Stack'
-                    : 'Post'}
-                </Text>
-              </View>
-
-              <Text
-                style={
-                  styles.activityBody
-                }
-                numberOfLines={6}
-              >
-                {
-                  post.body
-                }
-              </Text>
-
-              {post.post_type ===
-                'book_stack' &&
-              post.book_stack_id ? (
-                <BookStackPostAttachment
-                  stackId={
-                    post.book_stack_id
-                  }
-                  variant="profile"
-                  interactive={
-                    false
-                  }
-                />
-              ) : null}
-
-              {post.book_title ? (
                 <View
                   style={
-                    styles.activityBook
+                    styles.activityFeedHeader
                   }
                 >
-                  {post.book_cover_url ? (
+                  {post.author_avatar_url ? (
                     <Image
                       source={{
                         uri:
-                          post.book_cover_url,
+                          post.author_avatar_url,
                       }}
                       style={
-                        styles.activityBookCover
+                        styles.activityFeedAvatar
                       }
                     />
                   ) : (
                     <View
                       style={
-                        styles.activityBookCoverFallback
+                        styles.activityFeedAvatarFallback
                       }
                     >
-                      <Ionicons
-                        name="book-outline"
-                        size={18}
-                        color={
-                          colors.gold
+                      <Text
+                        style={
+                          styles.activityFeedAvatarText
                         }
-                      />
+                      >
+                        {initial}
+                      </Text>
                     </View>
                   )}
 
                   <View
                     style={
-                      styles.activityBookCopy
+                      styles.activityFeedAuthorCopy
                     }
                   >
-                    <Text
+                    <View
                       style={
-                        styles.activityBookTitle
+                        styles.activityFeedIdentity
                       }
-                      numberOfLines={2}
                     >
-                      {
-                        post.book_title
-                      }
-                    </Text>
-
-                    {post.book_authors?.length ? (
                       <Text
                         style={
-                          styles.activityBookAuthor
+                          styles.activityFeedAuthorName
                         }
                         numberOfLines={1}
                       >
-                        {post.book_authors.join(
-                          ', '
-                        )}
+                        {displayName}
                       </Text>
-                    ) : null}
+
+                      {username ? (
+                        <Text
+                          style={
+                            styles.activityFeedUsername
+                          }
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {username}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <Text
+                      style={
+                        styles.activityFeedTime
+                      }
+                    >
+                      {post.club_name
+                        ? `in ${post.club_name} · `
+                        : 'posted to your profile · '}
+                      {formatActivityTime(
+                        post.created_at
+                      )}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={(
+                      event
+                    ) => {
+                      event.stopPropagation();
+
+                      void sharePostLink(
+                        post.id
+                      ).catch(
+                        (
+                          shareError
+                        ) => {
+                          console.error(
+                            'Could not share post:',
+                            shareError
+                          );
+
+                          Alert.alert(
+                            'Could not share post',
+                            'Please try again.'
+                          );
+                        }
+                      );
+                    }}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share post"
+                    style={({ pressed }) => [
+                      styles.activityFeedHeaderAction,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="share-social-outline"
+                      size={18}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  </Pressable>
+                </View>
+
+                <View
+                  style={
+                    styles.activityFeedContent
+                  }
+                >
+                  <PostTypeIdentifier
+                    postType={
+                      post.post_type
+                    }
+                    rating={
+                      post.rating
+                    }
+                    colors={
+                      colors
+                    }
+                  />
+
+                  {questionContent ? (
+                    <>
+                      <Text
+                        style={
+                          styles.activityFeedQuestionTitle
+                        }
+                      >
+                        {
+                          questionContent.question
+                        }
+                      </Text>
+
+                      {questionContent.context ? (
+                        <Text
+                          style={
+                            styles.activityFeedQuestionContext
+                          }
+                        >
+                          {
+                            questionContent.context
+                          }
+                        </Text>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text
+                      style={
+                        styles.activityFeedBody
+                      }
+                    >
+                      {post.body}
+                    </Text>
+                  )}
+
+                  {post.post_type ===
+                    'book_stack' &&
+                  post.book_stack_id ? (
+                    <BookStackPostAttachment
+                      stackId={
+                        post.book_stack_id
+                      }
+                    />
+                  ) : null}
+
+                  {post.post_image_url ? (
+                    <FeedPostImage
+                      uri={
+                        post.post_image_url
+                      }
+                      colors={
+                        colors
+                      }
+                    />
+                  ) : null}
+
+                  {post.book_title ? (
+                    post.post_image_url ? (
+                      <View
+                        style={
+                          styles.activityFeedCompactBook
+                        }
+                      >
+                        <Ionicons
+                          name="book-outline"
+                          size={14}
+                          color={
+                            colors.gold
+                          }
+                        />
+
+                        <View
+                          style={
+                            styles.activityFeedCompactBookCopy
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.activityFeedBookTitle
+                            }
+                            numberOfLines={1}
+                          >
+                            {
+                              post.book_title
+                            }
+                          </Text>
+
+                          {post.book_authors?.length ? (
+                            <Text
+                              style={
+                                styles.activityFeedBookAuthor
+                              }
+                              numberOfLines={1}
+                            >
+                              {post.book_authors.join(
+                                ', '
+                              )}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : (
+                      <View
+                        style={
+                          styles.activityFeedBookCard
+                        }
+                      >
+                        {post.book_cover_url ? (
+                          <Image
+                            source={{
+                              uri:
+                                post.book_cover_url,
+                            }}
+                            style={
+                              styles.activityFeedBookCover
+                            }
+                          />
+                        ) : (
+                          <View
+                            style={
+                              styles.activityFeedBookCoverFallback
+                            }
+                          >
+                            <Ionicons
+                              name="book-outline"
+                              size={20}
+                              color={
+                                colors.gold
+                              }
+                            />
+                          </View>
+                        )}
+
+                        <View
+                          style={
+                            styles.activityFeedBookCopy
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.activityFeedBookTitle
+                            }
+                            numberOfLines={2}
+                          >
+                            {
+                              post.book_title
+                            }
+                          </Text>
+
+                          {post.book_authors?.length ? (
+                            <Text
+                              style={
+                                styles.activityFeedBookAuthor
+                              }
+                              numberOfLines={1}
+                            >
+                              {post.book_authors.join(
+                                ', '
+                              )}
+                            </Text>
+                          ) : null}
+
+                          {(
+                            post.post_type ===
+                              'question' ||
+                            post.post_type ===
+                              'reading_update'
+                          ) &&
+                          post.google_book_id ? (
+                            <CanonicalBookRating
+                              googleBookId={
+                                post.google_book_id
+                              }
+                              title={
+                                post.book_title
+                              }
+                              authors={
+                                post.book_authors ??
+                                []
+                              }
+                              compact
+                            />
+                          ) : null}
+                        </View>
+                      </View>
+                    )
+                  ) : null}
+                </View>
+
+                <View
+                  style={
+                    styles.activityFeedFooter
+                  }
+                >
+                  <View
+                    style={
+                      styles.activityFeedMetric
+                    }
+                  >
+                    <Ionicons
+                      name="arrow-up-circle-outline"
+                      size={18}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                    <Text
+                      style={
+                        styles.activityFeedMetricText
+                      }
+                    >
+                      {post.vote_score ??
+                        0}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.activityFeedMetric
+                    }
+                  >
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={16}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                    <Text
+                      style={
+                        styles.activityFeedMetricText
+                      }
+                    >
+                      {post.comment_count ??
+                        0}{' '}
+                      {(post.comment_count ??
+                        0) === 1
+                        ? 'comment'
+                        : 'comments'}
+                    </Text>
                   </View>
                 </View>
-              ) : null}
-            </Pressable>
-          )
+              </Pressable>
+            );
+          }
         )}
       </View>
     );
@@ -2734,6 +3129,271 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
+    },
+
+    activityFeedCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 22,
+      overflow:
+        'hidden',
+      shadowColor:
+        '#000000',
+      shadowOpacity:
+        0.1,
+      shadowRadius:
+        14,
+      shadowOffset: {
+        width: 0,
+        height: 5,
+      },
+      elevation: 3,
+    },
+
+    activityFeedCardPressed: {
+      opacity: 0.95,
+      transform: [
+        {
+          scale: 0.998,
+        },
+      ],
+    },
+
+    activityFeedHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      paddingHorizontal:
+        16,
+      paddingTop:
+        15,
+    },
+
+    activityFeedAvatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      marginRight: 12,
+    },
+
+    activityFeedAvatarFallback: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 12,
+    },
+
+    activityFeedAvatarText: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 18,
+    },
+
+    activityFeedAuthorCopy: {
+      flex: 1,
+      minWidth: 0,
+      paddingTop: 2,
+    },
+
+    activityFeedIdentity: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+      minWidth: 0,
+    },
+
+    activityFeedAuthorName: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13.5,
+      flexShrink: 0,
+    },
+
+    activityFeedUsername: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11.5,
+      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+
+    activityFeedTime: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 5,
+    },
+
+    activityFeedHeaderAction: {
+      width: 34,
+      height: 34,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginLeft: 4,
+      marginTop: -2,
+    },
+
+    activityFeedContent: {
+      paddingHorizontal: 16,
+      paddingTop: 11,
+    },
+
+    activityFeedBody: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: 9,
+    },
+
+    activityFeedQuestionTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 18,
+      lineHeight: 25,
+      marginTop: 9,
+    },
+
+    activityFeedQuestionContext: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13.5,
+      lineHeight: 20,
+      marginTop: 7,
+    },
+
+    activityFeedCompactBook: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 8,
+      marginTop: 12,
+    },
+
+    activityFeedCompactBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    activityFeedBookCard: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      borderRadius: 14,
+      padding: 10,
+      marginTop: 12,
+    },
+
+    activityFeedBookCover: {
+      width: 48,
+      height: 70,
+      borderRadius: 6,
+      marginRight: 11,
+      backgroundColor:
+        colors.surface,
+    },
+
+    activityFeedBookCoverFallback: {
+      width: 48,
+      height: 70,
+      borderRadius: 6,
+      marginRight: 11,
+      backgroundColor:
+        colors.surface,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    activityFeedBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    activityFeedBookTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13,
+    },
+
+    activityFeedBookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      marginTop: 3,
+    },
+
+    activityFeedFooter: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 18,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 15,
+    },
+
+    activityFeedMetric: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+    },
+
+    activityFeedMetricText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 11.5,
     },
 
     activityList: {
