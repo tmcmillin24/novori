@@ -395,8 +395,6 @@ export async function updateUserBookMetadata(
     .update({
       book_metadata:
         bookMetadata,
-      updated_at:
-        new Date().toISOString(),
     })
     .eq(
       'user_id',
