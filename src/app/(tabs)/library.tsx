@@ -23,6 +23,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -139,6 +140,12 @@ export default function LibraryScreen() {
   const [
     error,
     setError,
+  ] =
+    useState('');
+
+  const [
+    searchQuery,
+    setSearchQuery,
   ] =
     useState('');
 
@@ -522,14 +529,55 @@ export default function LibraryScreen() {
 
   const visibleBooks =
     useMemo(() => {
+      const normalizedSearch =
+        searchQuery
+          .trim()
+          .toLowerCase();
+
       const filtered =
-        activeFilter === 'all'
-          ? [...books]
-          : books.filter(
-              (book) =>
-                book.status ===
-                activeFilter
+        (
+          activeFilter ===
+          'all'
+            ? [...books]
+            : books.filter(
+                (
+                  book
+                ) =>
+                  book.status ===
+                  activeFilter
+              )
+        ).filter(
+          (
+            book
+          ) => {
+            if (
+              !normalizedSearch
+            ) {
+              return true;
+            }
+
+            const title =
+              book.title
+                .toLowerCase();
+
+            const authors =
+              (
+                book.authors ??
+                []
+              )
+                .join(' ')
+                .toLowerCase();
+
+            return (
+              title.includes(
+                normalizedSearch
+              ) ||
+              authors.includes(
+                normalizedSearch
+              )
             );
+          }
+        );
 
       filtered.sort(
         (a, b) => {
@@ -597,6 +645,7 @@ export default function LibraryScreen() {
     }, [
       activeFilter,
       books,
+      searchQuery,
       sortMode,
     ]);
 
@@ -946,6 +995,64 @@ export default function LibraryScreen() {
             Your books, shelves,
             and reading history.
           </Text>
+        </View>
+
+        <View
+          style={
+            styles.searchWrap
+          }
+        >
+          <Ionicons
+            name="search-outline"
+            size={19}
+            color={
+              colors.mutedText
+            }
+          />
+
+          <TextInput
+            value={
+              searchQuery
+            }
+            onChangeText={
+              setSearchQuery
+            }
+            placeholder="Search your library"
+            placeholderTextColor={
+              colors.mutedText
+            }
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="never"
+            style={
+              styles.searchInput
+            }
+          />
+
+          {searchQuery ? (
+            <Pressable
+              onPress={() =>
+                setSearchQuery(
+                  ''
+                )
+              }
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.searchClear,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="close-circle"
+                size={19}
+                color={
+                  colors.mutedText
+                }
+              />
+            </Pressable>
+          ) : null}
         </View>
 
         <ScrollView
@@ -1444,9 +1551,9 @@ export default function LibraryScreen() {
                   styles.emptyTitle
                 }
               >
-                {
-                  getEmptyTitle()
-                }
+                {searchQuery.trim()
+                  ? 'No matching books'
+                  : getEmptyTitle()}
               </Text>
 
               <Text
@@ -1454,8 +1561,9 @@ export default function LibraryScreen() {
                   styles.emptyText
                 }
               >
-                Books you save will
-                appear here.
+                {searchQuery.trim()
+                  ? 'Try a different title or author.'
+                  : 'Books you save will appear here.'}
               </Text>
             </View>
           }
@@ -2383,6 +2491,40 @@ function createStyles(
       fontSize: 15,
       lineHeight: 22,
       marginTop: 5,
+    },
+
+    searchWrap: {
+      minHeight: 48,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 10,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 14,
+      paddingHorizontal: 13,
+      marginBottom: 14,
+    },
+
+    searchInput: {
+      flex: 1,
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 14,
+      paddingVertical: 0,
+    },
+
+    searchClear: {
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
 
     filterScroll: {
