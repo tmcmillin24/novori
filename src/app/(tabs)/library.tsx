@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
+  useNavigation,
   useRouter,
 } from 'expo-router';
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -143,6 +145,17 @@ function normalizeLibrarySearch(
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const navigation =
+    useNavigation();
+
+  const libraryFocusedRef =
+    useRef(false);
+
+  const [
+    libraryRefreshKey,
+    setLibraryRefreshKey,
+  ] =
+    useState(0);
 
   const {
     colors,
@@ -476,6 +489,9 @@ export default function LibraryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      libraryFocusedRef.current =
+        true;
+
       let active = true;
 
       async function loadLibrary() {
@@ -537,8 +553,55 @@ export default function LibraryScreen() {
 
       return () => {
         active = false;
+        libraryFocusedRef.current =
+          false;
       };
-    }, [])
+    }, [
+      libraryRefreshKey,
+    ])
+  );
+
+  useEffect(
+    () => {
+      const unsubscribe =
+        navigation.addListener(
+          'tabPress',
+          () => {
+            if (
+              !libraryFocusedRef.current
+            ) {
+              return;
+            }
+
+            if (
+              libraryScrollOffsetRef.current >
+              24
+            ) {
+              libraryScrollOffsetRef.current =
+                0;
+
+              libraryListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: true,
+              });
+              return;
+            }
+
+            setLibraryRefreshKey(
+              (
+                current
+              ) =>
+                current +
+                1
+            );
+          }
+        );
+
+      return unsubscribe;
+    },
+    [
+      navigation,
+    ]
   );
 
   const counts =
