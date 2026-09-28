@@ -161,6 +161,10 @@ type OpenLibrarySearchResponse = {
   }[];
 };
 
+type OpenLibraryWorkResponse = {
+  covers?: number[];
+};
+
 export async function resolveOpenLibraryWorkCover({
   title,
   authors,
@@ -310,13 +314,8 @@ export async function resolveOpenLibraryWorkCover({
         }
       );
 
-    const url =
-      getOpenLibraryCoverIdUrl(
-        candidate?.cover_i
-      );
-
     if (
-      !url
+      !candidate
     ) {
       return {
         url:
@@ -330,13 +329,125 @@ export async function resolveOpenLibraryWorkCover({
       };
     }
 
-    const size =
-      await getImageSize(
-        url
-      );
+    const workKey =
+      (
+        candidate.key ??
+        ''
+      )
+        .replace(
+          /^\/works\//,
+          ''
+        )
+        .trim();
+
+    const coverIds =
+      new Set<number>();
 
     if (
-      !size
+      candidate.cover_i
+    ) {
+      coverIds.add(
+        candidate.cover_i
+      );
+    }
+
+    if (
+      workKey
+    ) {
+      try {
+        const workResponse =
+          await fetch(
+            `https://openlibrary.org/works/${encodeURIComponent(
+              workKey
+            )}.json`
+          );
+
+        if (
+          workResponse.ok
+        ) {
+          const work =
+            await workResponse.json() as
+              OpenLibraryWorkResponse;
+
+          for (
+            const coverId of
+              work.covers ??
+              []
+          ) {
+            if (
+              Number.isFinite(
+                coverId
+              ) &&
+              coverId >
+                0
+            ) {
+              coverIds.add(
+                coverId
+              );
+            }
+          }
+        }
+      } catch {
+        // The search result cover remains a valid fallback.
+      }
+    }
+
+    let best:
+      | {
+          url: string;
+          width: number;
+          height: number;
+        }
+      | null =
+      null;
+
+    for (
+      const coverId of
+        coverIds
+    ) {
+      const url =
+        getOpenLibraryCoverIdUrl(
+          coverId
+        );
+
+      if (
+        !url
+      ) {
+        continue;
+      }
+
+      const size =
+        await getImageSize(
+          url
+        );
+
+      if (
+        !size
+      ) {
+        continue;
+      }
+
+      const candidateCover = {
+        url,
+        ...size,
+      };
+
+      if (
+        !best ||
+        area(
+          candidateCover
+        ) >
+          area(
+            best
+          )
+      ) {
+        best =
+          candidateCover;
+      }
+    }
+
+    if (
+      !best
     ) {
       return {
         url:
@@ -351,13 +462,14 @@ export async function resolveOpenLibraryWorkCover({
     }
 
     return {
-      url,
+      url:
+        best.url,
       source:
         'open-library',
       width:
-        size.width,
+        best.width,
       height:
-        size.height,
+        best.height,
     };
   } catch {
     return {
