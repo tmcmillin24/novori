@@ -42,9 +42,6 @@ import {
 import {
   useNovoriTheme,
 } from '../../context/theme-context';
-import {
-  shouldFrameBookCover,
-} from '../../lib/book-search';
 
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 
@@ -836,8 +833,7 @@ export default function LibraryScreen() {
       : 'Recently Updated';
 
   function openBook(
-    googleBookId: string,
-    coverUrl?: string | null
+    googleBookId: string
   ) {
     router.push({
       pathname:
@@ -847,11 +843,6 @@ export default function LibraryScreen() {
           googleBookId,
         source:
           'library',
-        ...(coverUrl
-          ? {
-              coverUrl,
-            }
-          : {}),
       },
     });
   }
@@ -929,12 +920,7 @@ export default function LibraryScreen() {
     const googleBookId =
       selectedBook.google_book_id;
 
-    dismissBookSheet(() =>
-      openBook(
-        googleBookId,
-        selectedBook.cover_url
-      )
-    );
+    dismissBookSheet(() => openBook(googleBookId));
   }
 
   function openSelectedReadingDetails() {
@@ -1618,8 +1604,7 @@ export default function LibraryScreen() {
       <Pressable
         onPress={() =>
           openBook(
-            item.google_book_id,
-            item.cover_url
+            item.google_book_id
           )
         }
         style={({ pressed }) => [
@@ -1638,27 +1623,10 @@ export default function LibraryScreen() {
               source={
                 item.cover_url
               }
-              style={[
-                styles.cover,
-                shouldFrameBookCover(
-                  item.cover_url
-                )
-                  ? {
-                      backgroundColor:
-                        '#FFFFFF',
-                      borderWidth: 1,
-                      borderColor:
-                        '#E5E5E5',
-                    }
-                  : null,
-              ]}
-              contentFit={
-                shouldFrameBookCover(
-                  item.cover_url
-                )
-                  ? 'contain'
-                  : 'cover'
+              style={
+                styles.cover
               }
+              contentFit="cover"
               cachePolicy="memory-disk"
               transition={0}
             />
@@ -2138,27 +2106,10 @@ export default function LibraryScreen() {
                       source={
                         selectedBook.cover_url
                       }
-                      style={[
-                        styles.sheetCover,
-                        shouldFrameBookCover(
-                          selectedBook.cover_url
-                        )
-                          ? {
-                              backgroundColor:
-                                '#FFFFFF',
-                              borderWidth: 1,
-                              borderColor:
-                                '#E5E5E5',
-                            }
-                          : null,
-                      ]}
-                      contentFit={
-                        shouldFrameBookCover(
-                          selectedBook.cover_url
-                        )
-                          ? 'contain'
-                          : 'cover'
+                      style={
+                        styles.sheetCover
                       }
+                      contentFit="cover"
                       cachePolicy="memory-disk"
                       transition={0}
                     />
