@@ -82,6 +82,40 @@ export async function sharePostLink(
   });
 }
 
+export function getBookStackShareUrl(
+  stackId: string
+) {
+  return buildShareUrl(
+    `/stack/${encodeURIComponent(
+      stackId
+    )}`
+  );
+}
+
+export async function shareBookStackLink({
+  stackId,
+  name,
+}: {
+  stackId: string;
+  name?: string | null;
+}) {
+  const url =
+    getBookStackShareUrl(
+      stackId
+    );
+
+  const cleanName =
+    name?.trim();
+
+  await Share.share({
+    message:
+      cleanName
+        ? `Check out ${cleanName} on Novori\n${url}`
+        : `Check out this Book Stack on Novori\n${url}`,
+    url,
+  });
+}
+
 export async function shareBookLink({
   googleBookId,
   title,
