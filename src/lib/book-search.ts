@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
+import {
+  resolveBestWorkCover,
+} from './book-covers';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -11,6 +14,7 @@ export type GoogleBookSearchItem = {
     isbns: string[];
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
+    canonicalCoverUrl?: string | null;
   };
   volumeInfo: {
     title?: string;
@@ -1277,11 +1281,88 @@ export async function searchNovoriBooks(
           {}
         );
 
-  return collapseDuplicateEditions(
-    sorted,
-    searchTerm,
-    {}
+  const collapsed =
+    collapseDuplicateEditions(
+      sorted,
+      searchTerm,
+      {}
+    );
+
+  await Promise.all(
+    collapsed.map(
+      async (
+        representative
+      ) => {
+        const work =
+          representative
+            .novoriWork;
+
+        if (
+          !work
+        ) {
+          return;
+        }
+
+        const workIdSet =
+          new Set(
+            work.googleBookIds
+          );
+
+        const siblingEditions =
+          initialResults.filter(
+            (
+              candidate
+            ) =>
+              workIdSet.has(
+                candidate.id
+              )
+          );
+
+        const editions =
+          siblingEditions.map(
+            (
+              candidate
+            ) => ({
+              imageLinks:
+                candidate
+                  .volumeInfo
+                  .imageLinks,
+              isbn:
+                getBookIsbns(
+                  candidate
+                )[0] ??
+                null,
+            })
+          );
+
+        for (
+          const isbn of
+            work.isbns
+        ) {
+          editions.push({
+            imageLinks:
+              undefined,
+            isbn,
+          });
+        }
+
+        const canonicalCover =
+          await resolveBestWorkCover({
+            editions,
+            existingCoverUrl:
+              undefined,
+          });
+
+        representative.novoriWork = {
+          ...work,
+          canonicalCoverUrl:
+            canonicalCover.url,
+        };
+      }
+    )
   );
+
+  return collapsed;
 }
 
 export type AuthorBookResult = {
