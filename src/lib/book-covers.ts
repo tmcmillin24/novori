@@ -275,6 +275,277 @@ async function resolveBestGoogleCandidate(
   return best;
 }
 
+export async function resolveBestWorkCover({
+  editions,
+  existingCoverUrl,
+}: {
+  editions: {
+    imageLinks?: BookImageLinks;
+    isbn?: string | null;
+  }[];
+  existingCoverUrl?: string | null;
+}): Promise<BookCoverResolution> {
+  const googleCandidates =
+    uniqueUrls(
+      editions.map(
+        (
+          edition
+        ) =>
+          getHighestQualityGoogleCover(
+            edition.imageLinks
+          )
+      )
+    );
+
+  let bestGoogle:
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | null =
+    null;
+
+  for (
+    const url of
+      googleCandidates
+  ) {
+    const size =
+      await getImageSize(
+        url
+      );
+
+    if (
+      !size
+    ) {
+      continue;
+    }
+
+    const candidate = {
+      url,
+      ...size,
+    };
+
+    if (
+      !bestGoogle ||
+      area(
+        candidate
+      ) >
+        area(
+          bestGoogle
+        )
+    ) {
+      bestGoogle =
+        candidate;
+    }
+  }
+
+  const existing =
+    secureUrl(
+      existingCoverUrl
+    );
+
+  let bestExisting:
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | null =
+    null;
+
+  if (
+    existing
+  ) {
+    const size =
+      await getImageSize(
+        existing
+      );
+
+    if (
+      size
+    ) {
+      bestExisting = {
+        url:
+          existing,
+        ...size,
+      };
+    }
+  }
+
+  let currentBest =
+    bestGoogle;
+
+  if (
+    bestExisting &&
+    (
+      !currentBest ||
+      area(
+        bestExisting
+      ) >
+        area(
+          currentBest
+        )
+    )
+  ) {
+    currentBest =
+      bestExisting;
+  }
+
+  if (
+    currentBest &&
+    isSatisfactory(
+      currentBest
+    )
+  ) {
+    return {
+      url:
+        currentBest.url,
+      source:
+        bestExisting &&
+        currentBest.url ===
+          bestExisting.url
+          ? 'existing'
+          : 'google',
+      width:
+        currentBest.width,
+      height:
+        currentBest.height,
+    };
+  }
+
+  const isbnCandidates =
+    Array.from(
+      new Set(
+        editions
+          .map(
+            (
+              edition
+            ) =>
+              normalizeIsbn(
+                edition.isbn
+              )
+          )
+          .filter(
+            (
+              isbn
+            ): isbn is string =>
+              Boolean(
+                isbn
+              )
+          )
+      )
+    );
+
+  let bestOpenLibrary:
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | null =
+    null;
+
+  for (
+    const isbn of
+      isbnCandidates
+  ) {
+    const url =
+      getOpenLibraryLargeCoverUrl(
+        isbn
+      );
+
+    if (
+      !url
+    ) {
+      continue;
+    }
+
+    const size =
+      await getImageSize(
+        url
+      );
+
+    if (
+      !size
+    ) {
+      continue;
+    }
+
+    const candidate = {
+      url,
+      ...size,
+    };
+
+    if (
+      !bestOpenLibrary ||
+      area(
+        candidate
+      ) >
+        area(
+          bestOpenLibrary
+        )
+    ) {
+      bestOpenLibrary =
+        candidate;
+    }
+  }
+
+  if (
+    bestOpenLibrary &&
+    (
+      !currentBest ||
+      area(
+        bestOpenLibrary
+      ) >
+        area(
+          currentBest
+        )
+    )
+  ) {
+    return {
+      url:
+        bestOpenLibrary.url,
+      source:
+        'open-library',
+      width:
+        bestOpenLibrary.width,
+      height:
+        bestOpenLibrary.height,
+    };
+  }
+
+  if (
+    currentBest
+  ) {
+    return {
+      url:
+        currentBest.url,
+      source:
+        bestExisting &&
+        currentBest.url ===
+          bestExisting.url
+          ? 'existing'
+          : 'google',
+      width:
+        currentBest.width,
+      height:
+        currentBest.height,
+    };
+  }
+
+  return {
+    url:
+      null,
+    source:
+      'none',
+    width:
+      null,
+    height:
+      null,
+  };
+}
+
 export async function resolveBestBookCover({
   imageLinks,
   isbn,
@@ -372,20 +643,37 @@ export async function resolveBestBookCover({
         existing
       );
 
-    return {
-      url:
-        existing,
-      source:
-        'existing',
-      width:
-        existingSize
-          ?.width ??
-        null,
-      height:
-        existingSize
-          ?.height ??
-        null,
-    };
+    if (
+      existingSize
+    ) {
+      const existingArea =
+        area(
+          existingSize
+        );
+
+      const googleArea =
+        google
+          ? area(
+              google
+            )
+          : 0;
+
+      if (
+        existingArea >
+          googleArea
+      ) {
+        return {
+          url:
+            existing,
+          source:
+            'existing',
+          width:
+            existingSize.width,
+          height:
+            existingSize.height,
+        };
+      }
+    }
   }
 
   return {
