@@ -739,6 +739,14 @@ export default function ProfileScreen() {
   function renderBookStatus(
     book: UserBook
   ) {
+    if (
+      !book.status
+    ) {
+      return book.owned
+        ? 'Owned'
+        : '';
+    }
+
     return (
       PROFILE_BOOK_STATUS_LABELS[
         book.status
