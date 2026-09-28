@@ -1562,37 +1562,81 @@ export default function BookDetailsScreen() {
     const author =
       seriesBook.authors?.[0];
 
-    const queryParts = [
-      `intitle:"${seriesBook.title}"`,
-    ];
-
-    if (author) {
-      queryParts.push(
-        `inauthor:"${author}"`
+    const queries =
+      Array.from(
+        new Set([
+          ...(
+            seriesBook.isbns ??
+            []
+          )
+            .filter(Boolean)
+            .map(
+              (
+                isbn
+              ) =>
+                `isbn:${isbn}`
+            ),
+          author
+            ? `intitle:"${seriesBook.title}" inauthor:"${author}"`
+            : `intitle:"${seriesBook.title}"`,
+          `intitle:"${seriesBook.title}"`,
+          seriesBook.title,
+        ])
       );
-    }
 
-    const response =
-      await fetchGoogleBooksJson<
-        GoogleSearchResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          queryParts.join(' ')
-        )}&maxResults=40&printType=books&projection=full`
-      );
+    const resultMap =
+      new Map<
+        string,
+        GoogleBook
+      >();
 
-    if (
-      !response.ok ||
-      !response.data
+    for (
+      const query of
+        queries
     ) {
-      throw new Error(
-        `Google Books search failed: ${response.status}`
-      );
+      try {
+        const response =
+          await fetchGoogleBooksJson<
+            GoogleSearchResponse
+          >(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+              query
+            )}&maxResults=40&printType=books&projection=full`
+          );
+
+        if (
+          !response.ok ||
+          !response.data
+        ) {
+          continue;
+        }
+
+        for (
+          const result of
+            response.data.items ??
+            []
+        ) {
+          resultMap.set(
+            result.id,
+            result
+          );
+        }
+      } catch {
+        // Try the next increasingly broad query.
+      }
     }
 
     const results =
-      response.data.items ??
-      [];
+      Array.from(
+        resultMap.values()
+      );
+
+    if (
+      results.length ===
+      0
+    ) {
+      return null;
+    }
 
     const wantedTitle =
       normalizeTitle(
@@ -1629,9 +1673,12 @@ export default function BookDetailsScreen() {
                   .title
               );
 
-            const titleMatches =
+            const exactTitle =
               resultTitle ===
-                wantedTitle ||
+                wantedTitle;
+
+            const titleMatches =
+              exactTitle ||
               resultTitle.includes(
                 wantedTitle
               ) ||
@@ -1720,38 +1767,37 @@ export default function BookDetailsScreen() {
             let score = 0;
 
             if (
-              resultTitle ===
-                wantedTitle
+              exactTitle
             ) {
-              score += 300;
+              score += 400;
             } else if (
               titleMatches
             ) {
-              score += 150;
+              score += 220;
             }
 
             if (
               authorMatches
             ) {
-              score += 200;
+              score += 180;
             }
 
             if (
               isbnMatches
             ) {
-              score += 100;
+              score += 180;
             }
 
             if (
               cover
             ) {
-              score += 220;
+              score += 160;
             }
 
             if (
               hasPages
             ) {
-              score += 220;
+              score += 160;
             }
 
             return {
@@ -1759,6 +1805,11 @@ export default function BookDetailsScreen() {
               titleMatches,
               authorMatches,
               isbnMatches,
+              hasPages,
+              hasCover:
+                Boolean(
+                  cover
+                ),
               score,
             };
           }
@@ -1769,8 +1820,12 @@ export default function BookDetailsScreen() {
           ) =>
             candidate
               .titleMatches &&
-            candidate
-              .authorMatches
+            (
+              candidate
+                .authorMatches ||
+              candidate
+                .isbnMatches
+            )
         )
         .sort(
           (
@@ -1779,6 +1834,18 @@ export default function BookDetailsScreen() {
           ) =>
             b.score -
               a.score ||
+            Number(
+              b.hasCover
+            ) -
+              Number(
+                a.hasCover
+              ) ||
+            Number(
+              b.hasPages
+            ) -
+              Number(
+                a.hasPages
+              ) ||
             Number(
               b.isbnMatches
             ) -
