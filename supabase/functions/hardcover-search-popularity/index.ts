@@ -836,13 +836,13 @@ Deno.serve(
               primaryAuthor
                 ? {
                     title:
-                      canonicalTitle,
+                      inputBook.title,
                     author:
                       primaryAuthor,
                   }
                 : {
                     title:
-                      canonicalTitle,
+                      inputBook.title,
                   }
             );
 
