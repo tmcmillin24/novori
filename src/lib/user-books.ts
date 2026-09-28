@@ -15,7 +15,7 @@ export type UserBook = {
   cover_url: string | null;
   isbn: string | null;
   published_date: string | null;
-  status: UserBookStatus;
+  status: UserBookStatus | null;
   owned: boolean;
   rating: number | null;
   review_text: string | null;
@@ -33,7 +33,7 @@ type SaveUserBookInput = {
   coverUrl?: string | null;
   isbn?: string | null;
   publishedDate?: string | null;
-  status: UserBookStatus;
+  status?: UserBookStatus | null;
   owned?: boolean;
 };
 
@@ -248,7 +248,8 @@ export async function saveUserBook(
           input.publishedDate ??
           null,
         status:
-          input.status,
+          input.status ??
+          existing.status,
         owned:
           input.owned ??
           existing.owned ??
@@ -304,7 +305,8 @@ export async function saveUserBook(
         input.publishedDate ??
         null,
       status:
-        input.status,
+        input.status ??
+        null,
       owned:
         input.owned ??
         false,
