@@ -646,13 +646,13 @@ function getValidatedHighResolutionCover(
 ) {
   const reference =
     secureGoogleBooksImageUrl(
-      referenceCoverUrl
-    ) ||
-    secureGoogleBooksImageUrl(
       imageLinks?.thumbnail
     ) ||
     secureGoogleBooksImageUrl(
       imageLinks?.smallThumbnail
+    ) ||
+    secureGoogleBooksImageUrl(
+      referenceCoverUrl
     );
 
   if (!reference) {
