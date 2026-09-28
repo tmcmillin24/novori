@@ -50,6 +50,10 @@ import {
   UserBookStatus,
 } from '../../lib/user-books';
 
+import {
+  getBookCart,
+} from '../../lib/book-cart';
+
 type LibraryFilter =
   | 'all'
   | UserBookStatus;
@@ -147,6 +151,12 @@ export default function LibraryScreen() {
     setBooks,
   ] =
     useState<UserBook[]>([]);
+
+  const [
+    cartCount,
+    setCartCount,
+  ] =
+    useState(0);
 
   const [
     loading,
@@ -465,10 +475,19 @@ export default function LibraryScreen() {
 
           setError('');
 
-          const data =
-            await getUserBooks();
+          const [
+            data,
+            cartItems,
+          ] =
+            await Promise.all([
+              getUserBooks(),
+              getBookCart(),
+            ]);
 
           if (active) {
+            setCartCount(
+              cartItems.length
+            );
             if (!isFirstLoad) {
               restoreLibraryScrollRef.current =
                 true;
@@ -997,13 +1016,60 @@ export default function LibraryScreen() {
             styles.header
           }
         >
-          <Text
+          <View
             style={
-              styles.heading
+              styles.headerTopRow
             }
           >
-            Library
-          </Text>
+            <Text
+              style={
+                styles.heading
+              }
+            >
+              Library
+            </Text>
+
+            <Pressable
+              onPress={() =>
+                router.push(
+                  '/book-cart'
+                )
+              }
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.cartButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="cart-outline"
+                size={22}
+                color={
+                  colors.gold
+                }
+              />
+
+              {cartCount >
+              0 ? (
+                <View
+                  style={
+                    styles.cartBadge
+                  }
+                >
+                  <Text
+                    style={
+                      styles.cartBadgeText
+                    }
+                  >
+                    {
+                      cartCount
+                    }
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
 
           <Text
             style={
@@ -2491,6 +2557,60 @@ function createStyles(
 
     header: {
       marginBottom: 22,
+    },
+
+    headerTopRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+    },
+
+    cartButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      position:
+        'relative',
+    },
+
+    cartBadge: {
+      position:
+        'absolute',
+      top: -5,
+      right: -5,
+      minWidth: 19,
+      height: 19,
+      paddingHorizontal: 5,
+      borderRadius: 10,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.gold,
+      borderWidth: 2,
+      borderColor:
+        colors.background,
+    },
+
+    cartBadgeText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
     },
 
     heading: {
