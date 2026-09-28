@@ -251,7 +251,10 @@ async function readCatalogBook<T>(
       error ||
       !data?.metadata ||
       data.detail_complete !==
-        true
+        true ||
+      !hasUsablePageCount(
+        data.metadata
+      )
     ) {
       return null;
     }
