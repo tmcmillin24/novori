@@ -156,6 +156,7 @@ type Profile = {
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  show_owned_books?: boolean | null;
 };
 
 type ProfileCacheSnapshot = {
@@ -433,7 +434,7 @@ export default function ProfileScreen() {
               'profiles'
             )
             .select(
-              'id, username, display_name, bio, avatar_url'
+              'id, username, display_name, bio, avatar_url, show_owned_books'
             )
             .eq(
               'id',
@@ -659,7 +660,18 @@ export default function ProfileScreen() {
 
   const publicBooks =
     sortProfileBooks(
-      books
+      books.filter(
+        (
+          book
+        ) =>
+          book.status !==
+            null ||
+          Boolean(
+            profile
+              ?.show_owned_books &&
+            book.owned
+          )
+      )
     );
 
   const reviewedBooks =
@@ -673,7 +685,7 @@ export default function ProfileScreen() {
     );
 
   const profileBookCount =
-    books.length;
+    publicBooks.length;
 
   function handleEditProfile() {
     router.push(
