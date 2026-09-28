@@ -234,7 +234,6 @@ function bookMatchesClickedIdentity(
 
 async function resolveClickedDiscoverBook(
   initialBook: GoogleBook,
-  apiKey: string,
   clickedTitle:
     string | undefined,
   clickedAuthors:
@@ -1064,7 +1063,6 @@ export default function BookDetailsScreen() {
             'discover'
             ? await resolveClickedDiscoverBook(
                 data,
-                '',
                 clickedTitle,
                 discoverClickedAuthors,
                 clickedIsbn
