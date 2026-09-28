@@ -802,24 +802,60 @@ Deno.serve(
               }
             );
 
-          const rawResults =
+          const searchResults =
+            payload?.data?.search?.results;
+
+          const rawHits =
+            searchResults &&
+            typeof searchResults ===
+              'object' &&
+            !Array.isArray(
+              searchResults
+            ) &&
             Array.isArray(
-              payload?.data?.search?.results
+              (
+                searchResults as {
+                  hits?: unknown[];
+                }
+              ).hits
             )
-              ? payload.data.search.results
+              ? (
+                  searchResults as {
+                    hits: unknown[];
+                  }
+                ).hits
               : [];
 
           const searchMatches:
             HardcoverBook[] =
-            rawResults
+            rawHits
               .map(
                 (
-                  result:
-                    Record<
-                      string,
-                      unknown
-                    >
+                  hit
                 ) => {
+                  const result =
+                    hit &&
+                    typeof hit ===
+                      'object' &&
+                    !Array.isArray(
+                      hit
+                    )
+                      ? (
+                          hit as {
+                            document?: Record<
+                              string,
+                              unknown
+                            >;
+                          }
+                        ).document
+                      : null;
+
+                  if (
+                    !result
+                  ) {
+                    return null;
+                  }
+
                   const authorNames =
                     Array.isArray(
                       result.author_names
@@ -899,9 +935,9 @@ Deno.serve(
               .filter(
                 (
                   book
-                ) =>
+                ): book is HardcoverBook =>
                   Boolean(
-                    book.id &&
+                    book?.id &&
                     book.title
                   )
               );
