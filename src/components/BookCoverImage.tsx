@@ -130,7 +130,7 @@ export default function BookCoverImage({
       uri:
         activeUrl,
       cache:
-        'reload',
+        'force-cache',
     };
 
   return (
