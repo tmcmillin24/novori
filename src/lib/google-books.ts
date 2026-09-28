@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabase';
 
 type MemoryEntry = {
   expiresAt: number;
@@ -347,13 +348,42 @@ export async function fetchGoogleBooksJson<T>(
 
   const request =
     (async () => {
-      const response =
-        await fetch(
-          url
+      const {
+        data:
+          proxyResponse,
+        error:
+          proxyError,
+      } =
+        await supabase.functions.invoke(
+          'google-books-proxy',
+          {
+            body: {
+              url,
+            },
+          }
         );
 
       if (
-        response.status ===
+        proxyError
+      ) {
+        return {
+          ok: false,
+          status: 503,
+          data: null,
+          fromCache:
+            false,
+        } satisfies GoogleBooksJsonResult<unknown>;
+      }
+
+      const status =
+        Number(
+          proxyResponse
+            ?.status ??
+          500
+        );
+
+      if (
+        status ===
         429
       ) {
         rateLimitedUntil =
@@ -370,12 +400,14 @@ export async function fetchGoogleBooksJson<T>(
       }
 
       if (
-        !response.ok
+        status <
+          200 ||
+        status >=
+          300
       ) {
         return {
           ok: false,
-          status:
-            response.status,
+          status,
           data: null,
           fromCache:
             false,
@@ -383,7 +415,23 @@ export async function fetchGoogleBooksJson<T>(
       }
 
       const data =
-        await response.json();
+        proxyResponse
+          ?.data;
+
+      if (
+        data ===
+        undefined ||
+        data ===
+        null
+      ) {
+        return {
+          ok: false,
+          status: 502,
+          data: null,
+          fromCache:
+            false,
+        } satisfies GoogleBooksJsonResult<unknown>;
+      }
 
       if (
         data &&
@@ -438,8 +486,7 @@ export async function fetchGoogleBooksJson<T>(
                 ? DETAIL_CACHE_MS
                 : SEARCH_CACHE_MS
             ),
-          status:
-            response.status,
+          status,
           data,
         }
       );
