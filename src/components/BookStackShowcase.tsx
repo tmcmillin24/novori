@@ -83,7 +83,7 @@ export default function BookStackShowcase({
     >(null);
 
   const [
-    hardcoverReaders,
+    hardcoverRatingsCount,
     setHardcoverRatingsCount,
   ] =
     useState<
@@ -152,7 +152,7 @@ export default function BookStackShowcase({
         );
 
         setHardcoverRatingsCount(
-          resolved?.usersCount ??
+          resolved?.ratingsCount ??
           null
         );
       } catch {
@@ -386,12 +386,12 @@ export default function BookStackShowcase({
                     {hardcoverRating.toFixed(
                       2
                     )}
-                    {hardcoverReaders !==
+                    {hardcoverRatingsCount !==
                       null &&
-                    hardcoverReaders >
+                    hardcoverRatingsCount >
                       0
-                      ? ` · ${hardcoverReaders.toLocaleString()} Hardcover readers`
-                      : ' · Hardcover'}
+                      ? ` · ${hardcoverRatingsCount.toLocaleString()} ratings`
+                      : ''}
                   </Text>
                 </>
               ) : (
@@ -409,7 +409,7 @@ export default function BookStackShowcase({
                       styles.hardcoverRatingUnavailable
                     }
                   >
-                    Hardcover rating unavailable
+                    Rating unavailable
                   </Text>
                 </>
               )}
