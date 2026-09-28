@@ -766,11 +766,55 @@ function getEditionLocaleScore(
 function isEligibleAlternateEdition(
   book: GoogleBookSearchItem
 ) {
+  const language =
+    (
+      book.volumeInfo
+        .language ??
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const country =
+    (
+      book.saleInfo
+        ?.country ??
+      ''
+    )
+      .trim()
+      .toUpperCase();
+
+  const explicitlyEnglish =
+    language ===
+      'en' ||
+    language ===
+      'eng' ||
+    language.startsWith(
+      'en-'
+    );
+
+  const explicitlyNonEnglish =
+    Boolean(
+      language
+    ) &&
+    !explicitlyEnglish;
+
+  // A US storefront entry is not proof that the edition is English.
+  // Never borrow artwork from an edition Google explicitly identifies
+  // as non-English, even when it is sold in the US.
+  if (
+    explicitlyNonEnglish
+  ) {
+    return false;
+  }
+
   return (
-    getEditionLocaleScore(
-      book
-    ) >
-    0
+    explicitlyEnglish ||
+    (
+      !language &&
+      country ===
+        'US'
+    )
   );
 }
 
@@ -912,11 +956,12 @@ function collapseDuplicateEditions(
       isEligibleAlternateEdition
     );
 
+  // Never fall back to explicitly foreign-language editions for
+  // duplicate/work selection. If Google cannot identify an English or
+  // US-with-unknown-language edition, leave those editions out instead
+  // of borrowing foreign artwork.
   const candidates =
-    preferredLocaleResults.length >
-    0
-      ? preferredLocaleResults
-      : books;
+    preferredLocaleResults;
 
   const groups =
     new Map<
