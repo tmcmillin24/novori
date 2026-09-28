@@ -346,6 +346,38 @@ async function upsertCatalogBooks(
   }
 }
 
+function hasUsablePageCount(
+  book: unknown
+) {
+  if (
+    !book ||
+    typeof book !==
+      'object'
+  ) {
+    return false;
+  }
+
+  const pageCount =
+    (
+      book as {
+        volumeInfo?: {
+          pageCount?: unknown;
+        };
+      }
+    ).volumeInfo
+      ?.pageCount;
+
+  return (
+    typeof pageCount ===
+      'number' &&
+    Number.isFinite(
+      pageCount
+    ) &&
+    pageCount >
+      0
+  );
+}
+
 function catalogBooksFromPayload(
   payload: unknown,
   detailId: string | null
@@ -669,19 +701,49 @@ export async function fetchGoogleBooksJson<T>(
         catalogBooks.length >
         0
       ) {
-        const detailComplete =
-          Boolean(
-            detailId
-          ) ||
-          requestUrl.searchParams.get(
-            'projection'
-          ) ===
-            'full';
+        if (
+          detailId
+        ) {
+          void upsertCatalogBooks(
+            catalogBooks,
+            true
+          );
+        } else {
+          const completeBooks =
+            catalogBooks.filter(
+              hasUsablePageCount
+            );
 
-        void upsertCatalogBooks(
-          catalogBooks,
-          detailComplete
-        );
+          const partialBooks =
+            catalogBooks.filter(
+              (
+                book
+              ) =>
+                !hasUsablePageCount(
+                  book
+                )
+            );
+
+          if (
+            completeBooks.length >
+            0
+          ) {
+            void upsertCatalogBooks(
+              completeBooks,
+              true
+            );
+          }
+
+          if (
+            partialBooks.length >
+            0
+          ) {
+            void upsertCatalogBooks(
+              partialBooks,
+              false
+            );
+          }
+        }
       }
 
       memoryCache.set(
