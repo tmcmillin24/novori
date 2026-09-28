@@ -24,7 +24,6 @@ import {
 } from 'react-native-safe-area-context';
 
 import BookStackShowcase from '../components/BookStackShowcase';
-import BookStackVisual from '../components/BookStackVisual';
 import SortableBookStackRow, {
   StackDropEdge,
 } from '../components/SortableBookStackRow';
@@ -889,46 +888,16 @@ export default function CreateBookStackScreen() {
             }
           />
 
-          <View
-            style={
-              styles.previewStackBlock
+          <BookStackShowcase
+            name={
+              name.trim() ||
+              'Untitled Book Stack'
             }
-          >
-            <BookStackVisual
-              variant="feed"
-              items={
-                visualItems
-              }
-            />
-
-            <View
-              style={
-                styles.previewStackCaption
-              }
-            >
-              <Text
-                style={
-                  styles.previewStackTitle
-                }
-              >
-                {
-                  name.trim()
-                }
-              </Text>
-
-              <Text
-                style={
-                  styles.previewStackCount
-                }
-              >
-                {items.length}{' '}
-                {items.length ===
-                1
-                  ? 'book'
-                  : 'books'}
-              </Text>
-            </View>
-          </View>
+            items={
+              visualItems
+            }
+            variant="feed"
+          />
 
           <View
             style={
@@ -1185,57 +1154,16 @@ export default function CreateBookStackScreen() {
           {items.length >
           0 ? (
             <>
-              <View
-                style={
-                  styles.stackPreview
+              <BookStackShowcase
+                name={
+                  name.trim() ||
+                  'Untitled Book Stack'
                 }
-              >
-                <BookStackVisual
-                  variant="builder"
-                  items={
-                    visualItems
-                  }
-                />
-              </View>
-
-              <View
-                style={
-                  styles.featuredSummary
+                items={
+                  visualItems
                 }
-              >
-                <View
-                  style={
-                    styles.featuredSummaryLabel
-                  }
-                >
-                  <Ionicons
-                    name="star"
-                    size={11}
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.featuredSummaryEyebrow
-                    }
-                  >
-                    FEATURED
-                  </Text>
-                </View>
-
-                <Text
-                  style={
-                    styles.featuredSummaryTitle
-                  }
-                  numberOfLines={1}
-                >
-                  {
-                    items[0]?.title
-                  }
-                </Text>
-              </View>
+                variant="builder"
+              />
             </>
           ) : (
             <Pressable
