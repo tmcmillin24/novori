@@ -178,3 +178,78 @@ export function getBookCoverPlan({
         : 'none',
   };
 }
+
+
+async function openLibraryCoverExists(
+  url: string
+) {
+  try {
+    const head =
+      await fetch(
+        url,
+        {
+          method:
+            'HEAD',
+        }
+      );
+
+    if (
+      head.ok
+    ) {
+      return true;
+    }
+
+    if (
+      head.status !==
+        405
+    ) {
+      return false;
+    }
+
+    const get =
+      await fetch(
+        url
+      );
+
+    return get.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveBookCoverUrl({
+  imageLinks,
+  isbn,
+  existingCoverUrl,
+}: {
+  imageLinks?: BookImageLinks;
+  isbn?: string | null;
+  existingCoverUrl?: string | null;
+}) {
+  const plan =
+    getBookCoverPlan({
+      imageLinks,
+      isbn,
+      existingCoverUrl,
+    });
+
+  if (
+    plan.source !==
+      'open-library' ||
+    !plan.primaryUrl
+  ) {
+    return (
+      plan.primaryUrl ??
+      plan.fallbackUrl
+    );
+  }
+
+  const available =
+    await openLibraryCoverExists(
+      plan.primaryUrl
+    );
+
+  return available
+    ? plan.primaryUrl
+    : plan.fallbackUrl;
+}
