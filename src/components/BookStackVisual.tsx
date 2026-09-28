@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -44,12 +45,9 @@ type Props = {
 type VariantConfig = {
   width: number;
   height: number;
-  stageWidth: number;
+  gap: number;
   stageHeight: number;
-  maxVisible: number;
-  xOffsets: number[];
-  yOffsets: number[];
-  rotations: number[];
+  horizontalPadding: number;
 };
 
 const VARIANTS:
@@ -58,116 +56,32 @@ const VARIANTS:
     VariantConfig
   > = {
     builder: {
-      width: 112,
-      height: 168,
-      stageWidth: 292,
-      stageHeight: 218,
-      maxVisible: 5,
-      xOffsets: [
-        0,
-        -42,
-        42,
-        -76,
-        76,
-      ],
-      yOffsets: [
-        7,
-        19,
-        19,
-        32,
-        32,
-      ],
-      rotations: [
-        0,
-        -5,
-        5,
-        -8,
-        8,
-      ],
-    },
-    feed: {
       width: 104,
       height: 156,
-      stageWidth: 276,
-      stageHeight: 205,
-      maxVisible: 5,
-      xOffsets: [
-        0,
-        -39,
-        39,
-        -69,
-        69,
-      ],
-      yOffsets: [
-        6,
-        18,
-        18,
-        30,
-        30,
-      ],
-      rotations: [
-        0,
-        -5,
-        5,
-        -8,
-        8,
-      ],
+      gap: 11,
+      stageHeight: 184,
+      horizontalPadding: 18,
+    },
+    feed: {
+      width: 96,
+      height: 144,
+      gap: 10,
+      stageHeight: 172,
+      horizontalPadding: 16,
     },
     profile: {
-      width: 70,
-      height: 105,
-      stageWidth: 176,
-      stageHeight: 138,
-      maxVisible: 4,
-      xOffsets: [
-        0,
-        -28,
-        28,
-        -50,
-      ],
-      yOffsets: [
-        4,
-        12,
-        12,
-        22,
-      ],
-      rotations: [
-        0,
-        -6,
-        6,
-        -9,
-      ],
+      width: 66,
+      height: 99,
+      gap: 8,
+      stageHeight: 119,
+      horizontalPadding: 10,
     },
     detail: {
-      width: 138,
-      height: 207,
-      stageWidth: 340,
-      stageHeight: 275,
-      maxVisible: 6,
-      xOffsets: [
-        0,
-        -50,
-        50,
-        -89,
-        89,
-        0,
-      ],
-      yOffsets: [
-        8,
-        24,
-        24,
-        42,
-        42,
-        55,
-      ],
-      rotations: [
-        0,
-        -5,
-        5,
-        -8,
-        8,
-        0,
-      ],
+      width: 126,
+      height: 189,
+      gap: 13,
+      stageHeight: 219,
+      horizontalPadding: 22,
     },
   };
 
@@ -203,218 +117,169 @@ export default function BookStackVisual({
       config
     );
 
-  const visible =
-    items.slice(
-      0,
-      config.maxVisible
-    );
-
-  const selectedIndex =
-    selectedId
-      ? visible.findIndex(
-          (item) =>
-            item.id ===
-            selectedId
-        )
-      : -1;
-
-  return (
-    <View
-      style={[
-        styles.stage,
-        {
-          width:
-            config.stageWidth,
-          height:
-            config.stageHeight,
-        },
-      ]}
-    >
-      {visible
-        .map(
-          (
-            item,
-            index
-          ) => ({
-            item,
-            index,
-          })
-        )
-        .reverse()
-        .map(
-          ({
-            item,
-            index,
-          }) => {
-            const selected =
-              selectedId ===
-              item.id;
-
-            const hasSelection =
-              selectedIndex >=
-              0;
-
-            const baseX =
-              config.xOffsets[
-                index
-              ] ?? 0;
-
-            const baseY =
-              config.yOffsets[
-                index
-              ] ?? 0;
-
-            const rotation =
-              config.rotations[
-                index
-              ] ?? 0;
-
-            const spreadFactor =
-              hasSelection &&
-              !selected
-                ? 1.13
-                : 1;
-
-            const selectedLift =
-              selected
-                ? resolvedVariant ===
-                  'detail'
-                  ? -18
-                  : -10
-                : 0;
-
-            return (
-              <Pressable
-                key={
-                  item.id
-                }
-                disabled={
-                  !onSelect
-                }
-                onPress={(
-                  event
-                ) => {
-                  event.stopPropagation();
-
-                  onSelect?.(
-                    item
-                  );
-                }}
-                style={[
-                  styles.book,
-                  {
-                    left:
-                      config.stageWidth /
-                        2 -
-                      config.width /
-                        2,
-                    top:
-                      baseY +
-                      selectedLift,
-                    zIndex:
-                      selected
-                        ? 99
-                        : config.maxVisible -
-                          index,
-                    opacity:
-                      hasSelection &&
-                      !selected
-                        ? 0.62
-                        : 1,
-                    transform: [
-                      {
-                        translateX:
-                          baseX *
-                          spreadFactor,
-                      },
-                      {
-                        rotate:
-                          `${rotation}deg`,
-                      },
-                      {
-                        scale:
-                          selected
-                            ? 1.075
-                            : 1,
-                      },
-                    ],
-                  },
-                ]}
-              >
-                {item.cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        item.cover_url,
-                    }}
-                    style={
-                      styles.cover
-                    }
-                  />
-                ) : (
-                  <View
-                    style={
-                      styles.coverFallback
-                    }
-                  >
-                    <Ionicons
-                      name="book-outline"
-                      size={
-                        resolvedVariant ===
-                        'profile'
-                          ? 18
-                          : 29
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.fallbackTitle
-                      }
-                      numberOfLines={2}
-                    >
-                      {
-                        item.title
-                      }
-                    </Text>
-                  </View>
-                )}
-
-                {index ===
-                0 ? (
-                  <View
-                    style={
-                      styles.featuredEdge
-                    }
-                  />
-                ) : null}
-              </Pressable>
-            );
+  if (
+    items.length ===
+    0
+  ) {
+    return (
+      <View
+        style={
+          styles.empty
+        }
+      >
+        <Ionicons
+          name="albums-outline"
+          size={
+            resolvedVariant ===
+              'profile'
+              ? 18
+              : 25
           }
-        )}
+          color={
+            colors.gold
+          }
+        />
 
-      {items.length >
-      config.maxVisible ? (
-        <View
+        <Text
           style={
-            styles.moreBadge
+            styles.emptyText
           }
         >
-          <Text
-            style={
-              styles.moreText
-            }
-          >
-            +
-            {items.length -
-              config.maxVisible}
-          </Text>
-        </View>
-      ) : null}
-    </View>
+          Add books to build your stack.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={
+        false
+      }
+      snapToInterval={
+        config.width +
+        config.gap
+      }
+      decelerationRate="fast"
+      disableIntervalMomentum
+      contentContainerStyle={{
+        paddingHorizontal:
+          config.horizontalPadding,
+        gap:
+          config.gap,
+        alignItems:
+          'center',
+      }}
+      style={{
+        width: '100%',
+        height:
+          config.stageHeight,
+      }}
+    >
+      {items.map(
+        (
+          item,
+          index
+        ) => {
+          const selected =
+            selectedId ===
+            item.id;
+
+          return (
+            <Pressable
+              key={
+                item.id
+              }
+              disabled={
+                !onSelect
+              }
+              onPress={(
+                event
+              ) => {
+                event.stopPropagation();
+
+                onSelect?.(
+                  item
+                );
+              }}
+              style={({ pressed }) => [
+                styles.book,
+                selected &&
+                  styles.bookSelected,
+                pressed &&
+                  onSelect &&
+                  styles.bookPressed,
+              ]}
+            >
+              {item.cover_url ? (
+                <Image
+                  source={{
+                    uri:
+                      item.cover_url,
+                  }}
+                  style={
+                    styles.cover
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.coverFallback
+                  }
+                >
+                  <Ionicons
+                    name="book-outline"
+                    size={
+                      resolvedVariant ===
+                        'profile'
+                        ? 17
+                        : 25
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.fallbackTitle
+                    }
+                    numberOfLines={2}
+                  >
+                    {
+                      item.title
+                    }
+                  </Text>
+                </View>
+              )}
+
+              {index ===
+              0 ? (
+                <View
+                  style={
+                    styles.featuredBadge
+                  }
+                >
+                  <Ionicons
+                    name="star"
+                    size={
+                      resolvedVariant ===
+                        'profile'
+                        ? 7
+                        : 9
+                    }
+                    color={
+                      colors.background
+                    }
+                  />
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        }
+      )}
+    </ScrollView>
   );
 }
 
@@ -422,32 +287,13 @@ function createStyles(
   colors: NovoriColors,
   config: VariantConfig
 ) {
-  const radius =
-    Math.max(
-      7,
-      Math.round(
-        config.width *
-          0.08
-      )
-    );
-
   return StyleSheet.create({
-    stage: {
-      alignSelf:
-        'center',
-      position:
-        'relative',
-    },
-
     book: {
-      position:
-        'absolute',
       width:
         config.width,
       height:
         config.height,
-      borderRadius:
-        radius,
+      borderRadius: 10,
       overflow:
         'hidden',
       backgroundColor:
@@ -457,21 +303,41 @@ function createStyles(
         colors.border,
       shadowColor:
         '#000',
-      shadowOpacity:
-        0.17,
-      shadowRadius: 7,
+      shadowOpacity: 0.10,
+      shadowRadius: 5,
       shadowOffset: {
         width: 0,
-        height: 4,
+        height: 3,
       },
-      elevation: 4,
+      elevation: 2,
+      transform: [
+        {
+          scale: 1,
+        },
+      ],
+    },
+
+    bookSelected: {
+      borderColor:
+        colors.gold,
+      borderWidth: 2,
+      transform: [
+        {
+          scale: 1.035,
+        },
+      ],
+      shadowOpacity: 0.16,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+
+    bookPressed: {
+      opacity: 0.86,
     },
 
     cover: {
-      width:
-        '100%',
-      height:
-        '100%',
+      width: '100%',
+      height: '100%',
       resizeMode:
         'cover',
     },
@@ -496,55 +362,60 @@ function createStyles(
         config.width <
         80
           ? 7.5
-          : 10.5,
+          : 10,
       lineHeight:
         config.width <
         80
           ? 10
-          : 14,
+          : 13,
       textAlign:
         'center',
       marginTop: 7,
     },
 
-    featuredEdge: {
+    featuredBadge: {
       position:
         'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: 3,
-      backgroundColor:
-        colors.gold,
-      opacity: 0.9,
-    },
-
-    moreBadge: {
-      position:
-        'absolute',
-      right: 6,
-      bottom: 8,
-      minWidth: 30,
-      height: 24,
+      left: 6,
+      bottom: 6,
+      width:
+        config.width <
+        80
+          ? 18
+          : 22,
+      height:
+        config.width <
+        80
+          ? 18
+          : 22,
       borderRadius: 999,
       alignItems:
         'center',
       justifyContent:
         'center',
       backgroundColor:
-        colors.elevated,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      paddingHorizontal: 8,
+        colors.gold,
     },
 
-    moreText: {
+    empty: {
+      minHeight:
+        config.stageHeight,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 20,
+    },
+
+    emptyText: {
       color:
-        colors.gold,
+        colors.mutedText,
       fontFamily:
-        'Inter_700Bold',
+        'Inter_500Medium',
       fontSize: 10,
+      marginTop: 8,
+      textAlign:
+        'center',
     },
   });
 }
