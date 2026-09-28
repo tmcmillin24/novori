@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import FullScreenImageViewer from './FullScreenImageViewer';
 import {
     useMemo,
     useState,
@@ -6,16 +7,11 @@ import {
 import {
     ColorValue,
     Image,
-    Modal,
     Pressable,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
-import {
-    SafeAreaView,
-} from 'react-native-safe-area-context';
-
 import {
     NovoriColors,
 } from '../constants/novori-theme';
@@ -158,56 +154,19 @@ export default function FeedPostImage({
         ) : null}
       </Pressable>
 
-      <Modal
+      <FullScreenImageViewer
         visible={
           fullScreenVisible
         }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
+        uri={
+          uri
+        }
+        onClose={() =>
           setFullScreenVisible(
             false
           )
         }
-      >
-        <SafeAreaView
-          style={
-            styles.fullScreen
-          }
-        >
-          <Pressable
-            onPress={() =>
-              setFullScreenVisible(
-                false
-              )
-            }
-            hitSlop={
-              10
-            }
-            style={
-              styles.closeButton
-            }
-          >
-            <Ionicons
-              name="close"
-              size={
-                26
-              }
-              color="#FFFFFF"
-            />
-          </Pressable>
-
-          <Image
-            source={{
-              uri,
-            }}
-            style={
-              styles.fullScreenImage
-            }
-            resizeMode="contain"
-          />
-        </SafeAreaView>
-      </Modal>
+      />
     </>
   );
 }
@@ -270,40 +229,6 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize:
         10,
-    },
-    fullScreen: {
-      flex:
-        1,
-      backgroundColor:
-        'rgba(0,0,0,0.96)',
-    },
-    fullScreenImage: {
-      flex:
-        1,
-      width:
-        '100%',
-    },
-    closeButton: {
-      position:
-        'absolute',
-      top:
-        10,
-      right:
-        14,
-      zIndex:
-        2,
-      width:
-        42,
-      height:
-        42,
-      borderRadius:
-        21,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        'rgba(25,25,25,0.82)',
     },
     pressed: {
       opacity:
