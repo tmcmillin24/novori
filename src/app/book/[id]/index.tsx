@@ -25,6 +25,7 @@ import {
 
 import { NovoriColors } from '../../../constants/novori-theme';
 import { useNovoriTheme } from '../../../context/theme-context';
+import { fetchGoogleBooksJson } from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
@@ -284,19 +285,23 @@ async function resolveClickedDiscoverBook(
   ) {
     try {
       const response =
-        await fetch(
+        await fetchGoogleBooksJson<
+          GoogleSearchResponse
+        >(
           `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
             query
           )}&maxResults=20&printType=books&projection=full&key=${apiKey}`
         );
 
-      if (!response.ok) {
+      if (
+        !response.ok ||
+        !response.data
+      ) {
         continue;
       }
 
-      const data:
-        GoogleSearchResponse =
-        await response.json();
+      const data =
+        response.data;
 
       const matchingBook =
         (
@@ -972,21 +977,23 @@ export default function BookDetailsScreen() {
         }
 
         const response =
-          await fetch(
+          await fetchGoogleBooksJson<
+            GoogleBook
+          >(
             `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
           );
 
         if (
-          !response.ok
+          !response.ok ||
+          !response.data
         ) {
           throw new Error(
             `Google Books request failed: ${response.status}`
           );
         }
 
-        const data:
-          GoogleBook =
-          await response.json();
+        const data =
+          response.data;
 
         const resolvedBook =
           source ===
@@ -1489,20 +1496,27 @@ export default function BookDetailsScreen() {
 
     const query = queryParts.join(' ');
 
-    const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-        query
-      )}&maxResults=20&key=${apiKey}`
-    );
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleSearchResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          query
+        )}&maxResults=20&key=${apiKey}`
+      );
 
-    if (!response.ok) {
+    if (
+      !response.ok ||
+      !response.data
+    ) {
       throw new Error(
         `Google Books search failed: ${response.status}`
       );
     }
 
-    const data: GoogleSearchResponse = await response.json();
-    const results = data.items ?? [];
+    const results =
+      response.data.items ??
+      [];
 
     if (results.length === 0) {
       return null;
