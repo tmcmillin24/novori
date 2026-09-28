@@ -182,6 +182,200 @@ function normalizeIsbn(
   );
 }
 
+function isbn13ToIsbn10(
+  isbn13: string
+) {
+  const normalized =
+    normalizeIsbn(
+      isbn13
+    );
+
+  if (
+    normalized.length !==
+      13 ||
+    !normalized.startsWith(
+      '978'
+    )
+  ) {
+    return null;
+  }
+
+  const body =
+    normalized.slice(
+      3,
+      12
+    );
+
+  let total =
+    0;
+
+  for (
+    let index = 0;
+    index <
+    body.length;
+    index += 1
+  ) {
+    total +=
+      Number(
+        body[index]
+      ) *
+      (
+        10 -
+        index
+      );
+  }
+
+  const remainder =
+    11 -
+    (
+      total %
+      11
+    );
+
+  const checkDigit =
+    remainder ===
+      10
+      ? 'X'
+      : remainder ===
+          11
+        ? '0'
+        : String(
+            remainder
+          );
+
+  return `${body}${checkDigit}`;
+}
+
+function bookMatchesAnyIsbn(
+  book: GoogleBookItem,
+  isbns: string[]
+) {
+  const wanted =
+    new Set(
+      isbns
+        .map(
+          normalizeIsbn
+        )
+        .filter(Boolean)
+    );
+
+  return Boolean(
+    book.volumeInfo
+      .industryIdentifiers
+      ?.some(
+        (
+          identifier
+        ) =>
+          wanted.has(
+            normalizeIsbn(
+              identifier.identifier
+            )
+          )
+      )
+  );
+}
+
+async function findGoogleBookForScannedIsbn(
+  scannedIsbn: string
+) {
+  const isbn13 =
+    normalizeIsbn(
+      scannedIsbn
+    );
+
+  const isbn10 =
+    isbn13ToIsbn10(
+      isbn13
+    );
+
+  const isbnCandidates =
+    Array.from(
+      new Set(
+        [
+          isbn13,
+          isbn10,
+        ].filter(
+          (
+            value
+          ): value is string =>
+            Boolean(
+              value
+            )
+        )
+      )
+    );
+
+  const queries =
+    [
+      ...isbnCandidates.map(
+        (
+          isbn
+        ) =>
+          `isbn:${isbn}`
+      ),
+      ...isbnCandidates,
+    ];
+
+  for (
+    const query of
+      queries
+  ) {
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          query
+        )}&maxResults=10&printType=books&projection=full`
+      );
+
+    if (
+      !response.ok ||
+      !response.data
+    ) {
+      if (
+        response.status ===
+          429
+      ) {
+        throw new Error(
+          'Google Books rate limit reached.'
+        );
+      }
+
+      continue;
+    }
+
+    const matches =
+      response.data.items ??
+      [];
+
+    const exactMatch =
+      matches.find(
+        (
+          candidate
+        ) =>
+          bookMatchesAnyIsbn(
+            candidate,
+            isbnCandidates
+          )
+      );
+
+    if (
+      exactMatch
+    ) {
+      return exactMatch;
+    }
+
+    if (
+      matches[0]
+    ) {
+      return matches[0];
+    }
+  }
+
+  return null;
+}
+
 function isDiscoverBookInLibrary(
   book: TrendingBook,
   libraryBooks: UserBook[]
@@ -1434,58 +1628,17 @@ export default function DiscoverScreen() {
     }
 
     try {
-      const response =
-        await fetchGoogleBooksJson<
-          GoogleBooksResponse
-        >(
-          `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
-            isbn
-          )}&maxResults=10`
-        );
-
-      if (
-        !response.ok ||
-        !response.data
-      ) {
-        throw new Error(
-          `Google Books request failed with status ${response.status}.`
-        );
-      }
-
-      const payload =
-        response.data;
-
-      const matches =
-        payload.items ??
-        [];
-
       const exactMatch =
-        matches.find(
-          (
-            candidate
-          ) =>
-            candidate.volumeInfo
-              .industryIdentifiers
-              ?.some(
-                (
-                  identifier
-                ) =>
-                  normalizeIsbn(
-                    identifier.identifier
-                  ) ===
-                  normalizeIsbn(
-                    isbn
-                  )
-              )
-        ) ??
-        matches[0];
+        await findGoogleBookForScannedIsbn(
+          isbn
+        );
 
       if (
         !exactMatch
       ) {
         Alert.alert(
           'Book not found',
-          'Novori could not find a book for that ISBN. Try scanning again or search by title.'
+          'Google Books could not find that ISBN. Try searching the title manually.'
         );
         return;
       }
