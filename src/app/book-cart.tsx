@@ -39,6 +39,11 @@ import {
   getBookCart,
   removeBookFromCart,
 } from '../lib/book-cart';
+import {
+  getUserBook,
+  saveUserBook,
+  updateUserBookOwned,
+} from '../lib/user-books';
 
 const SWIPE_REMOVE_MIN_DISTANCE =
   92;
@@ -388,6 +393,14 @@ export default function BookCartScreen() {
       string | null
     >(null);
 
+  const [
+    owningId,
+    setOwningId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
   useFocusEffect(
     useCallback(
       () => {
@@ -460,6 +473,85 @@ export default function BookCartScreen() {
           'cart',
       },
     });
+  }
+
+  async function markItemOwned(
+    item: BookCartItem
+  ) {
+    if (
+      owningId ||
+      removingId
+    ) {
+      return;
+    }
+
+    try {
+      setOwningId(
+        item.id
+      );
+
+      const existing =
+        await getUserBook(
+          item.google_book_id
+        );
+
+      if (
+        existing
+      ) {
+        await updateUserBookOwned(
+          item.google_book_id,
+          true
+        );
+      } else {
+        await saveUserBook({
+          googleBookId:
+            item.google_book_id,
+          title:
+            item.title,
+          authors:
+            item.authors ??
+              [],
+          coverUrl:
+            item.cover_url,
+          isbn:
+            item.isbn,
+          publishedDate:
+            null,
+          status:
+            'want_to_read',
+          owned:
+            true,
+        });
+      }
+
+      await removeBookFromCart(
+        item.google_book_id
+      );
+
+      setItems(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              cartItem
+            ) =>
+              cartItem.id !==
+              item.id
+          )
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not mark Book Cart item as owned:',
+        error
+      );
+    } finally {
+      setOwningId(
+        null
+      );
+    }
   }
 
   async function removeItem(
@@ -730,45 +822,95 @@ export default function BookCartScreen() {
                 </Text>
               </View>
 
-              <Pressable
-                onPress={(
-                  event
-                ) => {
-                  event.stopPropagation();
-
-                  void removeItem(
-                    item
-                  );
-                }}
-                disabled={
-                  removingId ===
-                  item.id
+              <View
+                style={
+                  styles.cardActions
                 }
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.removeButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
               >
-                {removingId ===
-                item.id ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.gold
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name="trash-outline"
-                    size={18}
-                    color={
-                      colors.mutedText
-                    }
-                  />
-                )}
-              </Pressable>
+                <Pressable
+                  onPress={(
+                    event
+                  ) => {
+                    event.stopPropagation();
+
+                    void markItemOwned(
+                      item
+                    );
+                  }}
+                  disabled={
+                    owningId ===
+                      item.id ||
+                    removingId !==
+                      null
+                  }
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark as owned"
+                  style={({ pressed }) => [
+                    styles.ownedButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  {owningId ===
+                  item.id ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={19}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  onPress={(
+                    event
+                  ) => {
+                    event.stopPropagation();
+
+                    void removeItem(
+                      item
+                    );
+                  }}
+                  disabled={
+                    removingId ===
+                    item.id
+                  }
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.removeButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  {removingId ===
+                  item.id ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  )}
+                </Pressable>
+              </View>
               </Pressable>
             </SwipeCartRow>
           )}
@@ -1045,6 +1187,24 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize: 11,
       marginTop: 10,
+    },
+
+    cardActions: {
+      alignItems:
+        'center',
+      gap: 6,
+    },
+
+    ownedButton: {
+      width: 36,
+      height: 36,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      borderRadius: 10,
+      backgroundColor:
+        colors.elevated,
     },
 
     removeButton: {
