@@ -1355,6 +1355,12 @@ export default function DiscoverScreen() {
   const discoverFocusedRef =
     useRef(false);
 
+  const [
+    discoverSceneVisible,
+    setDiscoverSceneVisible,
+  ] =
+    useState(true);
+
   const discoverHomeScrollRef =
     useRef<ScrollView | null>(
       null
@@ -1680,6 +1686,9 @@ export default function DiscoverScreen() {
       () => {
         discoverFocusedRef.current =
           true;
+        setDiscoverSceneVisible(
+          true
+        );
 
         let active =
           true;
@@ -1714,6 +1723,9 @@ export default function DiscoverScreen() {
             false;
           discoverFocusedRef.current =
             false;
+          setDiscoverSceneVisible(
+            false
+          );
         };
       },
       []
@@ -3590,9 +3602,11 @@ export default function DiscoverScreen() {
       edges={['top']}
     >
       <View
-        style={
-          styles.screen
-        }
+        style={[
+          styles.screen,
+          !discoverSceneVisible &&
+            styles.screenHidden,
+        ]}
         onTouchStart={() => {
           if (genreMenuVisible) {
             setGenreMenuVisible(false);
@@ -4689,6 +4703,10 @@ function createStyles(
       flex: 1,
       backgroundColor:
         colors.background,
+    },
+
+    screenHidden: {
+      opacity: 0,
     },
 
     headerArea: {
