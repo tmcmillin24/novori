@@ -144,6 +144,9 @@ function formatActivityTime(
   );
 }
 
+const PROFILE_STALE_MS =
+  60 * 1000;
+
 type ProfileTab =
   | 'library'
   | 'activity'
@@ -256,6 +259,15 @@ export default function ProfileScreen() {
     useRef(0);
 
   const profileFocusedRef =
+    useRef(false);
+
+  const hasLoadedProfileRef =
+    useRef(false);
+
+  const lastProfileRefreshRef =
+    useRef(0);
+
+  const forceProfileRefreshRef =
     useRef(false);
 
   const [
@@ -376,6 +388,29 @@ export default function ProfileScreen() {
 
       let isMounted = true;
 
+      const forceRefresh =
+        forceProfileRefreshRef.current;
+      forceProfileRefreshRef.current =
+        false;
+
+      const profileIsFresh =
+        hasLoadedProfileRef.current &&
+        Date.now() -
+          lastProfileRefreshRef.current <
+          PROFILE_STALE_MS;
+
+      if (
+        profileIsFresh &&
+        !forceRefresh
+      ) {
+        return () => {
+          isMounted =
+            false;
+          profileFocusedRef.current =
+            false;
+        };
+      }
+
       async function loadProfileAndBooks() {
         const {
           data: {
@@ -449,6 +484,10 @@ export default function ProfileScreen() {
           setProfileHydrated(
             true
           );
+          if (cached) {
+            hasLoadedProfileRef.current =
+              true;
+          }
         }
 
         const {
@@ -616,6 +655,11 @@ export default function ProfileScreen() {
             );
           }
 
+          hasLoadedProfileRef.current =
+            true;
+          lastProfileRefreshRef.current =
+            Date.now();
+
           void writeProfileCache(
             user.id,
             snapshot
@@ -694,6 +738,8 @@ export default function ProfileScreen() {
               return;
             }
 
+            forceProfileRefreshRef.current =
+              true;
             setProfileRefreshKey(
               (
                 current
