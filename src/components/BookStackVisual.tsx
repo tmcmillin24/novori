@@ -355,23 +355,25 @@ export default function BookStackVisual({
   const config:
     VariantConfig =
       resolvedVariant ===
-        'profile' &&
-      items.length > 1
+        'profile'
         ? {
             ...baseConfig,
+            selectedGap: 0,
             overlap:
-              Math.max(
-                0,
-                baseConfig.width -
-                  (
-                    138 -
-                    baseConfig.width
-                  ) /
-                    (
-                      items.length -
-                      1
-                    )
-              ),
+              items.length > 1
+                ? Math.max(
+                    0,
+                    baseConfig.width -
+                      (
+                        138 -
+                        baseConfig.width
+                      ) /
+                        (
+                          items.length -
+                          1
+                        )
+                  )
+                : 0,
           }
         : baseConfig;
 
