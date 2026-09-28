@@ -1622,6 +1622,8 @@ export default function LibraryScreen() {
               source={{
                 uri:
                   item.cover_url,
+                cache:
+                  'reload',
               }}
               style={
                 styles.cover
@@ -2104,6 +2106,8 @@ export default function LibraryScreen() {
                       source={{
                         uri:
                           selectedBook.cover_url,
+                        cache:
+                          'reload',
                       }}
                       style={
                         styles.sheetCover
