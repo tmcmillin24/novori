@@ -30,6 +30,10 @@ import {
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { NovoriColors } from '../../constants/novori-theme';
+import BookCoverImage from '../../components/BookCoverImage';
+import {
+  getBookCoverPlan,
+} from '../../lib/book-covers';
 import {
   searchNovoriBooks,
 } from '../../lib/book-search';
@@ -2679,10 +2683,39 @@ export default function DiscoverScreen() {
     const info =
       item.volumeInfo;
 
+    const isbn =
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_13'
+        )
+        ?.identifier ??
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_10'
+        )
+        ?.identifier;
+
+    const coverPlan =
+      getBookCoverPlan({
+        imageLinks:
+          info.imageLinks,
+        isbn,
+      });
+
     const cover =
-      getBestSearchCover(
-        info.imageLinks
-      );
+      coverPlan.primaryUrl ??
+      coverPlan.fallbackUrl ??
+      undefined;
 
     return (
       <Pressable
@@ -2703,39 +2736,23 @@ export default function DiscoverScreen() {
                 info.title,
               authors:
                 info.authors,
-              isbn:
-                info
-                  .industryIdentifiers
-                  ?.find(
-                    (
-                      identifier
-                    ) =>
-                      identifier.type ===
-                      'ISBN_13'
-                  )
-                  ?.identifier ||
-                info
-                  .industryIdentifiers
-                  ?.find(
-                    (
-                      identifier
-                    ) =>
-                      identifier.type ===
-                      'ISBN_10'
-                  )
-                  ?.identifier,
+              isbn,
             }
           )
         }
       >
         {cover ? (
-          <Image
-            source={{
-              uri: cover,
-            }}
+          <BookCoverImage
+            imageLinks={
+              info.imageLinks
+            }
+            isbn={
+              isbn
+            }
             style={
               styles.cover
             }
+            resizeMode="cover"
           />
         ) : (
           <View
