@@ -265,6 +265,40 @@ async function readCatalogBook<T>(
   }
 }
 
+async function readRawCatalogBook<T>(
+  googleBookId: string
+): Promise<T | null> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .select(
+          'metadata'
+        )
+        .eq(
+          'google_book_id',
+          googleBookId
+        )
+        .maybeSingle();
+
+    if (
+      error ||
+      !data?.metadata
+    ) {
+      return null;
+    }
+
+    return data.metadata as T;
+  } catch {
+    return null;
+  }
+}
+
 async function upsertCatalogBooks(
   books: unknown[],
   detailComplete: boolean
@@ -344,6 +378,137 @@ async function upsertCatalogBooks(
   ) {
     console.warn(
       'Could not update Novori book catalog:',
+      error
+    );
+  }
+}
+
+export async function learnNormalizedGoogleBooksCatalog(
+  books: unknown[]
+) {
+  const validBooks =
+    books.filter(
+      (
+        book
+      ): book is {
+        id: string;
+        [key: string]:
+          unknown;
+      } =>
+        Boolean(
+          book &&
+          typeof book ===
+            'object' &&
+          typeof (
+            book as {
+              id?: unknown;
+            }
+          ).id ===
+            'string'
+        )
+    );
+
+  if (
+    validBooks.length ===
+    0
+  ) {
+    return;
+  }
+
+  try {
+    const ids =
+      validBooks.map(
+        (
+          book
+        ) =>
+          book.id
+      );
+
+    const {
+      data:
+        existingRows,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .select(
+          'google_book_id, detail_complete'
+        )
+        .in(
+          'google_book_id',
+          ids
+        );
+
+    const completeness =
+      new Map<
+        string,
+        boolean
+      >(
+        (
+          existingRows ??
+          []
+        ).map(
+          (
+            row
+          ) => [
+            row.google_book_id,
+            row.detail_complete ===
+              true,
+          ]
+        )
+      );
+
+    const rows =
+      validBooks.map(
+        (
+          book
+        ) => ({
+          google_book_id:
+            book.id,
+          metadata:
+            book,
+          fetched_at:
+            new Date().toISOString(),
+          detail_complete:
+            completeness.get(
+              book.id
+            ) ===
+              true ||
+            hasUsablePageCount(
+              book
+            ),
+        })
+      );
+
+    const {
+      error,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .upsert(
+          rows,
+          {
+            onConflict:
+              'google_book_id',
+          }
+        );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Could not normalize Novori book catalog:',
+        error
+      );
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not normalize Novori book catalog:',
       error
     );
   }
@@ -484,35 +649,6 @@ export async function fetchGoogleBooksJson<T>(
       };
     }
 
-    const persisted =
-      await readPersistentDetail<T>(
-        detailId
-      );
-
-    if (persisted) {
-      memoryCache.set(
-        url,
-        {
-          expiresAt:
-            now +
-            DETAIL_CACHE_MS,
-          status:
-            200,
-          data:
-            persisted,
-        }
-      );
-
-      return {
-        ok: true,
-        status: 200,
-        data:
-          persisted,
-        fromCache:
-          true,
-      };
-    }
-
     const catalogBook =
       await readCatalogBook<T>(
         detailId
@@ -555,6 +691,35 @@ export async function fetchGoogleBooksJson<T>(
         status: 200,
         data:
           catalogBook,
+        fromCache:
+          true,
+      };
+    }
+
+    const persisted =
+      await readPersistentDetail<T>(
+        detailId
+      );
+
+    if (persisted) {
+      memoryCache.set(
+        url,
+        {
+          expiresAt:
+            now +
+            DETAIL_CACHE_MS,
+          status:
+            200,
+          data:
+            persisted,
+        }
+      );
+
+      return {
+        ok: true,
+        status: 200,
+        data:
+          persisted,
         fromCache:
           true,
       };
@@ -603,6 +768,18 @@ export async function fetchGoogleBooksJson<T>(
         } satisfies GoogleBooksJsonResult<unknown>;
       }
 
+      const normalizedCatalogBook =
+        detailId
+          ? await readRawCatalogBook<{
+              volumeInfo?: {
+                imageLinks?: unknown;
+              };
+              novoriWork?: unknown;
+            }>(
+              detailId
+            )
+          : null;
+
       const requestUrl =
         new URL(
           url
@@ -648,8 +825,54 @@ export async function fetchGoogleBooksJson<T>(
         } satisfies GoogleBooksJsonResult<unknown>;
       }
 
-      const data =
+      let data =
         await response.json();
+
+      if (
+        detailId &&
+        data &&
+        typeof data ===
+          'object' &&
+        normalizedCatalogBook
+      ) {
+        const current =
+          data as {
+            volumeInfo?: {
+              imageLinks?: unknown;
+              [key: string]:
+                unknown;
+            };
+            novoriWork?: unknown;
+            [key: string]:
+              unknown;
+          };
+
+        data = {
+          ...current,
+          ...(normalizedCatalogBook
+            .novoriWork
+            ? {
+                novoriWork:
+                  normalizedCatalogBook
+                    .novoriWork,
+              }
+            : {}),
+          volumeInfo: {
+            ...(current.volumeInfo ??
+              {}),
+            ...(normalizedCatalogBook
+              .volumeInfo
+              ?.imageLinks
+              ? {
+                  imageLinks:
+                    normalizedCatalogBook
+                      .volumeInfo
+                      .imageLinks,
+                }
+              : {}),
+          },
+        };
+      }
 
       if (
         data &&
