@@ -636,6 +636,8 @@ function getCanonicalWorkTitle(
     ' kindle edition',
     ' trade paperback',
     ' a novel',
+    ' a thriller',
+    ' a memoir',
   ];
 
   let changed =
@@ -708,6 +710,71 @@ function getCanonicalWorkTitleForBook(
   }
 
   return title;
+}
+
+function getCoverQuality(
+  book: GoogleBookSearchItem
+) {
+  const links =
+    book.volumeInfo
+      .imageLinks;
+
+  if (
+    links?.extraLarge
+  ) {
+    return 6;
+  }
+
+  if (
+    links?.large
+  ) {
+    return 5;
+  }
+
+  if (
+    links?.medium
+  ) {
+    return 4;
+  }
+
+  if (
+    links?.small
+  ) {
+    return 3;
+  }
+
+  if (
+    links?.thumbnail
+  ) {
+    return 2;
+  }
+
+  if (
+    links?.smallThumbnail
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function chooseBestCoverBook(
+  group: GoogleBookSearchItem[]
+) {
+  return [
+    ...group,
+  ].sort(
+    (
+      a,
+      b
+    ) =>
+      getCoverQuality(
+        b
+      ) -
+      getCoverQuality(
+        a
+      )
+  )[0];
 }
 
 function collapseDuplicateEditions(
@@ -892,6 +959,26 @@ function collapseDuplicateEditions(
 
         const representative =
           sorted[0];
+
+        const bestCoverBook =
+          chooseBestCoverBook(
+            group
+          );
+
+        if (
+          bestCoverBook
+            ?.volumeInfo
+            .imageLinks
+        ) {
+          representative.volumeInfo =
+            {
+              ...representative.volumeInfo,
+              imageLinks:
+                bestCoverBook
+                  .volumeInfo
+                  .imageLinks,
+            };
+        }
 
         const canonicalTitle =
           getCanonicalWorkTitleForBook(
