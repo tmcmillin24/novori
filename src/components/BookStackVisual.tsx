@@ -25,18 +25,156 @@ type StackBook = Pick<
   | 'cover_url'
 >;
 
+export type BookStackVisualVariant =
+  | 'builder'
+  | 'feed'
+  | 'profile'
+  | 'detail';
+
 type Props = {
   items: StackBook[];
   compact?: boolean;
+  variant?: BookStackVisualVariant;
   selectedId?: string | null;
   onSelect?: (
     item: StackBook
   ) => void;
 };
 
+type VariantConfig = {
+  width: number;
+  height: number;
+  stageWidth: number;
+  stageHeight: number;
+  maxVisible: number;
+  xOffsets: number[];
+  yOffsets: number[];
+  rotations: number[];
+};
+
+const VARIANTS:
+  Record<
+    BookStackVisualVariant,
+    VariantConfig
+  > = {
+    builder: {
+      width: 112,
+      height: 168,
+      stageWidth: 292,
+      stageHeight: 218,
+      maxVisible: 5,
+      xOffsets: [
+        0,
+        -42,
+        42,
+        -76,
+        76,
+      ],
+      yOffsets: [
+        7,
+        19,
+        19,
+        32,
+        32,
+      ],
+      rotations: [
+        0,
+        -5,
+        5,
+        -8,
+        8,
+      ],
+    },
+    feed: {
+      width: 104,
+      height: 156,
+      stageWidth: 276,
+      stageHeight: 205,
+      maxVisible: 5,
+      xOffsets: [
+        0,
+        -39,
+        39,
+        -69,
+        69,
+      ],
+      yOffsets: [
+        6,
+        18,
+        18,
+        30,
+        30,
+      ],
+      rotations: [
+        0,
+        -5,
+        5,
+        -8,
+        8,
+      ],
+    },
+    profile: {
+      width: 70,
+      height: 105,
+      stageWidth: 176,
+      stageHeight: 138,
+      maxVisible: 4,
+      xOffsets: [
+        0,
+        -28,
+        28,
+        -50,
+      ],
+      yOffsets: [
+        4,
+        12,
+        12,
+        22,
+      ],
+      rotations: [
+        0,
+        -6,
+        6,
+        -9,
+      ],
+    },
+    detail: {
+      width: 138,
+      height: 207,
+      stageWidth: 340,
+      stageHeight: 275,
+      maxVisible: 6,
+      xOffsets: [
+        0,
+        -50,
+        50,
+        -89,
+        89,
+        0,
+      ],
+      yOffsets: [
+        8,
+        24,
+        24,
+        42,
+        42,
+        55,
+      ],
+      rotations: [
+        0,
+        -5,
+        5,
+        -8,
+        8,
+        0,
+      ],
+    },
+  };
+
 export default function BookStackVisual({
   items,
   compact = false,
+  variant,
   selectedId = null,
   onSelect,
 }: Props) {
@@ -45,200 +183,267 @@ export default function BookStackVisual({
   } =
     useNovoriTheme();
 
+  const resolvedVariant:
+    BookStackVisualVariant =
+      variant ??
+      (
+        compact
+          ? 'profile'
+          : 'builder'
+      );
+
+  const config =
+    VARIANTS[
+      resolvedVariant
+    ];
+
   const styles =
     createStyles(
       colors,
-      compact
+      config
     );
 
   const visible =
     items.slice(
       0,
-      compact
-        ? 5
-        : 8
+      config.maxVisible
     );
+
+  const selectedIndex =
+    selectedId
+      ? visible.findIndex(
+          (item) =>
+            item.id ===
+            selectedId
+        )
+      : -1;
 
   return (
     <View
-      style={
-        styles.stage
-      }
+      style={[
+        styles.stage,
+        {
+          width:
+            config.stageWidth,
+          height:
+            config.stageHeight,
+        },
+      ]}
     >
-      {visible.map(
-        (
-          item,
-          index
-        ) => {
-          const selected =
-            selectedId ===
-            item.id;
+      {visible
+        .map(
+          (
+            item,
+            index
+          ) => ({
+            item,
+            index,
+          })
+        )
+        .reverse()
+        .map(
+          ({
+            item,
+            index,
+          }) => {
+            const selected =
+              selectedId ===
+              item.id;
 
-          return (
-            <Pressable
-              key={
-                item.id
-              }
-              disabled={
-                !onSelect
-              }
-              onPress={() =>
-                onSelect?.(
-                  item
-                )
-              }
-              style={[
-                styles.book,
-                {
-                  top:
-                    index *
-                    (
-                      compact
-                        ? 23
-                        : 38
-                    ),
-                  zIndex:
-                    selected
-                      ? 99
-                      : index +
-                        1,
-                  transform: [
-                    {
-                      translateX:
-                        selected
-                          ? compact
-                            ? 18
-                            : 34
-                          : index %
-                              2 ===
-                            0
-                          ? -5
-                          : 5,
-                    },
-                    {
-                      scale:
-                        selected
-                          ? 1.06
-                          : 1,
-                    },
-                  ],
-                  opacity:
-                    selectedId &&
-                    !selected
-                      ? 0.58
-                      : 1,
-                },
-              ]}
-            >
-              {item.cover_url ? (
-                <Image
-                  source={{
-                    uri:
-                      item.cover_url,
-                  }}
-                  style={
-                    styles.cover
-                  }
-                />
-              ) : (
-                <View
-                  style={
-                    styles.coverFallback
-                  }
-                >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      compact
-                        ? 22
-                        : 32
-                    }
-                    color={
-                      colors.gold
+            const hasSelection =
+              selectedIndex >=
+              0;
+
+            const baseX =
+              config.xOffsets[
+                index
+              ] ?? 0;
+
+            const baseY =
+              config.yOffsets[
+                index
+              ] ?? 0;
+
+            const rotation =
+              config.rotations[
+                index
+              ] ?? 0;
+
+            const spreadFactor =
+              hasSelection &&
+              !selected
+                ? 1.13
+                : 1;
+
+            const selectedLift =
+              selected
+                ? resolvedVariant ===
+                  'detail'
+                  ? -18
+                  : -10
+                : 0;
+
+            return (
+              <Pressable
+                key={
+                  item.id
+                }
+                disabled={
+                  !onSelect
+                }
+                onPress={() =>
+                  onSelect?.(
+                    item
+                  )
+                }
+                style={[
+                  styles.book,
+                  {
+                    left:
+                      config.stageWidth /
+                        2 -
+                      config.width /
+                        2,
+                    top:
+                      baseY +
+                      selectedLift,
+                    zIndex:
+                      selected
+                        ? 99
+                        : config.maxVisible -
+                          index,
+                    opacity:
+                      hasSelection &&
+                      !selected
+                        ? 0.62
+                        : 1,
+                    transform: [
+                      {
+                        translateX:
+                          baseX *
+                          spreadFactor,
+                      },
+                      {
+                        rotate:
+                          `${rotation}deg`,
+                      },
+                      {
+                        scale:
+                          selected
+                            ? 1.075
+                            : 1,
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {item.cover_url ? (
+                  <Image
+                    source={{
+                      uri:
+                        item.cover_url,
+                    }}
+                    style={
+                      styles.cover
                     }
                   />
-
-                  <Text
+                ) : (
+                  <View
                     style={
-                      styles.fallbackTitle
+                      styles.coverFallback
                     }
-                    numberOfLines={2}
                   >
-                    {
-                      item.title
-                    }
-                  </Text>
-                </View>
-              )}
+                    <Ionicons
+                      name="book-outline"
+                      size={
+                        resolvedVariant ===
+                        'profile'
+                          ? 18
+                          : 29
+                      }
+                      color={
+                        colors.gold
+                      }
+                    />
 
-              <View
-                style={
-                  styles.edge
-                }
-              />
-            </Pressable>
-          );
-        }
-      )}
+                    <Text
+                      style={
+                        styles.fallbackTitle
+                      }
+                      numberOfLines={2}
+                    >
+                      {
+                        item.title
+                      }
+                    </Text>
+                  </View>
+                )}
+
+                {index ===
+                0 ? (
+                  <View
+                    style={
+                      styles.featuredEdge
+                    }
+                  />
+                ) : null}
+              </Pressable>
+            );
+          }
+        )}
+
+      {items.length >
+      config.maxVisible ? (
+        <View
+          style={
+            styles.moreBadge
+          }
+        >
+          <Text
+            style={
+              styles.moreText
+            }
+          >
+            +
+            {items.length -
+              config.maxVisible}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function createStyles(
   colors: NovoriColors,
-  compact: boolean
+  config: VariantConfig
 ) {
-  const width =
-    compact
-      ? 92
-      : 148;
-
-  const height =
-    compact
-      ? 136
-      : 218;
-
-  const count =
-    compact
-      ? 5
-      : 8;
-
-  const offset =
-    compact
-      ? 23
-      : 38;
+  const radius =
+    Math.max(
+      7,
+      Math.round(
+        config.width *
+          0.08
+      )
+    );
 
   return StyleSheet.create({
     stage: {
-      width:
-        width +
-        (compact
-          ? 30
-          : 54),
-      height:
-        height +
-        offset *
-          (count - 1),
       alignSelf:
         'center',
       position:
         'relative',
-      paddingTop: 2,
     },
 
     book: {
       position:
         'absolute',
-      left:
-        compact
-          ? 15
-          : 27,
-      width,
-      height,
+      width:
+        config.width,
+      height:
+        config.height,
       borderRadius:
-        compact
-          ? 9
-          : 13,
+        radius,
       overflow:
         'hidden',
       backgroundColor:
@@ -249,22 +454,13 @@ function createStyles(
       shadowColor:
         '#000',
       shadowOpacity:
-        0.22,
-      shadowRadius:
-        compact
-          ? 5
-          : 10,
+        0.17,
+      shadowRadius: 7,
       shadowOffset: {
         width: 0,
-        height:
-          compact
-            ? 3
-            : 6,
+        height: 4,
       },
-      elevation:
-        compact
-          ? 3
-          : 6,
+      elevation: 4,
     },
 
     cover: {
@@ -293,31 +489,58 @@ function createStyles(
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        compact
-          ? 8
-          : 11,
+        config.width <
+        80
+          ? 7.5
+          : 10.5,
       lineHeight:
-        compact
-          ? 11
-          : 15,
+        config.width <
+        80
+          ? 10
+          : 14,
       textAlign:
         'center',
-      marginTop: 8,
+      marginTop: 7,
     },
 
-    edge: {
+    featuredEdge: {
       position:
         'absolute',
       left: 0,
       right: 0,
       bottom: 0,
-      height:
-        compact
-          ? 4
-          : 6,
+      height: 3,
       backgroundColor:
-        colors.background,
-      opacity: 0.32,
+        colors.gold,
+      opacity: 0.9,
+    },
+
+    moreBadge: {
+      position:
+        'absolute',
+      right: 6,
+      bottom: 8,
+      minWidth: 30,
+      height: 24,
+      borderRadius: 999,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      paddingHorizontal: 8,
+    },
+
+    moreText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 10,
     },
   });
 }
