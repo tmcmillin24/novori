@@ -4,7 +4,6 @@ import {
   searchNovoriBooks,
 } from './book-search';
 import {
-  resolveBestBookCover,
   resolveOpenLibraryWorkCover,
 } from './book-covers';
 
@@ -528,16 +527,12 @@ async function repairSavedCover(
     );
 
   try {
-    if (
-      currentCover?.includes(
-        'covers.openlibrary.org/b/id/'
-      ) &&
-      await remoteImageExists(
-        currentCover
-      )
-    ) {
-      return book;
-    }
+    const currentCoverWorks =
+      currentCover
+        ? await remoteImageExists(
+            currentCover
+          )
+        : false;
 
     const exactResponse =
       await fetchGoogleBooksJson<
@@ -578,78 +573,124 @@ async function repairSavedCover(
         ?.identifier ??
       book.isbn;
 
-    const googleResolution =
-      await resolveBestBookCover({
-        imageLinks:
-          exactBook
-            ?.volumeInfo
-            .imageLinks,
-        isbn:
-          null,
-        existingCoverUrl:
-          currentCover &&
-          !isOpenLibraryCoverUrl(
-            currentCover
-          )
-            ? currentCover
-            : null,
-      });
+    const exactGoogleCover =
+      secureCoverUrl(
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.extraLarge ??
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.large ??
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.medium ??
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.small ??
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.thumbnail ??
+        exactBook
+          ?.volumeInfo
+          .imageLinks
+          ?.smallThumbnail
+      );
+
+    const currentGoogleVolumeId =
+      getGoogleCoverInfo(
+        currentCover
+      )?.id;
+
+    const currentLooksCrossEdition =
+      Boolean(
+        currentCoverWorks &&
+        currentGoogleVolumeId &&
+        currentGoogleVolumeId !==
+          book.google_book_id
+      );
+
+    // Healthy saved covers are immutable. The only automatic correction
+    // allowed is undoing a proven cross-edition Google cover swap.
+    if (
+      currentCoverWorks &&
+      !currentLooksCrossEdition
+    ) {
+      return book;
+    }
 
     if (
-      googleResolution.url &&
-      googleResolution.source !==
-        'none'
+      currentLooksCrossEdition &&
+      exactGoogleCover &&
+      await remoteImageExists(
+        exactGoogleCover
+      )
     ) {
-      const googleUrl =
-        secureCoverUrl(
-          googleResolution.url
-        );
+      const {
+        data,
+        error,
+      } =
+        await supabase
+          .from(
+            'user_books'
+          )
+          .update({
+            cover_url:
+              exactGoogleCover,
+          })
+          .eq(
+            'id',
+            book.id
+          )
+          .eq(
+            'user_id',
+            book.user_id
+          )
+          .select('*')
+          .single();
 
-      if (
-        googleUrl &&
-        googleResolution.width !==
-          null &&
-        googleResolution.height !==
-          null &&
-        googleResolution.width >=
-          400 &&
-        googleResolution.height >=
-          600
-      ) {
-        if (
-          googleUrl ===
-            currentCover
-        ) {
-          return book;
-        }
+      return error
+        ? book
+        : data as UserBook;
+    }
 
-        const {
-          data,
-          error,
-        } =
-          await supabase
-            .from(
-              'user_books'
-            )
-            .update({
-              cover_url:
-                googleUrl,
-            })
-            .eq(
-              'id',
-              book.id
-            )
-            .eq(
-              'user_id',
-              book.user_id
-            )
-            .select('*')
-            .single();
+    // From here on, the saved cover is missing or dead. Google stays first.
+    if (
+      exactGoogleCover &&
+      await remoteImageExists(
+        exactGoogleCover
+      )
+    ) {
+      const {
+        data,
+        error,
+      } =
+        await supabase
+          .from(
+            'user_books'
+          )
+          .update({
+            cover_url:
+              exactGoogleCover,
+          })
+          .eq(
+            'id',
+            book.id
+          )
+          .eq(
+            'user_id',
+            book.user_id
+          )
+          .select('*')
+          .single();
 
-        return error
-          ? book
-          : data as UserBook;
-      }
+      return error
+        ? book
+        : data as UserBook;
     }
 
     const title =
@@ -705,39 +746,45 @@ async function repairSavedCover(
                     .volumeInfo
                     .authors ??
                     []
-                ) &&
-                Boolean(
-                  candidate
-                    .novoriWork
-                    ?.canonicalCoverUrl
                 )
               );
             }
           );
 
-        const googleWorkCover =
+        const siblingGoogleCover =
           secureCoverUrl(
             googleWorkMatch
-              ?.novoriWork
-              ?.canonicalCoverUrl
+              ?.volumeInfo
+              .imageLinks
+              ?.extraLarge ??
+            googleWorkMatch
+              ?.volumeInfo
+              .imageLinks
+              ?.large ??
+            googleWorkMatch
+              ?.volumeInfo
+              .imageLinks
+              ?.medium ??
+            googleWorkMatch
+              ?.volumeInfo
+              .imageLinks
+              ?.small ??
+            googleWorkMatch
+              ?.volumeInfo
+              .imageLinks
+              ?.thumbnail ??
+            googleWorkMatch
+              ?.volumeInfo
+              .imageLinks
+              ?.smallThumbnail
           );
 
         if (
-          googleWorkCover &&
-          !isOpenLibraryCoverUrl(
-            googleWorkCover
-          ) &&
+          siblingGoogleCover &&
           await remoteImageExists(
-            googleWorkCover
+            siblingGoogleCover
           )
         ) {
-          if (
-            googleWorkCover ===
-              currentCover
-          ) {
-            return book;
-          }
-
           const {
             data,
             error,
@@ -748,7 +795,7 @@ async function repairSavedCover(
               )
               .update({
                 cover_url:
-                  googleWorkCover,
+                  siblingGoogleCover,
               })
               .eq(
                 'id',
@@ -766,8 +813,7 @@ async function repairSavedCover(
             : data as UserBook;
         }
       } catch {
-        // Fall through to the Open Library fallback only when Google work
-        // resolution cannot provide a usable cover.
+        // Only fall through when Google cannot provide any usable cover.
       }
     }
 
@@ -789,16 +835,10 @@ async function repairSavedCover(
     const fallbackCover =
       secureCoverUrl(
         openLibraryWorkCover.url
-      ) ??
-      secureCoverUrl(
-        googleResolution.url
-      ) ??
-      currentCover;
+      );
 
     if (
-      !fallbackCover ||
-      fallbackCover ===
-        currentCover
+      !fallbackCover
     ) {
       return book;
     }
