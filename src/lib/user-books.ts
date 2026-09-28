@@ -1030,9 +1030,13 @@ export async function getUserBooks(
     throw error;
   }
 
-  return repairSavedCovers(
-    (data ?? []) as UserBook[]
-  );
+  // List reads must stay fast. Cover repair can involve remote image
+  // and Google/Open Library checks, so never block Library, Discover, or
+  // Profile hydration on repairing every saved book.
+  return (
+    data ??
+    []
+  ) as UserBook[];
 }
 
 export async function saveUserBook(
