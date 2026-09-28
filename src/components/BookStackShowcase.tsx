@@ -90,25 +90,39 @@ export default function BookStackShowcase({
         >
           <View
             style={
-              styles.iconWrap
+              styles.eyebrowLeft
             }
           >
             <Ionicons
               name="albums-outline"
-              size={14}
+              size={13}
               color={
                 colors.gold
               }
             />
+
+            <Text
+              style={
+                styles.eyebrow
+              }
+            >
+              BOOK STACK
+            </Text>
           </View>
 
-          <Text
+          <View
             style={
-              styles.eyebrow
+              styles.countPill
             }
           >
-            BOOK STACK
-          </Text>
+            <Text
+              style={
+                styles.countText
+              }
+            >
+              {items.length}
+            </Text>
+          </View>
         </View>
 
         <Text
@@ -120,20 +134,6 @@ export default function BookStackShowcase({
           {name}
         </Text>
 
-        <Text
-          style={
-            styles.meta
-          }
-        >
-          {items.length}{' '}
-          {items.length ===
-          1
-            ? 'book'
-            : 'books'}
-          {interactive
-            ? ' · tap a cover to explore'
-            : ''}
-        </Text>
       </View>
 
       <View
@@ -235,28 +235,6 @@ export default function BookStackShowcase({
             </Pressable>
           ) : null}
         </View>
-      ) : interactive ? (
-        <View
-          style={
-            styles.interactionHint
-          }
-        >
-          <Ionicons
-            name="hand-left-outline"
-            size={14}
-            color={
-              colors.gold
-            }
-          />
-
-          <Text
-            style={
-              styles.interactionHintText
-            }
-          >
-            Tap a cover to pull it forward.
-          </Text>
-        </View>
       ) : null}
 
     </View>
@@ -271,7 +249,8 @@ function createStyles(
       marginTop: 14,
       backgroundColor:
         colors.surface,
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
       borderColor:
         colors.border,
       borderRadius: 18,
@@ -280,7 +259,7 @@ function createStyles(
     },
 
     goldLine: {
-      height: 3,
+      height: 2,
       width: '100%',
       backgroundColor:
         colors.gold,
@@ -288,8 +267,8 @@ function createStyles(
     },
 
     header: {
-      paddingHorizontal: 15,
-      paddingTop: 13,
+      paddingHorizontal: 16,
+      paddingTop: 14,
     },
 
     eyebrowRow: {
@@ -297,23 +276,37 @@ function createStyles(
         'row',
       alignItems:
         'center',
-      gap: 7,
+      justifyContent:
+        'space-between',
     },
 
-    iconWrap: {
-      width: 26,
-      height: 26,
-      borderRadius: 9,
+    eyebrowLeft: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+    },
+
+    countPill: {
+      minWidth: 26,
+      height: 22,
+      paddingHorizontal: 8,
+      borderRadius: 999,
       alignItems:
         'center',
       justifyContent:
         'center',
       backgroundColor:
         colors.elevated,
-      borderWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
+    },
+
+    countText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 9.5,
     },
 
     eyebrow: {
@@ -330,28 +323,19 @@ function createStyles(
         colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
-      fontSize: 21,
-      lineHeight: 27,
-      marginTop: 9,
-    },
-
-    meta: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 10.5,
-      marginTop: 4,
+      fontSize: 20,
+      lineHeight: 25,
+      marginTop: 8,
     },
 
     visual: {
-      minHeight: 210,
       alignItems:
         'center',
       justifyContent:
         'center',
       marginTop: 2,
-      paddingHorizontal: 4,
+      paddingHorizontal: 2,
+      paddingBottom: 3,
     },
 
     selectedPanel: {
@@ -361,8 +345,8 @@ function createStyles(
         'center',
       gap: 12,
       marginHorizontal: 14,
-      marginBottom: 13,
-      paddingTop: 12,
+      marginBottom: 14,
+      paddingTop: 11,
       borderTopWidth:
         StyleSheet.hairlineWidth,
       borderTopColor:
@@ -400,6 +384,10 @@ function createStyles(
         'center',
       gap: 6,
       backgroundColor:
+        colors.elevated,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
         colors.gold,
       borderRadius: 11,
       paddingHorizontal: 12,
@@ -407,35 +395,10 @@ function createStyles(
 
     viewBookText: {
       color:
-        colors.background,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize: 10.5,
-    },
-
-    interactionHint: {
-      minHeight: 39,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 7,
-      marginHorizontal: 14,
-      marginBottom: 11,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-    },
-
-    interactionHintText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 9.5,
     },
 
     pressed: {
