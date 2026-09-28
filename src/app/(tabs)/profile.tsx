@@ -59,6 +59,9 @@ import {
   getUserBooks,
   UserBook,
 } from '../../lib/user-books';
+import {
+  shareBookStackLink,
+} from '../../lib/share-links';
 
 type ProfileTab =
   | 'library'
@@ -1288,6 +1291,31 @@ export default function ProfileScreen() {
     );
   }
 
+  async function shareStack(
+    stack: BookStack
+  ) {
+    try {
+      await shareBookStackLink({
+        stackId:
+          stack.id,
+        name:
+          stack.name,
+      });
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share Book Stack:',
+        shareError
+      );
+
+      Alert.alert(
+        'Could not share Book Stack',
+        'Please try again.'
+      );
+    }
+  }
+
   function requestDeleteStack(
     stack: BookStack
   ) {
@@ -1452,37 +1480,26 @@ export default function ProfileScreen() {
               <Pressable
                 onPress={(event) => {
                   event.stopPropagation();
-                  requestDeleteStack(
+                  void shareStack(
                     stack
                   );
                 }}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Book Stack options"
+                accessibilityLabel="Share Book Stack"
                 style={({ pressed }) => [
                   styles.stackTileMenu,
                   pressed &&
                     styles.pressed,
                 ]}
               >
-                {deletingStackId ===
-                stack.id ? (
-                  <Ionicons
-                    name="hourglass-outline"
-                    size={17}
-                    color={
-                      colors.mutedText
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name="ellipsis-horizontal"
-                    size={19}
-                    color={
-                      colors.mutedText
-                    }
-                  />
-                )}
+                <Ionicons
+                  name="share-social-outline"
+                  size={18}
+                  color={
+                    colors.mutedText
+                  }
+                />
               </Pressable>
               <View
                 style={
@@ -1508,17 +1525,57 @@ export default function ProfileScreen() {
                 }
               </Text>
 
-              <Text
+              <View
                 style={
-                  styles.stackTileMeta
+                  styles.stackTileMetaRow
                 }
               >
-                {stack.items.length}{' '}
-                {stack.items.length ===
-                1
-                  ? 'book'
-                  : 'books'}
-              </Text>
+                <Text
+                  style={
+                    styles.stackTileMeta
+                  }
+                >
+                  {stack.items.length}{' '}
+                  {stack.items.length ===
+                  1
+                    ? 'book'
+                    : 'books'}
+                </Text>
+
+                <Pressable
+                  disabled={
+                    deletingStackId ===
+                    stack.id
+                  }
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    requestDeleteStack(
+                      stack
+                    );
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete Book Stack"
+                  style={({ pressed }) => [
+                    styles.stackTileDelete,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      deletingStackId ===
+                      stack.id
+                        ? 'hourglass-outline'
+                        : 'trash-outline'
+                    }
+                    size={15}
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                </Pressable>
+              </View>
             </Pressable>
           )
         )}
@@ -2407,6 +2464,11 @@ function createStyles(
         'center',
       overflow:
         'hidden',
+      transform: [
+        {
+          translateY: 9,
+        },
+      ],
     },
 
     stackTileTitle: {
@@ -2419,13 +2481,33 @@ function createStyles(
       marginTop: 8,
     },
 
+    stackTileMetaRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      marginTop: 5,
+    },
+
     stackTileMeta: {
       color:
         colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
-      marginTop: 5,
+    },
+
+    stackTileDelete: {
+      width: 28,
+      height: 28,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: -6,
+      marginBottom: -4,
     },
 
     activityList: {
