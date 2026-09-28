@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
-import { fetchGoogleBooksJson } from './google-books';
+import {
+  fetchGoogleBooksJson,
+  learnNormalizedGoogleBooksCatalog,
+} from './google-books';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -1560,11 +1563,18 @@ export async function searchNovoriBooks(
           {}
         );
 
-  return collapseDuplicateEditions(
-    sorted,
-    searchTerm,
-    {}
+  const collapsed =
+    collapseDuplicateEditions(
+      sorted,
+      searchTerm,
+      {}
+    );
+
+  void learnNormalizedGoogleBooksCatalog(
+    initialResults
   );
+
+  return collapsed;
 }
 
 export type AuthorBookResult = {
@@ -1694,6 +1704,10 @@ export async function searchAuthorBooks(
       cleanAuthor,
       popularity
     );
+
+  void learnNormalizedGoogleBooksCatalog(
+    candidates
+  );
 
   const excludedWorkTitle =
     getCanonicalWorkTitle(
