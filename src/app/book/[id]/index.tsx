@@ -2029,9 +2029,10 @@ export default function BookDetailsScreen() {
               </Text>
 
               <View
-                style={
-                  styles.externalRatingRow
-                }
+                style={[
+                  styles.externalRatingRow,
+                  styles.libraryExternalRatingRow,
+                ]}
               >
                 {hardcoverRatingLoading ? (
                   <ActivityIndicator
@@ -4285,6 +4286,13 @@ function createStyles(
     gap: 8,
     minHeight: 20,
     marginTop: 10,
+  },
+
+  libraryExternalRatingRow: {
+    justifyContent:
+      'flex-start',
+    alignSelf:
+      'stretch',
   },
 
   externalRatingStars: {
