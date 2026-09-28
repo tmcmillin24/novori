@@ -4,6 +4,7 @@ import {
   searchNovoriBooks,
 } from './book-search';
 import {
+  resolveBookCoverUrl,
   resolveOpenLibraryWorkCover,
 } from './book-covers';
 
@@ -86,69 +87,6 @@ function secureCoverUrl(
       'https://'
     ) ??
     null
-  );
-}
-
-function isGoogleCoverUrl(
-  url?: string | null
-) {
-  const secure =
-    secureCoverUrl(
-      url
-    );
-
-  if (
-    !secure
-  ) {
-    return false;
-  }
-
-  try {
-    const host =
-      new URL(
-        secure
-      ).hostname;
-
-    return (
-      host.includes(
-        'google'
-      ) ||
-      host.includes(
-        'ggpht'
-      )
-    );
-  } catch {
-    return false;
-  }
-}
-
-function getExactEditionCoverUrls(
-  imageLinks:
-    | ExactGoogleBook[
-        'volumeInfo'
-      ]['imageLinks']
-    | undefined
-) {
-  return new Set(
-    [
-      imageLinks?.extraLarge,
-      imageLinks?.large,
-      imageLinks?.medium,
-      imageLinks?.small,
-      imageLinks?.thumbnail,
-      imageLinks?.smallThumbnail,
-    ]
-      .map(
-        secureCoverUrl
-      )
-      .filter(
-        (
-          value
-        ): value is string =>
-          Boolean(
-            value
-          )
-      )
   );
 }
 
@@ -538,49 +476,6 @@ function authorsMatch(
   );
 }
 
-async function remoteImageExists(
-  url?: string | null
-) {
-  if (
-    !url
-  ) {
-    return false;
-  }
-
-  try {
-    const response =
-      await fetch(
-        url,
-        {
-          method:
-            'HEAD',
-        }
-      );
-
-    if (
-      response.ok
-    ) {
-      return true;
-    }
-
-    if (
-      response.status !==
-        405
-    ) {
-      return false;
-    }
-
-    const fallback =
-      await fetch(
-        url
-      );
-
-    return fallback.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function repairSavedCover(
   book: UserBook
 ): Promise<UserBook> {
@@ -589,14 +484,15 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  try {
-    const currentCoverWorks =
-      currentCover
-        ? await remoteImageExists(
-            currentCover
-          )
-        : false;
+  if (
+    currentCover?.includes(
+      'covers.openlibrary.org/b/id/'
+    )
+  ) {
+    return book;
+  }
 
+  try {
     const exactResponse =
       await fetchGoogleBooksJson<
         ExactGoogleBook
@@ -636,324 +532,6 @@ async function repairSavedCover(
         ?.identifier ??
       book.isbn;
 
-    const exactGoogleCover =
-      secureCoverUrl(
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.extraLarge ??
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.large ??
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.medium ??
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.small ??
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.thumbnail ??
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-          ?.smallThumbnail
-      );
-
-    const exactEditionCoverUrls =
-      getExactEditionCoverUrls(
-        exactBook
-          ?.volumeInfo
-          .imageLinks
-      );
-
-    const currentLooksLikeForeignGoogleCover =
-      Boolean(
-        currentCoverWorks &&
-        currentCover &&
-        isGoogleCoverUrl(
-          currentCover
-        ) &&
-        exactEditionCoverUrls.size >
-          0 &&
-        !exactEditionCoverUrls.has(
-          currentCover
-        )
-      );
-
-    // A working saved cover is immutable unless it is a Google image that
-    // does not belong to this book's exact saved Google volume. That case
-    // is the sibling-cover regression we introduced and must be undone.
-    if (
-      currentCoverWorks &&
-      !currentLooksLikeForeignGoogleCover &&
-      !isOpenLibraryCoverUrl(
-        currentCover
-      )
-    ) {
-      return book;
-    }
-
-    if (
-      currentLooksLikeForeignGoogleCover &&
-      exactGoogleCover &&
-      await remoteImageExists(
-        exactGoogleCover
-      )
-    ) {
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            'user_books'
-          )
-          .update({
-            cover_url:
-              exactGoogleCover,
-          })
-          .eq(
-            'id',
-            book.id
-          )
-          .eq(
-            'user_id',
-            book.user_id
-          )
-          .select('*')
-          .single();
-
-      return error
-        ? book
-        : data as UserBook;
-    }
-
-    // Only missing/dead saved covers may be replaced immediately by
-    // the exact Google edition. Working Open Library covers get one
-    // Google-work quality check first so fallback cases like Fourth Wing
-    // are not downgraded again.
-    if (
-      !currentCoverWorks &&
-      exactGoogleCover &&
-      await remoteImageExists(
-        exactGoogleCover
-      )
-    ) {
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            'user_books'
-          )
-          .update({
-            cover_url:
-              exactGoogleCover,
-          })
-          .eq(
-            'id',
-            book.id
-          )
-          .eq(
-            'user_id',
-            book.user_id
-          )
-          .select('*')
-          .single();
-
-      return error
-        ? book
-        : data as UserBook;
-    }
-
-    const title =
-      (
-        exactBook
-          ?.volumeInfo
-          .title ??
-        book.title
-      ).trim();
-
-    if (
-      title
-    ) {
-      try {
-        const googleWorkResults =
-          await searchNovoriBooks(
-            title
-          );
-
-        const wantedTitle =
-          normalizeBookText(
-            book.title
-          );
-
-        const googleWorkMatch =
-          googleWorkResults.find(
-            (
-              candidate
-            ) => {
-              const candidateTitle =
-                normalizeBookText(
-                  candidate
-                    .volumeInfo
-                    .title
-                );
-
-              const titleMatches =
-                candidateTitle ===
-                  wantedTitle ||
-                candidateTitle.startsWith(
-                  `${wantedTitle} `
-                ) ||
-                wantedTitle.startsWith(
-                  `${candidateTitle} `
-                );
-
-              return (
-                titleMatches &&
-                authorsMatch(
-                  book.authors ??
-                    [],
-                  candidate
-                    .volumeInfo
-                    .authors ??
-                    []
-                )
-              );
-            }
-          );
-
-        const siblingGoogleCover =
-          secureCoverUrl(
-            googleWorkMatch
-              ?.novoriWork
-              ?.canonicalCoverUrl ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.extraLarge ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.large ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.medium ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.small ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.thumbnail ??
-            googleWorkMatch
-              ?.volumeInfo
-              .imageLinks
-              ?.smallThumbnail
-          );
-
-        const siblingGoogleTier =
-          googleWorkMatch
-            ?.novoriWork
-            ?.canonicalGoogleCoverTier ??
-          0;
-
-        if (
-          currentCoverWorks &&
-          isOpenLibraryCoverUrl(
-            currentCover
-          ) &&
-          siblingGoogleCover &&
-          siblingGoogleTier >=
-            5 &&
-          await remoteImageExists(
-            siblingGoogleCover
-          )
-        ) {
-          const {
-            data,
-            error,
-          } =
-            await supabase
-              .from(
-                'user_books'
-              )
-              .update({
-                cover_url:
-                  siblingGoogleCover,
-              })
-              .eq(
-                'id',
-                book.id
-              )
-              .eq(
-                'user_id',
-                book.user_id
-              )
-              .select('*')
-              .single();
-
-          return error
-            ? book
-            : data as UserBook;
-        }
-
-        if (
-          currentCoverWorks &&
-          isOpenLibraryCoverUrl(
-            currentCover
-          )
-        ) {
-          return book;
-        }
-
-        if (
-          siblingGoogleCover &&
-          await remoteImageExists(
-            siblingGoogleCover
-          )
-        ) {
-          const {
-            data,
-            error,
-          } =
-            await supabase
-              .from(
-                'user_books'
-              )
-              .update({
-                cover_url:
-                  siblingGoogleCover,
-              })
-              .eq(
-                'id',
-                book.id
-              )
-              .eq(
-                'user_id',
-                book.user_id
-              )
-              .select('*')
-              .single();
-
-          return error
-            ? book
-            : data as UserBook;
-        }
-      } catch {
-        // Only fall through when Google cannot provide any usable cover.
-      }
-    }
-
     const openLibraryWorkCover =
       await resolveOpenLibraryWorkCover({
         title:
@@ -969,13 +547,34 @@ async function repairSavedCover(
           [],
       });
 
-    const fallbackCover =
+    const canonicalWorkCover =
       secureCoverUrl(
         openLibraryWorkCover.url
       );
 
+    const nextCover =
+      secureCoverUrl(
+        await resolveBookCoverUrl({
+          imageLinks:
+            exactBook
+              ?.volumeInfo
+              .imageLinks,
+          isbn:
+            exactIsbn,
+          existingCoverUrl:
+            canonicalWorkCover ??
+            currentCover,
+        })
+      );
+
+    const preferredCover =
+      canonicalWorkCover ??
+      nextCover;
+
     if (
-      !fallbackCover
+      !preferredCover ||
+      preferredCover ===
+        currentCover
     ) {
       return book;
     }
@@ -990,7 +589,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            fallbackCover,
+            preferredCover,
         })
         .eq(
           'id',
@@ -1003,9 +602,15 @@ async function repairSavedCover(
         .select('*')
         .single();
 
-    return error
-      ? book
-      : data as UserBook;
+    if (
+      error
+    ) {
+      return book;
+    }
+
+    return (
+      data as UserBook
+    );
   } catch {
     return book;
   }
