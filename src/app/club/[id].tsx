@@ -33,6 +33,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import FeedPostImage from '../../components/FeedPostImage';
+import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
@@ -166,6 +167,11 @@ export default function ClubDetailScreen() {
 
   const [club, setClub] =
     useState<ClubWithMembership | null>(null);
+  const [
+    clubImageOpen,
+    setClubImageOpen,
+  ] =
+    useState(false);
   const [members, setMembers] =
     useState<ClubMember[]>([]);
   const [clubPosts, setClubPosts] =
@@ -4736,12 +4742,26 @@ export default function ClubDetailScreen() {
         }
       >
         {club.cover_url ? (
-          <Image
-            source={{
-              uri: club.cover_url,
-            }}
-            style={styles.clubCover}
-          />
+          <Pressable
+            onPress={() =>
+              setClubImageOpen(
+                true
+              )
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Enlarge club photo"
+            style={({ pressed }) => [
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Image
+              source={{
+                uri: club.cover_url,
+              }}
+              style={styles.clubCover}
+            />
+          </Pressable>
         ) : (
           <View
             style={styles.clubCoverFallback}
@@ -6798,6 +6818,20 @@ export default function ClubDetailScreen() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      <FullScreenImageViewer
+        visible={
+          clubImageOpen
+        }
+        uri={
+          club.cover_url
+        }
+        onClose={() =>
+          setClubImageOpen(
+            false
+          )
+        }
+      />
     </SafeAreaView>
   );
 }
