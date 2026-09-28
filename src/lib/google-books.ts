@@ -37,6 +37,15 @@ const PERSISTED_INDEX_KEY =
 const memoryCache =
   new Map<string, MemoryEntry>();
 
+const volumeMemoryCache =
+  new Map<
+    string,
+    {
+      expiresAt: number;
+      data: unknown;
+    }
+  >();
+
 const inFlight =
   new Map<
     string,
@@ -257,6 +266,31 @@ export async function fetchGoogleBooksJson<T>(
       : null;
 
   if (detailId) {
+    const primedVolume =
+      volumeMemoryCache.get(
+        detailId
+      );
+
+    if (
+      primedVolume &&
+      primedVolume.expiresAt >
+        now
+    ) {
+      void persistDetail(
+        detailId,
+        primedVolume.data
+      );
+
+      return {
+        ok: true,
+        status: 200,
+        data:
+          primedVolume.data as T,
+        fromCache:
+          true,
+      };
+    }
+
     const persisted =
       await readPersistentDetail<T>(
         detailId
@@ -350,6 +384,49 @@ export async function fetchGoogleBooksJson<T>(
 
       const data =
         await response.json();
+
+      if (
+        data &&
+        typeof data ===
+          'object' &&
+        Array.isArray(
+          (
+            data as {
+              items?: unknown[];
+            }
+          ).items
+        )
+      ) {
+        for (
+          const item of
+            (
+              data as {
+                items: {
+                  id?: unknown;
+                }[];
+              }
+            ).items
+        ) {
+          if (
+            item &&
+            typeof item ===
+              'object' &&
+            typeof item.id ===
+              'string'
+          ) {
+            volumeMemoryCache.set(
+              item.id,
+              {
+                expiresAt:
+                  Date.now() +
+                  SEARCH_CACHE_MS,
+                data:
+                  item,
+              }
+            );
+          }
+        }
+      }
 
       memoryCache.set(
         url,
