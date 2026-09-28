@@ -690,7 +690,10 @@ async function repairSavedCover(
     // is the sibling-cover regression we introduced and must be undone.
     if (
       currentCoverWorks &&
-      !currentLooksLikeForeignGoogleCover
+      !currentLooksLikeForeignGoogleCover &&
+      !isOpenLibraryCoverUrl(
+        currentCover
+      )
     ) {
       return book;
     }
@@ -898,6 +901,15 @@ async function repairSavedCover(
           return error
             ? book
             : data as UserBook;
+        }
+
+        if (
+          currentCoverWorks &&
+          isOpenLibraryCoverUrl(
+            currentCover
+          )
+        ) {
+          return book;
         }
 
         if (
