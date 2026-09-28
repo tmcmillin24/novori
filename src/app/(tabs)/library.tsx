@@ -1091,6 +1091,20 @@ export default function LibraryScreen() {
 
   function getEmptyTitle() {
     if (
+      ownershipFilter ===
+        'owned'
+    ) {
+      return 'No owned books yet.';
+    }
+
+    if (
+      ownershipFilter ===
+        'not_owned'
+    ) {
+      return 'No not-owned books here.';
+    }
+
+    if (
       activeFilter ===
       'all'
     ) {
