@@ -34,7 +34,7 @@ const MAX_PERSISTED_BOOKS =
   150;
 
 const PERSISTED_INDEX_KEY =
-  'novori:google-books:detail-index:v1';
+  'novori:google-books:detail-index:v2';
 
 const memoryCache =
   new Map<string, MemoryEntry>();
@@ -202,7 +202,7 @@ function isCoverConsistentWithVolume(
 function detailKey(
   id: string
 ) {
-  return `novori:google-books:detail:${id}`;
+  return `novori:google-books:detail:v2:${id}`;
 }
 
 async function readPersistentDetail(
