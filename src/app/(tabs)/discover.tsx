@@ -148,6 +148,9 @@ type RecentReleasesResponse = {
   details?: unknown;
 };
 
+const trendingGoogleBookCache =
+  new Map<number, GoogleBookItem>();
+
 
 function normalizeBookIdentityText(
   value?: string | null
@@ -2499,44 +2502,55 @@ export default function DiscoverScreen() {
       );
     }
 
-    for (
-      const isbn of trendingBook.isbns.slice(0, 6)
-    ) {
-      const response = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          `isbn:${isbn}`
-        )}&maxResults=5&printType=books&key=${apiKey}`
+    const cachedBook =
+      trendingGoogleBookCache.get(
+        trendingBook.id
       );
 
-      if (!response.ok) {
-        continue;
-      }
+    if (cachedBook) {
+      return cachedBook;
+    }
 
-      const data:
-        GoogleBooksResponse =
-        await response.json();
+    const isbn =
+      trendingBook.isbns[0];
 
-      const results =
-        data.items ?? [];
-
-      const exactIsbnMatch =
-        results.find(
-          (result) =>
-            result.volumeInfo
-              .industryIdentifiers
-              ?.some(
-                (identifier) =>
-                  identifier.identifier ===
-                  isbn
-              )
+    if (isbn) {
+      const response =
+        await fetch(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            `isbn:${isbn}`
+          )}&maxResults=5&printType=books&key=${apiKey}`
         );
 
-      if (exactIsbnMatch) {
-        return exactIsbnMatch;
-      }
+      if (response.ok) {
+        const data:
+          GoogleBooksResponse =
+          await response.json();
 
-      if (results[0]?.id) {
-        return results[0];
+        const results =
+          data.items ?? [];
+
+        const exactIsbnMatch =
+          results.find(
+            (result) =>
+              result.volumeInfo
+                .industryIdentifiers
+                ?.some(
+                  (identifier) =>
+                    identifier.identifier ===
+                    isbn
+                )
+          ) ??
+          results[0];
+
+        if (exactIsbnMatch) {
+          trendingGoogleBookCache.set(
+            trendingBook.id,
+            exactIsbnMatch
+          );
+
+          return exactIsbnMatch;
+        }
       }
     }
 
@@ -2636,11 +2650,19 @@ export default function DiscoverScreen() {
         }
       );
 
-    return (
+    const resolvedBook =
       titleAndAuthor ??
       results[0] ??
-      null
-    );
+      null;
+
+    if (resolvedBook) {
+      trendingGoogleBookCache.set(
+        trendingBook.id,
+        resolvedBook
+      );
+    }
+
+    return resolvedBook;
   }
 
   async function openTrendingBook(
