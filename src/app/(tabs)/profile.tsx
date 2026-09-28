@@ -1673,6 +1673,7 @@ export default function ProfileScreen() {
             false
           )
         }
+        shape="circle"
       />
     </TabScreen>
   );
