@@ -2404,7 +2404,7 @@ function createStyles(
       alignItems:
         'center',
       justifyContent:
-        'flex-start',
+        'center',
       overflow:
         'hidden',
     },
