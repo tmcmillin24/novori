@@ -239,7 +239,7 @@ async function readCatalogBook<T>(
           'google_books_catalog'
         )
         .select(
-          'metadata'
+          'metadata, detail_complete'
         )
         .eq(
           'google_book_id',
@@ -249,7 +249,9 @@ async function readCatalogBook<T>(
 
     if (
       error ||
-      !data?.metadata
+      !data?.metadata ||
+      data.detail_complete !==
+        true
     ) {
       return null;
     }
@@ -261,7 +263,8 @@ async function readCatalogBook<T>(
 }
 
 async function upsertCatalogBooks(
-  books: unknown[]
+  books: unknown[],
+  detailComplete: boolean
 ) {
   const rows =
     books
@@ -295,6 +298,8 @@ async function upsertCatalogBooks(
             book,
           fetched_at:
             new Date().toISOString(),
+          detail_complete:
+            detailComplete,
         })
       );
 
@@ -318,6 +323,8 @@ async function upsertCatalogBooks(
           {
             onConflict:
               'google_book_id',
+            ignoreDuplicates:
+              !detailComplete,
           }
         );
 
@@ -662,8 +669,18 @@ export async function fetchGoogleBooksJson<T>(
         catalogBooks.length >
         0
       ) {
+        const detailComplete =
+          Boolean(
+            detailId
+          ) ||
+          requestUrl.searchParams.get(
+            'projection'
+          ) ===
+            'full';
+
         void upsertCatalogBooks(
-          catalogBooks
+          catalogBooks,
+          detailComplete
         );
       }
 
