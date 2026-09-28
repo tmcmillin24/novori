@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -79,60 +78,6 @@ type GoogleBook = {
     ratingsCount?: number;
   };
 };
-
-const googleBookDetailCache =
-  new Map<string, GoogleBook>();
-
-function googleBookDetailCacheKey(
-  bookId: string
-) {
-  return `novori:google-book-detail:${bookId}`;
-}
-
-async function readPersistentGoogleBook(
-  bookId: string
-): Promise<GoogleBook | null> {
-  try {
-    const raw =
-      await AsyncStorage.getItem(
-        googleBookDetailCacheKey(
-          bookId
-        )
-      );
-
-    if (!raw) {
-      return null;
-    }
-
-    return JSON.parse(
-      raw
-    ) as GoogleBook;
-  } catch {
-    return null;
-  }
-}
-
-async function writePersistentGoogleBook(
-  book: GoogleBook
-) {
-  googleBookDetailCache.set(
-    book.id,
-    book
-  );
-
-  try {
-    await AsyncStorage.setItem(
-      googleBookDetailCacheKey(
-        book.id
-      ),
-      JSON.stringify(
-        book
-      )
-    );
-  } catch {
-    // Memory cache still keeps this session fast.
-  }
-}
 
 type HardcoverSeriesBook = {
   position: number;
@@ -774,12 +719,6 @@ export default function BookDetailsScreen() {
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
-    savedTitle,
-    savedAuthors,
-    savedCoverUrl,
-    savedIsbn,
-    savedPublishedDate,
-    bookData,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -787,12 +726,6 @@ export default function BookDetailsScreen() {
     clickedTitle?: string;
     clickedAuthors?: string;
     clickedIsbn?: string;
-    savedTitle?: string;
-    savedAuthors?: string;
-    savedCoverUrl?: string;
-    savedIsbn?: string;
-    savedPublishedDate?: string;
-    bookData?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -822,97 +755,6 @@ export default function BookDetailsScreen() {
         return [];
       }
     })();
-
-  const savedBookAuthors =
-    (() => {
-      if (!savedAuthors) {
-        return [] as string[];
-      }
-
-      try {
-        const parsed =
-          JSON.parse(
-            savedAuthors
-          );
-
-        return Array.isArray(
-          parsed
-        )
-          ? parsed.filter(
-              (
-                author
-              ): author is string =>
-                typeof author ===
-                'string'
-            )
-          : [];
-      } catch {
-        return [];
-      }
-    })();
-
-  const routedBook:
-    GoogleBook | null =
-    (() => {
-      if (!bookData) {
-        return null;
-      }
-
-      try {
-        return JSON.parse(
-          bookData
-        ) as GoogleBook;
-      } catch {
-        return null;
-      }
-    })();
-
-  const savedBookFallback:
-    GoogleBook | null =
-    id &&
-    savedTitle &&
-    (
-      source ===
-        'library' ||
-      source ===
-        'profile'
-    )
-      ? {
-          id,
-          volumeInfo: {
-            title:
-              savedTitle,
-            authors:
-              savedBookAuthors,
-            publishedDate:
-              savedPublishedDate ||
-              undefined,
-            industryIdentifiers:
-              savedIsbn
-                ? [
-                    {
-                      type:
-                        savedIsbn.length ===
-                        13
-                          ? 'ISBN_13'
-                          : 'ISBN_10',
-                      identifier:
-                        savedIsbn,
-                    },
-                  ]
-                : undefined,
-            imageLinks:
-              savedCoverUrl
-                ? {
-                    thumbnail:
-                      savedCoverUrl,
-                    medium:
-                      savedCoverUrl,
-                  }
-                : undefined,
-          },
-        }
-      : null;
 
   const [book, setBook] = useState<GoogleBook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1116,142 +958,57 @@ export default function BookDetailsScreen() {
       }
 
       try {
-        setLoading(
-          !savedBookFallback
-        );
+        setLoading(true);
         setError('');
         setSeries(null);
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
-        if (savedBookFallback) {
-          setBook(
-            savedBookFallback
-          );
-          setLoading(
-            false
-          );
-        }
-
         const apiKey =
           process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
-        let resolvedBook:
-          GoogleBook | null =
-          routedBook ??
-          googleBookDetailCache.get(
-            id
-          ) ??
-          await readPersistentGoogleBook(
-            id
-          ) ??
-          savedBookFallback;
-
-        if (resolvedBook) {
-          setBook(
-            resolvedBook
-          );
-          setLoading(
-            false
-          );
+        if (!apiKey) {
+          throw new Error('Google Books API key is missing.');
         }
 
-        const hasRichMetadata =
-          Boolean(
-            resolvedBook
-              ?.volumeInfo
-              .description ||
-            resolvedBook
-              ?.volumeInfo
-              .pageCount ||
-            resolvedBook
-              ?.volumeInfo
-              .categories
-              ?.length
-          );
-
-        const shouldFetchGoogle =
-          Boolean(
-            apiKey &&
-            !routedBook &&
-            !hasRichMetadata
+        const response =
+          await fetch(
+            `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
           );
 
         if (
-          shouldFetchGoogle
+          !response.ok
         ) {
-          try {
-            const response =
-              await fetch(
-                `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
-              );
-
-            if (response.ok) {
-              const data:
-                GoogleBook =
-                await response.json();
-
-              const enrichedBook =
-                source ===
-                  'discover'
-                  ? await resolveClickedDiscoverBook(
-                      data,
-                      apiKey!,
-                      clickedTitle,
-                      discoverClickedAuthors,
-                      clickedIsbn
-                    )
-                  : data;
-
-              if (enrichedBook) {
-                resolvedBook =
-                  enrichedBook;
-                setBook(
-                  enrichedBook
-                );
-                void writePersistentGoogleBook(
-                  enrichedBook
-                );
-              }
-            } else if (
-              !resolvedBook
-            ) {
-              throw new Error(
-                `Google Books request failed: ${response.status}`
-              );
-            }
-          } catch (
-            googleError
-          ) {
-            if (
-              !resolvedBook
-            ) {
-              throw googleError;
-            }
-
-            console.warn(
-              'Google Books detail enrichment unavailable; using cached Novori metadata.'
-            );
-          }
-        } else if (
-          routedBook
-        ) {
-          void writePersistentGoogleBook(
-            routedBook
+          throw new Error(
+            `Google Books request failed: ${response.status}`
           );
         }
+
+        const data:
+          GoogleBook =
+          await response.json();
+
+        const resolvedBook =
+          source ===
+            'discover'
+            ? await resolveClickedDiscoverBook(
+                data,
+                apiKey,
+                clickedTitle,
+                discoverClickedAuthors,
+                clickedIsbn
+              )
+            : data;
 
         if (!resolvedBook) {
-          if (!apiKey) {
-            throw new Error(
-              'Google Books API key is missing.'
-            );
-          }
-
           throw new Error(
-            'Could not load this book.'
+            'Google Books returned conflicting metadata for this search result. Please choose another edition.'
           );
         }
+
+        setBook(
+          resolvedBook
+        );
 
         // The core book is ready. Render the page now instead of
         // blocking on cart status, ratings, reviews, library state,
