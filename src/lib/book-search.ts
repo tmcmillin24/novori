@@ -39,6 +39,7 @@ type HardcoverSearchPopularityResponse = {
     {
       usersCount: number;
       rating: number | null;
+      ratingsCount?: number | null;
     }
   >;
   error?: string;
@@ -1527,11 +1528,8 @@ async function findHardcoverDiscoveryMatch(
             Number(
               match.rating
             ),
-          usersCount:
-            Number(
-              match.usersCount ??
-              0
-            ),
+          ratingsCount:
+            null,
           googleBookId:
             '',
         };
@@ -1546,7 +1544,7 @@ async function findHardcoverDiscoveryMatch(
 
 export type ResolvedHardcoverRating = {
   rating: number;
-  usersCount: number;
+  ratingsCount: number | null;
   googleBookId: string;
 };
 
@@ -1708,6 +1706,11 @@ export async function resolveHardcoverRating(input: {
               book.id
             ]?.usersCount ??
             0,
+          ratingsCount:
+            popularity[
+              book.id
+            ]?.ratingsCount ??
+            null,
         })
       )
       .filter(
@@ -1748,8 +1751,8 @@ export async function resolveHardcoverRating(input: {
   return {
     rating:
       best.rating,
-    usersCount:
-      best.usersCount,
+    ratingsCount:
+      best.ratingsCount,
     googleBookId:
       best.googleBookId,
   };
