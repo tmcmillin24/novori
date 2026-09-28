@@ -1700,12 +1700,12 @@ export async function searchAuthorBooks(
         b
       ) => {
         if (
-          b.usersCount !==
-          a.usersCount
+          b.ratingsCount !==
+          a.ratingsCount
         ) {
           return (
-            b.usersCount -
-            a.usersCount
+            b.ratingsCount -
+            a.ratingsCount
           );
         }
 
@@ -1720,12 +1720,12 @@ export async function searchAuthorBooks(
         }
 
         if (
-          b.ratingsCount !==
-          a.ratingsCount
+          b.usersCount !==
+          a.usersCount
         ) {
           return (
-            b.ratingsCount -
-            a.ratingsCount
+            b.usersCount -
+            a.usersCount
           );
         }
 
