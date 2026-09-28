@@ -279,7 +279,6 @@ function isDiscoverBookInLibrary(
   );
 }
 
-const SEARCH_DELAY_MS = 350;
 const MIN_SEARCH_LENGTH = 2;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
@@ -1875,49 +1874,6 @@ export default function DiscoverScreen() {
     return () =>
       cancelAnimationFrame(frame);
   }, [genrePath[0]?.key]);
-
-  useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(
-        debounceTimerRef.current
-      );
-    }
-
-    const trimmedQuery =
-      query.trim();
-
-    if (
-      trimmedQuery.length <
-      MIN_SEARCH_LENGTH
-    ) {
-      latestRequestRef.current += 1;
-      setBooks([]);
-      setError('');
-      setLoading(false);
-      return;
-    }
-
-    const requestId =
-      ++latestRequestRef.current;
-
-    debounceTimerRef.current =
-      setTimeout(() => {
-        performSearch(
-          trimmedQuery,
-          requestId
-        );
-      }, SEARCH_DELAY_MS);
-
-    return () => {
-      if (
-        debounceTimerRef.current
-      ) {
-        clearTimeout(
-          debounceTimerRef.current
-        );
-      }
-    };
-  }, [query]);
 
   useEffect(() => {
     if (
