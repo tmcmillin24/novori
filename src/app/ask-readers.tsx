@@ -16,6 +16,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import CanonicalBookRating from '../components/CanonicalBookRating';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import {
@@ -594,6 +595,19 @@ export default function AskReadersScreen() {
                     ? attachedBook.authors.join(', ')
                     : 'Unknown author'}
                 </Text>
+
+                <CanonicalBookRating
+                  googleBookId={
+                    attachedBook.id
+                  }
+                  title={
+                    attachedBook.title
+                  }
+                  authors={
+                    attachedBook.authors
+                  }
+                  compact
+                />
               </View>
 
               <Pressable
@@ -934,6 +948,18 @@ export default function AskReadersScreen() {
                         {attachedBook.authors.join(', ')}
                       </Text>
                     ) : null}
+
+                    <CanonicalBookRating
+                      googleBookId={
+                        attachedBook.id
+                      }
+                      title={
+                        attachedBook.title
+                      }
+                      authors={
+                        attachedBook.authors
+                      }
+                    />
                   </View>
 
                   <Ionicons
