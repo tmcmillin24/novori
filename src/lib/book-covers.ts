@@ -560,21 +560,80 @@ export async function resolveBestBookCover({
       imageLinks
     );
 
+  const existing =
+    secureUrl(
+      existingCoverUrl
+    );
+
+  const existingSize =
+    existing
+      ? await getImageSize(
+          existing
+        )
+      : null;
+
+  let currentBest:
+    | {
+        url: string;
+        width: number;
+        height: number;
+        source:
+          | 'google'
+          | 'existing';
+      }
+    | null =
+    null;
+
   if (
-    google &&
+    google
+  ) {
+    currentBest = {
+      ...google,
+      source:
+        'google',
+    };
+  }
+
+  if (
+    existing &&
+    existingSize &&
+    (
+      !currentBest ||
+      area(
+        existingSize
+      ) >
+        area(
+          currentBest
+        )
+    )
+  ) {
+    currentBest = {
+      url:
+        existing,
+      width:
+        existingSize.width,
+      height:
+        existingSize.height,
+      source:
+        'existing',
+    };
+  }
+
+  if (
+    currentBest &&
     isSatisfactory(
-      google
+      currentBest
     )
   ) {
     return {
       url:
-        google.url,
+        currentBest.url,
       source:
-        'google',
+        currentBest.source,
       width:
-        google.width,
+        currentBest.width,
       height:
-        google.height,
+        currentBest.height,
     };
   }
 
@@ -594,12 +653,12 @@ export async function resolveBestBookCover({
     openLibraryUrl &&
     openLibrarySize &&
     (
-      !google ||
+      !currentBest ||
       area(
         openLibrarySize
       ) >
         area(
-          google
+          currentBest
         )
     )
   ) {
@@ -616,64 +675,18 @@ export async function resolveBestBookCover({
   }
 
   if (
-    google
+    currentBest
   ) {
     return {
       url:
-        google.url,
+        currentBest.url,
       source:
-        'google',
+        currentBest.source,
       width:
-        google.width,
+        currentBest.width,
       height:
-        google.height,
+        currentBest.height,
     };
-  }
-
-  const existing =
-    secureUrl(
-      existingCoverUrl
-    );
-
-  if (
-    existing
-  ) {
-    const existingSize =
-      await getImageSize(
-        existing
-      );
-
-    if (
-      existingSize
-    ) {
-      const existingArea =
-        area(
-          existingSize
-        );
-
-      const googleArea =
-        google
-          ? area(
-              google
-            )
-          : 0;
-
-      if (
-        existingArea >
-          googleArea
-      ) {
-        return {
-          url:
-            existing,
-          source:
-            'existing',
-          width:
-            existingSize.width,
-          height:
-            existingSize.height,
-        };
-      }
-    }
   }
 
   return {
