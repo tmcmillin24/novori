@@ -1825,12 +1825,6 @@ export async function resolveGoogleBookRating(input: {
     process.env
       .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
-  if (
-    !apiKey
-  ) {
-    return null;
-  }
-
   const cleanTitle =
     input.title.trim();
 
@@ -2143,6 +2137,7 @@ export async function resolveHardcoverRating(input: {
   googleBookId?: string | null;
   title: string;
   authors?: string[];
+  isbns?: string[];
 }): Promise<
   ResolvedHardcoverRating | null
 > {
@@ -2169,11 +2164,38 @@ export async function resolveHardcoverRating(input: {
     input.authors ??
     [];
 
+  const providedIsbns =
+    Array.from(
+      new Set(
+        (
+          input.isbns ??
+          []
+        )
+          .map(
+            (
+              isbn
+            ) =>
+              isbn
+                .replace(
+                  /[^0-9Xx]/g,
+                  ''
+                )
+                .toUpperCase()
+          )
+          .filter(
+            Boolean
+          )
+      )
+    );
+
   const groups:
     GoogleBookSearchItem[][] =
     [];
 
   if (
+    providedIsbns.length ===
+      0 &&
+    apiKey &&
     input.googleBookId
   ) {
     try {
@@ -2199,37 +2221,43 @@ export async function resolveHardcoverRating(input: {
     }
   }
 
-  const primaryAuthor =
-    expectedAuthors[0]
-      ?.trim() ??
-    '';
+  if (
+    providedIsbns.length ===
+      0 &&
+    apiKey
+  ) {
+    const primaryAuthor =
+      expectedAuthors[0]
+        ?.trim() ??
+      '';
 
-  const query =
-    primaryAuthor
-      ? `intitle:"${cleanTitle}" inauthor:"${primaryAuthor}"`
-      : `intitle:"${cleanTitle}"`;
+    const query =
+      primaryAuthor
+        ? `intitle:"${cleanTitle}" inauthor:"${primaryAuthor}"`
+        : `intitle:"${cleanTitle}"`;
 
-  try {
-    const response =
-      await fetchGoogleBooksJson<
-        GoogleBooksResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          query
-        )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
-      );
+    try {
+      const response =
+        await fetchGoogleBooksJson<
+          GoogleBooksResponse
+        >(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            query
+          )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+        );
 
-    if (
-      response.ok &&
-      response.data
-    ) {
-      groups.push(
-        response.data.items ??
-        []
-      );
+      if (
+        response.ok &&
+        response.data
+      ) {
+        groups.push(
+          response.data.items ??
+          []
+        );
+      }
+    } catch {
+      // Use any exact-volume data already collected.
     }
-  } catch {
-    // Use any exact-volume data already collected.
   }
 
   const matchingBooks =
@@ -2255,16 +2283,17 @@ export async function resolveHardcoverRating(input: {
 
   const allIsbns =
     Array.from(
-      new Set(
-        matchingBooks.flatMap(
+      new Set([
+        ...providedIsbns,
+        ...matchingBooks.flatMap(
           (
             book
           ) =>
             getBookIsbns(
               book
             )
-        )
-      )
+        ),
+      ])
     );
 
   const requestKey =
