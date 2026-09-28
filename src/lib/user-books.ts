@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
 import {
-  getBestSearchCover,
   searchNovoriBooks,
 } from './book-search';
 import {
