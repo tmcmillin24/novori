@@ -1208,6 +1208,7 @@ export default function BookDetailsScreen() {
   function openReadingDetails() {
     if (
       !savedBook ||
+      !savedBook.status ||
       savedBook.status ===
         'want_to_read'
     ) {
@@ -1655,18 +1656,23 @@ export default function BookDetailsScreen() {
   function confirmRemoveFromLibrary() {
     if (
       !book ||
-      !readingStatus ||
       savingStatus ||
       removingBook
     ) {
       return;
     }
 
+    const hasReadingDetails =
+      Boolean(
+        savedBook?.status &&
+        savedBook.status !==
+          'want_to_read'
+      );
+
     const removalMessage =
-      savedBook?.status ===
-      'want_to_read'
-        ? `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`
-        : `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This permanently deletes its private Reading Details — including summary, notes, and checkpoints — along with its saved rating and review.`;
+      hasReadingDetails
+        ? `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This permanently deletes its private Reading Details — including summary, notes, and checkpoints — along with its saved rating and review.`
+        : `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`;
 
     Alert.alert(
       'Remove from Library?',
@@ -1720,6 +1726,7 @@ export default function BookDetailsScreen() {
   function openReadingDateEditor() {
     if (
       !savedBook ||
+      !savedBook.status ||
       savedBook.status ===
         'want_to_read'
     ) {
@@ -2927,7 +2934,8 @@ export default function BookDetailsScreen() {
                 </Text>
               </View>
 
-              {savedBook.status !==
+              {savedBook.status &&
+              savedBook.status !==
                 'want_to_read' ? (
                 <Pressable
                   onPress={
@@ -3365,6 +3373,7 @@ export default function BookDetailsScreen() {
         source !==
           'discover' &&
         savedBook &&
+        savedBook.status &&
         savedBook.status !==
           'want_to_read' ? (
           <View
