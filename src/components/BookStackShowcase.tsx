@@ -36,9 +36,7 @@ type Props = {
   onOpenBook?: (
     item: BookStackShowcaseItem
   ) => void;
-  onOpenStack?: () => void;
-  showOpenStack?: boolean;
-};
+ };
 
 export default function BookStackShowcase({
   name,
@@ -48,9 +46,7 @@ export default function BookStackShowcase({
   selectedId = null,
   onSelectedIdChange,
   onOpenBook,
-  onOpenStack,
-  showOpenStack = false,
-}: Props) {
+ }: Props) {
   const {
     colors,
   } =
@@ -263,38 +259,6 @@ export default function BookStackShowcase({
         </View>
       ) : null}
 
-      {showOpenStack &&
-      onOpenStack ? (
-        <Pressable
-          onPress={(
-            event
-          ) => {
-            event.stopPropagation();
-            onOpenStack();
-          }}
-          style={({ pressed }) => [
-            styles.openStackButton,
-            pressed &&
-              styles.pressed,
-          ]}
-        >
-          <Text
-            style={
-              styles.openStackText
-            }
-          >
-            Open full stack
-          </Text>
-
-          <Ionicons
-            name="chevron-forward"
-            size={14}
-            color={
-              colors.gold
-            }
-          />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -472,31 +436,6 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize: 9.5,
-    },
-
-    openStackButton: {
-      minHeight: 41,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 4,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-      backgroundColor:
-        colors.background,
-    },
-
-    openStackText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 10.5,
     },
 
     pressed: {
