@@ -392,28 +392,6 @@ export async function resolveBestWorkCover({
       bestExisting;
   }
 
-  if (
-    currentBest &&
-    isSatisfactory(
-      currentBest
-    )
-  ) {
-    return {
-      url:
-        currentBest.url,
-      source:
-        bestExisting &&
-        currentBest.url ===
-          bestExisting.url
-          ? 'existing'
-          : 'google',
-      width:
-        currentBest.width,
-      height:
-        currentBest.height,
-    };
-  }
-
   const isbnCandidates =
     Array.from(
       new Set(
@@ -616,24 +594,6 @@ export async function resolveBestBookCover({
         existingSize.height,
       source:
         'existing',
-    };
-  }
-
-  if (
-    currentBest &&
-    isSatisfactory(
-      currentBest
-    )
-  ) {
-    return {
-      url:
-        currentBest.url,
-      source:
-        currentBest.source,
-      width:
-        currentBest.width,
-      height:
-        currentBest.height,
     };
   }
 
