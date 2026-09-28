@@ -79,6 +79,9 @@ type GoogleBook = {
   };
 };
 
+const googleBookDetailCache =
+  new Map<string, GoogleBook>();
+
 type HardcoverSeriesBook = {
   position: number;
   id: number;
@@ -719,6 +722,11 @@ export default function BookDetailsScreen() {
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
+    savedTitle,
+    savedAuthors,
+    savedCoverUrl,
+    savedIsbn,
+    savedPublishedDate,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -726,6 +734,11 @@ export default function BookDetailsScreen() {
     clickedTitle?: string;
     clickedAuthors?: string;
     clickedIsbn?: string;
+    savedTitle?: string;
+    savedAuthors?: string;
+    savedCoverUrl?: string;
+    savedIsbn?: string;
+    savedPublishedDate?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -755,6 +768,81 @@ export default function BookDetailsScreen() {
         return [];
       }
     })();
+
+  const savedBookAuthors =
+    (() => {
+      if (!savedAuthors) {
+        return [] as string[];
+      }
+
+      try {
+        const parsed =
+          JSON.parse(
+            savedAuthors
+          );
+
+        return Array.isArray(
+          parsed
+        )
+          ? parsed.filter(
+              (
+                author
+              ): author is string =>
+                typeof author ===
+                'string'
+            )
+          : [];
+      } catch {
+        return [];
+      }
+    })();
+
+  const savedBookFallback:
+    GoogleBook | null =
+    id &&
+    savedTitle &&
+    (
+      source ===
+        'library' ||
+      source ===
+        'profile'
+    )
+      ? {
+          id,
+          volumeInfo: {
+            title:
+              savedTitle,
+            authors:
+              savedBookAuthors,
+            publishedDate:
+              savedPublishedDate ||
+              undefined,
+            industryIdentifiers:
+              savedIsbn
+                ? [
+                    {
+                      type:
+                        savedIsbn.length ===
+                        13
+                          ? 'ISBN_13'
+                          : 'ISBN_10',
+                      identifier:
+                        savedIsbn,
+                    },
+                  ]
+                : undefined,
+            imageLinks:
+              savedCoverUrl
+                ? {
+                    thumbnail:
+                      savedCoverUrl,
+                    medium:
+                      savedCoverUrl,
+                  }
+                : undefined,
+          },
+        }
+      : null;
 
   const [book, setBook] = useState<GoogleBook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -958,51 +1046,101 @@ export default function BookDetailsScreen() {
       }
 
       try {
-        setLoading(true);
+        setLoading(
+          !savedBookFallback
+        );
         setError('');
         setSeries(null);
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
+        if (savedBookFallback) {
+          setBook(
+            savedBookFallback
+          );
+          setLoading(
+            false
+          );
+        }
+
         const apiKey =
           process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
-        if (!apiKey) {
-          throw new Error('Google Books API key is missing.');
-        }
-
-        const response =
-          await fetch(
-            `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
-          );
+        let resolvedBook:
+          GoogleBook | null =
+          googleBookDetailCache.get(
+            id
+          ) ??
+          null;
 
         if (
-          !response.ok
+          !resolvedBook &&
+          apiKey
         ) {
-          throw new Error(
-            `Google Books request failed: ${response.status}`
-          );
+          try {
+            const response =
+              await fetch(
+                `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
+              );
+
+            if (response.ok) {
+              const data:
+                GoogleBook =
+                await response.json();
+
+              resolvedBook =
+                source ===
+                  'discover'
+                  ? await resolveClickedDiscoverBook(
+                      data,
+                      apiKey,
+                      clickedTitle,
+                      discoverClickedAuthors,
+                      clickedIsbn
+                    )
+                  : data;
+
+              if (resolvedBook) {
+                googleBookDetailCache.set(
+                  id,
+                  resolvedBook
+                );
+              }
+            } else if (
+              !savedBookFallback
+            ) {
+              throw new Error(
+                `Google Books request failed: ${response.status}`
+              );
+            }
+          } catch (
+            googleError
+          ) {
+            if (
+              !savedBookFallback
+            ) {
+              throw googleError;
+            }
+
+            console.warn(
+              'Google Books detail enrichment unavailable; using saved Novori metadata.'
+            );
+          }
         }
 
-        const data:
-          GoogleBook =
-          await response.json();
-
-        const resolvedBook =
-          source ===
-            'discover'
-            ? await resolveClickedDiscoverBook(
-                data,
-                apiKey,
-                clickedTitle,
-                discoverClickedAuthors,
-                clickedIsbn
-              )
-            : data;
+        resolvedBook =
+          resolvedBook ??
+          savedBookFallback;
 
         if (!resolvedBook) {
+          if (!apiKey) {
+            throw new Error(
+              'Google Books API key is missing.'
+            );
+          }
+
           throw new Error(
-            'Google Books returned conflicting metadata for this search result. Please choose another edition.'
+            'Could not load this book.'
           );
         }
 
