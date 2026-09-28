@@ -279,7 +279,7 @@ function isDiscoverBookInLibrary(
   );
 }
 
-const SEARCH_DELAY_MS = 350;
+const SEARCH_DELAY_MS = 600;
 const MIN_SEARCH_LENGTH = 2;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
