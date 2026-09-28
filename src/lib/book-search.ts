@@ -1527,78 +1527,92 @@ export async function searchAuthorBooks(
     AuthorBookResult[] =
     [];
 
-  const chunkSize =
-    5;
+  async function resolveAuthorBook(
+    book: GoogleBookSearchItem
+  ) {
+    let resolved:
+      ResolvedHardcoverRating |
+      null =
+      null;
+
+    for (
+      let attempt = 0;
+      attempt < 2;
+      attempt += 1
+    ) {
+      resolved =
+        await resolveHardcoverRating({
+          googleBookId:
+            book.id,
+          title:
+            book.volumeInfo
+              .title ??
+            '',
+          authors:
+            book.volumeInfo
+              .authors ??
+            [],
+        });
+
+      if (
+        resolved
+      ) {
+        break;
+      }
+
+      if (
+        attempt ===
+        0
+      ) {
+        await new Promise(
+          (
+            resolve
+          ) =>
+            setTimeout(
+              resolve,
+              250
+            )
+        );
+      }
+    }
+
+    return {
+      book,
+      usersCount:
+        resolved
+          ?.usersCount ??
+        0,
+      ratingsCount:
+        resolved
+          ?.ratingsCount ??
+        book.novoriWork
+          ?.hardcoverRatingsCount ??
+        book.volumeInfo
+          .ratingsCount ??
+        0,
+      reviewsCount:
+        resolved
+          ?.reviewsCount ??
+        0,
+      rating:
+        resolved
+          ?.rating ??
+        book.novoriWork
+          ?.hardcoverRating ??
+        book.volumeInfo
+          .averageRating ??
+        null,
+    } satisfies AuthorBookResult;
+  }
 
   for (
-    let index = 0;
-    index <
-    filtered.length;
-    index +=
-      chunkSize
+    const book of
+    filtered
   ) {
-    const chunk =
-      filtered.slice(
-        index,
-        index +
-          chunkSize
-      );
-
-    const resolvedChunk =
-      await Promise.all(
-        chunk.map(
-          async (
-            book
-          ): Promise<
-            AuthorBookResult
-          > => {
-            const resolved =
-              await resolveHardcoverRating({
-                googleBookId:
-                  book.id,
-                title:
-                  book.volumeInfo
-                    .title ??
-                  '',
-                authors:
-                  book.volumeInfo
-                    .authors ??
-                  [],
-              });
-
-            return {
-              book,
-              usersCount:
-                resolved
-                  ?.usersCount ??
-                0,
-              ratingsCount:
-                resolved
-                  ?.ratingsCount ??
-                book.novoriWork
-                  ?.hardcoverRatingsCount ??
-                book.volumeInfo
-                  .ratingsCount ??
-                0,
-              reviewsCount:
-                resolved
-                  ?.reviewsCount ??
-                0,
-              rating:
-                resolved
-                  ?.rating ??
-                book.novoriWork
-                  ?.hardcoverRating ??
-                book.volumeInfo
-                  .averageRating ??
-                null,
-            };
-          }
-        )
-      );
-
     resolvedBooks.push(
-      ...resolvedChunk
+      await resolveAuthorBook(
+        book
+      )
     );
   }
 
