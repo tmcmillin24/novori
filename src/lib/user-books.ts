@@ -385,6 +385,29 @@ async function repairSavedCover(
       book.cover_url
     );
 
+  const currentGoogle =
+    getGoogleCoverInfo(
+      currentCover
+    );
+
+  const currentNeedsRepair =
+    !currentCover ||
+    (
+      currentGoogle &&
+      (
+        currentGoogle.zoom ===
+          null ||
+        currentGoogle.zoom <=
+          2
+      )
+    );
+
+  if (
+    !currentNeedsRepair
+  ) {
+    return book;
+  }
+
   const title =
     book.title.trim();
 
@@ -463,11 +486,6 @@ async function repairSavedCover(
     ) {
       return book;
     }
-
-    const currentGoogle =
-      getGoogleCoverInfo(
-        currentCover
-      );
 
     const discoverGoogle =
       getGoogleCoverInfo(
