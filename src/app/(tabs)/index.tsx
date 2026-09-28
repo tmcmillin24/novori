@@ -9127,12 +9127,15 @@ function createStyles(
       top: 0,
       left: 0,
       right: 0,
-      height: 46,
+      minHeight: 54,
       zIndex: 50,
+      flexDirection:
+        'row',
       alignItems:
         'center',
       justifyContent:
-        'center',
+        'flex-start',
+      paddingHorizontal: 20,
       backgroundColor:
         colors.background,
       borderBottomWidth: 1,
@@ -9143,9 +9146,10 @@ function createStyles(
     stickyHomeLogo: {
       color:
         colors.gold,
-      fontSize: 22,
+      fontSize: 30,
       fontFamily:
         'PlayfairDisplay_700Bold',
+      letterSpacing: 0.2,
     },
     scrollContent: {
       flexGrow: 1,
