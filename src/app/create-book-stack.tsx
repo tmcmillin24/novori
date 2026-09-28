@@ -79,7 +79,6 @@ export default function CreateBookStackScreen() {
 
   const isEditing =
     Boolean(
-      editPostId &&
       editStackId
     );
 
@@ -235,18 +234,17 @@ export default function CreateBookStackScreen() {
       }
 
       try {
-        const [
-          stack,
-          post,
-        ] =
-          await Promise.all([
-            getBookStack(
-              editStackId
-            ),
-            getPostDetail(
-              editPostId
-            ),
-          ]);
+        const stack =
+          await getBookStack(
+            editStackId
+          );
+
+        const post =
+          editPostId
+            ? await getPostDetail(
+                editPostId
+              )
+            : null;
 
         if (
           !active
@@ -276,7 +274,8 @@ export default function CreateBookStackScreen() {
         );
 
         setPostText(
-          post.body
+          post?.body ??
+            ''
         );
       } catch (
         error
@@ -775,18 +774,26 @@ export default function CreateBookStackScreen() {
           items
         );
 
-        await updatePost(
-          editPostId,
-          {
-            body:
-              postText.trim() ||
-              name.trim(),
-          }
-        );
+        if (
+          editPostId
+        ) {
+          await updatePost(
+            editPostId,
+            {
+              body:
+                postText.trim() ||
+                name.trim(),
+            }
+          );
 
-        router.replace(
-          '/(tabs)'
-        );
+          router.replace(
+            '/(tabs)'
+          );
+        } else {
+          router.replace(
+            '/(tabs)/profile'
+          );
+        }
       } else {
         await createBookStack(
           name,
@@ -843,14 +850,28 @@ export default function CreateBookStackScreen() {
             items
           );
 
-        await updatePost(
-          editPostId,
-          {
+        if (
+          editPostId
+        ) {
+          await updatePost(
+            editPostId,
+            {
+              body:
+                postText.trim() ||
+                stack.name,
+            }
+          );
+        } else {
+          await createPost({
             body:
               postText.trim() ||
               stack.name,
-          }
-        );
+            postType:
+              'book_stack',
+            bookStackId:
+              stack.id,
+          });
+        }
       } else {
         const stack =
           await createBookStack(
