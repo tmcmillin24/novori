@@ -229,7 +229,7 @@ export default function AuthorScreen() {
         id:
           book.id,
         source:
-          'discover',
+          'author',
         ...(coverUrl
           ? {
               coverUrl,
