@@ -825,7 +825,12 @@ export default function LibraryScreen() {
   }
 
   function openSelectedReadingDetails() {
-    if (!selectedBook || selectedBook.status === 'want_to_read') {
+    if (
+      !selectedBook ||
+      !selectedBook.status ||
+      selectedBook.status ===
+        'want_to_read'
+    ) {
       return;
     }
 
@@ -2418,8 +2423,9 @@ export default function LibraryScreen() {
                       />
                     </Pressable>
 
-                    {selectedBook.status !==
-                    'want_to_read' ? (
+                    {selectedBook.status &&
+                    selectedBook.status !==
+                      'want_to_read' ? (
                       <Pressable
                         onPress={
                           openSelectedReadingDetails
@@ -2524,11 +2530,9 @@ export default function LibraryScreen() {
                             styles.sheetRowSubtitle
                           }
                         >
-                          Currently {
-                            STATUS_LABELS[
-                              selectedBook.status
-                            ]
-                          }
+                          {selectedBook.status
+                            ? `Currently ${STATUS_LABELS[selectedBook.status]}`
+                            : 'Choose a reading status'}
                         </Text>
                       </View>
 
