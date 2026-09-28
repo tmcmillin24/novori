@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import {
   useFocusEffect,
   useRouter,
@@ -73,6 +75,75 @@ type Profile = {
   bio: string | null;
   avatar_url: string | null;
 };
+
+type ProfileCacheSnapshot = {
+  profile: Profile | null;
+  books: UserBook[];
+  followerCount: number;
+  followingCount: number;
+  posts: FeedPost[];
+  clubs: ClubWithMembership[];
+  stacks: BookStack[];
+};
+
+function profileCacheKey(
+  userId: string
+) {
+  return `novori:profile-cache:${userId}`;
+}
+
+async function readProfileCache(
+  userId: string
+): Promise<ProfileCacheSnapshot | null> {
+  try {
+    const raw =
+      await AsyncStorage.getItem(
+        profileCacheKey(
+          userId
+        )
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(
+      raw
+    ) as ProfileCacheSnapshot;
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not read cached profile:',
+      error
+    );
+
+    return null;
+  }
+}
+
+async function writeProfileCache(
+  userId: string,
+  snapshot: ProfileCacheSnapshot
+) {
+  try {
+    await AsyncStorage.setItem(
+      profileCacheKey(
+        userId
+      ),
+      JSON.stringify(
+        snapshot
+      )
+    );
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not cache profile:',
+      error
+    );
+  }
+}
 
 export default function ProfileScreen() {
   const {
@@ -159,6 +230,13 @@ export default function ProfileScreen() {
       []
     );
 
+
+  const [
+    profileHydrated,
+    setProfileHydrated,
+  ] =
+    useState(false);
+
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -166,17 +244,29 @@ export default function ProfileScreen() {
       async function loadProfileAndBooks() {
         const {
           data: {
-            user,
+            session,
           },
           error:
-            userError,
+            sessionError,
         } =
-          await supabase.auth.getUser();
+          await supabase.auth.getSession();
+
+        const user =
+          session?.user ??
+          null;
 
         if (
-          userError ||
+          sessionError ||
           !user
         ) {
+          if (
+            isMounted
+          ) {
+            setProfileHydrated(
+              true
+            );
+          }
+
           await supabase.auth.signOut();
 
           router.replace(
@@ -184,6 +274,46 @@ export default function ProfileScreen() {
           );
 
           return;
+        }
+
+        const cached =
+          await readProfileCache(
+            user.id
+          );
+
+        if (
+          isMounted &&
+          cached
+        ) {
+          setProfile(
+            cached.profile
+          );
+          setBooks(
+            cached.books
+          );
+          setFollowerCount(
+            cached.followerCount
+          );
+          setFollowingCount(
+            cached.followingCount
+          );
+          setPosts(
+            cached.posts
+          );
+          setClubs(
+            cached.clubs
+          );
+          setStacks(
+            cached.stacks
+          );
+        }
+
+        if (
+          isMounted
+        ) {
+          setProfileHydrated(
+            true
+          );
         }
 
         const {
@@ -203,17 +333,27 @@ export default function ProfileScreen() {
             )
             .single();
 
+        let refreshedProfile:
+          Profile | null =
+          cached?.profile ??
+          null;
+
         if (error) {
           console.error(
             'Could not load profile:',
             error.message
           );
-        } else if (
-          isMounted
-        ) {
-          setProfile(
-            data
-          );
+        } else {
+          refreshedProfile =
+            data as Profile;
+
+          if (
+            isMounted
+          ) {
+            setProfile(
+              refreshedProfile
+            );
+          }
         }
 
         try {
@@ -242,42 +382,70 @@ export default function ProfileScreen() {
                   'Could not load Book Stacks:',
                   stackError
                 );
-                return [];
+
+                return (
+                  cached?.stacks ??
+                  []
+                );
               }
             ),
           ]);
+
+          const snapshot:
+            ProfileCacheSnapshot = {
+              profile:
+                refreshedProfile,
+              books:
+                savedBooks,
+              followerCount:
+                socialProfile.follower_count,
+              followingCount:
+                socialProfile.following_count,
+              posts:
+                profilePosts,
+              clubs:
+                publicClubs,
+              stacks:
+                savedStacks,
+            };
 
           if (
             isMounted
           ) {
             setBooks(
-              savedBooks
+              snapshot.books
             );
             setFollowerCount(
-              socialProfile.follower_count
+              snapshot.followerCount
             );
             setFollowingCount(
-              socialProfile.following_count
+              snapshot.followingCount
             );
             setPosts(
-              profilePosts
+              snapshot.posts
             );
             setClubs(
-              publicClubs
+              snapshot.clubs
             );
             setStacks(
-              savedStacks
+              snapshot.stacks
             );
           }
+
+          void writeProfileCache(
+            user.id,
+            snapshot
+          );
         } catch (
-          bookError
+          refreshError
         ) {
           console.error(
-            'Could not load profile books:',
-            bookError
+            'Could not refresh profile data:',
+            refreshError
           );
 
           if (
+            !cached &&
             isMounted
           ) {
             setBooks(
@@ -302,7 +470,7 @@ export default function ProfileScreen() {
         }
       }
 
-      loadProfileAndBooks();
+      void loadProfileAndBooks();
 
       return () => {
         isMounted =
@@ -1235,6 +1403,22 @@ export default function ProfileScreen() {
     return renderBooksTab();
   }
 
+  if (
+    !profileHydrated
+  ) {
+    return (
+      <TabScreen
+        scroll
+      >
+        <View
+          style={
+            styles.profileCacheWarmup
+          }
+        />
+      </TabScreen>
+    );
+  }
+
   return (
     <TabScreen
       scroll
@@ -1296,14 +1480,16 @@ export default function ProfileScreen() {
                 styles.pressed,
             ]}
           >
-            <Image
-              source={{
-                uri:
-                  profile.avatar_url,
-              }}
+            <ExpoImage
+              source={
+                profile.avatar_url
+              }
               style={
                 styles.avatarImage
               }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
             />
           </Pressable>
         ) : (
@@ -1739,6 +1925,10 @@ function createStyles(
   colors: NovoriColors
 ) {
   return StyleSheet.create({
+    profileCacheWarmup: {
+      minHeight: 1,
+    },
+
     topBar: {
       minHeight: 34,
       flexDirection:
