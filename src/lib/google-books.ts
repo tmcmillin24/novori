@@ -60,7 +60,7 @@ function isVolumeDetailUrl(
   url: string
 ) {
   return (
-    /\/books\/v1\/volumes\/[^?]+\?/.test(
+    /\/books\/v1\/volumes\/[^?]+(?:\?|$)/.test(
       url
     ) &&
     !url.includes(
@@ -226,6 +226,156 @@ async function persistDetail(
   }
 }
 
+async function readCatalogBook<T>(
+  googleBookId: string
+): Promise<T | null> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .select(
+          'metadata'
+        )
+        .eq(
+          'google_book_id',
+          googleBookId
+        )
+        .maybeSingle();
+
+    if (
+      error ||
+      !data?.metadata
+    ) {
+      return null;
+    }
+
+    return data.metadata as T;
+  } catch {
+    return null;
+  }
+}
+
+async function upsertCatalogBooks(
+  books: unknown[]
+) {
+  const rows =
+    books
+      .filter(
+        (
+          book
+        ): book is {
+          id: string;
+          [key: string]:
+            unknown;
+        } =>
+          Boolean(
+            book &&
+            typeof book ===
+              'object' &&
+            typeof (
+              book as {
+                id?: unknown;
+              }
+            ).id ===
+              'string'
+          )
+      )
+      .map(
+        (
+          book
+        ) => ({
+          google_book_id:
+            book.id,
+          metadata:
+            book,
+          fetched_at:
+            new Date().toISOString(),
+        })
+      );
+
+  if (
+    rows.length ===
+    0
+  ) {
+    return;
+  }
+
+  try {
+    const {
+      error,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .upsert(
+          rows,
+          {
+            onConflict:
+              'google_book_id',
+          }
+        );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Could not update Novori book catalog:',
+        error
+      );
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not update Novori book catalog:',
+      error
+    );
+  }
+}
+
+function catalogBooksFromPayload(
+  payload: unknown,
+  detailId: string | null
+) {
+  if (
+    payload &&
+    typeof payload ===
+      'object' &&
+    Array.isArray(
+      (
+        payload as {
+          items?: unknown[];
+        }
+      ).items
+    )
+  ) {
+    return (
+      payload as {
+        items: unknown[];
+      }
+    ).items;
+  }
+
+  if (
+    detailId &&
+    payload &&
+    typeof payload ===
+      'object'
+  ) {
+    return [
+      payload,
+    ];
+  }
+
+  return [];
+}
+
 export async function fetchGoogleBooksJson<T>(
   url: string
 ): Promise<GoogleBooksJsonResult<T>> {
@@ -320,6 +470,53 @@ export async function fetchGoogleBooksJson<T>(
           true,
       };
     }
+
+    const catalogBook =
+      await readCatalogBook<T>(
+        detailId
+      );
+
+    if (
+      catalogBook
+    ) {
+      memoryCache.set(
+        url,
+        {
+          expiresAt:
+            now +
+            DETAIL_CACHE_MS,
+          status:
+            200,
+          data:
+            catalogBook,
+        }
+      );
+
+      volumeMemoryCache.set(
+        detailId,
+        {
+          expiresAt:
+            now +
+            DETAIL_CACHE_MS,
+          data:
+            catalogBook,
+        }
+      );
+
+      void persistDetail(
+        detailId,
+        catalogBook
+      );
+
+      return {
+        ok: true,
+        status: 200,
+        data:
+          catalogBook,
+        fromCache:
+          true,
+      };
+    }
   }
 
   if (
@@ -348,42 +545,39 @@ export async function fetchGoogleBooksJson<T>(
 
   const request =
     (async () => {
-      const {
-        data:
-          proxyResponse,
-        error:
-          proxyError,
-      } =
-        await supabase.functions.invoke(
-          'google-books-proxy',
-          {
-            body: {
-              url,
-            },
-          }
-        );
+      const apiKey =
+        process.env
+          .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
       if (
-        proxyError
+        !apiKey
       ) {
         return {
           ok: false,
-          status: 503,
+          status: 500,
           data: null,
           fromCache:
             false,
         } satisfies GoogleBooksJsonResult<unknown>;
       }
 
-      const status =
-        Number(
-          proxyResponse
-            ?.status ??
-          500
+      const requestUrl =
+        new URL(
+          url
+        );
+
+      requestUrl.searchParams.set(
+        'key',
+        apiKey
+      );
+
+      const response =
+        await fetch(
+          requestUrl.toString()
         );
 
       if (
-        status ===
+        response.status ===
         429
       ) {
         rateLimitedUntil =
@@ -400,14 +594,12 @@ export async function fetchGoogleBooksJson<T>(
       }
 
       if (
-        status <
-          200 ||
-        status >=
-          300
+        !response.ok
       ) {
         return {
           ok: false,
-          status,
+          status:
+            response.status,
           data: null,
           fromCache:
             false,
@@ -415,23 +607,7 @@ export async function fetchGoogleBooksJson<T>(
       }
 
       const data =
-        proxyResponse
-          ?.data;
-
-      if (
-        data ===
-        undefined ||
-        data ===
-        null
-      ) {
-        return {
-          ok: false,
-          status: 502,
-          data: null,
-          fromCache:
-            false,
-        } satisfies GoogleBooksJsonResult<unknown>;
-      }
+        await response.json();
 
       if (
         data &&
@@ -476,6 +652,21 @@ export async function fetchGoogleBooksJson<T>(
         }
       }
 
+      const catalogBooks =
+        catalogBooksFromPayload(
+          data,
+          detailId
+        );
+
+      if (
+        catalogBooks.length >
+        0
+      ) {
+        void upsertCatalogBooks(
+          catalogBooks
+        );
+      }
+
       memoryCache.set(
         url,
         {
@@ -486,7 +677,8 @@ export async function fetchGoogleBooksJson<T>(
                 ? DETAIL_CACHE_MS
                 : SEARCH_CACHE_MS
             ),
-          status,
+          status:
+            response.status,
           data,
         }
       );
@@ -500,7 +692,8 @@ export async function fetchGoogleBooksJson<T>(
 
       return {
         ok: true,
-        status,
+        status:
+          response.status,
         data,
         fromCache:
           false,
