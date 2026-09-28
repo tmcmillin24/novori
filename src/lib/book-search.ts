@@ -115,8 +115,12 @@ async function getHardcoverPopularity(
       }))
       .filter(
         (book) =>
-          book.isbns.length >
-          0
+          allowTitleFallback
+            ? Boolean(
+                book.title
+              )
+            : book.isbns.length >
+              0
       )
       .slice(0, 40);
 
