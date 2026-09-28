@@ -1519,52 +1519,86 @@ export async function searchAuthorBooks(
       }
     );
 
-  const withRatings =
-    await attachCanonicalHardcoverRatings(
-      filtered
+  const resolvedBooks:
+    AuthorBookResult[] =
+    [];
+
+  const chunkSize =
+    5;
+
+  for (
+    let index = 0;
+    index <
+    filtered.length;
+    index +=
+      chunkSize
+  ) {
+    const chunk =
+      filtered.slice(
+        index,
+        index +
+          chunkSize
+      );
+
+    const resolvedChunk =
+      await Promise.all(
+        chunk.map(
+          async (
+            book
+          ): Promise<
+            AuthorBookResult
+          > => {
+            const resolved =
+              await resolveHardcoverRating({
+                googleBookId:
+                  book.id,
+                title:
+                  book.volumeInfo
+                    .title ??
+                  '',
+                authors:
+                  book.volumeInfo
+                    .authors ??
+                  [],
+              });
+
+            return {
+              book,
+              usersCount:
+                resolved
+                  ?.usersCount ??
+                0,
+              ratingsCount:
+                resolved
+                  ?.ratingsCount ??
+                book.novoriWork
+                  ?.hardcoverRatingsCount ??
+                book.volumeInfo
+                  .ratingsCount ??
+                0,
+              reviewsCount:
+                resolved
+                  ?.reviewsCount ??
+                0,
+              rating:
+                resolved
+                  ?.rating ??
+                book.novoriWork
+                  ?.hardcoverRating ??
+                book.volumeInfo
+                  .averageRating ??
+                null,
+            };
+          }
+        )
+      );
+
+    resolvedBooks.push(
+      ...resolvedChunk
     );
+  }
 
-  const finalPopularity =
-    await getHardcoverPopularity(
-      withRatings,
-      true
-    );
-
-  return withRatings
-    .map(
-      (
-        book
-      ) => {
-        const hardcover =
-          finalPopularity[
-            book.id
-          ];
-
-        return {
-          book,
-          usersCount:
-            hardcover?.usersCount ??
-            0,
-          ratingsCount:
-            hardcover?.ratingsCount ??
-            book.novoriWork
-              ?.hardcoverRatingsCount ??
-            book.volumeInfo
-              .ratingsCount ??
-            0,
-          reviewsCount:
-            hardcover?.reviewsCount ??
-            0,
-          rating:
-            hardcover?.rating ??
-            book.novoriWork
-              ?.hardcoverRating ??
-            book.volumeInfo
-              .averageRating ??
-            null,
-        };
-      }
-    )
+  return resolvedBooks
     .sort(
       (
         a,
@@ -2045,6 +2079,8 @@ async function findHardcoverDiscoveryMatch(
             null,
           reviewsCount:
             null,
+          usersCount:
+            null,
           googleBookId:
             '',
         };
@@ -2061,6 +2097,7 @@ export type ResolvedHardcoverRating = {
   rating: number;
   ratingsCount: number | null;
   reviewsCount: number | null;
+  usersCount: number | null;
   googleBookId: string;
 };
 
@@ -2265,6 +2302,9 @@ export async function resolveHardcoverRating(input: {
       null,
     reviewsCount:
       resolved.reviewsCount ??
+      null,
+    usersCount:
+      resolved.usersCount ??
       null,
     googleBookId:
       requestKey,
