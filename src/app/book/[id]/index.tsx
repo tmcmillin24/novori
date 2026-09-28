@@ -1409,9 +1409,9 @@ export default function BookDetailsScreen() {
         });
 
       if (functionError) {
-        console.error(
-          'Hardcover Edge Function error:',
-          functionError
+        console.log(
+          'Hardcover series lookup unavailable:',
+          functionError.message
         );
         return;
       }
@@ -1430,7 +1430,12 @@ export default function BookDetailsScreen() {
       setSeries(response.series ?? null);
       setSeriesBooks(response.books ?? []);
     } catch (err) {
-      console.error('Series lookup failed:', err);
+      console.log(
+        'Hardcover series lookup unavailable:',
+        err instanceof Error
+          ? err.message
+          : String(err)
+      );
       setSeries(null);
       setSeriesBooks([]);
     } finally {
