@@ -33,6 +33,7 @@ import {
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
+import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
   NovoriColors,
@@ -181,6 +182,12 @@ export default function ReaderProfileScreen() {
     useState<ReaderSocialProfile | null>(
       null
     );
+
+  const [
+    profileImageOpen,
+    setProfileImageOpen,
+  ] =
+    useState(false);
 
   const [
     books,
@@ -2199,15 +2206,29 @@ export default function ReaderProfileScreen() {
           }
         >
           {profile.avatar_url ? (
-            <Image
-              source={{
-                uri:
-                  profile.avatar_url,
-              }}
-              style={
-                styles.avatar
+            <Pressable
+              onPress={() =>
+                setProfileImageOpen(
+                  true
+                )
               }
-            />
+              accessibilityRole="button"
+              accessibilityLabel="Enlarge profile photo"
+              style={({ pressed }) => [
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Image
+                source={{
+                  uri:
+                    profile.avatar_url,
+                }}
+                style={
+                  styles.avatar
+                }
+              />
+            </Pressable>
           ) : (
             <View
               style={
@@ -3564,6 +3585,20 @@ export default function ReaderProfileScreen() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      <FullScreenImageViewer
+        visible={
+          profileImageOpen
+        }
+        uri={
+          profile.avatar_url
+        }
+        onClose={() =>
+          setProfileImageOpen(
+            false
+          )
+        }
+      />
     </SafeAreaView>
   );
 }
