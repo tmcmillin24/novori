@@ -166,17 +166,6 @@ export default function BookStackPostAttachment({
             },
           })
         }
-        showOpenStack
-        onOpenStack={() =>
-          router.push({
-            pathname:
-              '/stack/[id]',
-            params: {
-              id:
-                stack.id,
-            },
-          })
-        }
       />
     </View>
   );
