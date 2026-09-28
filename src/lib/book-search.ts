@@ -1195,18 +1195,6 @@ export function getBestSearchCover(
 export async function searchNovoriBooks(
   searchTerm: string
 ) {
-  const apiKey =
-    process.env
-      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-  if (
-    !apiKey
-  ) {
-    throw new Error(
-      'Google Books API key is missing from the .env file.'
-    );
-  }
-
   const encodedQuery =
     encodeURIComponent(
       searchTerm
@@ -1216,7 +1204,7 @@ export async function searchNovoriBooks(
     await fetchGoogleBooksJson<
       GoogleBooksResponse
     >(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full`
     );
 
   if (
@@ -1315,18 +1303,8 @@ export async function searchAuthorBooks(
     ) => void;
   }
 ): Promise<AuthorBookResult[]> {
-  const apiKey =
-    process.env
-      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
   const cleanAuthor =
     authorName.trim();
-
-  if (!apiKey) {
-    throw new Error(
-      'Google Books API key is missing from the .env file.'
-    );
-  }
 
   if (!cleanAuthor) {
     return [];
@@ -1350,7 +1328,7 @@ export async function searchAuthorBooks(
             await fetchGoogleBooksJson<
               GoogleBooksResponse
             >(
-              `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+              `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full`
             );
 
           if (
@@ -1740,7 +1718,7 @@ export async function resolveGoogleBookRating(input: {
       >(
         `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
           input.googleBookId
-        )}?key=${apiKey}`
+        )}`
       )
         .then(
           (
@@ -1780,7 +1758,7 @@ export async function resolveGoogleBookRating(input: {
     >(
       `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
         query
-      )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+      )}&maxResults=40&printType=books&projection=full`
     )
       .then(
         (
@@ -2038,13 +2016,6 @@ export async function resolveHardcoverRating(input: {
     input.allowGoogleLookup !==
     false;
 
-  if (
-    !apiKey &&
-    allowGoogleLookup
-  ) {
-    return null;
-  }
-
   const cleanTitle =
     input.title.trim();
 
@@ -2090,7 +2061,6 @@ export async function resolveHardcoverRating(input: {
     providedIsbns.length ===
       0 &&
     allowGoogleLookup &&
-    apiKey &&
     input.googleBookId
   ) {
     try {
@@ -2100,7 +2070,7 @@ export async function resolveHardcoverRating(input: {
         >(
           `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
             input.googleBookId
-          )}?key=${apiKey}`
+          )}`
         );
 
       if (
@@ -2119,8 +2089,7 @@ export async function resolveHardcoverRating(input: {
   if (
     providedIsbns.length ===
       0 &&
-    allowGoogleLookup &&
-    apiKey
+    allowGoogleLookup
   ) {
     const primaryAuthor =
       expectedAuthors[0]
@@ -2139,7 +2108,7 @@ export async function resolveHardcoverRating(input: {
         >(
           `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
             query
-          )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+          )}&maxResults=40&printType=books&projection=full`
         );
 
       if (
