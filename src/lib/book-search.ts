@@ -1,8 +1,5 @@
 import { supabase } from './supabase';
-import {
-  fetchGoogleBooksJson,
-  learnNormalizedGoogleBooksCatalog,
-} from './google-books';
+import { fetchGoogleBooksJson } from './google-books';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -639,8 +636,6 @@ function getCanonicalWorkTitle(
     ' kindle edition',
     ' trade paperback',
     ' a novel',
-    ' a thriller',
-    ' a memoir',
   ];
 
   let changed =
@@ -715,108 +710,6 @@ function getCanonicalWorkTitleForBook(
   return title;
 }
 
-function getLooseTitleValue(
-  value?: string
-) {
-  let title =
-    getCanonicalWorkTitle(
-      value
-    );
-
-  title =
-    title.replace(
-      /^(?:the|a|an)\s+/,
-      ''
-    );
-
-  title =
-    title.replace(
-      /\s+(?:book|volume|vol)\s*(?:one|1)$/i,
-      ''
-    );
-
-  title =
-    title.replace(
-      /\s+(?:series)\s*(?:book\s*)?(?:one|1)?$/i,
-      ''
-    );
-
-  return title.trim();
-}
-
-function getLooseWorkTitle(
-  book: GoogleBookSearchItem
-) {
-  return getLooseTitleValue(
-    book.volumeInfo.title
-  );
-}
-
-function isLikelyMultiBookSet(
-  book: GoogleBookSearchItem
-) {
-  const title =
-    normalizeTitle(
-      book.volumeInfo.title
-    );
-
-  return (
-    /\bbox(?:ed)? set\b/.test(
-      title
-    ) ||
-    /\bcomplete series\b/.test(
-      title
-    ) ||
-    /\bbooks?\s+\d+\s*(?:-|–|to|through)\s*\d+\b/.test(
-      title
-    ) ||
-    /\bvolumes?\s+\d+\s*(?:-|–|to|through)\s*\d+\b/.test(
-      title
-    ) ||
-    /\b\d+\s+book set\b/.test(
-      title
-    )
-  );
-}
-
-function getAuthorIdentity(
-  value?: string
-) {
-  const normalized =
-    normalizeTitle(
-      value
-    )
-      .replace(
-        /\b(?:author|editor|illustrator|narrator)\b/g,
-        ''
-      )
-      .replace(
-        /\s+/g,
-        ' '
-      )
-      .trim();
-
-  const tokens =
-    normalized
-      .split(
-        ' '
-      )
-      .filter(Boolean);
-
-  if (
-    tokens.length <
-    2
-  ) {
-    return normalized;
-  }
-
-  return [
-    ...tokens,
-  ]
-    .sort()
-    .join(' ');
-}
-
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -827,18 +720,10 @@ function collapseDuplicateEditions(
       usersCount: number;
       rating: number | null;
     }
-  > = {},
-  options?: {
-    titleSearch?: boolean;
-  }
+  > = {}
 ) {
   const normalizedQuery =
     normalizeTitle(
-      searchTerm
-    );
-
-  const looseQueryTitle =
-    getLooseTitleValue(
       searchTerm
     );
 
@@ -866,29 +751,13 @@ function collapseDuplicateEditions(
     const book of
       candidates
   ) {
-    const looseTitle =
-      getLooseWorkTitle(
+    const canonicalTitle =
+      getCanonicalWorkTitleForBook(
         book
       );
 
-    const canonicalTitle =
-      options?.titleSearch &&
-      looseQueryTitle &&
-      (
-        looseTitle ===
-          looseQueryTitle ||
-        looseTitle.startsWith(
-          `${looseQueryTitle} `
-        ) ||
-        looseQueryTitle.startsWith(
-          `${looseTitle} `
-        )
-      )
-        ? looseQueryTitle
-        : looseTitle;
-
     const primaryAuthor =
-      getAuthorIdentity(
+      normalizeTitle(
         book.volumeInfo.authors?.[0]
       );
 
@@ -1021,16 +890,16 @@ function collapseDuplicateEditions(
             }
           );
 
-        const nativeRepresentative =
+        const representative =
           sorted[0];
 
         const canonicalTitle =
-          getLooseWorkTitle(
+          getCanonicalWorkTitleForBook(
             representative
           );
 
         const primaryAuthor =
-          getAuthorIdentity(
+          normalizeTitle(
             representative.volumeInfo
               .authors?.[0]
           );
@@ -1049,7 +918,7 @@ function collapseDuplicateEditions(
             )
           );
 
-        const workMetadata = {
+        representative.novoriWork = {
           key:
             `${canonicalTitle}::${primaryAuthor}`,
           canonicalTitle,
@@ -1063,14 +932,6 @@ function collapseDuplicateEditions(
             ),
           isbns,
         };
-
-        for (
-          const sibling of
-            group
-        ) {
-          sibling.novoriWork =
-            workMetadata;
-        }
 
         return representative;
       }
@@ -1275,49 +1136,6 @@ function isSameGoogleBooksCover(
   );
 }
 
-export function shouldFrameBookCover(
-  url?: string | null
-) {
-  if (
-    !url
-  ) {
-    return false;
-  }
-
-  try {
-    const parsed =
-      new URL(
-        url
-      );
-
-    if (
-      !parsed.hostname.includes(
-        'google'
-      )
-    ) {
-      return false;
-    }
-
-    const zoom =
-      Number(
-        parsed.searchParams.get(
-          'zoom'
-        ) ??
-        ''
-      );
-
-    return (
-      Number.isFinite(
-        zoom
-      ) &&
-      zoom > 0 &&
-      zoom <= 1
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function getBestSearchCover(
   imageLinks:
     | GoogleBookSearchItem[
@@ -1398,19 +1216,9 @@ export async function searchNovoriBooks(
     );
   }
 
-  const rawResults =
+  const initialResults =
     response.data.items ??
     [];
-
-  const initialResults =
-    rawResults.filter(
-      (
-        book
-      ) =>
-        !isLikelyMultiBookSet(
-          book
-        )
-    );
 
   if (
     initialResults.length ===
@@ -1469,22 +1277,11 @@ export async function searchNovoriBooks(
           {}
         );
 
-  const collapsed =
-    collapseDuplicateEditions(
-      sorted,
-      searchTerm,
-      {},
-      {
-        titleSearch:
-          !looksLikeAuthorSearch,
-      }
-    );
-
-  void learnNormalizedGoogleBooksCatalog(
-    initialResults
+  return collapseDuplicateEditions(
+    sorted,
+    searchTerm,
+    {}
   );
-
-  return collapsed;
 }
 
 export type AuthorBookResult = {
@@ -1612,16 +1409,8 @@ export async function searchAuthorBooks(
         popularity
       ),
       cleanAuthor,
-      popularity,
-      {
-        titleSearch:
-          false,
-      }
+      popularity
     );
-
-  void learnNormalizedGoogleBooksCatalog(
-    candidates
-  );
 
   const excludedWorkTitle =
     getCanonicalWorkTitle(
