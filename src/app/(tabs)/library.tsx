@@ -1,5 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  Image as ExpoImage,
+} from 'expo-image';
+import {
   useFocusEffect,
   useNavigation,
   useRouter,
@@ -18,7 +21,6 @@ import {
   Animated,
   Easing,
   FlatList,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -1653,17 +1655,19 @@ export default function LibraryScreen() {
           }
         >
           {item.cover_url ? (
-            <Image
-              source={{
-                uri:
-                  item.cover_url,
-                cache:
-        'force-cache',
-              }}
+            <ExpoImage
+              source={
+                item.cover_url
+              }
               style={
                 styles.cover
               }
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.cover_url
+              }
             />
           ) : (
             <View
@@ -2137,17 +2141,19 @@ export default function LibraryScreen() {
                   }
                 >
                   {selectedBook.cover_url ? (
-                    <Image
-                      source={{
-                        uri:
-                          selectedBook.cover_url,
-                        cache:
-        'force-cache',
-                      }}
+                    <ExpoImage
+                      source={
+                        selectedBook.cover_url
+                      }
                       style={
                         styles.sheetCover
                       }
-                      resizeMode="cover"
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={0}
+                      recyclingKey={
+                        selectedBook.cover_url
+                      }
                     />
                   ) : (
                     <View
