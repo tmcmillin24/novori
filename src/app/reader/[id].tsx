@@ -1468,6 +1468,30 @@ export default function ReaderProfileScreen() {
               post.created_at
             )}
           </Text>
+
+          <Pressable
+            onPress={() =>
+              void shareRenderedPost(
+                post.id
+              )
+            }
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Share post"
+            style={({ pressed }) => [
+              styles.postHeaderShare,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={18}
+              color={
+                colors.mutedText
+              }
+            />
+          </Pressable>
         </View>
 
         <Text
@@ -1659,30 +1683,6 @@ export default function ReaderProfileScreen() {
                 -1
                   ? colors.gold
                   : colors.mutedText
-              }
-            />
-          </Pressable>
-
-          <Pressable
-            onPress={() =>
-              void shareRenderedPost(
-                post.id
-              )
-            }
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Share post"
-            style={({ pressed }) => [
-              styles.postVoteButton,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={19}
-              color={
-                colors.mutedText
               }
             />
           </Pressable>
@@ -4238,6 +4238,16 @@ function createStyles(
       borderRadius: 17,
       padding: 15,
     },
+    postHeaderShare: {
+      marginLeft: 'auto',
+      width: 34,
+      height: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -8,
+      marginRight: -8,
+    },
+
     postMetaRow: {
       flexDirection:
         'row',
