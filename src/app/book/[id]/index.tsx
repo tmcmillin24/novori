@@ -44,7 +44,6 @@ import {
   removeUserBook,
   saveUserBook,
   updateBookReadingDates,
-  updateUserBookMetadata,
   updateUserBookOwned,
   UserBook,
   UserBookStatus,
@@ -969,12 +968,8 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
-        let existingSavedBook:
-          UserBook | null =
-          null;
-
         try {
-          existingSavedBook =
+          const existingSavedBook =
             await getUserBook(
               id
             );
@@ -991,72 +986,29 @@ export default function BookDetailsScreen() {
           savedLookupError
         ) {
           console.warn(
-            'Could not check saved book metadata:',
+            'Could not check saved book status:',
             savedLookupError
           );
         }
 
-        const savedMetadata =
-          existingSavedBook
-            ?.book_metadata as
-            | GoogleBook
-            | null
-            | undefined;
-
-        let data:
-          GoogleBook;
+        const response =
+          await fetchGoogleBooksJson<
+            GoogleBook
+          >(
+            `https://www.googleapis.com/books/v1/volumes/${id}`
+          );
 
         if (
-          savedMetadata?.id ===
-            id &&
-          savedMetadata
-            .volumeInfo
+          !response.ok ||
+          !response.data
         ) {
-          data =
-            savedMetadata;
-        } else {
-          const response =
-            await fetchGoogleBooksJson<
-              GoogleBook
-            >(
-              `https://www.googleapis.com/books/v1/volumes/${id}`
-            );
-
-          if (
-            !response.ok ||
-            !response.data
-          ) {
-            throw new Error(
-              `Google Books request failed: ${response.status}`
-            );
-          }
-
-          data =
-            response.data;
-
-          if (
-            existingSavedBook &&
-            !existingSavedBook
-              .book_metadata
-          ) {
-            void updateUserBookMetadata(
-              id,
-              data as unknown as Record<
-                string,
-                unknown
-              >
-            ).catch(
-              (
-                metadataError
-              ) => {
-                console.warn(
-                  'Could not backfill saved book metadata:',
-                  metadataError
-                );
-              }
-            );
-          }
+          throw new Error(
+            `Google Books request failed: ${response.status}`
+          );
         }
+
+        const data =
+          response.data;
 
         const resolvedBook =
           source ===
@@ -1657,11 +1609,6 @@ export default function BookDetailsScreen() {
           coverUrl,
           isbn: getBookISBN(book) ?? null,
           publishedDate: info.publishedDate ?? null,
-          bookMetadata:
-            book as unknown as Record<
-              string,
-              unknown
-            >,
           status,
         });
 
@@ -1719,11 +1666,7 @@ export default function BookDetailsScreen() {
         updatedBook =
           await updateUserBookOwned(
             book.id,
-            !savedBook.owned,
-            book as unknown as Record<
-              string,
-              unknown
-            >
+            !savedBook.owned
           );
       } else {
         const coverUrl =
@@ -1755,11 +1698,6 @@ export default function BookDetailsScreen() {
             publishedDate:
               info.publishedDate ??
               null,
-            bookMetadata:
-              book as unknown as Record<
-                string,
-                unknown
-              >,
             status:
               null,
             owned:
