@@ -106,6 +106,14 @@ export default function BookStackShowcase({
         return;
       }
 
+      setGoogleRating(
+        null
+      );
+
+      setGoogleRatingsCount(
+        null
+      );
+
       try {
         const resolved =
           await resolveGoogleBookRating({
