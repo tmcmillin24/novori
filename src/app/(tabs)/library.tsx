@@ -1617,13 +1617,31 @@ export default function LibraryScreen() {
                 }
               />
             ) : (
-              <Ionicons
-                name="ellipsis-horizontal"
-                size={18}
-                color={
-                  colors.gold
-                }
-              />
+              <>
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={18}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                {item.owned ? (
+                  <View
+                    style={
+                      styles.inlineOwnedIndicator
+                    }
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={10}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+                ) : null}
+              </>
             )}
           </Pressable>
         </View>
@@ -1638,29 +1656,6 @@ export default function LibraryScreen() {
         >
           {author}
         </Text>
-
-        {item.owned ? (
-          <View
-            style={
-              styles.ownedBadge
-            }
-          >
-            <Ionicons
-              name="checkmark-circle"
-              size={12}
-              color={
-                colors.gold
-              }
-            />
-            <Text
-              style={
-                styles.ownedBadgeText
-              }
-            >
-              Owned
-            </Text>
-          </View>
-        ) : null}
 
         {item.rating !==
         null ? (
@@ -3225,31 +3220,20 @@ function createStyles(
       marginTop: 3,
     },
 
-    ownedBadge: {
-      alignSelf:
-        'flex-start',
-      flexDirection:
-        'row',
+    inlineOwnedIndicator: {
+      position:
+        'absolute',
+      right: -1,
+      bottom: -1,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
       alignItems:
         'center',
-      gap: 4,
-      marginTop: 7,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      borderRadius: 999,
+      justifyContent:
+        'center',
       backgroundColor:
-        colors.elevated,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-    },
-
-    ownedBadgeText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 9.5,
+        colors.background,
     },
 
     ratingRow: {
