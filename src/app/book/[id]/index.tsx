@@ -1978,6 +1978,55 @@ export default function BookDetailsScreen() {
                   </Text>
                 ) : null}
               </View>
+
+              <Pressable
+                onPress={() =>
+                  void toggleBookCart()
+                }
+                disabled={
+                  bookCartBusy
+                }
+                style={({ pressed }) => [
+                  styles.libraryCartButton,
+                  inBookCart &&
+                    styles.bookCartButtonActive,
+                  pressed &&
+                    styles.bookCartButtonPressed,
+                  bookCartBusy &&
+                    styles.bookCartButtonDisabled,
+                ]}
+              >
+                {bookCartBusy ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name={
+                      inBookCart
+                        ? 'cart'
+                        : 'cart-outline'
+                    }
+                    size={16}
+                    color={
+                      colors.gold
+                    }
+                  />
+                )}
+
+                <Text
+                  style={
+                    styles.libraryCartButtonText
+                  }
+                >
+                  {inBookCart
+                    ? 'In Book Cart'
+                    : 'Add to Cart'}
+                </Text>
+              </Pressable>
             </View>
           </View>
         ) : (
@@ -4015,6 +4064,35 @@ function createStyles(
     fontFamily:
       'Inter_500Medium',
     fontSize: 12,
+  },
+
+  libraryCartButton: {
+    alignSelf:
+      'flex-start',
+    minHeight: 36,
+    flexDirection:
+      'row',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    gap: 7,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+    borderRadius: 11,
+    paddingHorizontal: 11,
+    marginTop: 12,
+    backgroundColor:
+      colors.surface,
+  },
+
+  libraryCartButtonText: {
+    color:
+      colors.gold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 11,
   },
 
   bookCartButton: {
