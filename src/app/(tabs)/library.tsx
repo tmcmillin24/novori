@@ -114,6 +114,23 @@ const STATUS_ICONS:
     dnf: 'close-circle-outline',
   };
 
+
+function normalizeLibrarySearch(
+  value: string
+) {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      ''
+    );
+}
+
 export default function LibraryScreen() {
   const router = useRouter();
 
@@ -530,9 +547,9 @@ export default function LibraryScreen() {
   const visibleBooks =
     useMemo(() => {
       const normalizedSearch =
-        searchQuery
-          .trim()
-          .toLowerCase();
+        normalizeLibrarySearch(
+          searchQuery
+        );
 
       const filtered =
         (
@@ -557,16 +574,17 @@ export default function LibraryScreen() {
             }
 
             const title =
-              book.title
-                .toLowerCase();
+              normalizeLibrarySearch(
+                book.title
+              );
 
             const authors =
-              (
-                book.authors ??
-                []
-              )
-                .join(' ')
-                .toLowerCase();
+              normalizeLibrarySearch(
+                (
+                  book.authors ??
+                  []
+                ).join(' ')
+              );
 
             return (
               title.includes(
