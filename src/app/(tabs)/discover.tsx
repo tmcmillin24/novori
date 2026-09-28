@@ -197,6 +197,18 @@ function isDiscoverBookInLibrary(
 
   return libraryBooks.some(
     (savedBook) => {
+      const shouldHideFromDiscover =
+        Boolean(
+          savedBook.owned ||
+          savedBook.status
+        );
+
+      if (
+        !shouldHideFromDiscover
+      ) {
+        return false;
+      }
+
       const savedIsbn =
         normalizeIsbn(
           savedBook.isbn
