@@ -7478,15 +7478,7 @@ export default function HomeScreen() {
           style={
             styles.stickyHomeHeader
           }
-        >
-          <Text
-            style={
-              styles.stickyHomeTitle
-            }
-          >
-            Home
-          </Text>
-        </Pressable>
+        />
       ) : null}
       </SafeAreaView>
 
@@ -9127,29 +9119,10 @@ function createStyles(
       top: 0,
       left: 0,
       right: 0,
-      minHeight: 54,
+      minHeight: 36,
       zIndex: 50,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-start',
-      paddingHorizontal: 20,
       backgroundColor:
         colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        colors.border,
-    },
-
-    stickyHomeTitle: {
-      color:
-        colors.gold,
-      fontSize: 24,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      letterSpacing: 0.2,
     },
     scrollContent: {
       flexGrow: 1,
