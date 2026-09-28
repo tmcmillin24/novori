@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import {
   fetchGoogleBooksJson,
+  learnNormalizedGoogleBooksCatalog,
 } from './google-books';
 
 export type GoogleBookSearchItem = {
@@ -1479,6 +1480,10 @@ export async function searchNovoriBooks(
       }
     );
 
+  void learnNormalizedGoogleBooksCatalog(
+    initialResults
+  );
+
   return collapsed;
 }
 
@@ -1613,6 +1618,10 @@ export async function searchAuthorBooks(
           false,
       }
     );
+
+  void learnNormalizedGoogleBooksCatalog(
+    candidates
+  );
 
   const excludedWorkTitle =
     getCanonicalWorkTitle(
