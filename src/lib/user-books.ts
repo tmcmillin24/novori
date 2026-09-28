@@ -4,6 +4,9 @@ import {
   getBestSearchCover,
   searchNovoriBooks,
 } from './book-search';
+import {
+  resolveBookCoverUrl,
+} from './book-covers';
 
 export type UserBookStatus =
   | 'want_to_read'
@@ -68,6 +71,10 @@ type ExactGoogleBook = {
       large?: string;
       extraLarge?: string;
     };
+    industryIdentifiers?: {
+      type: string;
+      identifier: string;
+    }[];
   };
 };
 
@@ -462,13 +469,43 @@ async function repairSavedCover(
         ? exactResponse.data
         : null;
 
+    const exactIsbn =
+      exactBook
+        ?.volumeInfo
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_13'
+        )
+        ?.identifier ??
+      exactBook
+        ?.volumeInfo
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_10'
+        )
+        ?.identifier ??
+      book.isbn;
+
     const exactBestCover =
       secureCoverUrl(
-        getBestSearchCover(
-          exactBook
-            ?.volumeInfo
-            .imageLinks
-        )
+        await resolveBookCoverUrl({
+          imageLinks:
+            exactBook
+              ?.volumeInfo
+              .imageLinks,
+          isbn:
+            exactIsbn,
+          existingCoverUrl:
+            currentCover,
+        })
       );
 
     const currentCoverVolumeId =
