@@ -291,7 +291,7 @@ async function resolveClickedDiscoverBook(
         >(
           `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
             query
-          )}&maxResults=20&printType=books&projection=full&key=${apiKey}`
+          )}&maxResults=20&printType=books&projection=full`
         );
 
       if (
@@ -1016,20 +1016,11 @@ export default function BookDetailsScreen() {
           data =
             savedMetadata;
         } else {
-          const apiKey =
-            process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-          if (!apiKey) {
-            throw new Error(
-              'Google Books API key is missing.'
-            );
-          }
-
           const response =
             await fetchGoogleBooksJson<
               GoogleBook
             >(
-              `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
+              `https://www.googleapis.com/books/v1/volumes/${id}`
             );
 
           if (
@@ -1073,9 +1064,7 @@ export default function BookDetailsScreen() {
             'discover'
             ? await resolveClickedDiscoverBook(
                 data,
-                process.env
-                  .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY ??
-                  '',
+                '',
                 clickedTitle,
                 discoverClickedAuthors,
                 clickedIsbn
@@ -1568,13 +1557,6 @@ export default function BookDetailsScreen() {
   async function findGoogleBookId(
     seriesBook: HardcoverSeriesBook
   ) {
-    const apiKey =
-      process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('Google Books API key is missing.');
-    }
-
     const author = seriesBook.authors?.[0];
     const queryParts = [`intitle:"${seriesBook.title}"`];
 
@@ -1590,7 +1572,7 @@ export default function BookDetailsScreen() {
       >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           query
-        )}&maxResults=20&key=${apiKey}`
+        )}&maxResults=20`
       );
 
     if (
