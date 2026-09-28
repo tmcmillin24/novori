@@ -834,6 +834,10 @@ export default function BookDetailsScreen() {
       ? 'Discover'
       : 'Back';
 
+  const isSavedBookContext =
+    source === 'library' ||
+    source === 'profile';
+
   function handleBack() {
     if (router.canGoBack()) {
       router.back();
@@ -1043,8 +1047,7 @@ export default function BookDetailsScreen() {
       () => {
         if (
           !id ||
-          source !==
-            'library'
+          !isSavedBookContext
         ) {
           return;
         }
@@ -1094,6 +1097,7 @@ export default function BookDetailsScreen() {
       [
         id,
         source,
+        isSavedBookContext,
       ]
     )
   );
@@ -1743,8 +1747,7 @@ export default function BookDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {source ===
-        'library' ? (
+        {isSavedBookContext ? (
           <View
             style={
               styles.libraryBookHero
@@ -2300,8 +2303,7 @@ export default function BookDetailsScreen() {
           </View>
         ) : null}
 
-        {source ===
-          'library' &&
+        {isSavedBookContext &&
         savedBook ? (
           <View
             style={
@@ -2541,8 +2543,7 @@ export default function BookDetailsScreen() {
           </View>
         ) : null}
 
-        {source !==
-          'library' ? (
+        {!isSavedBookContext ? (
           source ===
             'discover' &&
           readingStatus &&
@@ -2717,8 +2718,7 @@ export default function BookDetailsScreen() {
           <View
             style={[
               styles.readingDatesSection,
-              source ===
-                'library' &&
+              isSavedBookContext &&
                 styles.libraryReadingDatesSection,
             ]}
           >
@@ -2759,16 +2759,14 @@ export default function BookDetailsScreen() {
             <View
               style={[
                 styles.readingDatesCard,
-                source ===
-                  'library' &&
+                isSavedBookContext &&
                   styles.libraryReadingDatesCard,
               ]}
             >
               <View
                 style={[
                   styles.readingDateItem,
-                  source ===
-                    'library' &&
+                  isSavedBookContext &&
                     styles.libraryReadingDateItem,
                 ]}
               >
@@ -2883,8 +2881,7 @@ export default function BookDetailsScreen() {
           <View
             style={[
               styles.metadataCard,
-              source ===
-                'library' &&
+              isSavedBookContext &&
                 styles.libraryMetadataCard,
             ]}
           >
@@ -3027,8 +3024,7 @@ export default function BookDetailsScreen() {
               <View
                 style={[
                   styles.seriesCard,
-                  source ===
-                    'library' &&
+                  isSavedBookContext &&
                     styles.librarySeriesCard,
                 ]}
               >
