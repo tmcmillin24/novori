@@ -140,16 +140,92 @@ export default function AuthorScreen() {
   const sortedBooks =
     useMemo(
       () => {
+        const sorted =
+          [
+            ...books,
+          ];
+
         if (
           sortMode ===
           'popularity'
         ) {
-          return books;
+          return sorted.sort(
+            (
+              a,
+              b
+            ) => {
+              if (
+                b.ratingsCount !==
+                a.ratingsCount
+              ) {
+                return (
+                  b.ratingsCount -
+                  a.ratingsCount
+                );
+              }
+
+              if (
+                b.reviewsCount !==
+                a.reviewsCount
+              ) {
+                return (
+                  b.reviewsCount -
+                  a.reviewsCount
+                );
+              }
+
+              if (
+                b.usersCount !==
+                a.usersCount
+              ) {
+                return (
+                  b.usersCount -
+                  a.usersCount
+                );
+              }
+
+              const ratingDifference =
+                (
+                  b.rating ??
+                  0
+                ) -
+                (
+                  a.rating ??
+                  0
+                );
+
+              if (
+                ratingDifference !==
+                0
+              ) {
+                return ratingDifference;
+              }
+
+              const bDate =
+                new Date(
+                  b.book
+                    .volumeInfo
+                    .publishedDate ??
+                  '0000-01-01'
+                ).getTime();
+
+              const aDate =
+                new Date(
+                  a.book
+                    .volumeInfo
+                    .publishedDate ??
+                  '0000-01-01'
+                ).getTime();
+
+              return (
+                bDate -
+                aDate
+              );
+            }
+          );
         }
 
-        return [
-          ...books,
-        ].sort(
+        return sorted.sort(
           (
             a,
             b
@@ -181,12 +257,12 @@ export default function AuthorScreen() {
             }
 
             if (
-              b.usersCount !==
-              a.usersCount
+              b.ratingsCount !==
+              a.ratingsCount
             ) {
               return (
-                b.usersCount -
-                a.usersCount
+                b.ratingsCount -
+                a.ratingsCount
               );
             }
 
@@ -201,8 +277,8 @@ export default function AuthorScreen() {
             }
 
             return (
-              b.ratingsCount -
-              a.ratingsCount
+              b.usersCount -
+              a.usersCount
             );
           }
         );
