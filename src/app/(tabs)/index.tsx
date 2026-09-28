@@ -39,6 +39,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
+import CanonicalBookRating from '../../components/CanonicalBookRating';
 import FeedPostImage from '../../components/FeedPostImage';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
@@ -5991,6 +5992,25 @@ export default function HomeScreen() {
                         : ''}
                     </Text>
                   ) : null}
+
+                  {(post.post_type ===
+                    'question' ||
+                    post.post_type ===
+                      'reading_update') &&
+                  post.book_title ? (
+                    <CanonicalBookRating
+                      googleBookId={
+                        post.google_book_id
+                      }
+                      title={
+                        post.book_title
+                      }
+                      authors={
+                        post.book_authors
+                      }
+                      compact
+                    />
+                  ) : null}
                 </View>
 
                 {post.google_book_id ? (
@@ -6122,6 +6142,24 @@ export default function HomeScreen() {
                         ', '
                       )}
                     </Text>
+                  ) : null}
+
+                  {(post.post_type ===
+                    'question' ||
+                    post.post_type ===
+                      'reading_update') &&
+                  post.book_title ? (
+                    <CanonicalBookRating
+                      googleBookId={
+                        post.google_book_id
+                      }
+                      title={
+                        post.book_title
+                      }
+                      authors={
+                        post.book_authors
+                      }
+                    />
                   ) : null}
 
                   {post.rating ? (
