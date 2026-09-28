@@ -652,6 +652,125 @@ async function repairSavedCover(
       }
     }
 
+    const title =
+      (
+        exactBook
+          ?.volumeInfo
+          .title ??
+        book.title
+      ).trim();
+
+    if (
+      title
+    ) {
+      try {
+        const googleWorkResults =
+          await searchNovoriBooks(
+            title
+          );
+
+        const wantedTitle =
+          normalizeBookText(
+            book.title
+          );
+
+        const googleWorkMatch =
+          googleWorkResults.find(
+            (
+              candidate
+            ) => {
+              const candidateTitle =
+                normalizeBookText(
+                  candidate
+                    .volumeInfo
+                    .title
+                );
+
+              const titleMatches =
+                candidateTitle ===
+                  wantedTitle ||
+                candidateTitle.startsWith(
+                  `${wantedTitle} `
+                ) ||
+                wantedTitle.startsWith(
+                  `${candidateTitle} `
+                );
+
+              return (
+                titleMatches &&
+                authorsMatch(
+                  book.authors ??
+                    [],
+                  candidate
+                    .volumeInfo
+                    .authors ??
+                    []
+                ) &&
+                Boolean(
+                  candidate
+                    .novoriWork
+                    ?.canonicalCoverUrl
+                )
+              );
+            }
+          );
+
+        const googleWorkCover =
+          secureCoverUrl(
+            googleWorkMatch
+              ?.novoriWork
+              ?.canonicalCoverUrl
+          );
+
+        if (
+          googleWorkCover &&
+          !isOpenLibraryCoverUrl(
+            googleWorkCover
+          ) &&
+          await remoteImageExists(
+            googleWorkCover
+          )
+        ) {
+          if (
+            googleWorkCover ===
+              currentCover
+          ) {
+            return book;
+          }
+
+          const {
+            data,
+            error,
+          } =
+            await supabase
+              .from(
+                'user_books'
+              )
+              .update({
+                cover_url:
+                  googleWorkCover,
+              })
+              .eq(
+                'id',
+                book.id
+              )
+              .eq(
+                'user_id',
+                book.user_id
+              )
+              .select('*')
+              .single();
+
+          return error
+            ? book
+            : data as UserBook;
+        }
+      } catch {
+        // Fall through to the Open Library fallback only when Google work
+        // resolution cannot provide a usable cover.
+      }
+    }
+
     const openLibraryWorkCover =
       await resolveOpenLibraryWorkCover({
         title:
