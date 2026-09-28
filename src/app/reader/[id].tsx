@@ -77,6 +77,7 @@ import {
   getReaderProfile,
   getReaderProfilePosts,
   getReaderPublicBooks,
+  getReaderPublicOwnedBooks,
   getReaderPublicClubs,
   getReaderPublicReviews,
   isReaderBlockedByViewer,
@@ -489,6 +490,7 @@ export default function ReaderProfileScreen() {
 
           const [
             bookData,
+            ownedBookData,
             reviewData,
             postData,
             viewerFeed,
@@ -498,6 +500,19 @@ export default function ReaderProfileScreen() {
             await Promise.all([
               getReaderPublicBooks(
                 readerId
+              ),
+              getReaderPublicOwnedBooks(
+                readerId
+              ).catch(
+                (
+                  ownedBooksError
+                ) => {
+                  console.warn(
+                    'Could not load public owned books:',
+                    ownedBooksError
+                  );
+                  return [];
+                }
               ),
               getReaderPublicReviews(
                 readerId
@@ -537,9 +552,26 @@ export default function ReaderProfileScreen() {
               ),
             ]);
 
+          const mergedBookData =
+            Array.from(
+              new Map(
+                [
+                  ...bookData,
+                  ...ownedBookData,
+                ].map(
+                  (
+                    item
+                  ) => [
+                    item.id,
+                    item,
+                  ]
+                )
+              ).values()
+            );
+
           setBooks(
             sortProfileBooks(
-              bookData
+              mergedBookData
             )
           );
           setReviews(
@@ -1922,9 +1954,13 @@ export default function ReaderProfileScreen() {
       PublicReaderBook
   ) {
     const statusLabel =
-      PROFILE_BOOK_STATUS_LABELS[
-        book.status
-      ];
+      book.status
+        ? PROFILE_BOOK_STATUS_LABELS[
+            book.status
+          ]
+        : book.owned
+          ? 'Owned'
+          : '';
 
     return (
       <Pressable
