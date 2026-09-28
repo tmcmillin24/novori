@@ -59,6 +59,11 @@ type LibraryFilter =
   | 'all'
   | UserBookStatus;
 
+type OwnershipFilter =
+  | 'all'
+  | 'owned'
+  | 'not_owned';
+
 type SortMode =
   | 'recent'
   | 'title'
@@ -186,10 +191,12 @@ export default function LibraryScreen() {
     );
 
   const [
-    ownedOnly,
-    setOwnedOnly,
+    ownershipFilter,
+    setOwnershipFilter,
   ] =
-    useState(false);
+    useState<OwnershipFilter>(
+      'all'
+    );
 
   const [
     sortMode,
@@ -594,9 +601,15 @@ export default function LibraryScreen() {
             (
               book
             ) =>
-              !ownedOnly ||
-              Boolean(
-                book.owned
+              ownershipFilter ===
+                'all' ||
+              (
+                ownershipFilter ===
+                  'owned'
+                  ? Boolean(
+                      book.owned
+                    )
+                  : !book.owned
               )
           )
           .filter(
@@ -640,12 +653,20 @@ export default function LibraryScreen() {
             'all'
           ) {
             const statusDifference =
-              STATUS_ORDER[
+              (
                 a.status
-              ] -
-              STATUS_ORDER[
+                  ? STATUS_ORDER[
+                      a.status
+                    ]
+                  : 4
+              ) -
+              (
                 b.status
-              ];
+                  ? STATUS_ORDER[
+                      b.status
+                    ]
+                  : 4
+              );
 
             if (
               statusDifference !==
@@ -699,7 +720,7 @@ export default function LibraryScreen() {
     }, [
       activeFilter,
       books,
-      ownedOnly,
+      ownershipFilter,
       searchQuery,
       sortMode,
     ]);
@@ -1303,64 +1324,91 @@ export default function LibraryScreen() {
           )}
         </ScrollView>
 
-        <Pressable
-          onPress={() =>
-            setOwnedOnly(
-              (
-                current
-              ) =>
-                !current
-            )
+        <View
+          style={
+            styles.ownershipFilterWrap
           }
-          style={[
-            styles.ownedFilter,
-            ownedOnly &&
-              styles.ownedFilterActive,
-          ]}
         >
-          <Ionicons
-            name={
-              ownedOnly
-                ? 'checkmark-circle'
-                : 'checkmark-circle-outline'
-            }
-            size={16}
-            color={
-              colors.gold
-            }
-          />
           <Text
-            style={[
-              styles.ownedFilterText,
-              ownedOnly &&
-                styles.ownedFilterTextActive,
-            ]}
+            style={
+              styles.ownershipFilterLabel
+            }
           >
-            Owned
+            Ownership
           </Text>
+
           <View
             style={
-              styles.ownedFilterCount
+              styles.ownershipSegment
             }
           >
-            <Text
-              style={
-                styles.ownedFilterCountText
+            {(
+              [
+                {
+                  value:
+                    'all',
+                  label:
+                    'All',
+                },
+                {
+                  value:
+                    'owned',
+                  label:
+                    'Owned',
+                },
+                {
+                  value:
+                    'not_owned',
+                  label:
+                    'Not Owned',
+                },
+              ] as Array<{
+                value:
+                  OwnershipFilter;
+                label:
+                  string;
+              }>
+            ).map(
+              (
+                option
+              ) => {
+                const selected =
+                  ownershipFilter ===
+                  option.value;
+
+                return (
+                  <Pressable
+                    key={
+                      option.value
+                    }
+                    onPress={() =>
+                      setOwnershipFilter(
+                        option.value
+                      )
+                    }
+                    style={[
+                      styles.ownershipSegmentButton,
+                      selected &&
+                        styles.ownershipSegmentButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.ownershipSegmentText,
+                        selected &&
+                          styles.ownershipSegmentTextActive,
+                      ]}
+                    >
+                      {
+                        option.label
+                      }
+                    </Text>
+                  </Pressable>
+                );
               }
-            >
-              {
-                books.filter(
-                  (
-                    book
-                  ) =>
-                    Boolean(
-                      book.owned
-                    )
-                ).length
-              }
-            </Text>
+            )}
           </View>
-        </Pressable>
+        </View>
 
         <View
           style={
@@ -1478,26 +1526,28 @@ export default function LibraryScreen() {
             </View>
           )}
 
-          <View
-            style={
-              styles.statusBadge
-            }
-          >
-            <Text
+          {item.status ? (
+            <View
               style={
-                styles.statusBadgeText
-              }
-              numberOfLines={
-                1
+                styles.statusBadge
               }
             >
-              {
-                STATUS_LABELS[
-                  item.status
-                ]
-              }
-            </Text>
-          </View>
+              <Text
+                style={
+                  styles.statusBadgeText
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {
+                  STATUS_LABELS[
+                    item.status
+                  ]
+                }
+              </Text>
+            </View>
+          ) : null}
 
         </View>
 
@@ -2954,64 +3004,63 @@ function createStyles(
       color: colors.gold,
     },
 
-    ownedFilter: {
+    ownershipFilterWrap: {
+      marginTop: 10,
+    },
+
+    ownershipFilterLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
+      letterSpacing: 1,
+      textTransform:
+        'uppercase',
+      marginBottom: 6,
+      paddingHorizontal: 2,
+    },
+
+    ownershipSegment: {
       alignSelf:
         'flex-start',
       flexDirection:
         'row',
-      alignItems:
-        'center',
-      gap: 6,
-      minHeight: 34,
-      paddingHorizontal: 11,
+      padding: 3,
       borderRadius: 12,
       borderWidth: 1,
       borderColor:
         colors.border,
       backgroundColor:
         colors.surface,
-      marginTop: 10,
     },
 
-    ownedFilterActive: {
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.elevated,
-    },
-
-    ownedFilterText: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 12,
-    },
-
-    ownedFilterTextActive: {
-      color:
-        colors.gold,
-    },
-
-    ownedFilterCount: {
-      minWidth: 20,
-      height: 20,
-      borderRadius: 10,
-      paddingHorizontal: 5,
+    ownershipSegmentButton: {
+      minHeight: 31,
+      paddingHorizontal: 11,
       alignItems:
         'center',
       justifyContent:
         'center',
-      backgroundColor:
-        colors.background,
+      borderRadius: 9,
     },
 
-    ownedFilterCountText: {
+    ownershipSegmentButtonActive: {
+      backgroundColor:
+        colors.elevated,
+    },
+
+    ownershipSegmentText: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_700Bold',
-      fontSize: 9,
+        'Inter_600SemiBold',
+      fontSize: 11,
+    },
+
+    ownershipSegmentTextActive: {
+      color:
+        colors.gold,
     },
 
     toolbar: {
