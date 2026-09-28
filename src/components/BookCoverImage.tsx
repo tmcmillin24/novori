@@ -22,12 +22,14 @@ type Props = Omit<
   imageLinks?: BookImageLinks;
   isbn?: string | null;
   existingCoverUrl?: string | null;
+  preferExistingCover?: boolean;
 };
 
 export default function BookCoverImage({
   imageLinks,
   isbn,
   existingCoverUrl,
+  preferExistingCover = false,
   onError,
   ...imageProps
 }: Props) {
@@ -46,11 +48,21 @@ export default function BookCoverImage({
       ]
     );
 
+  const preferredExistingUrl =
+    preferExistingCover &&
+    existingCoverUrl
+      ? existingCoverUrl.replace(
+          'http://',
+          'https://'
+        )
+      : null;
+
   const [
     activeUrl,
     setActiveUrl,
   ] =
     useState<string | null>(
+      preferredExistingUrl ??
       plan.primaryUrl
     );
 
@@ -60,8 +72,18 @@ export default function BookCoverImage({
         false;
 
       setActiveUrl(
+        preferredExistingUrl ??
         plan.primaryUrl
       );
+
+      if (
+        preferredExistingUrl
+      ) {
+        return () => {
+          cancelled =
+            true;
+        };
+      }
 
       void resolveBestBookCover({
         imageLinks,
@@ -91,6 +113,8 @@ export default function BookCoverImage({
       imageLinks,
       isbn,
       existingCoverUrl,
+      preferExistingCover,
+      preferredExistingUrl,
       plan.primaryUrl,
     ]
   );
@@ -118,6 +142,20 @@ export default function BookCoverImage({
       onError={(
         event
       ) => {
+        if (
+          preferredExistingUrl &&
+          activeUrl ===
+            preferredExistingUrl &&
+          plan.primaryUrl &&
+          plan.primaryUrl !==
+            preferredExistingUrl
+        ) {
+          setActiveUrl(
+            plan.primaryUrl
+          );
+          return;
+        }
+
         if (
           plan.fallbackUrl &&
           activeUrl !==
