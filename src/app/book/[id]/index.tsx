@@ -1143,12 +1143,31 @@ export default function BookDetailsScreen() {
           resolvedBook
         );
       } catch (err) {
-        console.error('Book loading error:', err);
-        setError(
+        const message =
           err instanceof Error
             ? err.message
-            : 'Could not load this book.'
-        );
+            : 'Could not load this book.';
+
+        if (
+          message.includes(
+            'Google Books request failed: 429'
+          )
+        ) {
+          console.warn(
+            'Google Books is temporarily rate-limiting Novori.'
+          );
+          setError(
+            'Google Books is temporarily unavailable. Please try again shortly.'
+          );
+        } else {
+          console.error(
+            'Book loading error:',
+            err
+          );
+          setError(
+            message
+          );
+        }
       } finally {
         setLoading(false);
       }
