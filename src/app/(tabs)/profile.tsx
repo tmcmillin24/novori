@@ -12,7 +12,6 @@ import {
 import {
   Alert,
   Image,
-  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
   View,
 } from 'react-native';
 
+import BookStackActionsSheet from '../../components/BookStackActionsSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
@@ -2502,154 +2502,49 @@ export default function ProfileScreen() {
         renderTabContent()
       }
 
-      <Modal
+      <BookStackActionsSheet
         visible={
           Boolean(
             stackActionsTarget
           )
         }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
+        stackName={
+          stackActionsTarget?.name ??
+          null
+        }
+        onEdit={() => {
+          if (
+            stackActionsTarget
+          ) {
+            editStack(
+              stackActionsTarget
+            );
+          }
+        }}
+        onShare={() => {
+          if (
+            stackActionsTarget
+          ) {
+            void shareStackFromMenu(
+              stackActionsTarget
+            );
+          }
+        }}
+        onDelete={() => {
+          if (
+            stackActionsTarget
+          ) {
+            requestDeleteStack(
+              stackActionsTarget
+            );
+          }
+        }}
+        onDismiss={() =>
           setStackActionsTarget(
             null
           )
         }
-      >
-        <Pressable
-          style={
-            styles.stackActionsBackdrop
-          }
-          onPress={() =>
-            setStackActionsTarget(
-              null
-            )
-          }
-        >
-          <View
-            style={
-              styles.stackActionsSheet
-            }
-          >
-            <View
-              style={
-                styles.stackActionsHandle
-              }
-            />
-
-            <Text
-              style={
-                styles.stackActionsTitle
-              }
-            >
-              Book Stack
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                if (
-                  stackActionsTarget
-                ) {
-                  editStack(
-                    stackActionsTarget
-                  );
-                }
-              }}
-              style={({ pressed }) => [
-                styles.stackActionsRow,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="create-outline"
-                size={20}
-                color={
-                  colors.gold
-                }
-              />
-              <Text
-                style={
-                  styles.stackActionsText
-                }
-              >
-                Edit Stack
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                if (
-                  stackActionsTarget
-                ) {
-                  void shareStackFromMenu(
-                    stackActionsTarget
-                  );
-                }
-              }}
-              style={({ pressed }) => [
-                styles.stackActionsRow,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="share-social-outline"
-                size={20}
-                color={
-                  colors.gold
-                }
-              />
-              <Text
-                style={
-                  styles.stackActionsText
-                }
-              >
-                Share Stack
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                if (
-                  stackActionsTarget
-                ) {
-                  const stack =
-                    stackActionsTarget;
-
-                  setStackActionsTarget(
-                    null
-                  );
-
-                  requestDeleteStack(
-                    stack
-                  );
-                }
-              }}
-              style={({ pressed }) => [
-                styles.stackActionsRow,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={20}
-                color={
-                  colors.danger
-                }
-              />
-              <Text
-                style={
-                  styles.stackActionsDangerText
-                }
-              >
-                Delete Stack
-              </Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
+      />
 
       <DeleteBookStackConfirmSheet
         visible={
@@ -3009,85 +2904,6 @@ function createStyles(
       fontFamily:
         'Inter_700Bold',
       fontSize: 12,
-    },
-
-    stackActionsBackdrop: {
-      flex: 1,
-      justifyContent:
-        'flex-end',
-      backgroundColor:
-        'rgba(0,0,0,0.48)',
-    },
-
-    stackActionsSheet: {
-      backgroundColor:
-        colors.surface,
-      borderTopLeftRadius:
-        24,
-      borderTopRightRadius:
-        24,
-      paddingHorizontal:
-        18,
-      paddingTop:
-        10,
-      paddingBottom:
-        24,
-    },
-
-    stackActionsHandle: {
-      width: 42,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor:
-        colors.border,
-      alignSelf:
-        'center',
-      marginBottom:
-        14,
-    },
-
-    stackActionsTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        20,
-      marginBottom:
-        10,
-    },
-
-    stackActionsRow: {
-      minHeight:
-        52,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        12,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomColor:
-        colors.border,
-    },
-
-    stackActionsText: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        14,
-    },
-
-    stackActionsDangerText: {
-      color:
-        colors.danger,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        14,
     },
 
     stackGrid: {
