@@ -364,6 +364,7 @@ export default function BookStackDetailScreen() {
           }
         >
           <BookStackVisual
+            variant="detail"
             items={
               stack.items
             }
@@ -546,7 +547,7 @@ function createStyles(
     },
 
     visual: {
-      minHeight: 520,
+      minHeight: 315,
       alignItems:
         'center',
       justifyContent:
