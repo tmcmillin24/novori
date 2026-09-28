@@ -397,6 +397,68 @@ export default function BookStackVisual({
     );
   }
 
+  const deck = (
+    <View
+      style={
+        styles.deck
+      }
+    >
+      {items.map(
+        (
+          item,
+          index
+        ) => (
+          <StackCover
+            key={
+              item.id
+            }
+            item={
+              item
+            }
+            index={
+              index
+            }
+            selected={
+              selectedId ===
+              item.id
+            }
+            hasSelection={
+              hasSelection
+            }
+            config={
+              config
+            }
+            colors={
+              colors
+            }
+            compactVisual={
+              resolvedVariant ===
+              'profile'
+            }
+            onSelect={
+              onSelect
+            }
+          />
+        )
+      )}
+    </View>
+  );
+
+  if (
+    resolvedVariant ===
+    'profile'
+  ) {
+    return (
+      <View
+        style={
+          styles.profileFrame
+        }
+      >
+        {deck}
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       horizontal
@@ -410,50 +472,7 @@ export default function BookStackVisual({
         styles.scroll
       }
     >
-      <View
-        style={
-          styles.deck
-        }
-      >
-        {items.map(
-          (
-            item,
-            index
-          ) => (
-            <StackCover
-              key={
-                item.id
-              }
-              item={
-                item
-              }
-              index={
-                index
-              }
-              selected={
-                selectedId ===
-                item.id
-              }
-              hasSelection={
-                hasSelection
-              }
-              config={
-                config
-              }
-              colors={
-                colors
-              }
-              compactVisual={
-                resolvedVariant ===
-                'profile'
-              }
-              onSelect={
-                onSelect
-              }
-            />
-          )
-        )}
-      </View>
+      {deck}
     </ScrollView>
   );
 }
@@ -568,6 +587,22 @@ function createStyles(
 
     scrollContent: {
       flexGrow: 1,
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        config.horizontalPadding,
+      paddingVertical:
+        config.verticalPadding,
+    },
+
+    profileFrame: {
+      width: '100%',
+      minHeight:
+        config.height +
+        config.verticalPadding *
+          2,
+      alignItems:
+        'center',
       justifyContent:
         'center',
       paddingHorizontal:
