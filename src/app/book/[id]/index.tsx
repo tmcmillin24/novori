@@ -27,6 +27,10 @@ import { NovoriColors } from '../../../constants/novori-theme';
 import { useNovoriTheme } from '../../../context/theme-context';
 import { supabase } from '../../../lib/supabase';
 import {
+  CommunityBookReview,
+  getCommunityBookReviews,
+} from '../../../lib/feed';
+import {
   getUserBook,
   removeUserBook,
   saveUserBook,
@@ -58,6 +62,8 @@ type GoogleBook = {
       large?: string;
       extraLarge?: string;
     };
+    averageRating?: number;
+    ratingsCount?: number;
   };
 };
 
@@ -770,6 +776,28 @@ export default function BookDetailsScreen() {
   const [openingSeriesBookId, setOpeningSeriesBookId] =
     useState<number | null>(null);
 
+  const [
+    communityReviews,
+    setCommunityReviews,
+  ] =
+    useState<
+      CommunityBookReview[]
+    >([]);
+
+  const [
+    communityReviewsLoading,
+    setCommunityReviewsLoading,
+  ] =
+    useState(false);
+
+  const [
+    expandedCommunityReviewIds,
+    setExpandedCommunityReviewIds,
+  ] =
+    useState<
+      string[]
+    >([]);
+
   const backLabel =
     source === 'library'
       ? 'Library'
@@ -868,6 +896,39 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
+
+        setCommunityReviewsLoading(
+          true
+        );
+
+        try {
+          const reviews =
+            await getCommunityBookReviews(
+              resolvedBook.id,
+              resolvedBook.volumeInfo
+                .title,
+              30
+            );
+
+          setCommunityReviews(
+            reviews
+          );
+        } catch (
+          reviewError
+        ) {
+          console.error(
+            'Could not load community reviews:',
+            reviewError
+          );
+
+          setCommunityReviews(
+            []
+          );
+        } finally {
+          setCommunityReviewsLoading(
+            false
+          );
+        }
 
         try {
           const savedBook = await getUserBook(
@@ -2980,30 +3041,391 @@ export default function BookDetailsScreen() {
           )}
         </View>
 
-        <Pressable style={styles.communityCard}>
-          <View style={styles.communityIcon}>
+        <View
+          style={
+            styles.communityReviewsSection
+          }
+        >
+          <View
+            style={
+              styles.communityReviewsHeader
+            }
+          >
+            <View>
+              <Text
+                style={
+                  styles.sectionHeading
+                }
+              >
+                Community Reviews
+              </Text>
+
+              <Text
+                style={
+                  styles.communityReviewsSubtitle
+                }
+              >
+                What Novori readers are saying.
+              </Text>
+            </View>
+
+            {communityReviews.length >
+            0 ? (
+              <View
+                style={
+                  styles.communityReviewCount
+                }
+              >
+                <Text
+                  style={
+                    styles.communityReviewCountText
+                  }
+                >
+                  {
+                    communityReviews.length
+                  }
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View
+            style={
+              styles.spoilerWarning
+            }
+          >
             <Ionicons
-              name="chatbubbles-outline"
-              size={24}
-              color={colors.gold}
+              name="warning-outline"
+              size={17}
+              color={
+                colors.gold
+              }
             />
+
+            <Text
+              style={
+                styles.spoilerWarningText
+              }
+            >
+              Community reviews can contain spoilers. Review text stays collapsed until you choose to read it.
+            </Text>
           </View>
 
-          <View style={styles.communityText}>
-            <Text style={styles.communityTitle}>
-              Discuss this book
-            </Text>
-            <Text style={styles.communityDescription}>
-              Reviews, reactions, questions, and reader discussions.
-            </Text>
-          </View>
+          {communityReviewsLoading ? (
+            <View
+              style={
+                styles.communityReviewsLoading
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  colors.gold
+                }
+              />
 
-          <Ionicons
-            name="chevron-forward"
-            size={21}
-            color={colors.mutedText}
-          />
-        </Pressable>
+              <Text
+                style={
+                  styles.communityReviewsLoadingText
+                }
+              >
+                Loading community reviews…
+              </Text>
+            </View>
+          ) : communityReviews.length >
+            0 ? (
+            <View
+              style={
+                styles.communityReviewList
+              }
+            >
+              {communityReviews.map(
+                (
+                  review
+                ) => {
+                  const expanded =
+                    expandedCommunityReviewIds.includes(
+                      review.id
+                    );
+
+                  const displayName =
+                    review.author_display_name
+                      ?.trim() ||
+                    review.author_username
+                      ?.trim() ||
+                    'Novori Reader';
+
+                  const initial =
+                    displayName
+                      .charAt(0)
+                      .toUpperCase();
+
+                  const reviewDate =
+                    review.created_at
+                      ? new Date(
+                          review.created_at
+                        ).toLocaleDateString(
+                          undefined,
+                          {
+                            month:
+                              'short',
+                            day:
+                              'numeric',
+                            year:
+                              'numeric',
+                          }
+                        )
+                      : '';
+
+                  return (
+                    <View
+                      key={
+                        review.id
+                      }
+                      style={
+                        styles.communityReviewCard
+                      }
+                    >
+                      <View
+                        style={
+                          styles.communityReviewIdentity
+                        }
+                      >
+                        {review.author_avatar_url ? (
+                          <Image
+                            source={{
+                              uri:
+                                review.author_avatar_url,
+                            }}
+                            style={
+                              styles.communityReviewAvatar
+                            }
+                          />
+                        ) : (
+                          <View
+                            style={
+                              styles.communityReviewAvatarFallback
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.communityReviewAvatarText
+                              }
+                            >
+                              {
+                                initial
+                              }
+                            </Text>
+                          </View>
+                        )}
+
+                        <View
+                          style={
+                            styles.communityReviewIdentityCopy
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.communityReviewName
+                            }
+                            numberOfLines={
+                              1
+                            }
+                          >
+                            {
+                              displayName
+                            }
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.communityReviewMeta
+                            }
+                          >
+                            {review.author_username
+                              ?.trim()
+                              ? `@${review.author_username.trim()} · `
+                              : ''}
+                            {reviewDate}
+                          </Text>
+                        </View>
+
+                        {review.rating !==
+                        null ? (
+                          <View
+                            style={
+                              styles.communityReviewRating
+                            }
+                          >
+                            <Ionicons
+                              name="star"
+                              size={13}
+                              color={
+                                colors.gold
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.communityReviewRatingText
+                              }
+                            >
+                              {review.rating.toFixed(
+                                1
+                              )}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {expanded ? (
+                        <>
+                          <Text
+                            style={
+                              styles.communityReviewBody
+                            }
+                          >
+                            {
+                              review.body
+                            }
+                          </Text>
+
+                          <Pressable
+                            onPress={() =>
+                              setExpandedCommunityReviewIds(
+                                (
+                                  current
+                                ) =>
+                                  current.filter(
+                                    (
+                                      reviewId
+                                    ) =>
+                                      reviewId !==
+                                      review.id
+                                  )
+                              )
+                            }
+                            style={({ pressed }) => [
+                              styles.communityReviewToggle,
+                              pressed &&
+                                styles.reviewButtonPressed,
+                            ]}
+                          >
+                            <Text
+                              style={
+                                styles.communityReviewToggleText
+                              }
+                            >
+                              Hide review
+                            </Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <Pressable
+                          onPress={() =>
+                            setExpandedCommunityReviewIds(
+                              (
+                                current
+                              ) => [
+                                ...current,
+                                review.id,
+                              ]
+                            )
+                          }
+                          style={({ pressed }) => [
+                            styles.communityReviewReveal,
+                            pressed &&
+                              styles.reviewButtonPressed,
+                          ]}
+                        >
+                          <View
+                            style={
+                              styles.communityReviewRevealIcon
+                            }
+                          >
+                            <Ionicons
+                              name="eye-outline"
+                              size={16}
+                              color={
+                                colors.gold
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.communityReviewRevealCopy
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.communityReviewRevealTitle
+                              }
+                            >
+                              Read review
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.communityReviewRevealSubtitle
+                              }
+                            >
+                              May contain spoilers
+                            </Text>
+                          </View>
+
+                          <Ionicons
+                            name="chevron-down"
+                            size={17}
+                            color={
+                              colors.mutedText
+                            }
+                          />
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                }
+              )}
+            </View>
+          ) : (
+            <View
+              style={
+                styles.communityReviewsEmpty
+              }
+            >
+              <Ionicons
+                name="chatbubbles-outline"
+                size={23}
+                color={
+                  colors.gold
+                }
+              />
+
+              <View
+                style={
+                  styles.communityReviewsEmptyCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.communityReviewsEmptyTitle
+                  }
+                >
+                  No shared reviews yet
+                </Text>
+
+                <Text
+                  style={
+                    styles.communityReviewsEmptyText
+                  }
+                >
+                  Reviews shared to Novori will appear here.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       <Modal
@@ -4421,44 +4843,231 @@ function createStyles(
     marginTop: 10,
   },
 
-  communityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 17,
+  communityReviewsSection: {
     marginTop: 32,
   },
 
-  communityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.elevated,
+  communityReviewsHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+
+  communityReviewsSubtitle: {
+    color: colors.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12.5,
+    marginTop: -5,
+  },
+
+  communityReviewCount: {
+    minWidth: 30,
+    height: 26,
+    borderRadius: 999,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.elevated,
+    paddingHorizontal: 8,
+    marginTop: 3,
+  },
+
+  communityReviewCountText: {
+    color: colors.secondaryText,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10.5,
+  },
+
+  spoilerWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginTop: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderRadius: 13,
+    backgroundColor: colors.elevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+
+  spoilerWarningText: {
+    flex: 1,
+    color: colors.secondaryText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+
+  communityReviewsLoading: {
+    minHeight: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+
+  communityReviewsLoadingText: {
+    color: colors.mutedText,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+  },
+
+  communityReviewList: {
+    gap: 11,
+    marginTop: 14,
+  },
+
+  communityReviewCard: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 14,
+  },
+
+  communityReviewIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  communityReviewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.elevated,
+  },
+
+  communityReviewAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.elevated,
+  },
+
+  communityReviewAvatarText: {
+    color: colors.text,
+    fontFamily: 'PlayfairDisplay_700Bold',
+    fontSize: 14,
+  },
+
+  communityReviewIdentityCopy: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 10,
+  },
+
+  communityReviewName: {
+    color: colors.text,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12.5,
+  },
+
+  communityReviewMeta: {
+    color: colors.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+
+  communityReviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 10,
+  },
+
+  communityReviewRatingText: {
+    color: colors.softGold,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+  },
+
+  communityReviewBody: {
+    color: colors.text,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginTop: 13,
+  },
+
+  communityReviewReveal: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    backgroundColor: colors.elevated,
+  },
+
+  communityReviewRevealIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+
+  communityReviewRevealCopy: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  communityReviewRevealTitle: {
+    color: colors.text,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11.5,
+  },
+
+  communityReviewRevealSubtitle: {
+    color: colors.mutedText,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 9.5,
+    marginTop: 1,
+  },
+
+  communityReviewToggle: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    minHeight: 30,
     justifyContent: 'center',
   },
 
-  communityText: {
-    flex: 1,
-    marginLeft: 13,
-    marginRight: 10,
+  communityReviewToggleText: {
+    color: colors.gold,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
   },
 
-  communityTitle: {
+  communityReviewsEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    padding: 15,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+
+  communityReviewsEmptyCopy: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  communityReviewsEmptyTitle: {
     color: colors.text,
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
+    fontSize: 12.5,
   },
 
-  communityDescription: {
+  communityReviewsEmptyText: {
     color: colors.mutedText,
     fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 3,
+    fontSize: 10.5,
+    marginTop: 2,
   },
 
   errorTitle: {
