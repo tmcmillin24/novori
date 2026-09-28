@@ -1010,6 +1010,13 @@ export default function BookDetailsScreen() {
           resolvedBook
         );
 
+        // The core book is ready. Render the page now instead of
+        // blocking on cart status, ratings, reviews, library state,
+        // and series metadata below.
+        setLoading(
+          false
+        );
+
         try {
           const cartItem =
             await getBookCartItem(
