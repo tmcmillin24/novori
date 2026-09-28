@@ -11,7 +11,6 @@ type PersistentBookEntry = {
   id: string;
   savedAt: number;
   data: unknown;
-  exactFetched?: boolean;
 };
 
 type GoogleBooksJsonResult<T> = {
@@ -34,7 +33,7 @@ const MAX_PERSISTED_BOOKS =
   150;
 
 const PERSISTED_INDEX_KEY =
-  'novori:google-books:detail-index:v2';
+  'novori:google-books:detail-index:v1';
 
 const memoryCache =
   new Map<string, MemoryEntry>();
@@ -45,7 +44,6 @@ const volumeMemoryCache =
     {
       expiresAt: number;
       data: unknown;
-      exactFetched: boolean;
     }
   >();
 
@@ -86,128 +84,15 @@ function getVolumeId(
     : null;
 }
 
-function getGoogleCoverVolumeId(
-  url?: string | null
-) {
-  if (!url) {
-    return null;
-  }
-
-  try {
-    const parsed =
-      new URL(
-        url.replace(
-          'http://',
-          'https://'
-        )
-      );
-
-    return parsed.searchParams.get(
-      'id'
-    );
-  } catch {
-    return null;
-  }
-}
-
-function getBookImageLinks(
-  data: unknown
-) {
-  if (
-    !data ||
-    typeof data !==
-      'object'
-  ) {
-    return [];
-  }
-
-  const links =
-    (
-      data as {
-        volumeInfo?: {
-          imageLinks?: {
-            extraLarge?: string;
-            large?: string;
-            medium?: string;
-            small?: string;
-            thumbnail?: string;
-            smallThumbnail?: string;
-          };
-        };
-      }
-    ).volumeInfo
-      ?.imageLinks;
-
-  return [
-    links?.extraLarge,
-    links?.large,
-    links?.medium,
-    links?.small,
-    links?.thumbnail,
-    links?.smallThumbnail,
-  ].filter(
-    (
-      value
-    ): value is string =>
-      Boolean(
-        value
-      )
-  );
-}
-
-function hasUsableCover(
-  data: unknown
-) {
-  return (
-    getBookImageLinks(
-      data
-    ).length >
-    0
-  );
-}
-
-function isCoverConsistentWithVolume(
-  data: unknown,
-  googleBookId: string
-) {
-  const coverIds =
-    getBookImageLinks(
-      data
-    )
-      .map(
-        getGoogleCoverVolumeId
-      )
-      .filter(
-        (
-          value
-        ): value is string =>
-          Boolean(
-            value
-          )
-      );
-
-  return (
-    coverIds.length ===
-      0 ||
-    coverIds.some(
-      (
-        value
-      ) =>
-        value ===
-        googleBookId
-    )
-  );
-}
-
 function detailKey(
   id: string
 ) {
-  return `novori:google-books:detail:v2:${id}`;
+  return `novori:google-books:detail:${id}`;
 }
 
-async function readPersistentDetail(
+async function readPersistentDetail<T>(
   id: string
-): Promise<PersistentBookEntry | null> {
+): Promise<T | null> {
   try {
     const raw =
       await AsyncStorage.getItem(
@@ -238,7 +123,7 @@ async function readPersistentDetail(
       return null;
     }
 
-    return parsed;
+    return parsed.data as T;
   } catch {
     return null;
   }
@@ -246,8 +131,7 @@ async function readPersistentDetail(
 
 async function persistDetail(
   id: string,
-  data: unknown,
-  exactFetched = false
+  data: unknown
 ) {
   try {
     const rawIndex =
@@ -312,7 +196,6 @@ async function persistDetail(
           savedAt:
             now,
           data,
-          exactFetched,
         } satisfies PersistentBookEntry),
       ],
       [
@@ -371,48 +254,7 @@ async function readCatalogBook<T>(
         true ||
       !hasUsablePageCount(
         data.metadata
-      ) ||
-      !hasUsableCover(
-        data.metadata
-      ) ||
-      !isCoverConsistentWithVolume(
-        data.metadata,
-        googleBookId
       )
-    ) {
-      return null;
-    }
-
-    return data.metadata as T;
-  } catch {
-    return null;
-  }
-}
-
-async function readRawCatalogBook<T>(
-  googleBookId: string
-): Promise<T | null> {
-  try {
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from(
-          'google_books_catalog'
-        )
-        .select(
-          'metadata'
-        )
-        .eq(
-          'google_book_id',
-          googleBookId
-        )
-        .maybeSingle();
-
-    if (
-      error ||
-      !data?.metadata
     ) {
       return null;
     }
@@ -502,137 +344,6 @@ async function upsertCatalogBooks(
   ) {
     console.warn(
       'Could not update Novori book catalog:',
-      error
-    );
-  }
-}
-
-export async function learnNormalizedGoogleBooksCatalog(
-  books: unknown[]
-) {
-  const validBooks =
-    books.filter(
-      (
-        book
-      ): book is {
-        id: string;
-        [key: string]:
-          unknown;
-      } =>
-        Boolean(
-          book &&
-          typeof book ===
-            'object' &&
-          typeof (
-            book as {
-              id?: unknown;
-            }
-          ).id ===
-            'string'
-        )
-    );
-
-  if (
-    validBooks.length ===
-    0
-  ) {
-    return;
-  }
-
-  try {
-    const ids =
-      validBooks.map(
-        (
-          book
-        ) =>
-          book.id
-      );
-
-    const {
-      data:
-        existingRows,
-    } =
-      await supabase
-        .from(
-          'google_books_catalog'
-        )
-        .select(
-          'google_book_id, detail_complete'
-        )
-        .in(
-          'google_book_id',
-          ids
-        );
-
-    const completeness =
-      new Map<
-        string,
-        boolean
-      >(
-        (
-          existingRows ??
-          []
-        ).map(
-          (
-            row
-          ) => [
-            row.google_book_id,
-            row.detail_complete ===
-              true,
-          ]
-        )
-      );
-
-    const rows =
-      validBooks.map(
-        (
-          book
-        ) => ({
-          google_book_id:
-            book.id,
-          metadata:
-            book,
-          fetched_at:
-            new Date().toISOString(),
-          detail_complete:
-            completeness.get(
-              book.id
-            ) ===
-              true ||
-            hasUsablePageCount(
-              book
-            ),
-        })
-      );
-
-    const {
-      error,
-    } =
-      await supabase
-        .from(
-          'google_books_catalog'
-        )
-        .upsert(
-          rows,
-          {
-            onConflict:
-              'google_book_id',
-          }
-        );
-
-    if (
-      error
-    ) {
-      console.warn(
-        'Could not normalize Novori book catalog:',
-        error
-      );
-    }
-  } catch (
-    error
-  ) {
-    console.warn(
-      'Could not normalize Novori book catalog:',
       error
     );
   }
@@ -756,27 +467,11 @@ export async function fetchGoogleBooksJson<T>(
     if (
       primedVolume &&
       primedVolume.expiresAt >
-        now &&
-      isCoverConsistentWithVolume(
-        primedVolume.data,
-        detailId
-      ) &&
-      (
-        primedVolume.exactFetched ||
-        (
-          hasUsablePageCount(
-            primedVolume.data
-          ) &&
-          hasUsableCover(
-            primedVolume.data
-          )
-        )
-      )
+        now
     ) {
       void persistDetail(
         detailId,
-        primedVolume.data,
-        primedVolume.exactFetched
+        primedVolume.data
       );
 
       return {
@@ -784,6 +479,35 @@ export async function fetchGoogleBooksJson<T>(
         status: 200,
         data:
           primedVolume.data as T,
+        fromCache:
+          true,
+      };
+    }
+
+    const persisted =
+      await readPersistentDetail<T>(
+        detailId
+      );
+
+    if (persisted) {
+      memoryCache.set(
+        url,
+        {
+          expiresAt:
+            now +
+            DETAIL_CACHE_MS,
+          status:
+            200,
+          data:
+            persisted,
+        }
+      );
+
+      return {
+        ok: true,
+        status: 200,
+        data:
+          persisted,
         fromCache:
           true,
       };
@@ -818,15 +542,12 @@ export async function fetchGoogleBooksJson<T>(
             DETAIL_CACHE_MS,
           data:
             catalogBook,
-          exactFetched:
-            false,
         }
       );
 
       void persistDetail(
         detailId,
-        catalogBook,
-        false
+        catalogBook
       );
 
       return {
@@ -834,53 +555,6 @@ export async function fetchGoogleBooksJson<T>(
         status: 200,
         data:
           catalogBook,
-        fromCache:
-          true,
-      };
-    }
-
-    const persisted =
-      await readPersistentDetail(
-        detailId
-      );
-
-    if (
-      persisted &&
-      isCoverConsistentWithVolume(
-        persisted.data,
-        detailId
-      ) &&
-      (
-        persisted.exactFetched ===
-          true ||
-        (
-          hasUsablePageCount(
-            persisted.data
-          ) &&
-          hasUsableCover(
-            persisted.data
-          )
-        )
-      )
-    ) {
-      memoryCache.set(
-        url,
-        {
-          expiresAt:
-            now +
-            DETAIL_CACHE_MS,
-          status:
-            200,
-          data:
-            persisted.data,
-        }
-      );
-
-      return {
-        ok: true,
-        status: 200,
-        data:
-          persisted.data as T,
         fromCache:
           true,
       };
@@ -974,7 +648,7 @@ export async function fetchGoogleBooksJson<T>(
         } satisfies GoogleBooksJsonResult<unknown>;
       }
 
-      let data =
+      const data =
         await response.json();
 
       if (
@@ -1014,8 +688,6 @@ export async function fetchGoogleBooksJson<T>(
                   SEARCH_CACHE_MS,
                 data:
                   item,
-                exactFetched:
-                  false,
               }
             );
           }
@@ -1077,22 +749,6 @@ export async function fetchGoogleBooksJson<T>(
         }
       }
 
-      if (
-        detailId
-      ) {
-        volumeMemoryCache.set(
-          detailId,
-          {
-            expiresAt:
-              Date.now() +
-              DETAIL_CACHE_MS,
-            data,
-            exactFetched:
-              true,
-          }
-        );
-      }
-
       memoryCache.set(
         url,
         {
@@ -1112,8 +768,7 @@ export async function fetchGoogleBooksJson<T>(
       if (detailId) {
         void persistDetail(
           detailId,
-          data,
-          true
+          data
         );
       }
 
