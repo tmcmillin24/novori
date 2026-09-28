@@ -148,9 +148,6 @@ type RecentReleasesResponse = {
   details?: unknown;
 };
 
-const trendingGoogleBookCache =
-  new Map<number, GoogleBookItem>();
-
 
 function normalizeBookIdentityText(
   value?: string | null
@@ -1567,8 +1564,6 @@ export default function DiscoverScreen() {
             exactMatch.volumeInfo
               .authors,
           isbn,
-          bookData:
-            exactMatch,
         }
       );
     } catch (
@@ -2440,7 +2435,6 @@ export default function DiscoverScreen() {
       title?: string;
       authors?: string[];
       isbn?: string;
-      bookData?: GoogleBookItem;
     }
   ) {
     preserveDiscoverStateOnNextBlur.current =
@@ -2478,19 +2472,11 @@ export default function DiscoverScreen() {
                 options.isbn,
             }
           : {}),
-        ...(options?.bookData
-          ? {
-              bookData:
-                JSON.stringify(
-                  options.bookData
-                ),
-            }
-          : {}),
       },
     });
   }
 
-  async function findGoogleBookForTrending(
+  async function findGoogleBookIdForTrending(
     trendingBook: TrendingBook
   ) {
     const apiKey =
@@ -2502,55 +2488,44 @@ export default function DiscoverScreen() {
       );
     }
 
-    const cachedBook =
-      trendingGoogleBookCache.get(
-        trendingBook.id
+    for (
+      const isbn of trendingBook.isbns.slice(0, 6)
+    ) {
+      const response = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          `isbn:${isbn}`
+        )}&maxResults=5&printType=books&key=${apiKey}`
       );
 
-    if (cachedBook) {
-      return cachedBook;
-    }
+      if (!response.ok) {
+        continue;
+      }
 
-    const isbn =
-      trendingBook.isbns[0];
+      const data:
+        GoogleBooksResponse =
+        await response.json();
 
-    if (isbn) {
-      const response =
-        await fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-            `isbn:${isbn}`
-          )}&maxResults=5&printType=books&key=${apiKey}`
+      const results =
+        data.items ?? [];
+
+      const exactIsbnMatch =
+        results.find(
+          (result) =>
+            result.volumeInfo
+              .industryIdentifiers
+              ?.some(
+                (identifier) =>
+                  identifier.identifier ===
+                  isbn
+              )
         );
 
-      if (response.ok) {
-        const data:
-          GoogleBooksResponse =
-          await response.json();
+      if (exactIsbnMatch) {
+        return exactIsbnMatch.id;
+      }
 
-        const results =
-          data.items ?? [];
-
-        const exactIsbnMatch =
-          results.find(
-            (result) =>
-              result.volumeInfo
-                .industryIdentifiers
-                ?.some(
-                  (identifier) =>
-                    identifier.identifier ===
-                    isbn
-                )
-          ) ??
-          results[0];
-
-        if (exactIsbnMatch) {
-          trendingGoogleBookCache.set(
-            trendingBook.id,
-            exactIsbnMatch
-          );
-
-          return exactIsbnMatch;
-        }
+      if (results[0]?.id) {
+        return results[0].id;
       }
     }
 
@@ -2604,7 +2579,7 @@ export default function DiscoverScreen() {
       );
 
     if (exactTitle) {
-      return exactTitle;
+      return exactTitle.id;
     }
 
     const titleAndAuthor =
@@ -2650,19 +2625,11 @@ export default function DiscoverScreen() {
         }
       );
 
-    const resolvedBook =
-      titleAndAuthor ??
-      results[0] ??
-      null;
-
-    if (resolvedBook) {
-      trendingGoogleBookCache.set(
-        trendingBook.id,
-        resolvedBook
-      );
-    }
-
-    return resolvedBook;
+    return (
+      titleAndAuthor?.id ??
+      results[0]?.id ??
+      null
+    );
   }
 
   async function openTrendingBook(
@@ -2677,12 +2644,12 @@ export default function DiscoverScreen() {
         trendingBook.id
       );
 
-      const googleBook =
-        await findGoogleBookForTrending(
+      const googleBookId =
+        await findGoogleBookIdForTrending(
           trendingBook
         );
 
-      if (!googleBook) {
+      if (!googleBookId) {
         Alert.alert(
           'Book not found',
           'Novori could not find this book in Google Books yet.'
@@ -2691,20 +2658,7 @@ export default function DiscoverScreen() {
       }
 
       openBook(
-        googleBook.id,
-        {
-          coverUrl:
-            trendingBook.coverUrl ??
-            undefined,
-          title:
-            trendingBook.title,
-          authors:
-            trendingBook.authors,
-          isbn:
-            trendingBook.isbns[0],
-          bookData:
-            googleBook,
-        }
+        googleBookId
       );
     } catch (err) {
       console.error(
@@ -2824,8 +2778,6 @@ export default function DiscoverScreen() {
                       'ISBN_10'
                   )
                   ?.identifier,
-              bookData:
-                item,
             }
           )
         }
