@@ -19,6 +19,7 @@ import {
 
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
+import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import {
   TabScreen,
 } from '../../components/tab-screen';
@@ -109,6 +110,12 @@ export default function ProfileScreen() {
     useState<Profile | null>(
       null
     );
+
+  const [
+    profileImageOpen,
+    setProfileImageOpen,
+  ] =
+    useState(false);
 
   const [
     books,
@@ -1276,15 +1283,29 @@ export default function ProfileScreen() {
         }
       >
         {profile?.avatar_url ? (
-          <Image
-            source={{
-              uri:
-                profile.avatar_url,
-            }}
-            style={
-              styles.avatarImage
+          <Pressable
+            onPress={() =>
+              setProfileImageOpen(
+                true
+              )
             }
-          />
+            accessibilityRole="button"
+            accessibilityLabel="Enlarge profile photo"
+            style={({ pressed }) => [
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Image
+              source={{
+                uri:
+                  profile.avatar_url,
+              }}
+              style={
+                styles.avatarImage
+              }
+            />
+          </Pressable>
         ) : (
           <View
             style={
@@ -1638,6 +1659,21 @@ export default function ProfileScreen() {
       {
         renderTabContent()
       }
+
+      <FullScreenImageViewer
+        visible={
+          profileImageOpen
+        }
+        uri={
+          profile?.avatar_url ??
+          null
+        }
+        onClose={() =>
+          setProfileImageOpen(
+            false
+          )
+        }
+      />
     </TabScreen>
   );
 }
