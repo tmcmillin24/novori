@@ -35,6 +35,7 @@ import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
 import FeedPostImage from '../../components/FeedPostImage';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
+import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
   NovoriColors,
@@ -54,6 +55,7 @@ import {
 import {
   cancelFollowRequest,
   FeedPost,
+  getHomeFeed,
   followReader,
   PostVoteValue,
   togglePostVote,
@@ -489,6 +491,7 @@ export default function ReaderProfileScreen() {
             bookData,
             reviewData,
             postData,
+            viewerFeed,
             clubData,
             stackData,
           ] =
@@ -501,6 +504,20 @@ export default function ReaderProfileScreen() {
               ),
               getReaderProfilePosts(
                 readerId
+              ),
+              getHomeFeed(
+                100
+              ).catch(
+                (
+                  feedError
+                ) => {
+                  console.warn(
+                    'Could not merge shared-club posts into reader activity:',
+                    feedError
+                  );
+
+                  return [] as FeedPost[];
+                }
               ),
               getReaderPublicClubs(
                 readerId
@@ -528,7 +545,7 @@ export default function ReaderProfileScreen() {
           setReviews(
             reviewData
           );
-          setPosts(
+          const visibleProfilePosts =
             postData.filter(
               (
                 post
@@ -537,7 +554,47 @@ export default function ReaderProfileScreen() {
                 viewerClubIds.has(
                   post.club_id
                 )
-            )
+            );
+
+          const sharedFeedPosts =
+            viewerFeed.filter(
+              (
+                post
+              ) =>
+                post.author_id ===
+                readerId
+            );
+
+          const mergedPosts =
+            Array.from(
+              new Map(
+                [
+                  ...visibleProfilePosts,
+                  ...sharedFeedPosts,
+                ].map(
+                  (
+                    post
+                  ) => [
+                    post.id,
+                    post,
+                  ]
+                )
+              ).values()
+            ).sort(
+              (
+                a,
+                b
+              ) =>
+                new Date(
+                  b.created_at
+                ).getTime() -
+                new Date(
+                  a.created_at
+                ).getTime()
+            );
+
+          setPosts(
+            mergedPosts
           );
           setClubs(
             clubData
@@ -1422,6 +1479,36 @@ export default function ReaderProfileScreen() {
   function renderPost(
     post: FeedPost
   ) {
+    const displayName =
+      post.author_display_name
+        ?.trim() ||
+      post.author_username
+        ?.trim() ||
+      profile?.display_name
+        ?.trim() ||
+      profile?.username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      post.author_username
+        ?.trim()
+        ? `@${post.author_username.trim()}`
+        : profile?.username
+            ?.trim()
+        ? `@${profile.username.trim()}`
+        : '';
+
+    const avatarUrl =
+      post.author_avatar_url ||
+      profile?.avatar_url ||
+      null;
+
+    const initial =
+      displayName
+        .charAt(0)
+        .toUpperCase();
+
     return (
       <View
         key={
@@ -1433,63 +1520,81 @@ export default function ReaderProfileScreen() {
       >
         <View
           style={
-            styles.postMetaRow
+            styles.postHeader
           }
         >
-          <Ionicons
-            name={
-              post.post_type ===
-              'review'
-                ? 'star-outline'
-                : post.post_type ===
-                  'reading_update'
-                ? 'book-outline'
-                : post.post_type ===
-                  'question'
-                ? 'help-circle-outline'
-                : post.post_type ===
-                  'book_stack'
-                ? 'albums-outline'
-                : 'chatbubble-ellipses-outline'
-            }
-            size={
-              14
-            }
-            color={
-              colors.gold
-            }
-          />
+          {avatarUrl ? (
+            <Image
+              source={{
+                uri:
+                  avatarUrl,
+              }}
+              style={
+                styles.postAvatar
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.postAvatarFallback
+              }
+            >
+              <Text
+                style={
+                  styles.postAvatarText
+                }
+              >
+                {initial}
+              </Text>
+            </View>
+          )}
 
-          <Text
+          <View
             style={
-              styles.postMetaText
+              styles.postAuthorCopy
             }
           >
-            {post.post_type ===
-            'review'
-              ? 'Review'
-              : post.post_type ===
-                'reading_update'
-              ? 'Reading update'
-              : post.post_type ===
-                'question'
-              ? 'Ask Readers'
-              : post.post_type ===
-                'book_stack'
-              ? 'Book Stack'
-              : 'Post'}
-          </Text>
+            <View
+              style={
+                styles.postIdentity
+              }
+            >
+              <Text
+                style={
+                  styles.postAuthorName
+                }
+                numberOfLines={1}
+              >
+                {displayName}
+              </Text>
 
-          <Text
-            style={
-              styles.postTime
-            }
-          >
-            ·{' '}
-            {formatTime(
-              post.created_at
-            )}
-          </Text>
+              {username ? (
+                <Text
+                  style={
+                    styles.postUsername
+                  }
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {username}
+                </Text>
+              ) : null}
+            </View>
+
+            <Text
+              style={
+                styles.postTime
+              }
+              numberOfLines={1}
+            >
+              {post.club_name
+                ? `in ${post.club_name} · `
+                : 'posted to their profile · '}
+              {formatTime(
+                post.created_at
+              )}
+            </Text>
+          </View>
 
           <Pressable
             onPress={() =>
@@ -1515,6 +1620,23 @@ export default function ReaderProfileScreen() {
             />
           </Pressable>
         </View>
+
+        <View
+          style={
+            styles.postContent
+          }
+        >
+          <PostTypeIdentifier
+            postType={
+              post.post_type
+            }
+            rating={
+              post.rating
+            }
+            colors={
+              colors
+            }
+          />
 
         <Text
           style={
@@ -1681,6 +1803,8 @@ export default function ReaderProfileScreen() {
           </View>
           )
         ) : null}
+
+        </View>
 
         <View
           style={
@@ -4152,7 +4276,9 @@ function createStyles(
       alignItems:
         'center',
       gap: 3,
-      marginTop: 14,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 15,
     },
     postVoteButton: {
       width: 32,
@@ -4337,17 +4463,113 @@ function createStyles(
       borderWidth: 1,
       borderColor:
         colors.border,
-      borderRadius: 17,
-      padding: 15,
+      borderRadius: 22,
+      overflow:
+        'hidden',
+      shadowColor:
+        '#000000',
+      shadowOpacity: 0.1,
+      shadowRadius: 14,
+      shadowOffset: {
+        width: 0,
+        height: 5,
+      },
+      elevation: 3,
+    },
+
+    postHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      paddingHorizontal: 16,
+      paddingTop: 15,
+    },
+
+    postAvatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      marginRight: 12,
+    },
+
+    postAvatarFallback: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 12,
+    },
+
+    postAvatarText: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 18,
+    },
+
+    postAuthorCopy: {
+      flex: 1,
+      minWidth: 0,
+      paddingTop: 2,
+    },
+
+    postIdentity: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+      minWidth: 0,
+    },
+
+    postAuthorName: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 13.5,
+      flexShrink: 0,
+    },
+
+    postUsername: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11.5,
+      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+
+    postContent: {
+      paddingHorizontal: 16,
+      paddingTop: 11,
     },
     postHeaderShare: {
-      marginLeft: 'auto',
       width: 34,
       height: 34,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: -8,
-      marginRight: -8,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginLeft: 4,
+      marginTop: -2,
     },
 
     postMetaRow: {
