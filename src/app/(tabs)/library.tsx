@@ -836,7 +836,8 @@ export default function LibraryScreen() {
       : 'Recently Updated';
 
   function openBook(
-    googleBookId: string
+    googleBookId: string,
+    coverUrl?: string | null
   ) {
     router.push({
       pathname:
@@ -846,6 +847,11 @@ export default function LibraryScreen() {
           googleBookId,
         source:
           'library',
+        ...(coverUrl
+          ? {
+              coverUrl,
+            }
+          : {}),
       },
     });
   }
@@ -923,7 +929,12 @@ export default function LibraryScreen() {
     const googleBookId =
       selectedBook.google_book_id;
 
-    dismissBookSheet(() => openBook(googleBookId));
+    dismissBookSheet(() =>
+      openBook(
+        googleBookId,
+        selectedBook.cover_url
+      )
+    );
   }
 
   function openSelectedReadingDetails() {
@@ -1607,7 +1618,8 @@ export default function LibraryScreen() {
       <Pressable
         onPress={() =>
           openBook(
-            item.google_book_id
+            item.google_book_id,
+            item.cover_url
           )
         }
         style={({ pressed }) => [
