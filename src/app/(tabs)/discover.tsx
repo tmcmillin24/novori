@@ -2705,14 +2705,22 @@ export default function DiscoverScreen() {
         )
         ?.identifier;
 
+    const canonicalCover =
+      item.novoriWork
+        ?.canonicalCoverUrl ??
+      null;
+
     const coverPlan =
       getBookCoverPlan({
         imageLinks:
           info.imageLinks,
         isbn,
+        existingCoverUrl:
+          canonicalCover,
       });
 
     const cover =
+      canonicalCover ??
       coverPlan.primaryUrl ??
       coverPlan.fallbackUrl ??
       undefined;
@@ -2748,6 +2756,9 @@ export default function DiscoverScreen() {
             }
             isbn={
               isbn
+            }
+            existingCoverUrl={
+              canonicalCover
             }
             style={
               styles.cover
