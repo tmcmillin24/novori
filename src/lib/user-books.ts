@@ -66,6 +66,202 @@ function secureCoverUrl(
   );
 }
 
+function getGoogleCoverInfo(
+  url?: string | null
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        secure
+      );
+
+    if (
+      !parsed.hostname.includes(
+        'google'
+      )
+    ) {
+      return null;
+    }
+
+    const zoom =
+      Number(
+        parsed.searchParams.get(
+          'zoom'
+        ) ??
+        ''
+      );
+
+    return {
+      id:
+        parsed.searchParams.get(
+          'id'
+        ),
+      printsec:
+        parsed.searchParams.get(
+          'printsec'
+        ),
+      zoom:
+        Number.isFinite(
+          zoom
+        )
+          ? zoom
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getSavedCoverQuality(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return 0;
+  }
+
+  const google =
+    getGoogleCoverInfo(
+      url
+    );
+
+  if (
+    !google
+  ) {
+    // Unknown/non-Google covers should never be discarded by a
+    // Google thumbnail simply because their dimensions are opaque.
+    return 1000;
+  }
+
+  const frontCoverBonus =
+    google.printsec ===
+      'frontcover'
+      ? 5
+      : google.printsec
+        ? -50
+        : 0;
+
+  return (
+    (
+      google.zoom ??
+      1
+    ) *
+      10 +
+    frontCoverBonus
+  );
+}
+
+function chooseSavedCover(
+  existingUrl:
+    string | null | undefined,
+  incomingUrl:
+    string | null | undefined
+) {
+  const existing =
+    secureCoverUrl(
+      existingUrl
+    );
+
+  const incoming =
+    secureCoverUrl(
+      incomingUrl
+    );
+
+  if (
+    !incoming
+  ) {
+    return existing;
+  }
+
+  if (
+    !existing
+  ) {
+    return incoming;
+  }
+
+  if (
+    incoming ===
+    existing
+  ) {
+    return existing;
+  }
+
+  const existingGoogle =
+    getGoogleCoverInfo(
+      existing
+    );
+
+  const incomingGoogle =
+    getGoogleCoverInfo(
+      incoming
+    );
+
+  if (
+    !existingGoogle
+  ) {
+    return existing;
+  }
+
+  if (
+    !incomingGoogle
+  ) {
+    return existing;
+  }
+
+  const sameGoogleVolume =
+    Boolean(
+      existingGoogle.id &&
+      incomingGoogle.id &&
+      existingGoogle.id ===
+        incomingGoogle.id
+    );
+
+  const existingQuality =
+    getSavedCoverQuality(
+      existing
+    );
+
+  const incomingQuality =
+    getSavedCoverQuality(
+      incoming
+    );
+
+  if (
+    sameGoogleVolume
+  ) {
+    return incomingQuality >
+      existingQuality
+      ? incoming
+      : existing;
+  }
+
+  const existingIsClearlyLowResolution =
+    existingGoogle.zoom !==
+      null &&
+    existingGoogle.zoom <=
+      1;
+
+  return (
+    existingIsClearlyLowResolution &&
+    incomingQuality >
+      existingQuality
+  )
+    ? incoming
+    : existing;
+}
+
 function normalizeBookText(
   value?: string | null
 ) {
@@ -189,15 +385,6 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  if (
-    currentCover &&
-    !isClearlyLowResolutionGoogleCover(
-      currentCover
-    )
-  ) {
-    return book;
-  }
-
   const title =
     book.title.trim();
 
@@ -273,6 +460,41 @@ async function repairSavedCover(
       !discoverCover ||
       discoverCover ===
         currentCover
+    ) {
+      return book;
+    }
+
+    const currentGoogle =
+      getGoogleCoverInfo(
+        currentCover
+      );
+
+    const discoverGoogle =
+      getGoogleCoverInfo(
+        discoverCover
+      );
+
+    const currentIsClearlyLowResolution =
+      isClearlyLowResolutionGoogleCover(
+        currentCover
+      );
+
+    const discoverIsHigherQuality =
+      Boolean(
+        currentGoogle &&
+        discoverGoogle &&
+        getSavedCoverQuality(
+          discoverCover
+        ) >
+          getSavedCoverQuality(
+            currentCover
+          )
+      );
+
+    if (
+      currentCover &&
+      !currentIsClearlyLowResolution &&
+      !discoverIsHigherQuality
     ) {
       return book;
     }
@@ -531,8 +753,10 @@ export async function saveUserBook(
         authors:
           input.authors ?? [],
         cover_url:
-          input.coverUrl ??
-          null,
+          chooseSavedCover(
+            existing.cover_url,
+            input.coverUrl
+          ),
         isbn:
           input.isbn ??
           null,
