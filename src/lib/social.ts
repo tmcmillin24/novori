@@ -21,6 +21,7 @@ export type ReaderSocialProfile = {
   can_view_content: boolean;
   show_books: boolean;
   show_reviews: boolean;
+  show_owned_books: boolean;
   can_view_books: boolean;
   can_view_reviews: boolean;
 };
@@ -51,7 +52,9 @@ export type PublicReaderBook = {
     | 'reading'
     | 'want_to_read'
     | 'read'
-    | 'dnf';
+    | 'dnf'
+    | null;
+  owned?: boolean;
   started_at: string | null;
   finished_at: string | null;
   dnf_at: string | null;
@@ -147,6 +150,9 @@ export async function getReaderProfile(
     show_reviews:
       row.show_reviews ??
       true,
+    show_owned_books:
+      row.show_owned_books ??
+      false,
     can_view_books:
       Boolean(
         row.can_view_books
@@ -186,6 +192,48 @@ export async function getReaderPublicBooks(
   ).map(
     (row: any) => ({
       ...row,
+      authors:
+        Array.isArray(
+          row.authors
+        )
+          ? row.authors
+          : [],
+    })
+  ) as PublicReaderBook[];
+}
+
+export async function getReaderPublicOwnedBooks(
+  readerId: string,
+  limit = 100
+): Promise<PublicReaderBook[]> {
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'get_reader_public_owned_books',
+      {
+        target_user_id:
+          readerId,
+        result_limit:
+          limit,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    data ??
+    []
+  ).map(
+    (row: any) => ({
+      ...row,
+      owned:
+        Boolean(
+          row.owned
+        ),
       authors:
         Array.isArray(
           row.authors
