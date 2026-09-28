@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import {
   useRouter,
 } from 'expo-router';
@@ -8,9 +7,7 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -24,7 +21,7 @@ import {
   BookStack,
   getBookStack,
 } from '../lib/book-stacks';
-import BookStackVisual from './BookStackVisual';
+import BookStackShowcase from './BookStackShowcase';
 
 export default function BookStackPostAttachment({
   stackId,
@@ -57,6 +54,14 @@ export default function BookStackPostAttachment({
     setLoading,
   ] =
     useState(true);
+
+  const [
+    selectedId,
+    setSelectedId,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   useEffect(() => {
     let mounted =
@@ -130,144 +135,71 @@ export default function BookStackPostAttachment({
   }
 
   return (
-    <Pressable
-      onPress={(
-        event
-      ) => {
-        event.stopPropagation();
-
-        router.push({
-          pathname:
-            '/stack/[id]',
-          params: {
-            id:
-              stack.id,
-          },
-        });
-      }}
-      style={({ pressed }) => [
-        styles.wrap,
-        pressed &&
-          styles.pressed,
-      ]}
+    <View
+      onStartShouldSetResponder={() =>
+        true
+      }
     >
-      <View
-        style={
-          styles.copy
+      <BookStackShowcase
+        name={
+          stack.name
         }
-      >
-        <View
-          style={
-            styles.titleRow
-          }
-        >
-          <Text
-            style={
-              styles.title
-            }
-            numberOfLines={2}
-          >
-            {
-              stack.name
-            }
-          </Text>
-
-          <Ionicons
-            name="chevron-forward"
-            size={17}
-            color={
-              colors.mutedText
-            }
-          />
-        </View>
-
-        <Text
-          style={
-            styles.meta
-          }
-        >
-          {stack.items.length}{' '}
-          {stack.items.length ===
-          1
-            ? 'book'
-            : 'books'}
-        </Text>
-      </View>
-
-      <View
-        style={
-          styles.visual
+        items={
+          stack.items
         }
-      >
-        <BookStackVisual
-          variant="feed"
-          items={
-            stack.items
-          }
-        />
-      </View>
-    </Pressable>
+        variant="feed"
+        interactive
+        selectedId={
+          selectedId
+        }
+        onSelectedIdChange={
+          setSelectedId
+        }
+        onOpenBook={(
+          item
+        ) =>
+          router.push({
+            pathname:
+              '/book/[id]',
+            params: {
+              id:
+                item.id
+                  ? stack.items.find(
+                      (
+                        stackItem
+                      ) =>
+                        stackItem.id ===
+                        item.id
+                    )
+                      ?.google_book_id ??
+                    ''
+                  : '',
+              source:
+                'stack',
+            },
+          })
+        }
+        showOpenStack
+        onOpenStack={() =>
+          router.push({
+            pathname:
+              '/stack/[id]',
+            params: {
+              id:
+                stack.id,
+            },
+          })
+        }
+      />
+    </View>
   );
+
 }
 
 function createStyles(
   colors: NovoriColors
 ) {
   return StyleSheet.create({
-    wrap: {
-      marginTop: 14,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-      paddingTop: 14,
-      paddingBottom: 16,
-      overflow:
-        'hidden',
-    },
-
-    copy: {
-      paddingHorizontal: 2,
-    },
-
-    titleRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 8,
-    },
-
-    title: {
-      flex: 1,
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_600SemiBold',
-      fontSize: 18,
-      lineHeight: 24,
-    },
-
-    meta: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 10.5,
-      marginTop: 4,
-    },
-
-    visual: {
-      minHeight: 215,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginTop: 6,
-    },
-
     loading: {
       minHeight: 120,
       alignItems:
@@ -275,16 +207,12 @@ function createStyles(
       justifyContent:
         'center',
       marginTop: 14,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
+      borderWidth: 1,
       borderColor:
         colors.border,
-    },
-
-    pressed: {
-      opacity: 0.78,
+      borderRadius: 18,
+      backgroundColor:
+        colors.surface,
     },
   });
 }
