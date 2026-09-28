@@ -1617,45 +1617,43 @@ export default function LibraryScreen() {
                 }
               />
             ) : (
-              <>
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={18}
-                  color={
-                    colors.gold
-                  }
-                />
-
-                {item.owned ? (
-                  <View
-                    style={
-                      styles.inlineOwnedIndicator
-                    }
-                  >
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={10}
-                      color={
-                        colors.gold
-                      }
-                    />
-                  </View>
-                ) : null}
-              </>
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={18}
+                color={
+                  colors.gold
+                }
+              />
             )}
           </Pressable>
         </View>
 
-        <Text
+        <View
           style={
-            styles.bookAuthor
-          }
-          numberOfLines={
-            1
+            styles.authorRow
           }
         >
-          {author}
-        </Text>
+          <Text
+            style={
+              styles.bookAuthor
+            }
+            numberOfLines={
+              1
+            }
+          >
+            {author}
+          </Text>
+
+          {item.owned ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={15}
+              color={
+                colors.gold
+              }
+            />
+          ) : null}
+        </View>
 
         {item.rating !==
         null ? (
@@ -3211,29 +3209,22 @@ function createStyles(
       lineHeight: 19,
     },
 
+    authorRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 5,
+      marginTop: 3,
+    },
+
     bookAuthor: {
+      flex: 1,
       color:
         colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
-      marginTop: 3,
-    },
-
-    inlineOwnedIndicator: {
-      position:
-        'absolute',
-      right: -1,
-      bottom: -1,
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        colors.background,
     },
 
     ratingRow: {
