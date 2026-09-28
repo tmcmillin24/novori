@@ -1464,11 +1464,15 @@ export async function searchAuthorBooks(
             0
         );
 
-  const popularity =
-    await getHardcoverPopularity(
-      candidates,
-      true
-    );
+  const popularity:
+    Record<
+      string,
+      {
+        usersCount: number;
+        rating: number | null;
+      }
+    > =
+    {};
 
   const collapsed =
     collapseDuplicateEditions(
