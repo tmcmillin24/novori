@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   Pressable,
   StyleSheet,
+  ActivityIndicator,
   Text,
   View,
 } from 'react-native';
@@ -89,6 +90,12 @@ export default function BookStackShowcase({
       number | null
     >(null);
 
+  const [
+    hardcoverLoading,
+    setHardcoverLoading,
+  ] =
+    useState(false);
+
   useEffect(() => {
     let active =
       true;
@@ -103,6 +110,9 @@ export default function BookStackShowcase({
         setHardcoverRatingsCount(
           null
         );
+        setHardcoverLoading(
+          false
+        );
         return;
       }
 
@@ -112,6 +122,10 @@ export default function BookStackShowcase({
 
       setHardcoverRatingsCount(
         null
+      );
+
+      setHardcoverLoading(
+        true
       );
 
       try {
@@ -150,6 +164,14 @@ export default function BookStackShowcase({
           );
           setHardcoverRatingsCount(
             null
+          );
+        }
+      } finally {
+        if (
+          active
+        ) {
+          setHardcoverLoading(
+            false
           );
         }
       }
@@ -299,60 +321,99 @@ export default function BookStackShowcase({
                 'Unknown author'}
             </Text>
 
-            {hardcoverRating !==
-            null ? (
-              <View
-                style={
-                  styles.hardcoverRatingRow
-                }
-              >
-                <View
-                  style={
-                    styles.hardcoverStars
-                  }
-                >
-                  {[1,2,3,4,5].map(
-                    (
-                      star
-                    ) => (
-                      <Ionicons
-                        key={
-                          star
-                        }
-                        name={
-                          hardcoverRating >=
-                          star
-                            ? 'star'
-                            : hardcoverRating >=
-                              star -
-                                0.5
-                              ? 'star-half'
-                              : 'star-outline'
-                        }
-                        size={12}
-                        color={
-                          colors.gold
-                        }
-                      />
-                    )
-                  )}
-                </View>
+            <View
+              style={
+                styles.hardcoverRatingRow
+              }
+            >
+              {hardcoverLoading ? (
+                <>
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
 
-                <Text
-                  style={
-                    styles.hardcoverRatingText
-                  }
-                >
-                  {hardcoverRating.toFixed(
-                    1
-                  )}
-                  {hardcoverReaders !==
-                  null
-                    ? ` · ${hardcoverReaders.toLocaleString()} Hardcover readers`
-                    : ' · Hardcover'}
-                </Text>
-              </View>
-            ) : null}
+                  <Text
+                    style={
+                      styles.hardcoverRatingText
+                    }
+                  >
+                    Loading Hardcover rating…
+                  </Text>
+                </>
+              ) : hardcoverRating !==
+                null ? (
+                <>
+                  <View
+                    style={
+                      styles.hardcoverStars
+                    }
+                  >
+                    {[1,2,3,4,5].map(
+                      (
+                        star
+                      ) => (
+                        <Ionicons
+                          key={
+                            star
+                          }
+                          name={
+                            hardcoverRating >=
+                            star
+                              ? 'star'
+                              : hardcoverRating >=
+                                star -
+                                  0.5
+                                ? 'star-half'
+                                : 'star-outline'
+                          }
+                          size={12}
+                          color={
+                            colors.gold
+                          }
+                        />
+                      )
+                    )}
+                  </View>
+
+                  <Text
+                    style={
+                      styles.hardcoverRatingText
+                    }
+                  >
+                    {hardcoverRating.toFixed(
+                      2
+                    )}
+                    {hardcoverReaders !==
+                      null &&
+                    hardcoverReaders >
+                      0
+                      ? ` · ${hardcoverReaders.toLocaleString()} Hardcover readers`
+                      : ' · Hardcover'}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons
+                    name="star-outline"
+                    size={13}
+                    color={
+                      colors.mutedText
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.hardcoverRatingUnavailable
+                    }
+                  >
+                    Hardcover rating unavailable
+                  </Text>
+                </>
+              )}
+            </View>
           </View>
 
           {onOpenBook ? (
@@ -549,6 +610,14 @@ function createStyles(
     },
 
     hardcoverRatingText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 9.5,
+    },
+
+    hardcoverRatingUnavailable: {
       color:
         colors.mutedText,
       fontFamily:
