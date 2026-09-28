@@ -64,6 +64,7 @@ type GoogleBookItem = {
     isbns: string[];
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
+    canonicalCoverUrl?: string | null;
   };
 
   volumeInfo: {
