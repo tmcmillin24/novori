@@ -254,7 +254,7 @@ export default function BookCartScreen() {
               styles.subtitle
             }
           >
-            Books you want to pick up later.
+            Books you want to buy later.
           </Text>
         </View>
 
