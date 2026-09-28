@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fetchGoogleBooksJson } from './google-books';
 
 export type UserBookStatus =
   | 'want_to_read'
@@ -50,6 +51,380 @@ type UpdateBookReadingDatesInput = {
   dnfAt: string | null;
 };
 
+type GoogleCoverRepairBook = {
+  id: string;
+  volumeInfo: {
+    title?: string;
+    authors?: string[];
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
+    };
+  };
+};
+
+type GoogleCoverRepairResponse = {
+  items?: GoogleCoverRepairBook[];
+};
+
+function secureCoverUrl(
+  url?: string | null
+) {
+  return (
+    url?.replace(
+      'http://',
+      'https://'
+    ) ??
+    null
+  );
+}
+
+function getBestExactCover(
+  book:
+    | GoogleCoverRepairBook
+    | undefined
+) {
+  const links =
+    book?.volumeInfo
+      .imageLinks;
+
+  return (
+    secureCoverUrl(
+      links?.extraLarge
+    ) ??
+    secureCoverUrl(
+      links?.large
+    ) ??
+    secureCoverUrl(
+      links?.medium
+    ) ??
+    secureCoverUrl(
+      links?.small
+    ) ??
+    secureCoverUrl(
+      links?.thumbnail
+    ) ??
+    secureCoverUrl(
+      links?.smallThumbnail
+    )
+  );
+}
+
+function normalizeBookText(
+  value?: string | null
+) {
+  return (
+    value ??
+    ''
+  )
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      ' '
+    )
+    .trim();
+}
+
+function isClearlyLowResolutionGoogleCover(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return true;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        secureCoverUrl(
+          url
+        ) ??
+          url
+      );
+
+    if (
+      !parsed.hostname.includes(
+        'google'
+      )
+    ) {
+      return false;
+    }
+
+    const zoom =
+      Number(
+        parsed.searchParams.get(
+          'zoom'
+        ) ??
+        ''
+      );
+
+    return (
+      Number.isFinite(
+        zoom
+      ) &&
+      zoom > 0 &&
+      zoom <= 1
+    );
+  } catch {
+    return false;
+  }
+}
+
+function authorsMatch(
+  expected:
+    string[],
+  actual:
+    string[]
+) {
+  if (
+    expected.length ===
+      0 ||
+    actual.length ===
+      0
+  ) {
+    return true;
+  }
+
+  const expectedNormalized =
+    expected
+      .map(
+        normalizeBookText
+      )
+      .filter(Boolean);
+
+  const actualNormalized =
+    actual
+      .map(
+        normalizeBookText
+      )
+      .filter(Boolean);
+
+  return expectedNormalized.some(
+    (
+      expectedAuthor
+    ) =>
+      actualNormalized.some(
+        (
+          actualAuthor
+        ) =>
+          actualAuthor ===
+            expectedAuthor ||
+          actualAuthor.includes(
+            expectedAuthor
+          ) ||
+          expectedAuthor.includes(
+            actualAuthor
+          )
+      )
+  );
+}
+
+async function repairSavedCover(
+  book: UserBook
+): Promise<UserBook> {
+  const currentCover =
+    secureCoverUrl(
+      book.cover_url
+    );
+
+  if (
+    currentCover &&
+    !isClearlyLowResolutionGoogleCover(
+      currentCover
+    )
+  ) {
+    return book;
+  }
+
+  const title =
+    book.title.trim();
+
+  if (
+    !title
+  ) {
+    return book;
+  }
+
+  const primaryAuthor =
+    book.authors?.[0]
+      ?.trim() ??
+    '';
+
+  const query =
+    primaryAuthor
+      ? `intitle:"${title}" inauthor:"${primaryAuthor}"`
+      : `intitle:"${title}"`;
+
+  try {
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleCoverRepairResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          query
+        )}&maxResults=20&printType=books&projection=full`
+      );
+
+    if (
+      !response.ok ||
+      !response.data
+    ) {
+      return book;
+    }
+
+    const results =
+      response.data.items ??
+      [];
+
+    const exactVolume =
+      results.find(
+        (
+          candidate
+        ) =>
+          candidate.id ===
+          book.google_book_id
+      );
+
+    const exactCover =
+      getBestExactCover(
+        exactVolume
+      );
+
+    let nextCover =
+      exactCover;
+
+    // Never swap editions for an existing cover. Cross-edition fallback
+    // is only allowed to fill a row whose cover is completely missing.
+    if (
+      !nextCover &&
+      !currentCover
+    ) {
+      const wantedTitle =
+        normalizeBookText(
+          book.title
+        );
+
+      const matchingWork =
+        results.find(
+          (
+            candidate
+          ) => {
+            const candidateTitle =
+              normalizeBookText(
+                candidate
+                  .volumeInfo
+                  .title
+              );
+
+            const titleMatches =
+              candidateTitle ===
+                wantedTitle ||
+              candidateTitle.startsWith(
+                `${wantedTitle} `
+              ) ||
+              wantedTitle.startsWith(
+                `${candidateTitle} `
+              );
+
+            return (
+              titleMatches &&
+              authorsMatch(
+                book.authors ??
+                  [],
+                candidate
+                  .volumeInfo
+                  .authors ??
+                  []
+              ) &&
+              Boolean(
+                getBestExactCover(
+                  candidate
+                )
+              )
+            );
+          }
+        );
+
+      nextCover =
+        getBestExactCover(
+          matchingWork
+        );
+    }
+
+    if (
+      !nextCover ||
+      nextCover ===
+        currentCover
+    ) {
+      return book;
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from(
+          'user_books'
+        )
+        .update({
+          cover_url:
+            nextCover,
+        })
+        .eq(
+          'id',
+          book.id
+        )
+        .eq(
+          'user_id',
+          book.user_id
+        )
+        .select('*')
+        .single();
+
+    if (
+      error
+    ) {
+      return book;
+    }
+
+    return (
+      data as UserBook
+    );
+  } catch {
+    return book;
+  }
+}
+
+async function repairSavedCovers(
+  books: UserBook[]
+) {
+  const repaired:
+    UserBook[] = [];
+
+  for (
+    const book of books
+  ) {
+    repaired.push(
+      await repairSavedCover(
+        book
+      )
+    );
+  }
+
+  return repaired;
+}
+
 async function getCurrentUserId() {
   const {
     data: { user },
@@ -90,8 +465,17 @@ export async function getUserBook(
     throw error;
   }
 
-  return (
-    data as UserBook | null
+  const book =
+    data as UserBook | null;
+
+  if (
+    !book
+  ) {
+    return null;
+  }
+
+  return repairSavedCover(
+    book
   );
 }
 
@@ -130,7 +514,7 @@ export async function getUserBooks(
     throw error;
   }
 
-  return (
+  return repairSavedCovers(
     (data ?? []) as UserBook[]
   );
 }
