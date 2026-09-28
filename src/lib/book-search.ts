@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { googleBooksFetch } from './google-books';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -1213,7 +1212,7 @@ export async function searchNovoriBooks(
     );
 
   const response =
-    await googleBooksFetch(
+    await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full&key=${apiKey}`
     );
 
@@ -1280,7 +1279,7 @@ export async function searchNovoriBooks(
     looksLikeAuthorSearch
   ) {
     const authorResponse =
-      await googleBooksFetch(
+      await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           `inauthor:"${searchTerm}"`
         )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
@@ -1402,7 +1401,7 @@ export async function searchAuthorBooks(
           startIndex
         ) => {
           const response =
-            await googleBooksFetch(
+            await fetch(
               `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full&key=${apiKey}`
             );
 
@@ -1909,7 +1908,7 @@ export async function resolveGoogleBookRating(input: {
     input.googleBookId
   ) {
     requests.push(
-      googleBooksFetch(
+      fetch(
         `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
           input.googleBookId
         )}?key=${apiKey}`
@@ -1950,7 +1949,7 @@ export async function resolveGoogleBookRating(input: {
       : `intitle:"${cleanTitle}"`;
 
   requests.push(
-    googleBooksFetch(
+    fetch(
       `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
         query
       )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
@@ -2236,7 +2235,7 @@ export async function resolveHardcoverRating(input: {
   ) {
     try {
       const response =
-        await googleBooksFetch(
+        await fetch(
           `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
             input.googleBookId
           )}?key=${apiKey}`
@@ -2270,7 +2269,7 @@ export async function resolveHardcoverRating(input: {
 
   try {
     const response =
-      await googleBooksFetch(
+      await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           query
         )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
