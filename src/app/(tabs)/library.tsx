@@ -1902,8 +1902,11 @@ export default function LibraryScreen() {
         hasReadingDetails={
           Boolean(
             removeConfirmBook &&
-            removeConfirmBook.status !==
-              'want_to_read'
+            Boolean(
+              removeConfirmBook.status &&
+              removeConfirmBook.status !==
+                'want_to_read'
+            )
           )
         }
         busy={
