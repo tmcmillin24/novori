@@ -90,6 +90,184 @@ function secureCoverUrl(
   );
 }
 
+async function remoteCoverExists(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return false;
+  }
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          method:
+            'HEAD',
+        }
+      );
+
+    if (
+      response.ok
+    ) {
+      return true;
+    }
+
+    if (
+      response.status !==
+        405
+    ) {
+      return false;
+    }
+
+    const fallback =
+      await fetch(
+        url
+      );
+
+    return fallback.ok;
+  } catch {
+    return false;
+  }
+}
+
+function getExactGoogleCoverUrls(
+  imageLinks:
+    | ExactGoogleBook[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  return [
+    imageLinks?.extraLarge,
+    imageLinks?.large,
+    imageLinks?.medium,
+    imageLinks?.small,
+    imageLinks?.thumbnail,
+    imageLinks?.smallThumbnail,
+  ]
+    .map(
+      secureCoverUrl
+    )
+    .filter(
+      (
+        value
+      ): value is string =>
+        Boolean(
+          value
+        )
+    );
+}
+
+function getStrongExactGoogleCover(
+  imageLinks:
+    | ExactGoogleBook[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  return secureCoverUrl(
+    imageLinks?.extraLarge ??
+    imageLinks?.large
+  );
+}
+
+function getAnyExactGoogleCover(
+  imageLinks:
+    | ExactGoogleBook[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  return secureCoverUrl(
+    imageLinks?.extraLarge ??
+    imageLinks?.large ??
+    imageLinks?.medium ??
+    imageLinks?.small ??
+    imageLinks?.thumbnail ??
+    imageLinks?.smallThumbnail
+  );
+}
+
+function isGoogleCoverUrl(
+  url?: string | null
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure
+  ) {
+    return false;
+  }
+
+  try {
+    const host =
+      new URL(
+        secure
+      ).hostname;
+
+    return (
+      host.includes(
+        'google'
+      ) ||
+      host.includes(
+        'ggpht'
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+function googleCoverIdentity(
+  url?: string | null
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        secure
+      );
+
+    const id =
+      parsed.searchParams.get(
+        'id'
+      );
+
+    const printsec =
+      parsed.searchParams.get(
+        'printsec'
+      );
+
+    if (
+      id
+    ) {
+      return `id:${id}:printsec:${printsec ?? ''}`;
+    }
+
+    return `${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return secure.split(
+      '?'
+    )[0];
+  }
+}
+
 function isOpenLibraryCoverUrl(
   url?: string | null
 ) {
@@ -484,14 +662,6 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  if (
-    currentCover?.includes(
-      'covers.openlibrary.org/b/id/'
-    )
-  ) {
-    return book;
-  }
-
   try {
     const exactResponse =
       await fetchGoogleBooksJson<
@@ -507,31 +677,182 @@ async function repairSavedCover(
         ? exactResponse.data
         : null;
 
-    const exactIsbn =
+    const imageLinks =
       exactBook
         ?.volumeInfo
-        .industryIdentifiers
-        ?.find(
-          (
-            identifier
-          ) =>
-            identifier.type ===
-              'ISBN_13'
-        )
-        ?.identifier ??
-      exactBook
-        ?.volumeInfo
-        .industryIdentifiers
-        ?.find(
-          (
-            identifier
-          ) =>
-            identifier.type ===
-              'ISBN_10'
-        )
-        ?.identifier ??
-      book.isbn;
+        .imageLinks;
 
+    const strongExactGoogleCover =
+      getStrongExactGoogleCover(
+        imageLinks
+      );
+
+    const anyExactGoogleCover =
+      getAnyExactGoogleCover(
+        imageLinks
+      );
+
+    const currentWorks =
+      await remoteCoverExists(
+        currentCover
+      );
+
+    // Cleanup for Open Library URLs written by the later regression:
+    // restore Google only when this exact saved edition has native
+    // large/extraLarge art. Otherwise preserve the fallback.
+    if (
+      currentWorks &&
+      isOpenLibraryCoverUrl(
+        currentCover
+      )
+    ) {
+      if (
+        strongExactGoogleCover &&
+        await remoteCoverExists(
+          strongExactGoogleCover
+        )
+      ) {
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              'user_books'
+            )
+            .update({
+              cover_url:
+                strongExactGoogleCover,
+            })
+            .eq(
+              'id',
+              book.id
+            )
+            .eq(
+              'user_id',
+              book.user_id
+            )
+            .select('*')
+            .single();
+
+        return error
+          ? book
+          : data as UserBook;
+      }
+
+      return book;
+    }
+
+    // Cleanup for sibling-Google covers accidentally persisted later.
+    if (
+      currentWorks &&
+      currentCover &&
+      isGoogleCoverUrl(
+        currentCover
+      )
+    ) {
+      const exactIdentities =
+        new Set(
+          getExactGoogleCoverUrls(
+            imageLinks
+          )
+            .map(
+              googleCoverIdentity
+            )
+            .filter(Boolean)
+        );
+
+      const currentIdentity =
+        googleCoverIdentity(
+          currentCover
+        );
+
+      if (
+        currentIdentity &&
+        exactIdentities.size >
+          0 &&
+        !exactIdentities.has(
+          currentIdentity
+        ) &&
+        anyExactGoogleCover &&
+        await remoteCoverExists(
+          anyExactGoogleCover
+        )
+      ) {
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              'user_books'
+            )
+            .update({
+              cover_url:
+                anyExactGoogleCover,
+            })
+            .eq(
+              'id',
+              book.id
+            )
+            .eq(
+              'user_id',
+              book.user_id
+            )
+            .select('*')
+            .single();
+
+        return error
+          ? book
+          : data as UserBook;
+      }
+
+      return book;
+    }
+
+    // Healthy non-Google covers are left alone.
+    if (
+      currentWorks
+    ) {
+      return book;
+    }
+
+    // Missing/dead cover: Google first.
+    if (
+      anyExactGoogleCover &&
+      await remoteCoverExists(
+        anyExactGoogleCover
+      )
+    ) {
+      const {
+        data,
+        error,
+      } =
+        await supabase
+          .from(
+            'user_books'
+          )
+          .update({
+            cover_url:
+              anyExactGoogleCover,
+          })
+          .eq(
+            'id',
+            book.id
+          )
+          .eq(
+            'user_id',
+            book.user_id
+          )
+          .select('*')
+          .single();
+
+      return error
+        ? book
+        : data as UserBook;
+    }
+
+    // Only a genuinely missing/dead Google cover reaches Open Library.
     const openLibraryWorkCover =
       await resolveOpenLibraryWorkCover({
         title:
@@ -547,34 +868,13 @@ async function repairSavedCover(
           [],
       });
 
-    const canonicalWorkCover =
+    const fallbackCover =
       secureCoverUrl(
         openLibraryWorkCover.url
       );
 
-    const nextCover =
-      secureCoverUrl(
-        await resolveBookCoverUrl({
-          imageLinks:
-            exactBook
-              ?.volumeInfo
-              .imageLinks,
-          isbn:
-            exactIsbn,
-          existingCoverUrl:
-            canonicalWorkCover ??
-            currentCover,
-        })
-      );
-
-    const preferredCover =
-      canonicalWorkCover ??
-      nextCover;
-
     if (
-      !preferredCover ||
-      preferredCover ===
-        currentCover
+      !fallbackCover
     ) {
       return book;
     }
@@ -589,7 +889,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            preferredCover,
+            fallbackCover,
         })
         .eq(
           'id',
@@ -602,15 +902,9 @@ async function repairSavedCover(
         .select('*')
         .single();
 
-    if (
-      error
-    ) {
-      return book;
-    }
-
-    return (
-      data as UserBook
-    );
+    return error
+      ? book
+      : data as UserBook;
   } catch {
     return book;
   }
