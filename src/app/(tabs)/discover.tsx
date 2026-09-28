@@ -1564,6 +1564,8 @@ export default function DiscoverScreen() {
             exactMatch.volumeInfo
               .authors,
           isbn,
+          bookData:
+            exactMatch,
         }
       );
     } catch (
@@ -2435,6 +2437,7 @@ export default function DiscoverScreen() {
       title?: string;
       authors?: string[];
       isbn?: string;
+      bookData?: GoogleBookItem;
     }
   ) {
     preserveDiscoverStateOnNextBlur.current =
@@ -2472,11 +2475,19 @@ export default function DiscoverScreen() {
                 options.isbn,
             }
           : {}),
+        ...(options?.bookData
+          ? {
+              bookData:
+                JSON.stringify(
+                  options.bookData
+                ),
+            }
+          : {}),
       },
     });
   }
 
-  async function findGoogleBookIdForTrending(
+  async function findGoogleBookForTrending(
     trendingBook: TrendingBook
   ) {
     const apiKey =
@@ -2521,11 +2532,11 @@ export default function DiscoverScreen() {
         );
 
       if (exactIsbnMatch) {
-        return exactIsbnMatch.id;
+        return exactIsbnMatch;
       }
 
       if (results[0]?.id) {
-        return results[0].id;
+        return results[0];
       }
     }
 
@@ -2579,7 +2590,7 @@ export default function DiscoverScreen() {
       );
 
     if (exactTitle) {
-      return exactTitle.id;
+      return exactTitle;
     }
 
     const titleAndAuthor =
@@ -2626,8 +2637,8 @@ export default function DiscoverScreen() {
       );
 
     return (
-      titleAndAuthor?.id ??
-      results[0]?.id ??
+      titleAndAuthor ??
+      results[0] ??
       null
     );
   }
@@ -2644,12 +2655,12 @@ export default function DiscoverScreen() {
         trendingBook.id
       );
 
-      const googleBookId =
-        await findGoogleBookIdForTrending(
+      const googleBook =
+        await findGoogleBookForTrending(
           trendingBook
         );
 
-      if (!googleBookId) {
+      if (!googleBook) {
         Alert.alert(
           'Book not found',
           'Novori could not find this book in Google Books yet.'
@@ -2658,7 +2669,20 @@ export default function DiscoverScreen() {
       }
 
       openBook(
-        googleBookId
+        googleBook.id,
+        {
+          coverUrl:
+            trendingBook.coverUrl ??
+            undefined,
+          title:
+            trendingBook.title,
+          authors:
+            trendingBook.authors,
+          isbn:
+            trendingBook.isbns[0],
+          bookData:
+            googleBook,
+        }
       );
     } catch (err) {
       console.error(
@@ -2778,6 +2802,8 @@ export default function DiscoverScreen() {
                       'ISBN_10'
                   )
                   ?.identifier,
+              bookData:
+                item,
             }
           )
         }
