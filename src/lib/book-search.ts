@@ -1228,129 +1228,73 @@ export async function searchNovoriBooks(
     );
   }
 
-  const data =
-    response.data;
-
   const initialResults =
-    data.items ??
+    response.data.items ??
     [];
+
+  if (
+    initialResults.length ===
+    0
+  ) {
+    return [];
+  }
 
   const normalizedQuery =
     normalizeTitle(
       searchTerm
     );
 
-  const authorMatches =
-    initialResults.filter(
-      (book) =>
-        getAuthorSearchRelevance(
-          book,
-          normalizedQuery
-        ) >=
-        200
+  const strongestTitleMatch =
+    Math.max(
+      0,
+      ...initialResults.map(
+        (
+          book
+        ) =>
+          getTitleSearchRelevance(
+            book,
+            normalizedQuery
+          )
+      )
     );
 
-  const exactAuthorMatch =
-    initialResults.some(
-      (book) =>
-        getAuthorSearchRelevance(
-          book,
-          normalizedQuery
-        ) >=
-        400
-    );
-
-  const strongTitleMatch =
-    initialResults.some(
-      (book) =>
-        getTitleSearchRelevance(
-          book,
-          normalizedQuery
-        ) >=
-        300
+  const strongestAuthorMatch =
+    Math.max(
+      0,
+      ...initialResults.map(
+        (
+          book
+        ) =>
+          getAuthorSearchRelevance(
+            book,
+            normalizedQuery
+          )
+      )
     );
 
   const looksLikeAuthorSearch =
-    exactAuthorMatch ||
-    (
-      authorMatches.length >=
-        2 &&
-      !strongTitleMatch
-    );
+    strongestAuthorMatch >
+    strongestTitleMatch;
 
-  if (
+  const sorted =
     looksLikeAuthorSearch
-  ) {
-    const authorResponse =
-      await fetchGoogleBooksJson<
-        GoogleBooksResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          `inauthor:"${searchTerm}"`
-        )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
-      );
-
-    let authorSpecificResults:
-      GoogleBookSearchItem[] =
-      [];
-
-    if (
-      authorResponse.ok &&
-      authorResponse.data
-    ) {
-      authorSpecificResults =
-        authorResponse.data.items ??
-        [];
-    }
-
-    const merged =
-      mergeGoogleBookResults(
-        authorSpecificResults,
-        initialResults
-      );
-
-    const hardcoverPopularity =
-      await getHardcoverPopularity(
-        merged
-      );
-
-    const canonicalBooks =
-      collapseDuplicateEditions(
-        sortAuthorSearchResults(
-          merged,
+      ? sortAuthorSearchResults(
+          initialResults,
           searchTerm,
-          hardcoverPopularity
-        ),
-        searchTerm,
-        hardcoverPopularity
-      );
+          {}
+        )
+      : sortTitleSearchResults(
+          initialResults,
+          searchTerm,
+          {}
+        );
 
-    return attachCanonicalHardcoverRatings(
-      canonicalBooks
-    );
-  }
-
-  const hardcoverPopularity =
-    await getHardcoverPopularity(
-      initialResults
-    );
-
-  const canonicalBooks =
-    collapseDuplicateEditions(
-      sortTitleSearchResults(
-        initialResults,
-        searchTerm,
-        hardcoverPopularity
-      ),
-      searchTerm,
-      hardcoverPopularity
-    );
-
-  return attachCanonicalHardcoverRatings(
-    canonicalBooks
+  return collapseDuplicateEditions(
+    sorted,
+    searchTerm,
+    {}
   );
 }
-
 
 export type AuthorBookResult = {
   book: GoogleBookSearchItem;
