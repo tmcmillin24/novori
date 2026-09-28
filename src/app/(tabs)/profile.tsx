@@ -1378,10 +1378,38 @@ export default function ProfileScreen() {
 
                   {post.book_title ? (
                     post.post_image_url ? (
-                      <View
-                        style={
-                          styles.activityFeedCompactBook
+                      <Pressable
+                        disabled={
+                          !post.google_book_id
                         }
+                        onPress={(event) => {
+                          event.stopPropagation();
+
+                          if (
+                            !post.google_book_id
+                          ) {
+                            return;
+                          }
+
+                          router.push({
+                            pathname:
+                              '/book/[id]',
+                            params: {
+                              id:
+                                post.google_book_id,
+                              source:
+                                'shared',
+                            },
+                          });
+                        }}
+                        style={({ pressed }) => [
+                          styles.activityFeedCompactBook,
+                          pressed &&
+                            Boolean(
+                              post.google_book_id
+                            ) &&
+                            styles.pressed,
+                        ]}
                       >
                         <Ionicons
                           name="book-outline"
@@ -1420,7 +1448,17 @@ export default function ProfileScreen() {
                             </Text>
                           ) : null}
                         </View>
-                      </View>
+
+                        {post.google_book_id ? (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={17}
+                            color={
+                              colors.mutedText
+                            }
+                          />
+                        ) : null}
+                      </Pressable>
                     ) : (
                       <View
                         style={
