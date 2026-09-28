@@ -2319,57 +2319,59 @@ export default function BookDetailsScreen() {
                 </Text>
               </Pressable>
 
-              <Pressable
-                onPress={() =>
-                  void toggleBookCart()
-                }
-                disabled={
-                  bookCartBusy
-                }
-                style={({ pressed }) => [
-                  styles.libraryCartButton,
-                  inBookCart &&
-                    styles.bookCartButtonActive,
-                  pressed &&
-                    styles.bookCartButtonPressed,
-                  bookCartBusy &&
-                    styles.bookCartButtonDisabled,
-                ]}
-              >
-                {bookCartBusy ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.gold
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name={
-                      inBookCart
-                        ? 'cart'
-                        : 'cart-outline'
-                    }
-                    size={16}
-                    color={
-                      colors.gold
-                    }
-                  />
-                )}
-
-                <Text
-                  style={
-                    styles.libraryCartButtonText
+              {!savedBook?.owned ? (
+                <Pressable
+                  onPress={() =>
+                    void toggleBookCart()
                   }
-                  numberOfLines={
-                    1
+                  disabled={
+                    bookCartBusy
                   }
+                  style={({ pressed }) => [
+                    styles.libraryCartButton,
+                    inBookCart &&
+                      styles.bookCartButtonActive,
+                    pressed &&
+                      styles.bookCartButtonPressed,
+                    bookCartBusy &&
+                      styles.bookCartButtonDisabled,
+                  ]}
                 >
-                  {inBookCart
-                    ? 'In Book Cart'
-                    : 'Add to Cart'}
-                </Text>
-              </Pressable>
+                  {bookCartBusy ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name={
+                        inBookCart
+                          ? 'cart'
+                          : 'cart-outline'
+                      }
+                      size={16}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  )}
+
+                  <Text
+                    style={
+                      styles.libraryCartButtonText
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    {inBookCart
+                      ? 'In Book Cart'
+                      : 'Add to Cart'}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </>
         ) : (
@@ -2564,57 +2566,59 @@ export default function BookDetailsScreen() {
                 </Text>
               </Pressable>
 
-              <Pressable
-                onPress={() =>
-                  void toggleBookCart()
-                }
-                disabled={
-                  bookCartBusy
-                }
-                style={({ pressed }) => [
-                  styles.bookCartButton,
-                  inBookCart &&
-                    styles.bookCartButtonActive,
-                  pressed &&
-                    styles.bookCartButtonPressed,
-                  bookCartBusy &&
-                    styles.bookCartButtonDisabled,
-                ]}
-              >
-                {bookCartBusy ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.gold
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name={
-                      inBookCart
-                        ? 'cart'
-                        : 'cart-outline'
-                    }
-                    size={18}
-                    color={
-                      colors.gold
-                    }
-                  />
-                )}
-
-                <Text
-                  style={
-                    styles.bookCartButtonText
+              {!savedBook?.owned ? (
+                <Pressable
+                  onPress={() =>
+                    void toggleBookCart()
                   }
-                  numberOfLines={
-                    1
+                  disabled={
+                    bookCartBusy
                   }
+                  style={({ pressed }) => [
+                    styles.bookCartButton,
+                    inBookCart &&
+                      styles.bookCartButtonActive,
+                    pressed &&
+                      styles.bookCartButtonPressed,
+                    bookCartBusy &&
+                      styles.bookCartButtonDisabled,
+                  ]}
                 >
-                  {inBookCart
-                    ? 'In Book Cart'
-                    : 'Add to Cart'}
-                </Text>
-              </Pressable>
+                  {bookCartBusy ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name={
+                        inBookCart
+                          ? 'cart'
+                          : 'cart-outline'
+                      }
+                      size={18}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  )}
+
+                  <Text
+                    style={
+                      styles.bookCartButtonText
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    {inBookCart
+                      ? 'In Book Cart'
+                      : 'Add to Cart'}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {series ? (
