@@ -236,7 +236,7 @@ async function readBookCache(
     await supabaseRest(
       supabaseUrl,
       serviceRoleKey,
-      `books?${params.toString()}`
+      `google_books_catalog?${params.toString()}`
     );
 
   if (
@@ -352,7 +352,7 @@ async function writeBooks(
     await supabaseRest(
       supabaseUrl,
       serviceRoleKey,
-      'books?on_conflict=google_book_id',
+      'google_books_catalog?on_conflict=google_book_id',
       {
         method:
           'POST',
