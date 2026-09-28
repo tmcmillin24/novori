@@ -861,13 +861,22 @@ export default function BookCartScreen() {
                       }
                     />
                   ) : (
-                    <Ionicons
-                      name="checkmark-circle-outline"
-                      size={19}
-                      color={
-                        colors.gold
-                      }
-                    />
+                    <>
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={17}
+                        color={
+                          colors.gold
+                        }
+                      />
+                      <Text
+                        style={
+                          styles.ownedButtonText
+                        }
+                      >
+                        Own
+                      </Text>
+                    </>
                   )}
                 </Pressable>
 
@@ -1196,15 +1205,27 @@ function createStyles(
     },
 
     ownedButton: {
-      width: 36,
+      minWidth: 48,
       height: 36,
+      paddingHorizontal: 7,
+      flexDirection:
+        'row',
       alignItems:
         'center',
       justifyContent:
         'center',
+      gap: 4,
       borderRadius: 10,
       backgroundColor:
         colors.elevated,
+    },
+
+    ownedButtonText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
     },
 
     removeButton: {
