@@ -46,6 +46,7 @@ import {
   getUserBooks,
   removeUserBook,
   saveUserBook,
+  updateUserBookOwned,
   UserBook,
   UserBookStatus,
 } from '../../lib/user-books';
@@ -183,6 +184,12 @@ export default function LibraryScreen() {
     useState<LibraryFilter>(
       'all'
     );
+
+  const [
+    ownedOnly,
+    setOwnedOnly,
+  ] =
+    useState(false);
 
   const [
     sortMode,
@@ -582,7 +589,17 @@ export default function LibraryScreen() {
                   book.status ===
                   activeFilter
               )
-        ).filter(
+        )
+          .filter(
+            (
+              book
+            ) =>
+              !ownedOnly ||
+              Boolean(
+                book.owned
+              )
+          )
+          .filter(
           (
             book
           ) => {
@@ -682,6 +699,7 @@ export default function LibraryScreen() {
     }, [
       activeFilter,
       books,
+      ownedOnly,
       searchQuery,
       sortMode,
     ]);
@@ -929,6 +947,63 @@ export default function LibraryScreen() {
       Alert.alert(
         'Could not update book',
         'Novori had trouble changing this book status. Please try again.'
+      );
+    } finally {
+      setUpdatingBookId(
+        null
+      );
+    }
+  }
+
+  async function toggleBookOwned(
+    book: UserBook
+  ) {
+    if (
+      updatingBookId
+    ) {
+      return;
+    }
+
+    try {
+      setUpdatingBookId(
+        book.id
+      );
+
+      const updatedBook =
+        await updateUserBookOwned(
+          book.google_book_id,
+          !book.owned
+        );
+
+      setBooks(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.id ===
+                book.id
+                ? updatedBook
+                : item
+          )
+      );
+
+      setSelectedBook(
+        updatedBook
+      );
+    } catch (
+      updateError
+    ) {
+      console.error(
+        'Could not update book ownership:',
+        updateError
+      );
+
+      Alert.alert(
+        'Could not update ownership',
+        'Please try again.'
       );
     } finally {
       setUpdatingBookId(
@@ -1228,6 +1303,65 @@ export default function LibraryScreen() {
           )}
         </ScrollView>
 
+        <Pressable
+          onPress={() =>
+            setOwnedOnly(
+              (
+                current
+              ) =>
+                !current
+            )
+          }
+          style={[
+            styles.ownedFilter,
+            ownedOnly &&
+              styles.ownedFilterActive,
+          ]}
+        >
+          <Ionicons
+            name={
+              ownedOnly
+                ? 'checkmark-circle'
+                : 'checkmark-circle-outline'
+            }
+            size={16}
+            color={
+              colors.gold
+            }
+          />
+          <Text
+            style={[
+              styles.ownedFilterText,
+              ownedOnly &&
+                styles.ownedFilterTextActive,
+            ]}
+          >
+            Owned
+          </Text>
+          <View
+            style={
+              styles.ownedFilterCount
+            }
+          >
+            <Text
+              style={
+                styles.ownedFilterCountText
+              }
+            >
+              {
+                books.filter(
+                  (
+                    book
+                  ) =>
+                    Boolean(
+                      book.owned
+                    )
+                ).length
+              }
+            </Text>
+          </View>
+        </Pressable>
+
         <View
           style={
             styles.toolbar
@@ -1435,6 +1569,29 @@ export default function LibraryScreen() {
         >
           {author}
         </Text>
+
+        {item.owned ? (
+          <View
+            style={
+              styles.ownedBadge
+            }
+          >
+            <Ionicons
+              name="checkmark-circle"
+              size={12}
+              color={
+                colors.gold
+              }
+            />
+            <Text
+              style={
+                styles.ownedBadgeText
+              }
+            >
+              Owned
+            </Text>
+          </View>
+        ) : null}
 
         {item.rating !==
         null ? (
@@ -2334,6 +2491,67 @@ export default function LibraryScreen() {
                       />
                     </Pressable>
 
+                    <Pressable
+                      onPress={() =>
+                        void toggleBookOwned(
+                          selectedBook
+                        )
+                      }
+                      disabled={
+                        updatingBookId !==
+                        null
+                      }
+                      style={({ pressed }) => [
+                        styles.sheetRow,
+                        pressed &&
+                          styles.sheetRowPressed,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.sheetRowIcon
+                        }
+                      >
+                        <Ionicons
+                          name={
+                            selectedBook.owned
+                              ? 'checkmark-circle'
+                              : 'checkmark-circle-outline'
+                          }
+                          size={20}
+                          color={
+                            colors.gold
+                          }
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.sheetRowText
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.sheetRowTitle
+                          }
+                        >
+                          {selectedBook.owned
+                            ? 'Remove Owned'
+                            : 'Mark as Owned'}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.sheetRowSubtitle
+                          }
+                        >
+                          {selectedBook.owned
+                            ? 'This book will stay in your Library'
+                            : 'Mark this as a book you own'}
+                        </Text>
+                      </View>
+                    </Pressable>
+
                     <View
                       style={
                         styles.sheetDivider
@@ -2736,6 +2954,66 @@ function createStyles(
       color: colors.gold,
     },
 
+    ownedFilter: {
+      alignSelf:
+        'flex-start',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+      minHeight: 34,
+      paddingHorizontal: 11,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      marginTop: 10,
+    },
+
+    ownedFilterActive: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    ownedFilterText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    ownedFilterTextActive: {
+      color:
+        colors.gold,
+    },
+
+    ownedFilterCount: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      paddingHorizontal: 5,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.background,
+    },
+
+    ownedFilterCountText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
+    },
+
     toolbar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2875,6 +3153,33 @@ function createStyles(
         'Inter_400Regular',
       fontSize: 11,
       marginTop: 3,
+    },
+
+    ownedBadge: {
+      alignSelf:
+        'flex-start',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      marginTop: 7,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+
+    ownedBadgeText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 9.5,
     },
 
     ratingRow: {
