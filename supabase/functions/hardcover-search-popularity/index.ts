@@ -6,6 +6,8 @@ const corsHeaders = {
 
 type InputBook = {
   googleBookId: string;
+  title?: string;
+  authors?: string[];
   isbns: string[];
 };
 
@@ -16,7 +18,7 @@ type HardcoverBook = {
   ratings_count: number;
   reviews_count: number;
   users_count: number;
-  editions: {
+  editions?: {
     isbn_10: string | null;
     isbn_13: string | null;
   }[];
@@ -34,6 +36,111 @@ function normalizeIsbn(
       .toUpperCase() ??
     ''
   );
+}
+
+async function hardcoverRequest(
+  token: string,
+  query: string,
+  variables: Record<
+    string,
+    unknown
+  >
+) {
+  const response =
+    await fetch(
+      'https://api.hardcover.app/v1/graphql',
+      {
+        method:
+          'POST',
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+          'Content-Type':
+            'application/json',
+        },
+        body:
+          JSON.stringify({
+            query,
+            variables,
+          }),
+      }
+    );
+
+  if (
+    !response.ok
+  ) {
+    const details =
+      await response.text();
+
+    throw new Error(
+      `Hardcover API request failed (${response.status}): ${details}`
+    );
+  }
+
+  const payload =
+    await response.json();
+
+  if (
+    Array.isArray(
+      payload?.errors
+    ) &&
+    payload.errors.length >
+      0
+  ) {
+    throw new Error(
+      payload.errors
+        .map(
+          (
+            error:
+              {
+                message?: string;
+              }
+          ) =>
+            error.message ??
+            'Unknown Hardcover error'
+        )
+        .join(
+          '; '
+        )
+    );
+  }
+
+  return payload;
+}
+
+function getBestBook(
+  books: HardcoverBook[]
+) {
+  return [...books].sort(
+    (
+      a,
+      b
+    ) =>
+      (
+        b.ratings_count ??
+        0
+      ) -
+        (
+          a.ratings_count ??
+          0
+        ) ||
+      (
+        b.reviews_count ??
+        0
+      ) -
+        (
+          a.reviews_count ??
+          0
+        ) ||
+      (
+        b.users_count ??
+        0
+      ) -
+        (
+          a.users_count ??
+          0
+        )
+  )[0];
 }
 
 Deno.serve(
@@ -76,6 +183,10 @@ Deno.serve(
       const body =
         await request.json();
 
+      const allowTitleFallback =
+        body?.allowTitleFallback ===
+        true;
+
       const books =
         Array.isArray(
           body?.books
@@ -97,6 +208,33 @@ Deno.serve(
                   book.googleBookId ??
                     ''
                 ),
+              title:
+                String(
+                  book.title ??
+                    ''
+                ).trim(),
+              authors:
+                Array.isArray(
+                  book.authors
+                )
+                  ? book.authors
+                      .filter(
+                        (
+                          author
+                        ): author is string =>
+                          typeof author ===
+                          'string' &&
+                          author.trim()
+                            .length >
+                            0
+                      )
+                      .map(
+                        (
+                          author
+                        ) =>
+                          author.trim()
+                      )
+                  : [],
               isbns:
                 Array.from(
                   new Set(
@@ -119,8 +257,14 @@ Deno.serve(
               book
             ) =>
               book.googleBookId &&
-              book.isbns.length >
-                0
+              (
+                book.isbns.length >
+                  0 ||
+                (
+                  allowTitleFallback &&
+                  book.title
+                )
+              )
           )
           .slice(
             0,
@@ -158,112 +302,67 @@ Deno.serve(
           )
         );
 
-      const query = `
-        query HardcoverPopularity(
-          $isbns: [String!]!
-        ) {
-          books(
-            where: {
-              editions: {
-                _or: [
-                  {
-                    isbn_10: {
-                      _in: $isbns
+      let hardcoverBooks:
+        HardcoverBook[] =
+        [];
+
+      if (
+        allIsbns.length >
+        0
+      ) {
+        const isbnQuery = `
+          query HardcoverPopularity(
+            $isbns: [String!]!
+          ) {
+            books(
+              where: {
+                editions: {
+                  _or: [
+                    {
+                      isbn_10: {
+                        _in: $isbns
+                      }
+                    },
+                    {
+                      isbn_13: {
+                        _in: $isbns
+                      }
                     }
-                  },
-                  {
-                    isbn_13: {
-                      _in: $isbns
-                    }
-                  }
-                ]
+                  ]
+                }
+              }
+            ) {
+              id
+              title
+              rating
+              ratings_count
+              reviews_count
+              users_count
+              editions {
+                isbn_10
+                isbn_13
               }
             }
-          ) {
-            id
-            title
-            rating
-            ratings_count
-            reviews_count
-            users_count
-            editions {
-              isbn_10
-              isbn_13
+          }
+        `;
+
+        const payload =
+          await hardcoverRequest(
+            token,
+            isbnQuery,
+            {
+              isbns:
+                allIsbns,
             }
-          }
-        }
-      `;
+          );
 
-      const response =
-        await fetch(
-          'https://api.hardcover.app/v1/graphql',
-          {
-            method:
-              'POST',
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-              'Content-Type':
-                'application/json',
-            },
-            body:
-              JSON.stringify({
-                query,
-                variables: {
-                  isbns:
-                    allIsbns,
-                },
-              }),
-          }
-        );
-
-      if (
-        !response.ok
-      ) {
-        const details =
-          await response.text();
-
-        throw new Error(
-          `Hardcover API request failed (${response.status}): ${details}`
-        );
+        hardcoverBooks =
+          Array.isArray(
+            payload?.data?.books
+          )
+            ? payload.data.books
+            : [];
       }
-
-      const payload =
-        await response.json();
-
-      if (
-        Array.isArray(
-          payload?.errors
-        ) &&
-        payload.errors
-          .length >
-          0
-      ) {
-        throw new Error(
-          payload.errors
-            .map(
-              (
-                error:
-                  {
-                    message?: string;
-                  }
-              ) =>
-                error.message ??
-                'Unknown Hardcover error'
-            )
-            .join(
-              '; '
-            )
-        );
-      }
-
-      const hardcoverBooks:
-        HardcoverBook[] =
-        Array.isArray(
-          payload?.data?.books
-        )
-          ? payload.data.books
-          : [];
 
       const popularity:
         Record<
@@ -286,71 +385,153 @@ Deno.serve(
             inputBook.isbns
           );
 
-        const matches =
-          hardcoverBooks
-            .filter(
+        const isbnMatches =
+          hardcoverBooks.filter(
+            (
+              book
+            ) =>
               (
-                book
-              ) =>
+                book.editions ??
+                []
+              ).some(
                 (
-                  book.editions ??
-                  []
-                ).some(
-                  (
-                    edition
-                  ) => {
-                    const isbn10 =
-                      normalizeIsbn(
-                        edition.isbn_10
-                      );
-
-                    const isbn13 =
-                      normalizeIsbn(
-                        edition.isbn_13
-                      );
-
-                    return (
-                      (
-                        isbn10 &&
-                        wantedIsbns.has(
-                          isbn10
-                        )
-                      ) ||
-                      (
-                        isbn13 &&
-                        wantedIsbns.has(
-                          isbn13
-                        )
-                      )
+                  edition
+                ) => {
+                  const isbn10 =
+                    normalizeIsbn(
+                      edition.isbn_10
                     );
+
+                  const isbn13 =
+                    normalizeIsbn(
+                      edition.isbn_13
+                    );
+
+                  return (
+                    (
+                      isbn10 &&
+                      wantedIsbns.has(
+                        isbn10
+                      )
+                    ) ||
+                    (
+                      isbn13 &&
+                      wantedIsbns.has(
+                        isbn13
+                      )
+                    )
+                  );
+                }
+              )
+          );
+
+        let best =
+          getBestBook(
+            isbnMatches
+          );
+
+        if (
+          !best &&
+          allowTitleFallback &&
+          inputBook.title
+        ) {
+          const author =
+            inputBook.authors[0] ??
+            '';
+
+          const titleQuery =
+            author
+              ? `
+                query HardcoverWork(
+                  $titlePattern: String!
+                  $authorPattern: String!
+                ) {
+                  books(
+                    where: {
+                      title: {
+                        _ilike: $titlePattern
+                      }
+                      contributions: {
+                        author: {
+                          name: {
+                            _ilike: $authorPattern
+                          }
+                        }
+                      }
+                    }
+                    order_by: [
+                      {
+                        ratings_count: desc
+                      }
+                    ]
+                    limit: 20
+                  ) {
+                    id
+                    title
+                    rating
+                    ratings_count
+                    reviews_count
+                    users_count
                   }
-                )
-            )
-            .sort(
-              (
-                a,
-                b
-              ) =>
-                (
-                  b.ratings_count ??
-                  0
-                ) -
-                  (
-                    a.ratings_count ??
-                    0
-                  ) ||
-                (
-                  b.users_count ??
-                  0
-                ) -
-                  (
-                    a.users_count ??
-                    0
-                  )
+                }
+              `
+              : `
+                query HardcoverWork(
+                  $titlePattern: String!
+                ) {
+                  books(
+                    where: {
+                      title: {
+                        _ilike: $titlePattern
+                      }
+                    }
+                    order_by: [
+                      {
+                        ratings_count: desc
+                      }
+                    ]
+                    limit: 20
+                  ) {
+                    id
+                    title
+                    rating
+                    ratings_count
+                    reviews_count
+                    users_count
+                  }
+                }
+              `;
+
+          const payload =
+            await hardcoverRequest(
+              token,
+              titleQuery,
+              author
+                ? {
+                    titlePattern:
+                      inputBook.title,
+                    authorPattern:
+                      author,
+                  }
+                : {
+                    titlePattern:
+                      inputBook.title,
+                  }
             );
 
-        const best =
-          matches[0];
+          const titleMatches:
+            HardcoverBook[] =
+            Array.isArray(
+              payload?.data?.books
+            )
+              ? payload.data.books
+              : [];
+
+          best =
+            getBestBook(
+              titleMatches
+            );
+        }
 
         if (
           !best
