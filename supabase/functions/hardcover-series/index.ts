@@ -576,63 +576,36 @@ Deno.serve(async (req) => {
 
     // Some Google editions use an ISBN that Hardcover
     // has not attached to the canonical book. When
-    // every ISBN misses, fall back to title + author
-    // rather than incorrectly declaring "no series".
+    // every ISBN misses, use Hardcover's own full-text
+    // Book search, then resolve the chosen result back
+    // to a full book record with series membership.
     if (
       !currentBook &&
       requestedTitle
     ) {
-      const fallbackQuery = `
-        query FindBookByTitle(
-          $title: String!
+      const searchQuery = `
+        query HardcoverSearch(
+          $query: String!
         ) {
-          books(
-            where: {
-              title: {
-                _ilike: $title
-              }
-            }
-            limit: 25
+          search(
+            query: $query
+            query_type: "Book"
+            per_page: 50
+            page: 1
+            fields: "title,author_names,isbns,alternative_titles"
+            weights: "5,4,5,1"
+            typos: "2,2,0,2"
+            sort: "_text_match:desc,ratings_count:desc"
           ) {
-            id
-            title
-            slug
-            release_date
-            cached_image
-            compilation
-
-            contributions {
-              author {
-                id
-                name
-              }
-            }
-
-            editions(limit: 25) {
-              isbn_10
-              isbn_13
-
-              language {
-                code2
-                code3
-                language
-              }
-            }
-
-            book_series {
-              position
-
-              series {
-                id
-                name
-                slug
-              }
-            }
+            results
           }
         }
       `;
 
-      const fallbackResponse =
+      const primaryAuthor =
+        requestedAuthors[0] ?? "";
+
+      const searchResponse =
         await fetch(
           "https://api.hardcover.app/v1/graphql",
           {
@@ -645,22 +618,47 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               query:
-                fallbackQuery,
+                searchQuery,
               variables: {
-                title:
-                  `%${requestedTitle}%`,
+                query:
+                  primaryAuthor
+                    ? `${requestedTitle} ${primaryAuthor}`
+                    : requestedTitle,
               },
             }),
           }
         );
 
-      const fallbackJson =
-        await fallbackResponse.json();
+      const searchJson =
+        await searchResponse.json();
 
-      const normalizedWantedTitle =
-        requestedTitle
+      const searchResults =
+        searchJson?.data
+          ?.search?.results;
+
+      const rawHits =
+        searchResults &&
+        typeof searchResults ===
+          "object" &&
+        !Array.isArray(
+          searchResults
+        ) &&
+        Array.isArray(
+          searchResults.hits
+        )
+          ? searchResults.hits
+          : [];
+
+      function normalizeSearchText(
+        value: unknown
+      ) {
+        return String(
+          value ?? ""
+        )
           .toLowerCase()
-          .normalize("NFKD")
+          .normalize(
+            "NFKD"
+          )
           .replace(
             /[\u0300-\u036f]/g,
             ""
@@ -670,168 +668,228 @@ Deno.serve(async (req) => {
             " "
           )
           .trim();
+      }
 
-      const normalizedWantedAuthors =
-        requestedAuthors.map(
-          (author) =>
-            author
-              .toLowerCase()
-              .normalize("NFKD")
-              .replace(
-                /[\u0300-\u036f]/g,
-                ""
-              )
-              .replace(
-                /[^a-z0-9]+/g,
-                " "
-              )
-              .trim()
+      const wantedTitle =
+        normalizeSearchText(
+          requestedTitle
         );
 
-      const fallbackBooks =
-        fallbackJson?.data?.books ??
-        [];
+      const wantedAuthors =
+        requestedAuthors.map(
+          normalizeSearchText
+        );
 
-      const matchingBook =
-        fallbackBooks
-          .filter(
-            (book: any) =>
-              book?.book_series
-                ?.length &&
-              book?.compilation !==
-                true
+      const scoredHits =
+        rawHits
+          .map(
+            (
+              hit: any
+            ) =>
+              hit?.document ??
+              null
           )
-          .sort(
-            (a: any, b: any) => {
-              function score(
-                book: any
+          .filter(Boolean)
+          .map(
+            (
+              document: any
+            ) => {
+              let score =
+                0;
+
+              const title =
+                normalizeSearchText(
+                  document.title
+                );
+
+              if (
+                title ===
+                  wantedTitle
               ) {
-                let score = 0;
-
-                const title =
-                  String(
-                    book?.title ?? ""
-                  )
-                    .toLowerCase()
-                    .normalize(
-                      "NFKD"
-                    )
-                    .replace(
-                      /[\u0300-\u036f]/g,
-                      ""
-                    )
-                    .replace(
-                      /[^a-z0-9]+/g,
-                      " "
-                    )
-                    .trim();
-
-                if (
-                  title ===
-                  normalizedWantedTitle
-                ) {
-                  score += 200;
-                } else if (
-                  title.includes(
-                    normalizedWantedTitle
-                  ) ||
-                  normalizedWantedTitle.includes(
-                    title
-                  )
-                ) {
-                  score += 100;
-                }
-
-                const actualAuthors =
-                  (
-                    book
-                      ?.contributions ??
-                    []
-                  )
-                    .map(
-                      (
-                        contribution:
-                          any
-                      ) =>
-                        contribution
-                          .author
-                          ?.name
-                    )
-                    .filter(Boolean)
-                    .map(
-                      (
-                        author:
-                          string
-                      ) =>
-                        author
-                          .toLowerCase()
-                          .normalize(
-                            "NFKD"
-                          )
-                          .replace(
-                            /[\u0300-\u036f]/g,
-                            ""
-                          )
-                          .replace(
-                            /[^a-z0-9]+/g,
-                            " "
-                          )
-                          .trim()
-                    );
-
-                if (
-                  normalizedWantedAuthors
-                    .some(
-                      (
-                        expected
-                      ) =>
-                        actualAuthors.some(
-                          (
-                            actual
-                          ) =>
-                            actual ===
-                              expected ||
-                            actual.includes(
-                              expected
-                            ) ||
-                            expected.includes(
-                              actual
-                            )
-                        )
-                    )
-                ) {
-                  score += 150;
-                }
-
-                return score;
+                score +=
+                  250;
+              } else if (
+                title.includes(
+                  wantedTitle
+                ) ||
+                wantedTitle.includes(
+                  title
+                )
+              ) {
+                score +=
+                  120;
               }
 
-              return (
-                score(b) -
-                score(a)
-              );
+              const actualAuthors =
+                Array.isArray(
+                  document.author_names
+                )
+                  ? document.author_names.map(
+                      normalizeSearchText
+                    )
+                  : [];
+
+              if (
+                wantedAuthors.some(
+                  (
+                    expected
+                  ) =>
+                    actualAuthors.some(
+                      (
+                        actual
+                      ) =>
+                        actual ===
+                          expected ||
+                        actual.includes(
+                          expected
+                        ) ||
+                        expected.includes(
+                          actual
+                        )
+                    )
+                )
+              ) {
+                score +=
+                  180;
+              }
+
+              return {
+                id:
+                  Number(
+                    document.id ??
+                    0
+                  ),
+                score,
+              };
             }
-          )[0];
+          )
+          .filter(
+            (
+              item
+            ) =>
+              item.id >
+                0 &&
+              item.score >
+                0
+          )
+          .sort(
+            (
+              a,
+              b
+            ) =>
+              b.score -
+              a.score
+          );
+
+      const bestId =
+        scoredHits[0]?.id ??
+        null;
 
       if (
-        matchingBook
+        bestId
       ) {
-        currentBook =
-          matchingBook;
+        const fullBookQuery = `
+          query HardcoverBookById(
+            $id: Int!
+          ) {
+            books(
+              where: {
+                id: {
+                  _eq: $id
+                }
+              }
+              limit: 1
+            ) {
+              id
+              title
+              slug
+              release_date
+              cached_image
+              compilation
 
-        editionWithSeries = {
-          book:
-            matchingBook,
-          language:
-            matchingBook
-              ?.editions?.[0]
-              ?.language ??
-            null,
-        };
+              contributions {
+                author {
+                  id
+                  name
+                }
+              }
+
+              editions(limit: 25) {
+                isbn_10
+                isbn_13
+
+                language {
+                  code2
+                  code3
+                  language
+                }
+              }
+
+              book_series {
+                position
+
+                series {
+                  id
+                  name
+                  slug
+                }
+              }
+            }
+          }
+        `;
+
+        const fullBookResponse =
+          await fetch(
+            "https://api.hardcover.app/v1/graphql",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+                Authorization:
+                  `Bearer ${token}`,
+              },
+              body:
+                JSON.stringify({
+                  query:
+                    fullBookQuery,
+                  variables: {
+                    id:
+                      bestId,
+                  },
+                }),
+            }
+          );
+
+        const fullBookJson =
+          await fullBookResponse
+            .json();
+
+        const resolved =
+          fullBookJson?.data
+            ?.books?.[0] ??
+          null;
+
+        if (
+          resolved
+            ?.book_series
+            ?.length
+        ) {
+          currentBook =
+            resolved;
+
+          editionWithSeries = {
+            book:
+              resolved,
+            language:
+              resolved
+                ?.editions?.[0]
+                ?.language ??
+              null,
+          };
+        }
       }
     }
-
-
 
     // Use the language of the exact ISBN-matched
 
