@@ -83,6 +83,76 @@ function secureCoverUrl(
   );
 }
 
+function getGoogleImageParam(
+  url: string,
+  key: string
+) {
+  try {
+    return (
+      new URL(
+        secureCoverUrl(
+          url
+        ) ??
+          url
+      ).searchParams.get(
+        key
+      ) ??
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function isSameGoogleCoverAsset(
+  reference: string,
+  candidate: string
+) {
+  const referenceId =
+    getGoogleImageParam(
+      reference,
+      'id'
+    );
+
+  const candidateId =
+    getGoogleImageParam(
+      candidate,
+      'id'
+    );
+
+  if (
+    referenceId &&
+    candidateId &&
+    referenceId !==
+      candidateId
+  ) {
+    return false;
+  }
+
+  const referencePrintSec =
+    getGoogleImageParam(
+      reference,
+      'printsec'
+    );
+
+  const candidatePrintSec =
+    getGoogleImageParam(
+      candidate,
+      'printsec'
+    );
+
+  if (
+    referencePrintSec &&
+    candidatePrintSec &&
+    referencePrintSec !==
+      candidatePrintSec
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 function getBestExactCover(
   book:
     | GoogleCoverRepairBook
@@ -92,25 +162,46 @@ function getBestExactCover(
     book?.volumeInfo
       .imageLinks;
 
-  return (
-    secureCoverUrl(
-      links?.extraLarge
-    ) ??
-    secureCoverUrl(
-      links?.large
-    ) ??
-    secureCoverUrl(
-      links?.medium
-    ) ??
-    secureCoverUrl(
-      links?.small
-    ) ??
+  const reference =
     secureCoverUrl(
       links?.thumbnail
     ) ??
     secureCoverUrl(
       links?.smallThumbnail
+    );
+
+  const highResolution = [
+    links?.extraLarge,
+    links?.large,
+    links?.medium,
+    links?.small,
+  ]
+    .map(
+      secureCoverUrl
     )
+    .filter(
+      (
+        url
+      ): url is string =>
+        Boolean(
+          url
+        )
+    )
+    .find(
+      (
+        candidate
+      ) =>
+        !reference ||
+        isSameGoogleCoverAsset(
+          reference,
+          candidate
+        )
+    );
+
+  return (
+    highResolution ??
+    reference ??
+    null
   );
 }
 
