@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 type ImageViewerShape =
@@ -28,6 +29,9 @@ export default function FullScreenImageViewer({
   onClose,
   shape = 'natural',
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
   if (!uri) {
     return null;
   }
@@ -56,9 +60,21 @@ export default function FullScreenImageViewer({
         ]}
       >
         <View
-          style={
-            styles.header
-          }
+          style={[
+            styles.header,
+            {
+              paddingTop:
+                Math.max(
+                  insets.top,
+                  12
+                ),
+              paddingRight:
+                Math.max(
+                  insets.right,
+                  12
+                ),
+            },
+          ]}
         >
           <Pressable
             onPress={
@@ -130,20 +146,21 @@ const styles =
     },
 
     header: {
-      height: 58,
+      minHeight: 76,
       flexDirection:
         'row',
       alignItems:
-        'center',
+        'flex-start',
       justifyContent:
         'flex-end',
-      paddingHorizontal: 14,
+      paddingLeft: 12,
+      paddingBottom: 8,
     },
 
     closeButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
       alignItems:
         'center',
       justifyContent:
