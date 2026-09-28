@@ -2143,7 +2143,7 @@ export default function DiscoverScreen() {
   useEffect(
     () => {
       const unsubscribe =
-        navigation.addListener(
+        (navigation as any).addListener(
           'tabPress',
           () => {
             if (
