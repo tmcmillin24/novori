@@ -11,6 +11,9 @@ import {
 } from 'react';
 
 import {
+  resolveGoogleBookRating,
+} from '../lib/book-search';
+import {
   NovoriColors,
 } from '../constants/novori-theme';
 import {
@@ -103,38 +106,17 @@ export default function BookStackShowcase({
         return;
       }
 
-      const googleBookId =
-        selected.google_book_id ??
-        selected.id;
-
-      if (
-        !googleBookId
-      ) {
-        return;
-      }
-
       try {
-        const apiKey =
-          process.env
-            .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-        const response =
-          await fetch(
-            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
-              googleBookId
-            )}${apiKey
-              ? `?key=${apiKey}`
-              : ''}`
-          );
-
-        if (
-          !response.ok
-        ) {
-          return;
-        }
-
-        const data =
-          await response.json();
+        const resolved =
+          await resolveGoogleBookRating({
+            googleBookId:
+              selected.google_book_id ??
+              selected.id,
+            title:
+              selected.title,
+            authors:
+              selected.authors,
+          });
 
         if (
           !active
@@ -142,32 +124,14 @@ export default function BookStackShowcase({
           return;
         }
 
-        const rating =
-          Number(
-            data?.volumeInfo
-              ?.averageRating
-          );
-
-        const count =
-          Number(
-            data?.volumeInfo
-              ?.ratingsCount
-          );
-
         setGoogleRating(
-          Number.isFinite(
-            rating
-          )
-            ? rating
-            : null
+          resolved?.averageRating ??
+          null
         );
 
         setGoogleRatingsCount(
-          Number.isFinite(
-            count
-          )
-            ? count
-            : null
+          resolved?.ratingsCount ??
+          null
         );
       } catch {
         if (
