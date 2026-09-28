@@ -3,14 +3,22 @@ import {
   useFocusEffect,
   useRouter,
 } from 'expo-router';
+import type {
+  ReactNode,
+} from 'react';
 import {
   useCallback,
+  useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
   Image,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -31,6 +39,318 @@ import {
   getBookCart,
   removeBookFromCart,
 } from '../lib/book-cart';
+
+const SWIPE_REMOVE_MIN_DISTANCE =
+  92;
+
+const SWIPE_REMOVE_MAX_DISTANCE =
+  118;
+
+const SWIPE_REMOVE_WIDTH_RATIO =
+  0.29;
+
+type SwipeCartRowProps = {
+  onRemove: () => void;
+  styles: ReturnType<
+    typeof createStyles
+  >;
+  children: ReactNode;
+};
+
+function SwipeCartRow({
+  onRemove,
+  styles,
+  children,
+}: SwipeCartRowProps) {
+  const translateX =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const [
+    rowWidth,
+    setRowWidth,
+  ] =
+    useState(1);
+
+  const removingRef =
+    useRef(false);
+
+  const resetRow =
+    useCallback(
+      () => {
+        Animated.timing(
+          translateX,
+          {
+            toValue: 0,
+            duration: 190,
+            easing:
+              Easing.bezier(
+                0.22,
+                1,
+                0.36,
+                1
+              ),
+            useNativeDriver:
+              true,
+          }
+        ).start();
+      },
+      [
+        translateX,
+      ]
+    );
+
+  const completeRemove =
+    useCallback(
+      () => {
+        if (
+          removingRef.current
+        ) {
+          return;
+        }
+
+        removingRef.current =
+          true;
+
+        Animated.timing(
+          translateX,
+          {
+            toValue:
+              -Math.max(
+                rowWidth,
+                360
+              ),
+            duration: 205,
+            easing:
+              Easing.bezier(
+                0.22,
+                1,
+                0.36,
+                1
+              ),
+            useNativeDriver:
+              true,
+          }
+        ).start(
+          () => {
+            onRemove();
+          }
+        );
+      },
+      [
+        onRemove,
+        rowWidth,
+        translateX,
+      ]
+    );
+
+  const panResponder =
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) => {
+            const horizontal =
+              Math.abs(
+                gesture.dx
+              );
+
+            const vertical =
+              Math.abs(
+                gesture.dy
+              );
+
+            return (
+              gesture.dx <
+                -4 &&
+              horizontal >=
+                5 &&
+              (
+                horizontal >
+                  vertical *
+                    0.62 ||
+                (
+                  gesture.vx <
+                    -0.2 &&
+                  horizontal >
+                    vertical *
+                      0.5
+                )
+              )
+            );
+          },
+
+          onMoveShouldSetPanResponderCapture: (
+            _event,
+            gesture
+          ) => {
+            const horizontal =
+              Math.abs(
+                gesture.dx
+              );
+
+            const vertical =
+              Math.abs(
+                gesture.dy
+              );
+
+            return (
+              gesture.dx <
+                -6 &&
+              horizontal >=
+                7 &&
+              (
+                horizontal >
+                  vertical *
+                    0.74 ||
+                (
+                  gesture.vx <
+                    -0.27 &&
+                  horizontal >
+                    vertical *
+                      0.62
+                )
+              )
+            );
+          },
+
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            if (
+              removingRef.current
+            ) {
+              return;
+            }
+
+            translateX.setValue(
+              Math.min(
+                0,
+                gesture.dx
+              )
+            );
+          },
+
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            if (
+              removingRef.current
+            ) {
+              return;
+            }
+
+            const distance =
+              Math.abs(
+                Math.min(
+                  0,
+                  gesture.dx
+                )
+              );
+
+            const commitDistance =
+              Math.min(
+                SWIPE_REMOVE_MAX_DISTANCE,
+                Math.max(
+                  SWIPE_REMOVE_MIN_DISTANCE,
+                  rowWidth *
+                    SWIPE_REMOVE_WIDTH_RATIO
+                )
+              );
+
+            const shouldRemove =
+              distance >=
+                commitDistance ||
+              (
+                distance >=
+                  48 &&
+                gesture.vx <=
+                  -0.62
+              );
+
+            if (
+              shouldRemove
+            ) {
+              completeRemove();
+              return;
+            }
+
+            resetRow();
+          },
+
+          onPanResponderTerminationRequest:
+            () => false,
+
+          onPanResponderTerminate:
+            resetRow,
+        }),
+      [
+        completeRemove,
+        resetRow,
+        rowWidth,
+        translateX,
+      ]
+    );
+
+  return (
+    <View
+      onLayout={(
+        event
+      ) =>
+        setRowWidth(
+          event.nativeEvent.layout.width
+        )
+      }
+      style={
+        styles.swipeRow
+      }
+    >
+      <View
+        pointerEvents="none"
+        style={
+          styles.removeReveal
+        }
+      >
+        <Ionicons
+          name="close"
+          size={25}
+          color="#FFFFFF"
+        />
+
+        <Text
+          style={
+            styles.removeRevealText
+          }
+        >
+          Remove
+        </Text>
+      </View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          styles.swipeForeground,
+          {
+            transform: [
+              {
+                translateX,
+              },
+            ],
+          },
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function BookCartScreen() {
   const router =
@@ -325,12 +645,22 @@ export default function BookCartScreen() {
           renderItem={({
             item,
           }) => (
-            <Pressable
-              onPress={() =>
-                openBook(
+            <SwipeCartRow
+              onRemove={() =>
+                void removeItem(
                   item
                 )
               }
+              styles={
+                styles
+              }
+            >
+              <Pressable
+                onPress={() =>
+                  openBook(
+                    item
+                  )
+                }
               style={({ pressed }) => [
                 styles.card,
                 pressed &&
@@ -439,7 +769,8 @@ export default function BookCartScreen() {
                   />
                 )}
               </Pressable>
-            </Pressable>
+              </Pressable>
+            </SwipeCartRow>
           )}
           ListEmptyComponent={
             <View
@@ -600,6 +931,51 @@ function createStyles(
     emptyList: {
       flexGrow: 1,
       justifyContent:
+        'center',
+    },
+
+    swipeRow: {
+      position:
+        'relative',
+      overflow:
+        'hidden',
+      borderRadius:
+        17,
+      backgroundColor:
+        colors.danger,
+    },
+
+    swipeForeground: {
+      backgroundColor:
+        colors.background,
+      borderRadius:
+        17,
+    },
+
+    removeReveal: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        colors.danger,
+      alignItems:
+        'flex-end',
+      justifyContent:
+        'center',
+      paddingRight:
+        23,
+      gap:
+        1,
+    },
+
+    removeRevealText: {
+      width:
+        48,
+      color:
+        '#FFFFFF',
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        10,
+      textAlign:
         'center',
     },
 
