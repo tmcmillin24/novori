@@ -2030,6 +2030,72 @@ export default function BookDetailsScreen() {
 
               <View
                 style={
+                  styles.externalRatingRow
+                }
+              >
+                {hardcoverRatingLoading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : hardcoverRating !==
+                  null ? (
+                  <>
+                    <View
+                      style={
+                        styles.externalRatingStars
+                      }
+                    >
+                      {[1,2,3,4,5].map(
+                        (
+                          star
+                        ) => (
+                          <Ionicons
+                            key={
+                              star
+                            }
+                            name={
+                              hardcoverRating >=
+                              star
+                                ? 'star'
+                                : hardcoverRating >=
+                                  star -
+                                    0.5
+                                  ? 'star-half'
+                                  : 'star-outline'
+                            }
+                            size={16}
+                            color={
+                              colors.gold
+                            }
+                          />
+                        )
+                      )}
+                    </View>
+
+                    <Text
+                      style={
+                        styles.externalRatingText
+                      }
+                    >
+                      {hardcoverRating.toFixed(
+                        2
+                      )}
+                      {hardcoverRatingsCount !==
+                        null &&
+                      hardcoverRatingsCount >
+                        0
+                        ? ` · ${hardcoverRatingsCount.toLocaleString()} ratings`
+                        : ''}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
+
+              <View
+                style={
                   styles.libraryHeroMetaRow
                 }
               >
