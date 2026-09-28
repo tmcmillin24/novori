@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
+import {
+  getBestSearchCover,
+  searchNovoriBooks,
+} from './book-search';
 
 export type UserBookStatus =
   | 'want_to_read'
@@ -346,115 +350,71 @@ async function repairSavedCover(
     return book;
   }
 
-  const primaryAuthor =
-    book.authors?.[0]
-      ?.trim() ??
-    '';
-
-  const query =
-    primaryAuthor
-      ? `intitle:"${title}" inauthor:"${primaryAuthor}"`
-      : `intitle:"${title}"`;
-
   try {
-    const response =
-      await fetchGoogleBooksJson<
-        GoogleCoverRepairResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          query
-        )}&maxResults=20&printType=books&projection=full`
+    const discoverResults =
+      await searchNovoriBooks(
+        title
       );
 
-    if (
-      !response.ok ||
-      !response.data
-    ) {
-      return book;
-    }
+    const wantedTitle =
+      normalizeBookText(
+        book.title
+      );
 
-    const results =
-      response.data.items ??
-      [];
-
-    const exactVolume =
-      results.find(
+    const bestDiscoverMatch =
+      discoverResults.find(
         (
           candidate
-        ) =>
-          candidate.id ===
-          book.google_book_id
-      );
-
-    const exactCover =
-      getBestExactCover(
-        exactVolume
-      );
-
-    let nextCover =
-      exactCover;
-
-    // Never swap editions for an existing cover. Cross-edition fallback
-    // is only allowed to fill a row whose cover is completely missing.
-    if (
-      !nextCover &&
-      !currentCover
-    ) {
-      const wantedTitle =
-        normalizeBookText(
-          book.title
-        );
-
-      const matchingWork =
-        results.find(
-          (
-            candidate
-          ) => {
-            const candidateTitle =
-              normalizeBookText(
-                candidate
-                  .volumeInfo
-                  .title
-              );
-
-            const titleMatches =
-              candidateTitle ===
-                wantedTitle ||
-              candidateTitle.startsWith(
-                `${wantedTitle} `
-              ) ||
-              wantedTitle.startsWith(
-                `${candidateTitle} `
-              );
-
-            return (
-              titleMatches &&
-              authorsMatch(
-                book.authors ??
-                  [],
-                candidate
-                  .volumeInfo
-                  .authors ??
-                  []
-              ) &&
-              Boolean(
-                getBestExactCover(
-                  candidate
-                )
-              )
+        ) => {
+          const candidateTitle =
+            normalizeBookText(
+              candidate
+                .volumeInfo
+                .title
             );
-          }
-        );
 
-      nextCover =
-        getBestExactCover(
-          matchingWork
-        );
-    }
+          const titleMatches =
+            candidateTitle ===
+              wantedTitle ||
+            candidateTitle.startsWith(
+              `${wantedTitle} `
+            ) ||
+            wantedTitle.startsWith(
+              `${candidateTitle} `
+            );
+
+          return (
+            titleMatches &&
+            authorsMatch(
+              book.authors ??
+                [],
+              candidate
+                .volumeInfo
+                .authors ??
+                []
+            ) &&
+            Boolean(
+              getBestSearchCover(
+                candidate
+                  .volumeInfo
+                  .imageLinks
+              )
+            )
+          );
+        }
+      );
+
+    const discoverCover =
+      getBestSearchCover(
+        bestDiscoverMatch
+          ?.volumeInfo
+          .imageLinks
+      ) ??
+      null;
 
     if (
-      !nextCover ||
-      nextCover ===
+      !discoverCover ||
+      discoverCover ===
         currentCover
     ) {
       return book;
@@ -470,7 +430,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            nextCover,
+            discoverCover,
         })
         .eq(
           'id',
