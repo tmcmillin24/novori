@@ -23,6 +23,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import BookStackShowcase from '../components/BookStackShowcase';
 import BookStackVisual from '../components/BookStackVisual';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -159,6 +160,16 @@ export default function CreateBookStackScreen() {
     >(null);
 
   const dragStartIndexRef =
+    useRef<
+      number | null
+    >(null);
+
+  const dragBookIdRef =
+    useRef<
+      string | null
+    >(null);
+
+  const dragTargetIndexRef =
     useRef<
       number | null
     >(null);
@@ -439,6 +450,12 @@ export default function CreateBookStackScreen() {
     dragStartIndexRef.current =
       index;
 
+    dragBookIdRef.current =
+      bookId;
+
+    dragTargetIndexRef.current =
+      index;
+
     setDraggingBookId(
       bookId
     );
@@ -508,6 +525,9 @@ export default function CreateBookStackScreen() {
           ? 'bottom'
           : 'top';
 
+    dragTargetIndexRef.current =
+      targetIndex;
+
     setDragTargetIndex(
       targetIndex
     );
@@ -515,15 +535,33 @@ export default function CreateBookStackScreen() {
     setDragTargetEdge(
       edge
     );
-
-    moveBookTo(
-      bookId,
-      targetIndex
-    );
   }
 
   function endBookDrag() {
+    const draggedBookId =
+      dragBookIdRef.current;
+
+    const targetIndex =
+      dragTargetIndexRef.current;
+
+    if (
+      draggedBookId &&
+      targetIndex !==
+        null
+    ) {
+      moveBookTo(
+        draggedBookId,
+        targetIndex
+      );
+    }
+
     dragStartIndexRef.current =
+      null;
+
+    dragBookIdRef.current =
+      null;
+
+    dragTargetIndexRef.current =
       null;
 
     setDraggingBookId(
