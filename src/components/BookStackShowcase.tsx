@@ -91,6 +91,14 @@ export default function BookStackShowcase({
     >(null);
 
   const [
+    hardcoverReviewsCount,
+    setHardcoverReviewsCount,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  const [
     hardcoverLoading,
     setHardcoverLoading,
   ] =
@@ -110,6 +118,9 @@ export default function BookStackShowcase({
         setHardcoverRatingsCount(
           null
         );
+        setHardcoverReviewsCount(
+          null
+        );
         setHardcoverLoading(
           false
         );
@@ -121,6 +132,10 @@ export default function BookStackShowcase({
       );
 
       setHardcoverRatingsCount(
+        null
+      );
+
+      setHardcoverReviewsCount(
         null
       );
 
@@ -155,6 +170,11 @@ export default function BookStackShowcase({
           resolved?.ratingsCount ??
           null
         );
+
+        setHardcoverReviewsCount(
+          resolved?.reviewsCount ??
+          null
+        );
       } catch {
         if (
           active
@@ -163,6 +183,9 @@ export default function BookStackShowcase({
             null
           );
           setHardcoverRatingsCount(
+            null
+          );
+          setHardcoverReviewsCount(
             null
           );
         }
@@ -391,6 +414,12 @@ export default function BookStackShowcase({
                     hardcoverRatingsCount >
                       0
                       ? ` · ${hardcoverRatingsCount.toLocaleString()} ratings`
+                      : ''}
+                    {hardcoverReviewsCount !==
+                      null &&
+                    hardcoverReviewsCount >
+                      0
+                      ? ` · ${hardcoverReviewsCount.toLocaleString()} reviews`
                       : ''}
                   </Text>
                 </>
