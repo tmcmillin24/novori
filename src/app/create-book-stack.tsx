@@ -766,14 +766,37 @@ export default function CreateBookStackScreen() {
     try {
       setSaving(true);
 
-      await createBookStack(
-        name,
-        items
-      );
+      if (
+        isEditing
+      ) {
+        await updateBookStack(
+          editStackId,
+          name,
+          items
+        );
 
-      router.replace(
-        '/(tabs)/profile'
-      );
+        await updatePost(
+          editPostId,
+          {
+            body:
+              postText.trim() ||
+              name.trim(),
+          }
+        );
+
+        router.replace(
+          '/(tabs)'
+        );
+      } else {
+        await createBookStack(
+          name,
+          items
+        );
+
+        router.replace(
+          '/(tabs)/profile'
+        );
+      }
     } catch (
       error
     ) {
