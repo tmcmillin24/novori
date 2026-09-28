@@ -40,6 +40,7 @@ import {
 } from 'react-native-safe-area-context';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import FeedPostImage from '../../components/FeedPostImage';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
@@ -369,6 +370,14 @@ export default function HomeScreen() {
     useState<
       string | null
     >(null);
+
+  const [
+    deletePostTarget,
+    setDeletePostTarget,
+  ] =
+    useState<FeedPost | null>(
+      null
+    );
 
   const [
     ownPostOptionsTarget,
@@ -5192,27 +5201,8 @@ export default function HomeScreen() {
   function confirmDeleteOwnPost(
     post: FeedPost
   ) {
-    Alert.alert(
-      'Delete post?',
-      'This post and its comments will be permanently deleted.',
-      [
-        {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Delete',
-          style:
-            'destructive',
-          onPress: () =>
-            void removeOwnPost(
-              post
-            ),
-        },
-      ]
+    setDeletePostTarget(
+      post
     );
   }
 
@@ -5260,6 +5250,8 @@ export default function HomeScreen() {
           ? error.message
           : 'Please try again.'
       );
+
+      throw error;
     } finally {
       setDeletingPostId(
         null
@@ -7570,6 +7562,35 @@ export default function HomeScreen() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      <DeletePostConfirmSheet
+        visible={
+          Boolean(
+            deletePostTarget
+          )
+        }
+        busy={
+          Boolean(
+            deletingPostId
+          )
+        }
+        onConfirm={async () => {
+          if (
+            !deletePostTarget
+          ) {
+            return;
+          }
+
+          await removeOwnPost(
+            deletePostTarget
+          );
+        }}
+        onDismiss={() =>
+          setDeletePostTarget(
+            null
+          )
+        }
+      />
 
       <Modal
         visible={
