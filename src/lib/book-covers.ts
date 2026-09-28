@@ -1068,32 +1068,3 @@ export function getBookCoverPlan({
     fallbackUrl:
       openLibraryCover,
   };
-}: {
-  imageLinks?: BookImageLinks;
-  isbn?: string | null;
-  existingCoverUrl?: string | null;
-}) {
-  const googleCover =
-    getHighestQualityGoogleCover(
-      imageLinks
-    );
-
-  const openLibraryCover =
-    getOpenLibraryLargeCoverUrl(
-      isbn
-    );
-
-  return {
-    primaryUrl:
-      googleCover ??
-      openLibraryCover ??
-      secureUrl(
-        existingCoverUrl
-      ),
-    fallbackUrl:
-      openLibraryCover ??
-      secureUrl(
-        existingCoverUrl
-      ),
-  };
-}
