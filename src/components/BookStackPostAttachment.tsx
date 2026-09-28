@@ -25,8 +25,12 @@ import BookStackShowcase from './BookStackShowcase';
 
 export default function BookStackPostAttachment({
   stackId,
+  variant = 'feed',
+  interactive = true,
 }: {
   stackId: string;
+  variant?: 'feed' | 'profile' | 'detail' | 'builder';
+  interactive?: boolean;
 }) {
   const router =
     useRouter();
@@ -143,8 +147,12 @@ export default function BookStackPostAttachment({
         items={
           stack.items
         }
-        variant="feed"
-        interactive
+        variant={
+          variant
+        }
+        interactive={
+          interactive
+        }
         selectedId={
           selectedId
         }
