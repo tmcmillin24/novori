@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { fetchGoogleBooksJson } from './google-books';
 import {
   getBestSearchCover,
   searchNovoriBooks,
@@ -55,26 +54,6 @@ type UpdateBookReadingDatesInput = {
   dnfAt: string | null;
 };
 
-type GoogleCoverRepairBook = {
-  id: string;
-  volumeInfo: {
-    title?: string;
-    authors?: string[];
-    imageLinks?: {
-      smallThumbnail?: string;
-      thumbnail?: string;
-      small?: string;
-      medium?: string;
-      large?: string;
-      extraLarge?: string;
-    };
-  };
-};
-
-type GoogleCoverRepairResponse = {
-  items?: GoogleCoverRepairBook[];
-};
-
 function secureCoverUrl(
   url?: string | null
 ) {
@@ -83,128 +62,6 @@ function secureCoverUrl(
       'http://',
       'https://'
     ) ??
-    null
-  );
-}
-
-function getGoogleImageParam(
-  url: string,
-  key: string
-) {
-  try {
-    return (
-      new URL(
-        secureCoverUrl(
-          url
-        ) ??
-          url
-      ).searchParams.get(
-        key
-      ) ??
-      null
-    );
-  } catch {
-    return null;
-  }
-}
-
-function isSameGoogleCoverAsset(
-  reference: string,
-  candidate: string
-) {
-  const referenceId =
-    getGoogleImageParam(
-      reference,
-      'id'
-    );
-
-  const candidateId =
-    getGoogleImageParam(
-      candidate,
-      'id'
-    );
-
-  if (
-    referenceId &&
-    candidateId &&
-    referenceId !==
-      candidateId
-  ) {
-    return false;
-  }
-
-  const referencePrintSec =
-    getGoogleImageParam(
-      reference,
-      'printsec'
-    );
-
-  const candidatePrintSec =
-    getGoogleImageParam(
-      candidate,
-      'printsec'
-    );
-
-  if (
-    referencePrintSec &&
-    candidatePrintSec &&
-    referencePrintSec !==
-      candidatePrintSec
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function getBestExactCover(
-  book:
-    | GoogleCoverRepairBook
-    | undefined
-) {
-  const links =
-    book?.volumeInfo
-      .imageLinks;
-
-  const reference =
-    secureCoverUrl(
-      links?.thumbnail
-    ) ??
-    secureCoverUrl(
-      links?.smallThumbnail
-    );
-
-  const highResolution = [
-    links?.extraLarge,
-    links?.large,
-    links?.medium,
-    links?.small,
-  ]
-    .map(
-      secureCoverUrl
-    )
-    .filter(
-      (
-        url
-      ): url is string =>
-        Boolean(
-          url
-        )
-    )
-    .find(
-      (
-        candidate
-      ) =>
-        !reference ||
-        isSameGoogleCoverAsset(
-          reference,
-          candidate
-        )
-    );
-
-  return (
-    highResolution ??
-    reference ??
     null
   );
 }
