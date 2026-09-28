@@ -156,10 +156,6 @@ export default function BookStackShowcase({
           null
         );
 
-        setHardcoverReviewsCount(
-          resolved?.reviewsCount ??
-          null
-        );
       } catch {
         if (
           active
