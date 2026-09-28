@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import {
-  resolveGoogleBookRating,
+  resolveHardcoverRating,
 } from '../lib/book-search';
 import {
   NovoriColors,
@@ -74,7 +74,7 @@ export default function BookStackShowcase({
       : null;
 
   const [
-    googleRating,
+    hardcoverRating,
     setGoogleRating,
   ] =
     useState<
@@ -82,7 +82,7 @@ export default function BookStackShowcase({
     >(null);
 
   const [
-    googleRatingsCount,
+    hardcoverRatingsCount,
     setGoogleRatingsCount,
   ] =
     useState<
@@ -93,7 +93,7 @@ export default function BookStackShowcase({
     let active =
       true;
 
-    async function loadGoogleRating() {
+    async function loadHardcoverRating() {
       if (
         !selected
       ) {
@@ -116,7 +116,7 @@ export default function BookStackShowcase({
 
       try {
         const resolved =
-          await resolveGoogleBookRating({
+          await resolveHardcoverRating({
             googleBookId:
               selected.google_book_id ??
               selected.id,
@@ -133,12 +133,12 @@ export default function BookStackShowcase({
         }
 
         setGoogleRating(
-          resolved?.averageRating ??
+          resolved?.rating ??
           null
         );
 
         setGoogleRatingsCount(
-          resolved?.ratingsCount ??
+          resolved?.usersCount ??
           null
         );
       } catch {
@@ -155,7 +155,7 @@ export default function BookStackShowcase({
       }
     }
 
-    void loadGoogleRating();
+    void loadHardcoverRating();
 
     return () => {
       active =
@@ -299,16 +299,16 @@ export default function BookStackShowcase({
                 'Unknown author'}
             </Text>
 
-            {googleRating !==
+            {hardcoverRating !==
             null ? (
               <View
                 style={
-                  styles.googleRatingRow
+                  styles.hardcoverRatingRow
                 }
               >
                 <View
                   style={
-                    styles.googleStars
+                    styles.hardcoverStars
                   }
                 >
                   {[1,2,3,4,5].map(
@@ -320,10 +320,10 @@ export default function BookStackShowcase({
                           star
                         }
                         name={
-                          googleRating >=
+                          hardcoverRating >=
                           star
                             ? 'star'
-                            : googleRating >=
+                            : hardcoverRating >=
                               star -
                                 0.5
                               ? 'star-half'
@@ -340,16 +340,16 @@ export default function BookStackShowcase({
 
                 <Text
                   style={
-                    styles.googleRatingText
+                    styles.hardcoverRatingText
                   }
                 >
-                  {googleRating.toFixed(
+                  {hardcoverRating.toFixed(
                     1
                   )}
-                  {googleRatingsCount !==
+                  {hardcoverRatingsCount !==
                   null
-                    ? ` · ${googleRatingsCount.toLocaleString()} Google ratings`
-                    : ' · Google Books'}
+                    ? ` · ${hardcoverRatingsCount.toLocaleString()} Hardcover readers`
+                    : ' · Hardcover'}
                 </Text>
               </View>
             ) : null}
@@ -531,7 +531,7 @@ function createStyles(
       marginTop: 3,
     },
 
-    googleRatingRow: {
+    hardcoverRatingRow: {
       flexDirection:
         'row',
       alignItems:
@@ -540,7 +540,7 @@ function createStyles(
       marginTop: 7,
     },
 
-    googleStars: {
+    hardcoverStars: {
       flexDirection:
         'row',
       alignItems:
@@ -548,7 +548,7 @@ function createStyles(
       gap: 1,
     },
 
-    googleRatingText: {
+    hardcoverRatingText: {
       color:
         colors.mutedText,
       fontFamily:
