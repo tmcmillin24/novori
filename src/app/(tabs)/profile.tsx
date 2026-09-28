@@ -21,6 +21,7 @@ import {
 
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
+import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import {
   TabScreen,
@@ -33,6 +34,7 @@ import {
 } from '../../context/theme-context';
 import {
   BookStack,
+  deleteBookStack,
   getMyBookStacks,
 } from '../../lib/book-stacks';
 import {
@@ -228,6 +230,23 @@ export default function ProfileScreen() {
   ] =
     useState<BookStack[]>(
       []
+    );
+
+
+  const [
+    deleteStackTarget,
+    setDeleteStackTarget,
+  ] =
+    useState<BookStack | null>(
+      null
+    );
+
+  const [
+    deletingStackId,
+    setDeletingStackId,
+  ] =
+    useState<string | null>(
+      null
     );
 
 
@@ -1269,6 +1288,107 @@ export default function ProfileScreen() {
     );
   }
 
+  function requestDeleteStack(
+    stack: BookStack
+  ) {
+    setDeleteStackTarget(
+      stack
+    );
+  }
+
+  async function confirmDeleteStack() {
+    if (
+      !deleteStackTarget ||
+      deletingStackId
+    ) {
+      return;
+    }
+
+    const stackId =
+      deleteStackTarget.id;
+
+    try {
+      setDeletingStackId(
+        stackId
+      );
+
+      await deleteBookStack(
+        stackId
+      );
+
+      setStacks(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              stack
+            ) =>
+              stack.id !==
+              stackId
+          )
+      );
+
+      const {
+        data: {
+          session,
+        },
+      } =
+        await supabase.auth.getSession();
+
+      const userId =
+        session?.user?.id;
+
+      if (
+        userId
+      ) {
+        const cached =
+          await readProfileCache(
+            userId
+          );
+
+        if (
+          cached
+        ) {
+          await writeProfileCache(
+            userId,
+            {
+              ...cached,
+              stacks:
+                cached.stacks.filter(
+                  (
+                    stack
+                  ) =>
+                    stack.id !==
+                    stackId
+                ),
+            }
+          );
+        }
+      }
+    } catch (
+      stackError
+    ) {
+      console.error(
+        'Could not delete Book Stack:',
+        stackError
+      );
+
+      Alert.alert(
+        'Could not delete Book Stack',
+        stackError instanceof Error
+          ? stackError.message
+          : 'Please try again.'
+      );
+
+      throw stackError;
+    } finally {
+      setDeletingStackId(
+        null
+      );
+    }
+  }
+
   function renderStacksTab() {
     if (
       stacks.length ===
@@ -1329,6 +1449,41 @@ export default function ProfileScreen() {
                   styles.pressed,
               ]}
             >
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  requestDeleteStack(
+                    stack
+                  );
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Book Stack options"
+                style={({ pressed }) => [
+                  styles.stackTileMenu,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                {deletingStackId ===
+                stack.id ? (
+                  <Ionicons
+                    name="hourglass-outline"
+                    size={17}
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={19}
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                )}
+              </Pressable>
               <View
                 style={
                   styles.stackTileVisual
@@ -1846,6 +2001,27 @@ export default function ProfileScreen() {
         renderTabContent()
       }
 
+      <DeleteBookStackConfirmSheet
+        visible={
+          Boolean(
+            deleteStackTarget
+          )
+        }
+        busy={
+          Boolean(
+            deletingStackId
+          )
+        }
+        onConfirm={
+          confirmDeleteStack
+        }
+        onDismiss={() =>
+          setDeleteStackTarget(
+            null
+          )
+        }
+      />
+
       <FullScreenImageViewer
         visible={
           profileImageOpen
@@ -2207,6 +2383,20 @@ function createStyles(
       padding: 12,
       overflow:
         'hidden',
+    },
+
+    stackTileMenu: {
+      position:
+        'absolute',
+      top: 7,
+      right: 7,
+      width: 32,
+      height: 32,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex: 4,
     },
 
     stackTileVisual: {
