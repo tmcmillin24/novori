@@ -31,7 +31,6 @@ import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-nati
 
 import { NovoriColors } from '../../constants/novori-theme';
 import {
-  shouldFrameBookCover,
   searchNovoriBooks,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -2734,26 +2733,8 @@ export default function DiscoverScreen() {
             source={{
               uri: cover,
             }}
-            style={[
-              styles.cover,
-              shouldFrameBookCover(
-                cover
-              )
-                ? {
-                    backgroundColor:
-                      '#FFFFFF',
-                    borderWidth: 1,
-                    borderColor:
-                      '#E5E5E5',
-                  }
-                : null,
-            ]}
-            resizeMode={
-              shouldFrameBookCover(
-                cover
-              )
-                ? 'contain'
-                : 'cover'
+            style={
+              styles.cover
             }
           />
         ) : (
