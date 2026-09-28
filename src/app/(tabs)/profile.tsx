@@ -41,9 +41,6 @@ import {
   useNovoriTheme,
 } from '../../context/theme-context';
 import {
-  shouldFrameBookCover,
-} from '../../lib/book-search';
-import {
   BookStack,
   deleteBookStack,
   getMyBookStacks,
@@ -944,27 +941,10 @@ export default function ProfileScreen() {
                     source={
                       book.cover_url
                     }
-                    style={[
-                      styles.gridCover,
-                      shouldFrameBookCover(
-                        book.cover_url
-                      )
-                        ? {
-                            backgroundColor:
-                              '#FFFFFF',
-                            borderWidth: 1,
-                            borderColor:
-                              '#E5E5E5',
-                          }
-                        : null,
-                    ]}
-                    contentFit={
-                      shouldFrameBookCover(
-                        book.cover_url
-                      )
-                        ? 'contain'
-                        : 'cover'
+                    style={
+                      styles.gridCover
                     }
+                    contentFit="cover"
                     cachePolicy="memory-disk"
                     transition={0}
                   />
@@ -1128,27 +1108,10 @@ export default function ProfileScreen() {
                     source={
                       book.cover_url
                     }
-                    style={[
-                      styles.reviewCover,
-                      shouldFrameBookCover(
-                        book.cover_url
-                      )
-                        ? {
-                            backgroundColor:
-                              '#FFFFFF',
-                            borderWidth: 1,
-                            borderColor:
-                              '#E5E5E5',
-                          }
-                        : null,
-                    ]}
-                    contentFit={
-                      shouldFrameBookCover(
-                        book.cover_url
-                      )
-                        ? 'contain'
-                        : 'cover'
+                    style={
+                      styles.reviewCover
                     }
+                    contentFit="cover"
                     cachePolicy="memory-disk"
                     transition={0}
                   />
