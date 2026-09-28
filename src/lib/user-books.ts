@@ -8,6 +8,18 @@ import {
   resolveOpenLibraryWorkCover,
 } from './book-covers';
 
+let libraryMutationVersion =
+  0;
+
+function markLibraryChanged() {
+  libraryMutationVersion +=
+    1;
+}
+
+export function getLibraryMutationVersion() {
+  return libraryMutationVersion;
+}
+
 export type UserBookStatus =
   | 'want_to_read'
   | 'reading'
@@ -1168,6 +1180,8 @@ export async function saveUserBook(
       throw error;
     }
 
+    markLibraryChanged();
+
     return data as UserBook;
   }
 
@@ -1216,6 +1230,8 @@ export async function saveUserBook(
     throw error;
   }
 
+  markLibraryChanged();
+
   return data as UserBook;
 }
 
@@ -1250,6 +1266,8 @@ export async function updateUserBookOwned(
   if (error) {
     throw error;
   }
+
+  markLibraryChanged();
 
   return data as UserBook;
 }
@@ -1293,6 +1311,8 @@ export async function updateBookReadingDates({
     throw error;
   }
 
+  markLibraryChanged();
+
   return data as UserBook;
 }
 
@@ -1331,6 +1351,8 @@ export async function updateBookReview({
     throw error;
   }
 
+  markLibraryChanged();
+
   return data as UserBook;
 }
 
@@ -1357,4 +1379,6 @@ export async function removeUserBook(
   if (error) {
     throw error;
   }
+
+  markLibraryChanged();
 }
