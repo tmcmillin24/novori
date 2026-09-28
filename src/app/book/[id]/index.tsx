@@ -2086,11 +2086,12 @@ export default function BookDetailsScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {isSavedBookContext ? (
-          <View
-            style={
-              styles.libraryBookHero
-            }
-          >
+          <>
+            <View
+              style={
+                styles.libraryBookHero
+              }
+            >
             {cover ? (
               <Image
                 source={{
@@ -2370,6 +2371,7 @@ export default function BookDetailsScreen() {
                 </Text>
               </Pressable>
             </View>
+          </>
         ) : (
           <View
             style={
