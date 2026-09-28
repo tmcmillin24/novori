@@ -40,6 +40,7 @@ type HardcoverSearchPopularityResponse = {
       usersCount: number;
       rating: number | null;
       ratingsCount?: number | null;
+      reviewsCount?: number | null;
     }
   >;
   error?: string;
@@ -93,13 +94,20 @@ function getBookIsbns(
 }
 
 async function getHardcoverPopularity(
-  books: GoogleBookSearchItem[]
+  books: GoogleBookSearchItem[],
+  allowTitleFallback = false
 ) {
   const booksWithIsbns =
     books
       .map((book) => ({
         googleBookId:
           book.id,
+        title:
+          book.volumeInfo.title ??
+          '',
+        authors:
+          book.volumeInfo.authors ??
+          [],
         isbns:
           getBookIsbns(
             book
@@ -131,6 +139,7 @@ async function getHardcoverPopularity(
           body: {
             books:
               booksWithIsbns,
+            allowTitleFallback,
           },
         }
       );
@@ -1530,6 +1539,8 @@ async function findHardcoverDiscoveryMatch(
             ),
           ratingsCount:
             null,
+          reviewsCount:
+            null,
           googleBookId:
             '',
         };
@@ -1545,6 +1556,7 @@ async function findHardcoverDiscoveryMatch(
 export type ResolvedHardcoverRating = {
   rating: number;
   ratingsCount: number | null;
+  reviewsCount: number | null;
   googleBookId: string;
 };
 
@@ -1685,7 +1697,8 @@ export async function resolveHardcoverRating(input: {
 
   const popularity =
     await getHardcoverPopularity(
-      matchingBooks
+      matchingBooks,
+      true
     );
 
   const ranked =
@@ -1710,6 +1723,11 @@ export async function resolveHardcoverRating(input: {
             popularity[
               book.id
             ]?.ratingsCount ??
+            null,
+          reviewsCount:
+            popularity[
+              book.id
+            ]?.reviewsCount ??
             null,
         })
       )
@@ -1753,6 +1771,8 @@ export async function resolveHardcoverRating(input: {
       best.rating,
     ratingsCount:
       best.ratingsCount,
+    reviewsCount:
+      best.reviewsCount,
     googleBookId:
       best.googleBookId,
   };
