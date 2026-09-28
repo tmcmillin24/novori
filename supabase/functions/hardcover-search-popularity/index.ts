@@ -766,164 +766,153 @@ Deno.serve(
           allowTitleFallback &&
           inputBook.title
         ) {
-          const canonicalTitle =
-            canonicalizeTitle(
-              inputBook.title
-            );
-
           const primaryAuthor =
             inputBook.authors[0]
               ?.trim() ??
             '';
 
-          const exactTitleQuery =
-            primaryAuthor
-              ? `
-                query HardcoverByWork(
-                  $title: String!
-                  $author: String!
-                ) {
-                  books(
-                    where: {
-                      title: {
-                        _ilike: $title
-                      }
-                      contributions: {
-                        author: {
-                          name: {
-                            _ilike: $author
-                          }
-                        }
-                      }
-                    }
-                    order_by: [
-                      {
-                        ratings_count: desc
-                      }
-                    ]
-                    limit: 50
-                  ) {
-                    ${bookFields}
-                  }
-                }
-              `
-              : `
-                query HardcoverByWork(
-                  $title: String!
-                ) {
-                  books(
-                    where: {
-                      title: {
-                        _ilike: $title
-                      }
-                    }
-                    order_by: [
-                      {
-                        ratings_count: desc
-                      }
-                    ]
-                    limit: 50
-                  ) {
-                    ${bookFields}
-                  }
-                }
-              `;
+          const searchQuery = `
+            query HardcoverSearch(
+              $query: String!
+            ) {
+              search(
+                query: $query
+                query_type: "Book"
+                per_page: 50
+                page: 1
+                fields: "title,author_names,isbns,alternative_titles"
+                weights: "5,4,5,1"
+                typos: "2,2,0,2"
+                sort: "_text_match:desc,ratings_count:desc"
+              ) {
+                results
+              }
+            }
+          `;
 
-          const exactPayload =
+          const payload =
             await hardcoverRequest(
               token,
-              exactTitleQuery,
-              primaryAuthor
-                ? {
-                    title:
-                      inputBook.title,
-                    author:
-                      primaryAuthor,
-                  }
-                : {
-                    title:
-                      inputBook.title,
-                  }
+              searchQuery,
+              {
+                query:
+                  primaryAuthor
+                    ? `${inputBook.title} ${primaryAuthor}`
+                    : inputBook.title,
+              }
             );
 
-          const exactBooks:
-            HardcoverBook[] =
+          const rawResults =
             Array.isArray(
-              exactPayload?.data?.books
+              payload?.data?.search?.results
             )
-              ? exactPayload.data.books
+              ? payload.data.search.results
               : [];
+
+          const searchMatches:
+            HardcoverBook[] =
+            rawResults
+              .map(
+                (
+                  result:
+                    Record<
+                      string,
+                      unknown
+                    >
+                ) => {
+                  const authorNames =
+                    Array.isArray(
+                      result.author_names
+                    )
+                      ? result.author_names
+                          .filter(
+                            (
+                              name
+                            ): name is string =>
+                              typeof name ===
+                              'string'
+                          )
+                      : [];
+
+                  const searchBook:
+                    HardcoverBook = {
+                    id:
+                      Number(
+                        result.id ??
+                          0
+                      ),
+                    title:
+                      String(
+                        result.title ??
+                          ''
+                      ),
+                    rating:
+                      result.rating ===
+                        null ||
+                      result.rating ===
+                        undefined
+                        ? null
+                        : Number(
+                            result.rating
+                          ),
+                    ratings_count:
+                      Number(
+                        result.ratings_count ??
+                          0
+                      ),
+                    reviews_count:
+                      Number(
+                        result.reviews_count ??
+                          0
+                      ),
+                    users_count:
+                      Number(
+                        result.users_count ??
+                          0
+                      ),
+                    canonical_id:
+                      result.canonical_id ===
+                        null ||
+                      result.canonical_id ===
+                        undefined
+                        ? null
+                        : Number(
+                            result.canonical_id
+                          ),
+                    contributions:
+                      authorNames.map(
+                        (
+                          name
+                        ) => ({
+                          author: {
+                            name,
+                            canonical:
+                              null,
+                          },
+                        })
+                      ),
+                  };
+
+                  return searchBook;
+                }
+              )
+              .filter(
+                (
+                  book
+                ) =>
+                  Boolean(
+                    book.id &&
+                    book.title
+                  )
+              );
 
           best =
             chooseBestBook(
-              exactBooks,
+              searchMatches,
               inputBook.title,
               inputBook.authors
             );
-
-          if (
-            !best &&
-            primaryAuthor
-          ) {
-            const fuzzyQuery = `
-              query HardcoverByWorkFuzzy(
-                $title: String!
-                $author: String!
-              ) {
-                books(
-                  where: {
-                    title: {
-                      _ilike: $title
-                    }
-                    contributions: {
-                      author: {
-                        name: {
-                          _ilike: $author
-                        }
-                      }
-                    }
-                  }
-                  order_by: [
-                    {
-                      ratings_count: desc
-                    }
-                  ]
-                  limit: 100
-                ) {
-                  ${bookFields}
-                }
-              }
-            `;
-
-            const fuzzyPayload =
-              await hardcoverRequest(
-                token,
-                fuzzyQuery,
-                {
-                  title:
-                    `%${canonicalTitle}%`,
-                  author:
-                    primaryAuthor,
-                }
-              );
-
-            const fuzzyBooks:
-              HardcoverBook[] =
-              Array.isArray(
-                fuzzyPayload?.data?.books
-              )
-                ? fuzzyPayload.data.books
-                : [];
-
-            best =
-              chooseBestBook(
-                fuzzyBooks,
-                inputBook.title,
-                inputBook.authors
-              );
-          }
         }
-
         if (
           !best
         ) {
