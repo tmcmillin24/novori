@@ -2888,7 +2888,7 @@ function createStyles(
       maxWidth: 720,
       alignSelf: 'center',
       paddingHorizontal: 20,
-      paddingTop: 12,
+      paddingTop: 22,
       paddingBottom: 120,
     },
 
@@ -2897,7 +2897,7 @@ function createStyles(
       maxWidth: 720,
       alignSelf: 'center',
       paddingHorizontal: 20,
-      paddingTop: 12,
+      paddingTop: 22,
     },
 
     header: {
@@ -2970,10 +2970,10 @@ function createStyles(
       color:
         colors.secondaryText,
       fontFamily:
-        'Inter_400Regular',
+        'Inter_500Medium',
       fontSize: 15,
-      lineHeight: 22,
       marginTop: 5,
+      letterSpacing: 0.15,
     },
 
     searchWrap: {
