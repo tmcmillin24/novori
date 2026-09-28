@@ -2146,8 +2146,13 @@ export async function resolveHardcoverRating(input: {
     process.env
       .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
+  const allowGoogleLookup =
+    input.allowGoogleLookup !==
+    false;
+
   if (
-    !apiKey
+    !apiKey &&
+    allowGoogleLookup
   ) {
     return null;
   }
