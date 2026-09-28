@@ -937,16 +937,15 @@ export default function ProfileScreen() {
                 }
               >
                 {book.cover_url ? (
-                  <ExpoImage
-                    source={
-                      book.cover_url
-                    }
+                  <Image
+                    source={{
+                      uri:
+                        book.cover_url,
+                    }}
                     style={
                       styles.gridCover
                     }
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
+                    resizeMode="cover"
                   />
                 ) : (
                   <View
@@ -1104,16 +1103,15 @@ export default function ProfileScreen() {
                 }
               >
                 {book.cover_url ? (
-                  <ExpoImage
-                    source={
-                      book.cover_url
-                    }
+                  <Image
+                    source={{
+                      uri:
+                        book.cover_url,
+                    }}
                     style={
                       styles.reviewCover
                     }
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
+                    resizeMode="cover"
                   />
                 ) : (
                   <View
@@ -1610,16 +1608,15 @@ export default function ProfileScreen() {
                         }
                       >
                         {post.book_cover_url ? (
-                          <ExpoImage
-                            source={
-                              post.book_cover_url
-                            }
+                          <Image
+                            source={{
+                              uri:
+                                post.book_cover_url,
+                            }}
                             style={
                               styles.activityFeedBookCover
                             }
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={0}
+                            resizeMode="cover"
                           />
                         ) : (
                           <View
