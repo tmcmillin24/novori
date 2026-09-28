@@ -484,9 +484,6 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  let nextCover =
-    currentCover;
-
   try {
     const exactResponse =
       await fetchGoogleBooksJson<
@@ -527,7 +524,71 @@ async function repairSavedCover(
         ?.identifier ??
       book.isbn;
 
-    const exactBestCover =
+    let canonicalWorkCover:
+      string | null =
+      null;
+
+    const title =
+      book.title.trim();
+
+    if (
+      title
+    ) {
+      const discoverResults =
+        await searchNovoriBooks(
+          title
+        );
+
+      const wantedTitle =
+        normalizeBookText(
+          book.title
+        );
+
+      const workMatch =
+        discoverResults.find(
+          (
+            candidate
+          ) => {
+            const candidateTitle =
+              normalizeBookText(
+                candidate
+                  .volumeInfo
+                  .title
+              );
+
+            const titleMatches =
+              candidateTitle ===
+                wantedTitle ||
+              candidateTitle.startsWith(
+                `${wantedTitle} `
+              ) ||
+              wantedTitle.startsWith(
+                `${candidateTitle} `
+              );
+
+            return (
+              titleMatches &&
+              authorsMatch(
+                book.authors ??
+                  [],
+                candidate
+                  .volumeInfo
+                  .authors ??
+                  []
+              )
+            );
+          }
+        );
+
+      canonicalWorkCover =
+        secureCoverUrl(
+          workMatch
+            ?.novoriWork
+            ?.canonicalCoverUrl
+        );
+    }
+
+    const nextCover =
       secureCoverUrl(
         await resolveBookCoverUrl({
           imageLinks:
@@ -537,152 +598,10 @@ async function repairSavedCover(
           isbn:
             exactIsbn,
           existingCoverUrl:
+            canonicalWorkCover ??
             currentCover,
         })
       );
-
-    const currentCoverVolumeId =
-      getGoogleCoverInfo(
-        currentCover
-      )?.id;
-
-    const currentIsCrossEdition =
-      Boolean(
-        currentCoverVolumeId &&
-        currentCoverVolumeId !==
-          book.google_book_id
-      );
-
-    if (
-      exactBestCover
-    ) {
-      if (
-        isOpenLibraryCoverUrl(
-          exactBestCover
-        )
-      ) {
-        nextCover =
-          exactBestCover;
-      }
-
-      const currentTier =
-        getSearchCoverTier(
-          currentCover,
-          exactBook
-            ?.volumeInfo
-            .imageLinks
-        );
-
-      const exactBestTier =
-        getSearchCoverTier(
-          exactBestCover,
-          exactBook
-            ?.volumeInfo
-            .imageLinks
-        );
-
-      if (
-        !isOpenLibraryCoverUrl(
-          exactBestCover
-        ) &&
-        (
-          !currentCover ||
-          currentIsCrossEdition ||
-          (
-            currentTier !==
-              null &&
-            exactBestTier !==
-              null &&
-            exactBestTier >
-              currentTier
-          )
-        )
-      ) {
-        nextCover =
-          exactBestCover;
-      }
-    }
-
-    if (
-      !nextCover ||
-      currentIsCrossEdition
-    ) {
-      const title =
-        book.title.trim();
-
-      if (
-        title
-      ) {
-        const discoverResults =
-          await searchNovoriBooks(
-            title
-          );
-
-        const wantedTitle =
-          normalizeBookText(
-            book.title
-          );
-
-        const bestDiscoverMatch =
-          discoverResults.find(
-            (
-              candidate
-            ) => {
-              const candidateTitle =
-                normalizeBookText(
-                  candidate
-                    .volumeInfo
-                    .title
-                );
-
-              const titleMatches =
-                candidateTitle ===
-                  wantedTitle ||
-                candidateTitle.startsWith(
-                  `${wantedTitle} `
-                ) ||
-                wantedTitle.startsWith(
-                  `${candidateTitle} `
-                );
-
-              return (
-                titleMatches &&
-                authorsMatch(
-                  book.authors ??
-                    [],
-                  candidate
-                    .volumeInfo
-                    .authors ??
-                    []
-                ) &&
-                Boolean(
-                  getBestSearchCover(
-                    candidate
-                      .volumeInfo
-                      .imageLinks
-                  )
-                )
-              );
-            }
-          );
-
-        const discoverCover =
-          secureCoverUrl(
-            getBestSearchCover(
-              bestDiscoverMatch
-                ?.volumeInfo
-                .imageLinks
-            )
-          );
-
-        if (
-          discoverCover
-        ) {
-          nextCover =
-            discoverCover;
-        }
-      }
-    }
 
     if (
       !nextCover ||
