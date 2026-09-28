@@ -364,6 +364,40 @@ export async function updateUserBookOwned(
   return data as UserBook;
 }
 
+export async function updateUserBookCover(
+  googleBookId: string,
+  coverUrl: string | null
+): Promise<UserBook> {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('user_books')
+    .update({
+      cover_url:
+        coverUrl,
+    })
+    .eq(
+      'user_id',
+      userId
+    )
+    .eq(
+      'google_book_id',
+      googleBookId
+    )
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as UserBook;
+}
+
 export async function updateBookReadingDates({
   googleBookId,
   startedAt,
