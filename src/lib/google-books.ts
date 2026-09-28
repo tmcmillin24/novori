@@ -513,52 +513,7 @@ export async function fetchGoogleBooksJson<T>(
       };
     }
 
-    const catalogBook =
-      await readCatalogBook<T>(
-        detailId
-      );
 
-    if (
-      catalogBook
-    ) {
-      memoryCache.set(
-        url,
-        {
-          expiresAt:
-            now +
-            DETAIL_CACHE_MS,
-          status:
-            200,
-          data:
-            catalogBook,
-        }
-      );
-
-      volumeMemoryCache.set(
-        detailId,
-        {
-          expiresAt:
-            now +
-            DETAIL_CACHE_MS,
-          data:
-            catalogBook,
-        }
-      );
-
-      void persistDetail(
-        detailId,
-        catalogBook
-      );
-
-      return {
-        ok: true,
-        status: 200,
-        data:
-          catalogBook,
-        fromCache:
-          true,
-      };
-    }
   }
 
   if (
@@ -669,40 +624,10 @@ export async function fetchGoogleBooksJson<T>(
             true
           );
         } else {
-          const completeBooks =
-            catalogBooks.filter(
-              hasUsablePageCount
-            );
-
-          const partialBooks =
-            catalogBooks.filter(
-              (
-                book
-              ) =>
-                !hasUsablePageCount(
-                  book
-                )
-            );
-
-          if (
-            completeBooks.length >
-            0
-          ) {
-            void upsertCatalogBooks(
-              completeBooks,
-              true
-            );
-          }
-
-          if (
-            partialBooks.length >
-            0
-          ) {
-            void upsertCatalogBooks(
-              partialBooks,
-              false
-            );
-          }
+          void upsertCatalogBooks(
+            catalogBooks,
+            false
+          );
         }
       }
 
