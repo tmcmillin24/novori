@@ -347,10 +347,33 @@ export default function BookStackVisual({
           : 'builder'
       );
 
-  const config =
+  const baseConfig =
     VARIANTS[
       resolvedVariant
     ];
+
+  const config:
+    VariantConfig =
+      resolvedVariant ===
+        'profile' &&
+      items.length > 1
+        ? {
+            ...baseConfig,
+            overlap:
+              Math.max(
+                0,
+                baseConfig.width -
+                  (
+                    138 -
+                    baseConfig.width
+                  ) /
+                    (
+                      items.length -
+                      1
+                    )
+              ),
+          }
+        : baseConfig;
 
   const styles =
     createStyles(
