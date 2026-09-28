@@ -262,6 +262,94 @@ function chooseSavedCover(
     : existing;
 }
 
+function getSearchCoverTier(
+  url: string | null | undefined,
+  imageLinks:
+    | {
+        smallThumbnail?: string;
+        thumbnail?: string;
+        small?: string;
+        medium?: string;
+        large?: string;
+        extraLarge?: string;
+      }
+    | undefined
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure ||
+    !imageLinks
+  ) {
+    return null;
+  }
+
+  const candidates = [
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .smallThumbnail
+        ),
+      tier: 1,
+    },
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .thumbnail
+        ),
+      tier: 2,
+    },
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .small
+        ),
+      tier: 3,
+    },
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .medium
+        ),
+      tier: 4,
+    },
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .large
+        ),
+      tier: 5,
+    },
+    {
+      value:
+        secureCoverUrl(
+          imageLinks
+            .extraLarge
+        ),
+      tier: 6,
+    },
+  ];
+
+  return (
+    candidates.find(
+      (
+        candidate
+      ) =>
+        candidate.value ===
+          secure
+    )?.tier ??
+    null
+  );
+}
+
 function normalizeBookText(
   value?: string | null
 ) {
@@ -280,52 +368,6 @@ function normalizeBookText(
       ' '
     )
     .trim();
-}
-
-function isClearlyLowResolutionGoogleCover(
-  url?: string | null
-) {
-  if (
-    !url
-  ) {
-    return true;
-  }
-
-  try {
-    const parsed =
-      new URL(
-        secureCoverUrl(
-          url
-        ) ??
-          url
-      );
-
-    if (
-      !parsed.hostname.includes(
-        'google'
-      )
-    ) {
-      return false;
-    }
-
-    const zoom =
-      Number(
-        parsed.searchParams.get(
-          'zoom'
-        ) ??
-        ''
-      );
-
-    return (
-      Number.isFinite(
-        zoom
-      ) &&
-      zoom > 0 &&
-      zoom <= 1
-    );
-  } catch {
-    return false;
-  }
 }
 
 function authorsMatch(
@@ -385,29 +427,6 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  const currentGoogle =
-    getGoogleCoverInfo(
-      currentCover
-    );
-
-  const currentNeedsRepair =
-    !currentCover ||
-    (
-      currentGoogle &&
-      (
-        currentGoogle.zoom ===
-          null ||
-        currentGoogle.zoom <=
-          2
-      )
-    );
-
-  if (
-    !currentNeedsRepair
-  ) {
-    return book;
-  }
-
   const title =
     book.title.trim();
 
@@ -428,8 +447,8 @@ async function repairSavedCover(
         book.title
       );
 
-    const bestDiscoverMatch =
-      discoverResults.find(
+    const matchingBooks =
+      discoverResults.filter(
         (
           candidate
         ) => {
@@ -459,60 +478,142 @@ async function repairSavedCover(
                 .volumeInfo
                 .authors ??
                 []
-            ) &&
-            Boolean(
-              getBestSearchCover(
-                candidate
-                  .volumeInfo
-                  .imageLinks
-              )
             )
           );
         }
       );
 
-    const discoverCover =
-      getBestSearchCover(
-        bestDiscoverMatch
-          ?.volumeInfo
-          .imageLinks
-      ) ??
-      null;
-
-    if (
-      !discoverCover ||
-      discoverCover ===
-        currentCover
-    ) {
-      return book;
-    }
-
-    const discoverGoogle =
-      getGoogleCoverInfo(
-        discoverCover
-      );
-
-    const currentIsClearlyLowResolution =
-      isClearlyLowResolutionGoogleCover(
-        currentCover
-      );
-
-    const discoverIsHigherQuality =
-      Boolean(
-        currentGoogle &&
-        discoverGoogle &&
-        getSavedCoverQuality(
-          discoverCover
-        ) >
-          getSavedCoverQuality(
-            currentCover
+    const bestDiscoverMatch =
+      matchingBooks.find(
+        (
+          candidate
+        ) =>
+          Boolean(
+            getBestSearchCover(
+              candidate
+                .volumeInfo
+                .imageLinks
+            )
           )
       );
 
     if (
-      currentCover &&
-      !currentIsClearlyLowResolution &&
-      !discoverIsHigherQuality
+      !bestDiscoverMatch
+    ) {
+      return book;
+    }
+
+    const discoverCover =
+      secureCoverUrl(
+        getBestSearchCover(
+          bestDiscoverMatch
+            .volumeInfo
+            .imageLinks
+        )
+      );
+
+    if (
+      !discoverCover
+    ) {
+      return book;
+    }
+
+    let nextCover =
+      currentCover;
+
+    if (
+      !currentCover
+    ) {
+      nextCover =
+        discoverCover;
+    } else {
+      const currentVolumeId =
+        getGoogleCoverInfo(
+          currentCover
+        )?.id;
+
+      const sameVolumeResult =
+        currentVolumeId
+          ? matchingBooks.find(
+              (
+                candidate
+              ) =>
+                candidate.id ===
+                  currentVolumeId
+            )
+          : undefined;
+
+      const currentTier =
+        getSearchCoverTier(
+          currentCover,
+          sameVolumeResult
+            ?.volumeInfo
+            .imageLinks
+        );
+
+      const sameVolumeBestCover =
+        secureCoverUrl(
+          getBestSearchCover(
+            sameVolumeResult
+              ?.volumeInfo
+              .imageLinks
+          )
+        );
+
+      const sameVolumeBestTier =
+        getSearchCoverTier(
+          sameVolumeBestCover,
+          sameVolumeResult
+            ?.volumeInfo
+            .imageLinks
+        );
+
+      if (
+        sameVolumeBestCover &&
+        currentTier !==
+          null &&
+        sameVolumeBestTier !==
+          null &&
+        sameVolumeBestTier >
+          currentTier
+      ) {
+        nextCover =
+          sameVolumeBestCover;
+      } else {
+        const discoverTier =
+          getSearchCoverTier(
+            discoverCover,
+            bestDiscoverMatch
+              .volumeInfo
+              .imageLinks
+          );
+
+        const currentTierAgainstDiscover =
+          getSearchCoverTier(
+            currentCover,
+            bestDiscoverMatch
+              .volumeInfo
+              .imageLinks
+          );
+
+        if (
+          currentTierAgainstDiscover !==
+            null &&
+          discoverTier !==
+            null &&
+          discoverTier >
+            currentTierAgainstDiscover
+        ) {
+          nextCover =
+            discoverCover;
+        }
+      }
+    }
+
+    if (
+      !nextCover ||
+      nextCover ===
+        currentCover
     ) {
       return book;
     }
@@ -527,7 +628,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            discoverCover,
+            nextCover,
         })
         .eq(
           'id',
