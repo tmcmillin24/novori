@@ -1160,7 +1160,7 @@ export default function ProfileScreen() {
                 }
               >
                 <BookStackVisual
-                  compact
+                  variant="profile"
                   items={
                     stack.items
                   }
@@ -1970,7 +1970,7 @@ function createStyles(
 
     stackTile: {
       width: '48%',
-      minHeight: 300,
+      minHeight: 225,
       borderWidth: 1,
       borderColor:
         colors.border,
@@ -1983,7 +1983,7 @@ function createStyles(
     },
 
     stackTileVisual: {
-      height: 220,
+      height: 145,
       alignItems:
         'center',
       justifyContent:
