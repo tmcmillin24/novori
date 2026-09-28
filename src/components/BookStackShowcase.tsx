@@ -21,6 +21,7 @@ export type BookStackShowcaseItem = {
   title: string;
   authors: string[];
   cover_url: string | null;
+  google_book_id?: string;
 };
 
 type Props = {
@@ -205,11 +206,15 @@ export default function BookStackShowcase({
 
           {onOpenBook ? (
             <Pressable
-              onPress={() =>
+              onPress={(
+                event
+              ) => {
+                event.stopPropagation();
+
                 onOpenBook(
                   selected
-                )
-              }
+                );
+              }}
               style={({ pressed }) => [
                 styles.viewBookButton,
                 pressed &&
@@ -261,9 +266,12 @@ export default function BookStackShowcase({
       {showOpenStack &&
       onOpenStack ? (
         <Pressable
-          onPress={
-            onOpenStack
-          }
+          onPress={(
+            event
+          ) => {
+            event.stopPropagation();
+            onOpenStack();
+          }}
           style={({ pressed }) => [
             styles.openStackButton,
             pressed &&
