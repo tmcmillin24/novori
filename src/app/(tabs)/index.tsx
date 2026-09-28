@@ -9527,8 +9527,6 @@ function createStyles(
       fontSize:
         13.5,
       flexShrink:
-        1,
-      minWidth:
         0,
     },
     feedUsername: {
@@ -9538,6 +9536,8 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         11.5,
+      flex:
+        1,
       flexShrink:
         1,
       minWidth:
