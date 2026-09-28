@@ -12,6 +12,7 @@ import {
 import {
   BookImageLinks,
   getBookCoverPlan,
+  resolveBestBookCover,
 } from '../lib/book-covers';
 
 type Props = Omit<
@@ -55,13 +56,42 @@ export default function BookCoverImage({
 
   useEffect(
     () => {
+      let cancelled =
+        false;
+
       setActiveUrl(
         plan.primaryUrl
       );
+
+      void resolveBestBookCover({
+        imageLinks,
+        isbn,
+        existingCoverUrl,
+      }).then(
+        (
+          resolved
+        ) => {
+          if (
+            !cancelled &&
+            resolved.url
+          ) {
+            setActiveUrl(
+              resolved.url
+            );
+          }
+        }
+      );
+
+      return () => {
+        cancelled =
+          true;
+      };
     },
     [
+      imageLinks,
+      isbn,
+      existingCoverUrl,
       plan.primaryUrl,
-      plan.fallbackUrl,
     ]
   );
 
