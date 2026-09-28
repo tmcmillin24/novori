@@ -1146,57 +1146,59 @@ export default function CreateBookStackScreen() {
 
           {items.length >
           0 ? (
-            <View
-              style={
-                styles.stackPreview
-              }
-            >
-              <BookStackVisual
-                variant="builder"
-                items={
-                  visualItems
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.featuredSummary
-              }
-            >
+            <>
               <View
                 style={
-                  styles.featuredSummaryLabel
+                  styles.stackPreview
                 }
               >
-                <Ionicons
-                  name="star"
-                  size={11}
-                  color={
-                    colors.gold
+                <BookStackVisual
+                  variant="builder"
+                  items={
+                    visualItems
                   }
                 />
+              </View>
+
+              <View
+                style={
+                  styles.featuredSummary
+                }
+              >
+                <View
+                  style={
+                    styles.featuredSummaryLabel
+                  }
+                >
+                  <Ionicons
+                    name="star"
+                    size={11}
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.featuredSummaryEyebrow
+                    }
+                  >
+                    FEATURED
+                  </Text>
+                </View>
 
                 <Text
                   style={
-                    styles.featuredSummaryEyebrow
+                    styles.featuredSummaryTitle
                   }
+                  numberOfLines={1}
                 >
-                  FEATURED
+                  {
+                    items[0]?.title
+                  }
                 </Text>
               </View>
-
-              <Text
-                style={
-                  styles.featuredSummaryTitle
-                }
-                numberOfLines={1}
-              >
-                {
-                  items[0]?.title
-                }
-              </Text>
-            </View>
+            </>
           ) : (
             <Pressable
               onPress={() =>
