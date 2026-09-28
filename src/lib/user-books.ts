@@ -733,8 +733,12 @@ async function repairSavedCover(
         : data as UserBook;
     }
 
-    // From here on, the saved cover is missing or dead. Google stays first.
+    // Only missing/dead saved covers may be replaced immediately by
+    // the exact Google edition. Working Open Library covers get one
+    // Google-work quality check first so fallback cases like Fourth Wing
+    // are not downgraded again.
     if (
+      !currentCoverWorks &&
       exactGoogleCover &&
       await remoteImageExists(
         exactGoogleCover
