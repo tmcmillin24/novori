@@ -2517,9 +2517,6 @@ export default function DiscoverScreen() {
       isbn?: string;
     }
   ) {
-    preserveDiscoverStateOnNextBlur.current =
-      true;
-
     router.push({
       pathname:
         '/book/[id]',
