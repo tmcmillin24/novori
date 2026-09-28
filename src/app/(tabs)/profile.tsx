@@ -992,7 +992,7 @@ export default function ProfileScreen() {
                       uri:
                         book.cover_url,
                       cache:
-                        'reload',
+        'force-cache',
                     }}
                     style={
                       styles.gridCover
@@ -1160,7 +1160,7 @@ export default function ProfileScreen() {
                       uri:
                         book.cover_url,
                       cache:
-                        'reload',
+        'force-cache',
                     }}
                     style={
                       styles.reviewCover
@@ -1667,7 +1667,7 @@ export default function ProfileScreen() {
                               uri:
                                 post.book_cover_url,
                               cache:
-                                'reload',
+        'force-cache',
                             }}
                             style={
                               styles.activityFeedBookCover
