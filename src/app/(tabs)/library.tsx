@@ -46,6 +46,7 @@ import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 
 import {
   getUserBooks,
+  getLibraryMutationVersion,
   removeUserBook,
   saveUserBook,
   updateUserBookOwned,
@@ -159,6 +160,11 @@ export default function LibraryScreen() {
     setLibraryRefreshKey,
   ] =
     useState(0);
+
+  const lastSeenLibraryMutationRef =
+    useRef(
+      getLibraryMutationVersion()
+    );
 
   const {
     colors,
@@ -508,6 +514,13 @@ export default function LibraryScreen() {
       forceLibraryRefreshRef.current =
         false;
 
+      const currentLibraryMutationVersion =
+        getLibraryMutationVersion();
+
+      const libraryChanged =
+        currentLibraryMutationVersion !==
+        lastSeenLibraryMutationRef.current;
+
       const libraryIsFresh =
         hasLoadedLibraryRef.current &&
         Date.now() -
@@ -516,7 +529,8 @@ export default function LibraryScreen() {
 
       if (
         libraryIsFresh &&
-        !forceRefresh
+        !forceRefresh &&
+        !libraryChanged
       ) {
         return () => {
           active = false;
@@ -555,6 +569,8 @@ export default function LibraryScreen() {
             }
 
             setBooks(data);
+            lastSeenLibraryMutationRef.current =
+              currentLibraryMutationVersion;
             hasLoadedLibraryRef.current =
               true;
             lastLibraryRefreshRef.current =
