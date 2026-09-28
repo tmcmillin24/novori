@@ -86,7 +86,7 @@ function getGoogleCoverVolumeId(
   }
 }
 
-function getCatalogCoverUrl(
+function getCatalogCoverCandidate(
   metadata: unknown
 ) {
   if (
@@ -114,25 +114,75 @@ function getCatalogCoverUrl(
     ).volumeInfo
       ?.imageLinks;
 
+  const candidates = [
+    {
+      url:
+        secureBookCoverUrl(
+          links?.extraLarge
+        ),
+      quality: 60,
+    },
+    {
+      url:
+        secureBookCoverUrl(
+          links?.large
+        ),
+      quality: 50,
+    },
+    {
+      url:
+        secureBookCoverUrl(
+          links?.medium
+        ),
+      quality: 40,
+    },
+    {
+      url:
+        secureBookCoverUrl(
+          links?.small
+        ),
+      quality: 30,
+    },
+    {
+      url:
+        secureBookCoverUrl(
+          links?.thumbnail
+        ),
+      quality: 20,
+    },
+    {
+      url:
+        secureBookCoverUrl(
+          links?.smallThumbnail
+        ),
+      quality: 10,
+    },
+  ].filter(
+    (
+      candidate
+    ): candidate is {
+      url: string;
+      quality: number;
+    } =>
+      Boolean(
+        candidate.url
+      )
+  );
+
   return (
-    secureBookCoverUrl(
-      links?.extraLarge
-    ) ??
-    secureBookCoverUrl(
-      links?.large
-    ) ??
-    secureBookCoverUrl(
-      links?.medium
-    ) ??
-    secureBookCoverUrl(
-      links?.small
-    ) ??
-    secureBookCoverUrl(
-      links?.thumbnail
-    ) ??
-    secureBookCoverUrl(
-      links?.smallThumbnail
-    )
+    candidates[0] ??
+    null
+  );
+}
+
+function getCatalogCoverUrl(
+  metadata: unknown
+) {
+  return (
+    getCatalogCoverCandidate(
+      metadata
+    )?.url ??
+    null
   );
 }
 
@@ -301,49 +351,126 @@ async function repairCatalogCovers(
             error: null,
           };
 
+    type CoverCandidate = {
+      url: string;
+      quality: number;
+      googleBookId: string;
+    };
+
     const exactCovers =
       new Map<
         string,
-        string
+        CoverCandidate
       >();
 
     const workCovers =
       new Map<
         string,
-        string
+        CoverCandidate
       >();
 
-    for (
-      const row of
-        exactResult.data ??
-        []
-    ) {
+    const knownCoverQuality =
+      new Map<
+        string,
+        number
+      >();
+
+    const learnCandidate = (
+      row: {
+        google_book_id: string;
+        metadata: unknown;
+      },
+      workKey?: string | null
+    ) => {
       const candidate =
-        getCatalogCoverUrl(
+        getCatalogCoverCandidate(
           row.metadata
         );
 
       if (
         !candidate
       ) {
-        continue;
+        return;
       }
 
-      const candidateId =
-        getGoogleCoverVolumeId(
-          candidate
+      knownCoverQuality.set(
+        candidate.url,
+        Math.max(
+          candidate.quality,
+          knownCoverQuality.get(
+            candidate.url
+          ) ??
+            0
+        )
+      );
+
+      const exactExisting =
+        exactCovers.get(
+          row.google_book_id
         );
 
       if (
-        !candidateId ||
-        candidateId ===
-          row.google_book_id
+        !exactExisting ||
+        candidate.quality >
+          exactExisting.quality
       ) {
         exactCovers.set(
           row.google_book_id,
-          candidate
+          {
+            ...candidate,
+            googleBookId:
+              row.google_book_id,
+          }
         );
       }
+
+      if (
+        workKey
+      ) {
+        const workExisting =
+          workCovers.get(
+            workKey
+          );
+
+        if (
+          !workExisting ||
+          candidate.quality >
+            workExisting.quality
+        ) {
+          workCovers.set(
+            workKey,
+            {
+              ...candidate,
+              googleBookId:
+                row.google_book_id,
+            }
+          );
+        }
+      }
+    };
+
+    for (
+      const row of
+        exactResult.data ??
+        []
+    ) {
+      const metadata =
+        row.metadata as {
+          novoriWork?: {
+            key?: unknown;
+          };
+        };
+
+      learnCandidate(
+        row,
+        typeof metadata
+          ?.novoriWork?.key ===
+          'string'
+          ? metadata
+              .novoriWork
+              .key
+          : null
+      );
     }
 
     for (
@@ -351,33 +478,23 @@ async function repairCatalogCovers(
         workResult.data ??
         []
     ) {
-      const key =
-        (
-          row.metadata as {
-            novoriWork?: {
-              key?: unknown;
-            };
-          }
-        )?.novoriWork?.key;
+      const metadata =
+        row.metadata as {
+          novoriWork?: {
+            key?: unknown;
+          };
+        };
 
-      const candidate =
-        getCatalogCoverUrl(
-          row.metadata
-        );
-
-      if (
-        typeof key ===
-          'string' &&
-        candidate &&
-        !workCovers.has(
-          key
-        )
-      ) {
-        workCovers.set(
-          key,
-          candidate
-        );
-      }
+      learnCandidate(
+        row,
+        typeof metadata
+          ?.novoriWork?.key ===
+          'string'
+          ? metadata
+              .novoriWork
+              .key
+          : null
+      );
     }
 
     const repaired =
@@ -400,6 +517,18 @@ async function repairCatalogCovers(
               book.google_book_id
             );
 
+          const workKey =
+            getUserBookWorkKey(
+              book
+            );
+
+          const workCover =
+            workKey
+              ? workCovers.get(
+                  workKey
+                )
+              : undefined;
+
           const currentIsClearlyCrossEdition =
             Boolean(
               currentId &&
@@ -414,32 +543,48 @@ async function repairCatalogCovers(
             exactCover &&
             (
               !currentCover ||
-              currentIsClearlyCrossEdition ||
-              getGoogleCoverVolumeId(
-                exactCover
-              ) ===
-                currentId
+              currentIsClearlyCrossEdition
             )
           ) {
             nextCover =
-              exactCover;
-          } else if (
-            !currentCover
+              exactCover.url;
+          }
+
+          if (
+            workCover
           ) {
-            const workKey =
-              getUserBookWorkKey(
-                book
+            const currentQuality =
+              nextCover
+                ? knownCoverQuality.get(
+                    nextCover
+                  ) ??
+                  0
+                : 0;
+
+            const currentIsGoogleCover =
+              Boolean(
+                getGoogleCoverVolumeId(
+                  nextCover
+                )
               );
 
-            nextCover =
+            const shouldUseWorkCover =
+              !nextCover ||
+              currentIsClearlyCrossEdition ||
               (
-                workKey
-                  ? workCovers.get(
-                      workKey
-                    )
-                  : undefined
-              ) ??
-              null;
+                currentIsGoogleCover &&
+                currentQuality >
+                  0 &&
+                workCover.quality >
+                  currentQuality
+              );
+
+            if (
+              shouldUseWorkCover
+            ) {
+              nextCover =
+                workCover.url;
+            }
           }
 
           return {
@@ -487,6 +632,15 @@ async function repairCatalogCovers(
                 book.user_id
               )
         )
+      ).catch(
+        (
+          error
+        ) => {
+          console.warn(
+            'Could not persist repaired library covers:',
+            error
+          );
+        }
       );
     }
 
