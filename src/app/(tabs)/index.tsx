@@ -1339,7 +1339,7 @@ export default function HomeScreen() {
   useEffect(
     () => {
       const unsubscribe =
-        navigation.addListener(
+        (navigation as any).addListener(
           'tabPress',
           () => {
             if (
@@ -7468,17 +7468,12 @@ export default function HomeScreen() {
       {showStickyHomeHeader ? (
         <Pressable
           onPress={() => {
-            if (
-              homeScrollOffsetRef.current >
-              24
-            ) {
-              homeScrollRef.current?.scrollTo({
-                y: 0,
-                animated: true,
-              });
-            } else {
-              void handleRefresh();
-            }
+            homeScrollRef.current?.scrollTo({
+              y: 0,
+              animated: true,
+            });
+
+            void handleRefresh();
           }}
           style={
             styles.stickyHomeHeader
