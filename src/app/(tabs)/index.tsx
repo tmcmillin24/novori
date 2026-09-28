@@ -7481,10 +7481,10 @@ export default function HomeScreen() {
         >
           <Text
             style={
-              styles.stickyHomeLogo
+              styles.stickyHomeTitle
             }
           >
-            Novori
+            Home
           </Text>
         </Pressable>
       ) : null}
@@ -9143,10 +9143,10 @@ function createStyles(
         colors.border,
     },
 
-    stickyHomeLogo: {
+    stickyHomeTitle: {
       color:
         colors.gold,
-      fontSize: 30,
+      fontSize: 24,
       fontFamily:
         'PlayfairDisplay_700Bold',
       letterSpacing: 0.2,
