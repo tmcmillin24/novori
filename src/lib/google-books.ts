@@ -169,56 +169,26 @@ async function enqueueGoogleBooksFetch(
   url: string,
   init?: RequestInit
 ) {
-  let resolveQueued:
-    (
-      response: Response
-    ) => void;
-  let rejectQueued:
-    (
-      error: unknown
-    ) => void;
-
-  const result =
-    new Promise<Response>(
-      (
-        resolve,
-        reject
-      ) => {
-        resolveQueued =
-          resolve;
-        rejectQueued =
-          reject;
-      }
-    );
-
-  googleBooksQueue =
+  const request =
     googleBooksQueue
       .catch(
         () => undefined
       )
       .then(
-        async () => {
-          try {
-            const response =
-              await performGoogleBooksFetch(
-                url,
-                init
-              );
-
-            resolveQueued(
-              response
-            );
-          } catch (
-            error
-          ) {
-            rejectQueued(
-              error
-            );
-          }
-        }
+        () =>
+          performGoogleBooksFetch(
+            url,
+            init
+          )
       );
 
-  return result;
+  googleBooksQueue =
+    request.then(
+      () => undefined,
+      () => undefined
+    );
+
+  return request;
 }
 
 export async function googleBooksFetch(
