@@ -768,18 +768,6 @@ export async function fetchGoogleBooksJson<T>(
         } satisfies GoogleBooksJsonResult<unknown>;
       }
 
-      const normalizedCatalogBook =
-        detailId
-          ? await readRawCatalogBook<{
-              volumeInfo?: {
-                imageLinks?: unknown;
-              };
-              novoriWork?: unknown;
-            }>(
-              detailId
-            )
-          : null;
-
       const requestUrl =
         new URL(
           url
@@ -827,52 +815,6 @@ export async function fetchGoogleBooksJson<T>(
 
       let data =
         await response.json();
-
-      if (
-        detailId &&
-        data &&
-        typeof data ===
-          'object' &&
-        normalizedCatalogBook
-      ) {
-        const current =
-          data as {
-            volumeInfo?: {
-              imageLinks?: unknown;
-              [key: string]:
-                unknown;
-            };
-            novoriWork?: unknown;
-            [key: string]:
-              unknown;
-          };
-
-        data = {
-          ...current,
-          ...(normalizedCatalogBook
-            .novoriWork
-            ? {
-                novoriWork:
-                  normalizedCatalogBook
-                    .novoriWork,
-              }
-            : {}),
-          volumeInfo: {
-            ...(current.volumeInfo ??
-              {}),
-            ...(normalizedCatalogBook
-              .volumeInfo
-              ?.imageLinks
-              ? {
-                  imageLinks:
-                    normalizedCatalogBook
-                      .volumeInfo
-                      .imageLinks,
-                }
-              : {}),
-          },
-        };
-      }
 
       if (
         data &&
