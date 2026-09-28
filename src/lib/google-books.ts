@@ -6,11 +6,27 @@ type CachedGoogleResponse = {
 const GOOGLE_BOOKS_CACHE_MS =
   5 * 60 * 1000;
 
+const GOOGLE_BOOKS_MAX_RETRIES =
+  4;
+
+const GOOGLE_BOOKS_MAX_BACKOFF_MS =
+  8000;
+
+const GOOGLE_BOOKS_MIN_REQUEST_GAP_MS =
+  175;
+
 const googleBooksResponseCache =
   new Map<string, CachedGoogleResponse>();
 
 const googleBooksInFlight =
   new Map<string, Promise<Response>>();
+
+let googleBooksNextAllowedAt =
+  0;
+
+let googleBooksQueue:
+  Promise<void> =
+  Promise.resolve();
 
 function wait(
   milliseconds: number
@@ -26,7 +42,8 @@ function wait(
 }
 
 function getRetryDelay(
-  response: Response
+  response: Response,
+  attempt: number
 ) {
   const retryAfter =
     response.headers.get(
@@ -49,42 +66,159 @@ function getRetryDelay(
       return Math.min(
         seconds *
           1000,
-        5000
+        GOOGLE_BOOKS_MAX_BACKOFF_MS
       );
     }
   }
 
-  return 1000;
+  const exponentialDelay =
+    Math.min(
+      1000 *
+        2 **
+          attempt,
+      GOOGLE_BOOKS_MAX_BACKOFF_MS
+    );
+
+  const jitter =
+    Math.floor(
+      Math.random() *
+        500
+    );
+
+  return (
+    exponentialDelay +
+    jitter
+  );
+}
+
+async function waitForGoogleBooksWindow() {
+  const delay =
+    googleBooksNextAllowedAt -
+    Date.now();
+
+  if (
+    delay >
+    0
+  ) {
+    await wait(
+      delay
+    );
+  }
 }
 
 async function performGoogleBooksFetch(
   url: string,
   init?: RequestInit
 ) {
-  let response =
-    await fetch(
-      url,
-      init
-    );
-
-  if (
-    response.status ===
-    429
+  for (
+    let attempt = 0;
+    attempt <=
+    GOOGLE_BOOKS_MAX_RETRIES;
+    attempt += 1
   ) {
-    await wait(
-      getRetryDelay(
-        response
-      )
-    );
+    await waitForGoogleBooksWindow();
 
-    response =
+    const response =
       await fetch(
         url,
         init
       );
+
+    googleBooksNextAllowedAt =
+      Math.max(
+        googleBooksNextAllowedAt,
+        Date.now() +
+          GOOGLE_BOOKS_MIN_REQUEST_GAP_MS
+      );
+
+    if (
+      response.status !==
+      429
+    ) {
+      return response;
+    }
+
+    if (
+      attempt ===
+      GOOGLE_BOOKS_MAX_RETRIES
+    ) {
+      return response;
+    }
+
+    const retryDelay =
+      getRetryDelay(
+        response,
+        attempt
+      );
+
+    googleBooksNextAllowedAt =
+      Math.max(
+        googleBooksNextAllowedAt,
+        Date.now() +
+          retryDelay
+      );
   }
 
-  return response;
+  return fetch(
+    url,
+    init
+  );
+}
+
+async function enqueueGoogleBooksFetch(
+  url: string,
+  init?: RequestInit
+) {
+  let resolveQueued:
+    (
+      response: Response
+    ) => void;
+  let rejectQueued:
+    (
+      error: unknown
+    ) => void;
+
+  const result =
+    new Promise<Response>(
+      (
+        resolve,
+        reject
+      ) => {
+        resolveQueued =
+          resolve;
+        rejectQueued =
+          reject;
+      }
+    );
+
+  googleBooksQueue =
+    googleBooksQueue
+      .catch(
+        () => undefined
+      )
+      .then(
+        async () => {
+          try {
+            const response =
+              await performGoogleBooksFetch(
+                url,
+                init
+              );
+
+            resolveQueued(
+              response
+            );
+          } catch (
+            error
+          ) {
+            rejectQueued(
+              error
+            );
+          }
+        }
+      );
+
+  return result;
 }
 
 export async function googleBooksFetch(
@@ -99,7 +233,7 @@ export async function googleBooksFetch(
     method !==
     'GET'
   ) {
-    return performGoogleBooksFetch(
+    return enqueueGoogleBooksFetch(
       url,
       init
     );
@@ -131,7 +265,7 @@ export async function googleBooksFetch(
   }
 
   const request =
-    performGoogleBooksFetch(
+    enqueueGoogleBooksFetch(
       url,
       init
     );
