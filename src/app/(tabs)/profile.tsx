@@ -14,7 +14,6 @@ import {
 } from 'react';
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   Share,
@@ -1101,17 +1100,19 @@ export default function ProfileScreen() {
                 }
               >
                 {book.cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        book.cover_url,
-                      cache:
-        'force-cache',
-                    }}
+                  <ExpoImage
+                    source={
+                      book.cover_url
+                    }
                     style={
                       styles.gridCover
                     }
-                    resizeMode="cover"
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={0}
+                    recyclingKey={
+                      book.cover_url
+                    }
                   />
                 ) : (
                   <View
@@ -1269,17 +1270,19 @@ export default function ProfileScreen() {
                 }
               >
                 {book.cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        book.cover_url,
-                      cache:
-        'force-cache',
-                    }}
+                  <ExpoImage
+                    source={
+                      book.cover_url
+                    }
                     style={
                       styles.reviewCover
                     }
-                    resizeMode="cover"
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={0}
+                    recyclingKey={
+                      book.cover_url
+                    }
                   />
                 ) : (
                   <View
@@ -1500,13 +1503,18 @@ export default function ProfileScreen() {
                   }
                 >
                   {post.author_avatar_url ? (
-                    <Image
-                      source={{
-                        uri:
-                          post.author_avatar_url,
-                      }}
+                    <ExpoImage
+                      source={
+                        post.author_avatar_url
+                      }
                       style={
                         styles.activityFeedAvatar
+                      }
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={0}
+                      recyclingKey={
+                        post.author_avatar_url
                       }
                     />
                   ) : (
@@ -1776,17 +1784,19 @@ export default function ProfileScreen() {
                         }
                       >
                         {post.book_cover_url ? (
-                          <Image
-                            source={{
-                              uri:
-                                post.book_cover_url,
-                              cache:
-        'force-cache',
-                            }}
+                          <ExpoImage
+                            source={
+                              post.book_cover_url
+                            }
                             style={
                               styles.activityFeedBookCover
                             }
-                            resizeMode="cover"
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            transition={0}
+                            recyclingKey={
+                              post.book_cover_url
+                            }
                           />
                         ) : (
                           <View
@@ -1982,13 +1992,18 @@ export default function ProfileScreen() {
               ]}
             >
               {club.cover_url ? (
-                <Image
-                  source={{
-                    uri:
-                      club.cover_url,
-                  }}
+                <ExpoImage
+                  source={
+                    club.cover_url
+                  }
                   style={
                     styles.clubCover
+                  }
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={0}
+                  recyclingKey={
+                    club.cover_url
                   }
                 />
               ) : (
