@@ -135,11 +135,7 @@ export default function BookStackPostAttachment({
   }
 
   return (
-    <View
-      onStartShouldSetResponder={() =>
-        true
-      }
-    >
+    <View>
       <BookStackShowcase
         name={
           stack.name
@@ -163,17 +159,8 @@ export default function BookStackPostAttachment({
               '/book/[id]',
             params: {
               id:
-                item.id
-                  ? stack.items.find(
-                      (
-                        stackItem
-                      ) =>
-                        stackItem.id ===
-                        item.id
-                    )
-                      ?.google_book_id ??
-                    ''
-                  : '',
+                item.google_book_id ??
+                '',
               source:
                 'stack',
             },
