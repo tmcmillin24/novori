@@ -106,7 +106,7 @@ async function getHardcoverPopularity(
   books: GoogleBookSearchItem[],
   allowTitleFallback = false
 ) {
-  const booksWithIsbns =
+  const preparedBooks =
     books
       .map((book) => ({
         googleBookId:
@@ -118,8 +118,17 @@ async function getHardcoverPopularity(
           book.volumeInfo.authors ??
           [],
         isbns:
-          getBookIsbns(
-            book
+          Array.from(
+            new Set([
+              ...(
+                book.novoriWork
+                  ?.isbns ??
+                []
+              ),
+              ...getBookIsbns(
+                book
+              ),
+            ])
           ),
       }))
       .filter(
@@ -130,53 +139,88 @@ async function getHardcoverPopularity(
               )
             : book.isbns.length >
               0
-      )
-      .slice(0, 40);
+      );
 
   if (
-    booksWithIsbns.length ===
+    preparedBooks.length ===
     0
   ) {
     return {};
   }
 
-  try {
-    const {
-      data,
-      error:
-        functionError,
-    } =
-      await supabase.functions.invoke(
-        'hardcover-search-popularity',
-        {
-          body: {
-            books:
-              booksWithIsbns,
-            allowTitleFallback,
-          },
-        }
-      );
+  const mergedPopularity:
+    HardcoverSearchPopularityResponse['popularity'] =
+    {};
 
-    if (functionError) {
-      return {};
-    }
+  const batches:
+    typeof preparedBooks[] =
+    [];
 
-    const response =
-      data as
-        HardcoverSearchPopularityResponse;
-
-    if (response?.error) {
-      return {};
-    }
-
-    return (
-      response?.popularity ??
-      {}
+  for (
+    let index = 0;
+    index <
+    preparedBooks.length;
+    index += 40
+  ) {
+    batches.push(
+      preparedBooks.slice(
+        index,
+        index + 40
+      )
     );
-  } catch {
-    return {};
   }
-}
+
+  for (
+    const batch of
+    batches
+  ) {
+    try {
+      const {
+        data,
+        error:
+          functionError,
+      } =
+        await supabase.functions.invoke(
+          'hardcover-search-popularity',
+          {
+            body: {
+              books:
+                batch,
+              allowTitleFallback,
+            },
+          }
+        );
+
+      if (
+        functionError
+      ) {
+        continue;
+      }
+
+      const response =
+        data as
+          HardcoverSearchPopularityResponse;
+
+      if (
+        response?.error
+      ) {
+        continue;
+      }
+
+      Object.assign(
+        mergedPopularity,
+        response?.popularity ??
+        {}
+      );
+    } catch {
+      // Preserve any successfully resolved batches.
+    }
+  }
+
+  return (
+    mergedPopularity ??
+    {}
+  );
 
 function compareBookPopularity(
   a: GoogleBookSearchItem,
