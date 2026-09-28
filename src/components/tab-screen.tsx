@@ -1,5 +1,10 @@
-import { PropsWithChildren } from 'react';
 import {
+  PropsWithChildren,
+  RefObject,
+} from 'react';
+import {
+    NativeScrollEvent,
+    NativeSyntheticEvent,
     ScrollView,
     StyleProp,
     StyleSheet,
@@ -14,12 +19,21 @@ import { useNovoriTheme } from '../context/theme-context';
 type TabScreenProps = PropsWithChildren<{
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  scrollRef?: RefObject<ScrollView | null>;
+  onScroll?: (
+    event:
+      NativeSyntheticEvent<
+        NativeScrollEvent
+      >
+  ) => void;
 }>;
 
 export function TabScreen({
   children,
   scroll = false,
   contentStyle,
+  scrollRef,
+  onScroll,
 }: TabScreenProps) {
   const { colors } = useNovoriTheme();
   const styles = createStyles(colors);
@@ -30,9 +44,20 @@ export function TabScreen({
         edges={['top']}
       >
         <ScrollView
+          ref={
+            scrollRef
+          }
           style={styles.screen}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={
+            onScroll
+          }
+          scrollEventThrottle={
+            onScroll
+              ? 16
+              : undefined
+          }
         >
           <View style={[styles.content, contentStyle]}>
             {children}
