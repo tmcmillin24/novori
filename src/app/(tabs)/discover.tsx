@@ -34,7 +34,6 @@ import {
   searchNovoriBooks,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
-import { googleBooksFetch } from '../../lib/google-books';
 import {
   cancelFollowRequest,
   followReader,
@@ -279,7 +278,7 @@ function isDiscoverBookInLibrary(
   );
 }
 
-const SEARCH_DELAY_MS = 600;
+const SEARCH_DELAY_MS = 350;
 const MIN_SEARCH_LENGTH = 2;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
@@ -1491,7 +1490,7 @@ export default function DiscoverScreen() {
       }
 
       const response =
-        await googleBooksFetch(
+        await fetch(
           `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
             isbn
           )}&maxResults=10&key=${apiKey}`
@@ -2492,7 +2491,7 @@ export default function DiscoverScreen() {
     for (
       const isbn of trendingBook.isbns.slice(0, 6)
     ) {
-      const response = await googleBooksFetch(
+      const response = await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           `isbn:${isbn}`
         )}&maxResults=5&printType=books&key=${apiKey}`
@@ -2543,7 +2542,7 @@ export default function DiscoverScreen() {
       );
     }
 
-    const response = await googleBooksFetch(
+    const response = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
         queryParts.join(' ')
       )}&maxResults=20&printType=books&key=${apiKey}`
