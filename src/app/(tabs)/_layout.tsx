@@ -12,11 +12,16 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      detachInactiveScreens
       screenOptions={{
         headerShown: false,
+        animation: 'none',
+        lazy: false,
+        freezeOnBlur: true,
 
         sceneStyle: {
           backgroundColor: colors.background,
+          overflow: 'hidden',
         },
 
         tabBarStyle: {
