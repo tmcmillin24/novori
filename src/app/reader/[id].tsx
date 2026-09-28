@@ -59,6 +59,9 @@ import {
   unfollowReader,
 } from '../../lib/feed';
 import {
+  sharePostLink,
+} from '../../lib/share-links';
+import {
   PROFILE_BOOK_STATUS_LABELS,
   sortProfileBooks,
 } from '../../lib/profile-book-order';
@@ -1313,6 +1316,28 @@ export default function ReaderProfileScreen() {
     );
   }
 
+  async function shareRenderedPost(
+    postId: string
+  ) {
+    try {
+      await sharePostLink(
+        postId
+      );
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share post:',
+        shareError
+      );
+
+      Alert.alert(
+        'Could not share post',
+        'Please try again.'
+      );
+    }
+  }
+
   async function handlePostVote(
     postId: string,
     voteValue:
@@ -1634,6 +1659,30 @@ export default function ReaderProfileScreen() {
                 -1
                   ? colors.gold
                   : colors.mutedText
+              }
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              void shareRenderedPost(
+                post.id
+              )
+            }
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Share post"
+            style={({ pressed }) => [
+              styles.postVoteButton,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={19}
+              color={
+                colors.mutedText
               }
             />
           </Pressable>
