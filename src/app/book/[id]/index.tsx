@@ -44,6 +44,7 @@ import {
   removeUserBook,
   saveUserBook,
   updateBookReadingDates,
+  updateUserBookMetadata,
   updateUserBookOwned,
   UserBook,
   UserBookStatus,
@@ -969,38 +970,112 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
-        const apiKey =
-          process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+        let existingSavedBook:
+          UserBook | null =
+          null;
 
-        if (!apiKey) {
-          throw new Error('Google Books API key is missing.');
+        try {
+          existingSavedBook =
+            await getUserBook(
+              id
+            );
+
+          setSavedBook(
+            existingSavedBook
+          );
+          setReadingStatus(
+            existingSavedBook
+              ?.status ??
+            null
+          );
+        } catch (
+          savedLookupError
+        ) {
+          console.warn(
+            'Could not check saved book metadata:',
+            savedLookupError
+          );
         }
 
-        const response =
-          await fetchGoogleBooksJson<
-            GoogleBook
-          >(
-            `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
-          );
+        const savedMetadata =
+          existingSavedBook
+            ?.book_metadata as
+            | GoogleBook
+            | null
+            | undefined;
+
+        let data:
+          GoogleBook;
 
         if (
-          !response.ok ||
-          !response.data
+          savedMetadata?.id ===
+            id &&
+          savedMetadata
+            .volumeInfo
         ) {
-          throw new Error(
-            `Google Books request failed: ${response.status}`
-          );
-        }
+          data =
+            savedMetadata;
+        } else {
+          const apiKey =
+            process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
-        const data =
-          response.data;
+          if (!apiKey) {
+            throw new Error(
+              'Google Books API key is missing.'
+            );
+          }
+
+          const response =
+            await fetchGoogleBooksJson<
+              GoogleBook
+            >(
+              `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
+            );
+
+          if (
+            !response.ok ||
+            !response.data
+          ) {
+            throw new Error(
+              `Google Books request failed: ${response.status}`
+            );
+          }
+
+          data =
+            response.data;
+
+          if (
+            existingSavedBook &&
+            !existingSavedBook
+              .book_metadata
+          ) {
+            void updateUserBookMetadata(
+              id,
+              data as unknown as Record<
+                string,
+                unknown
+              >
+            ).catch(
+              (
+                metadataError
+              ) => {
+                console.warn(
+                  'Could not backfill saved book metadata:',
+                  metadataError
+                );
+              }
+            );
+          }
+        }
 
         const resolvedBook =
           source ===
             'discover'
             ? await resolveClickedDiscoverBook(
                 data,
-                apiKey,
+                process.env
+                  .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY ??
+                  '',
                 clickedTitle,
                 discoverClickedAuthors,
                 clickedIsbn
@@ -1066,6 +1141,17 @@ export default function BookDetailsScreen() {
                 resolvedBook.volumeInfo
                   .authors ??
                 discoverClickedAuthors,
+              isbns:
+                (
+                  resolvedBook.volumeInfo
+                    .industryIdentifiers ??
+                  []
+                ).map(
+                  (
+                    identifier
+                  ) =>
+                    identifier.identifier
+                ),
             });
 
           setHardcoverRating(
@@ -1589,6 +1675,11 @@ export default function BookDetailsScreen() {
           coverUrl,
           isbn: getBookISBN(book) ?? null,
           publishedDate: info.publishedDate ?? null,
+          bookMetadata:
+            book as unknown as Record<
+              string,
+              unknown
+            >,
           status,
         });
 
@@ -1646,7 +1737,11 @@ export default function BookDetailsScreen() {
         updatedBook =
           await updateUserBookOwned(
             book.id,
-            !savedBook.owned
+            !savedBook.owned,
+            book as unknown as Record<
+              string,
+              unknown
+            >
           );
       } else {
         const coverUrl =
@@ -1678,6 +1773,11 @@ export default function BookDetailsScreen() {
             publishedDate:
               info.publishedDate ??
               null,
+            bookMetadata:
+              book as unknown as Record<
+                string,
+                unknown
+              >,
             status:
               null,
             owned:
