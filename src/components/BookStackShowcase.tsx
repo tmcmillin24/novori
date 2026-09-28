@@ -229,7 +229,7 @@ export default function BookStackShowcase({
                 name="arrow-forward"
                 size={15}
                 color={
-                  colors.background
+                  colors.gold
                 }
               />
             </Pressable>
