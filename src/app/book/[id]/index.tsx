@@ -847,6 +847,8 @@ export default function BookDetailsScreen() {
       ? 'Currently Reading'
       : source === 'profile'
       ? 'Profile'
+      : source === 'cart'
+      ? 'Book Cart'
       : source === 'discover'
       ? 'Discover'
       : 'Back';
@@ -873,6 +875,11 @@ export default function BookDetailsScreen() {
 
     if (source === 'profile') {
       router.replace('/(tabs)/profile');
+      return;
+    }
+
+    if (source === 'cart') {
+      router.replace('/book-cart');
       return;
     }
 
