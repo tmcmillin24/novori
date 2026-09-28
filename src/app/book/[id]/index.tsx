@@ -27,6 +27,9 @@ import { NovoriColors } from '../../../constants/novori-theme';
 import { useNovoriTheme } from '../../../context/theme-context';
 import { supabase } from '../../../lib/supabase';
 import {
+  resolveHardcoverRating,
+} from '../../../lib/book-search';
+import {
   CommunityBookReview,
   getCommunityBookReviews,
 } from '../../../lib/feed';
@@ -777,6 +780,28 @@ export default function BookDetailsScreen() {
     useState<number | null>(null);
 
   const [
+    hardcoverRating,
+    setHardcoverRating,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  const [
+    hardcoverRatingsCount,
+    setHardcoverRatingsCount,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  const [
+    hardcoverRatingLoading,
+    setHardcoverRatingLoading,
+  ] =
+    useState(false);
+
+  const [
     communityReviews,
     setCommunityReviews,
   ] =
@@ -896,6 +921,56 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
+
+        setHardcoverRatingLoading(
+          true
+        );
+
+        try {
+          const resolvedRating =
+            await resolveHardcoverRating({
+              googleBookId:
+                resolvedBook.id,
+              title:
+                resolvedBook.volumeInfo
+                  .title ??
+                clickedTitle ??
+                '',
+              authors:
+                resolvedBook.volumeInfo
+                  .authors ??
+                discoverClickedAuthors,
+            });
+
+          setHardcoverRating(
+            resolvedRating?.rating ??
+            null
+          );
+
+          setHardcoverRatingsCount(
+            resolvedRating?.ratingsCount ??
+            null
+          );
+        } catch (
+          ratingError
+        ) {
+          console.error(
+            'Could not load Hardcover rating:',
+            ratingError
+          );
+
+          setHardcoverRating(
+            null
+          );
+
+          setHardcoverRatingsCount(
+            null
+          );
+        } finally {
+          setHardcoverRatingLoading(
+            false
+          );
+        }
 
         setCommunityReviewsLoading(
           true
@@ -1843,6 +1918,72 @@ export default function BookDetailsScreen() {
               ) ??
                 'Unknown author'}
             </Text>
+
+            <View
+              style={
+                styles.externalRatingRow
+              }
+            >
+              {hardcoverRatingLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    colors.gold
+                  }
+                />
+              ) : hardcoverRating !==
+                null ? (
+                <>
+                  <View
+                    style={
+                      styles.externalRatingStars
+                    }
+                  >
+                    {[1,2,3,4,5].map(
+                      (
+                        star
+                      ) => (
+                        <Ionicons
+                          key={
+                            star
+                          }
+                          name={
+                            hardcoverRating >=
+                            star
+                              ? 'star'
+                              : hardcoverRating >=
+                                star -
+                                  0.5
+                                ? 'star-half'
+                                : 'star-outline'
+                          }
+                          size={16}
+                          color={
+                            colors.gold
+                          }
+                        />
+                      )
+                    )}
+                  </View>
+
+                  <Text
+                    style={
+                      styles.externalRatingText
+                    }
+                  >
+                    {hardcoverRating.toFixed(
+                      2
+                    )}
+                    {hardcoverRatingsCount !==
+                      null &&
+                    hardcoverRatingsCount >
+                      0
+                      ? ` · ${hardcoverRatingsCount.toLocaleString()} ratings`
+                      : ''}
+                  </Text>
+                </>
+              ) : null}
+            </View>
 
             {series ? (
               <View
@@ -3676,6 +3817,34 @@ function createStyles(
     fontSize: 15,
     textAlign: 'center',
     marginTop: 10,
+  },
+
+  externalRatingRow: {
+    flexDirection:
+      'row',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    gap: 8,
+    minHeight: 20,
+    marginTop: 10,
+  },
+
+  externalRatingStars: {
+    flexDirection:
+      'row',
+    alignItems:
+      'center',
+    gap: 2,
+  },
+
+  externalRatingText: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_500Medium',
+    fontSize: 12,
   },
 
   seriesBadge: {
