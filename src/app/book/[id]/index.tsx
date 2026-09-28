@@ -1676,41 +1676,148 @@ export default function BookDetailsScreen() {
       return null;
     }
 
-    const wantedTitle = normalizeTitle(seriesBook.title);
+    const wantedTitle =
+      normalizeTitle(
+        seriesBook.title
+      );
 
-    const exactTitle = results.find(
-      (result) =>
-        normalizeTitle(result.volumeInfo.title) === wantedTitle
-    );
+    const scored =
+      results
+        .map(
+          (
+            result
+          ) => {
+            const resultTitle =
+              normalizeTitle(
+                result.volumeInfo
+                  .title
+              );
 
-    if (exactTitle) {
-      return exactTitle.id;
-    }
+            const resultAuthors =
+              result.volumeInfo
+                .authors ??
+              [];
 
-    const titleAndAuthor = results.find((result) => {
-      const resultTitle = normalizeTitle(result.volumeInfo.title);
-      const resultAuthors = result.volumeInfo.authors ?? [];
+            const exactTitle =
+              resultTitle ===
+                wantedTitle;
 
-      const titleMatches =
-        resultTitle.includes(wantedTitle) ||
-        wantedTitle.includes(resultTitle);
+            const titleMatches =
+              exactTitle ||
+              resultTitle.includes(
+                wantedTitle
+              ) ||
+              wantedTitle.includes(
+                resultTitle
+              );
 
-      const authorMatches =
-        !author ||
-        resultAuthors.some((resultAuthor) =>
-          resultAuthor
-            .toLowerCase()
-            .includes(author.toLowerCase())
+            const authorMatches =
+              !author ||
+              resultAuthors.some(
+                (
+                  resultAuthor
+                ) =>
+                  resultAuthor
+                    .toLowerCase()
+                    .includes(
+                      author.toLowerCase()
+                    ) ||
+                  author
+                    .toLowerCase()
+                    .includes(
+                      resultAuthor.toLowerCase()
+                    )
+              );
+
+            let score = 0;
+
+            if (
+              exactTitle
+            ) {
+              score += 200;
+            } else if (
+              titleMatches
+            ) {
+              score += 100;
+            }
+
+            if (
+              authorMatches
+            ) {
+              score += 100;
+            }
+
+            if (
+              typeof result
+                .volumeInfo
+                .pageCount ===
+                'number' &&
+              result.volumeInfo
+                .pageCount >
+                0
+            ) {
+              score += 50;
+            }
+
+            if (
+              result.volumeInfo
+                .imageLinks
+                ?.thumbnail ||
+              result.volumeInfo
+                .imageLinks
+                ?.small ||
+              result.volumeInfo
+                .imageLinks
+                ?.medium ||
+              result.volumeInfo
+                .imageLinks
+                ?.large ||
+              result.volumeInfo
+                .imageLinks
+                ?.extraLarge
+            ) {
+              score += 40;
+            }
+
+            if (
+              result.volumeInfo
+                .publishedDate
+            ) {
+              score += 10;
+            }
+
+            return {
+              result,
+              score,
+              titleMatches,
+              authorMatches,
+            };
+          }
+        )
+        .filter(
+          (
+            candidate
+          ) =>
+            candidate
+              .titleMatches &&
+            candidate
+              .authorMatches
+        )
+        .sort(
+          (
+            a,
+            b
+          ) =>
+            b.score -
+            a.score
         );
 
-      return titleMatches && authorMatches;
-    });
-
-    if (titleAndAuthor) {
-      return titleAndAuthor.id;
-    }
-
-    return results[0]?.id ?? null;
+    return (
+      scored[0]
+        ?.result.id ??
+      results[0]?.id ??
+      null
+    );
   }
 
   async function saveReadingStatus(
