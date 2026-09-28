@@ -4,7 +4,7 @@ import {
   searchNovoriBooks,
 } from './book-search';
 import {
-  resolveBookCoverUrl,
+  resolveBestBookCover,
   resolveOpenLibraryWorkCover,
 } from './book-covers';
 
@@ -476,6 +476,49 @@ function authorsMatch(
   );
 }
 
+async function remoteImageExists(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return false;
+  }
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          method:
+            'HEAD',
+        }
+      );
+
+    if (
+      response.ok
+    ) {
+      return true;
+    }
+
+    if (
+      response.status !==
+        405
+    ) {
+      return false;
+    }
+
+    const fallback =
+      await fetch(
+        url
+      );
+
+    return fallback.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function repairSavedCover(
   book: UserBook
 ): Promise<UserBook> {
@@ -484,15 +527,18 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  if (
-    currentCover?.includes(
-      'covers.openlibrary.org/b/id/'
-    )
-  ) {
-    return book;
-  }
-
   try {
+    if (
+      currentCover?.includes(
+        'covers.openlibrary.org/b/id/'
+      ) &&
+      await remoteImageExists(
+        currentCover
+      )
+    ) {
+      return book;
+    }
+
     const exactResponse =
       await fetchGoogleBooksJson<
         ExactGoogleBook
@@ -532,6 +578,80 @@ async function repairSavedCover(
         ?.identifier ??
       book.isbn;
 
+    const googleResolution =
+      await resolveBestBookCover({
+        imageLinks:
+          exactBook
+            ?.volumeInfo
+            .imageLinks,
+        isbn:
+          null,
+        existingCoverUrl:
+          currentCover &&
+          !isOpenLibraryCoverUrl(
+            currentCover
+          )
+            ? currentCover
+            : null,
+      });
+
+    if (
+      googleResolution.url &&
+      googleResolution.source !==
+        'none'
+    ) {
+      const googleUrl =
+        secureCoverUrl(
+          googleResolution.url
+        );
+
+      if (
+        googleUrl &&
+        googleResolution.width !==
+          null &&
+        googleResolution.height !==
+          null &&
+        googleResolution.width >=
+          400 &&
+        googleResolution.height >=
+          600
+      ) {
+        if (
+          googleUrl ===
+            currentCover
+        ) {
+          return book;
+        }
+
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              'user_books'
+            )
+            .update({
+              cover_url:
+                googleUrl,
+            })
+            .eq(
+              'id',
+              book.id
+            )
+            .eq(
+              'user_id',
+              book.user_id
+            )
+            .select('*')
+            .single();
+
+        return error
+          ? book
+          : data as UserBook;
+      }
+    }
+
     const openLibraryWorkCover =
       await resolveOpenLibraryWorkCover({
         title:
@@ -547,33 +667,18 @@ async function repairSavedCover(
           [],
       });
 
-    const canonicalWorkCover =
+    const fallbackCover =
       secureCoverUrl(
         openLibraryWorkCover.url
-      );
-
-    const nextCover =
+      ) ??
       secureCoverUrl(
-        await resolveBookCoverUrl({
-          imageLinks:
-            exactBook
-              ?.volumeInfo
-              .imageLinks,
-          isbn:
-            exactIsbn,
-          existingCoverUrl:
-            canonicalWorkCover ??
-            currentCover,
-        })
-      );
-
-    const preferredCover =
-      canonicalWorkCover ??
-      nextCover;
+        googleResolution.url
+      ) ??
+      currentCover;
 
     if (
-      !preferredCover ||
-      preferredCover ===
+      !fallbackCover ||
+      fallbackCover ===
         currentCover
     ) {
       return book;
@@ -589,7 +694,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            preferredCover,
+            fallbackCover,
         })
         .eq(
           'id',
@@ -602,15 +707,9 @@ async function repairSavedCover(
         .select('*')
         .single();
 
-    if (
-      error
-    ) {
-      return book;
-    }
-
-    return (
-      data as UserBook
-    );
+    return error
+      ? book
+      : data as UserBook;
   } catch {
     return book;
   }
