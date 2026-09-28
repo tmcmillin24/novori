@@ -1288,6 +1288,116 @@ export async function resolveGoogleBookRating(input: {
 }
 
 
+type HardcoverDiscoveryBook = {
+  title: string;
+  rating: number | null;
+  usersCount: number | null;
+  authors: string[];
+};
+
+type HardcoverDiscoveryResponse = {
+  books?: HardcoverDiscoveryBook[];
+  error?: string;
+};
+
+async function findHardcoverDiscoveryMatch(
+  title: string,
+  authors: string[]
+): Promise<ResolvedHardcoverRating | null> {
+  const functionNames = [
+    'hardcover-trending',
+    'hardcover-recent-releases',
+  ];
+
+  for (
+    const functionName of
+    functionNames
+  ) {
+    try {
+      const {
+        data,
+        error,
+      } =
+        await supabase.functions.invoke(
+          functionName,
+          {
+            body:
+              functionName ===
+              'hardcover-trending'
+                ? {
+                    days: 90,
+                    poolSize: 150,
+                  }
+                : {
+                    months: 24,
+                    poolSize: 200,
+                  },
+          }
+        );
+
+      if (
+        error
+      ) {
+        continue;
+      }
+
+      const response =
+        data as
+          HardcoverDiscoveryResponse;
+
+      const match =
+        (
+          response?.books ??
+          []
+        ).find(
+          (
+            book
+          ) =>
+            titlesRepresentSameWork(
+              title,
+              book.title
+            ) &&
+            authorsRepresentSameWork(
+              authors,
+              book.authors ??
+              []
+            ) &&
+            book.rating !==
+              null &&
+            Number.isFinite(
+              book.rating
+            ) &&
+            book.rating >
+              0
+        );
+
+      if (
+        match &&
+        match.rating !==
+          null
+      ) {
+        return {
+          rating:
+            Number(
+              match.rating
+            ),
+          usersCount:
+            Number(
+              match.usersCount ??
+              0
+            ),
+          googleBookId:
+            '',
+        };
+      }
+    } catch {
+      // Try the next existing Hardcover discovery source.
+    }
+  }
+
+  return null;
+}
+
 export type ResolvedHardcoverRating = {
   rating: number;
   usersCount: number;
@@ -1423,7 +1533,10 @@ export async function resolveHardcoverRating(input: {
     matchingBooks.length ===
     0
   ) {
-    return null;
+    return findHardcoverDiscoveryMatch(
+      cleanTitle,
+      expectedAuthors
+    );
   }
 
   const popularity =
@@ -1480,7 +1593,10 @@ export async function resolveHardcoverRating(input: {
     best.rating ===
       null
   ) {
-    return null;
+    return findHardcoverDiscoveryMatch(
+      cleanTitle,
+      expectedAuthors
+    );
   }
 
   return {
