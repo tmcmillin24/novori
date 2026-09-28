@@ -840,6 +840,19 @@ export default function BookDetailsScreen() {
       string[]
     >([]);
 
+  const isSharedBookContext =
+    source === 'shared';
+
+  const isSavedBookContext =
+    source === 'library' ||
+    source === 'profile' ||
+    (
+      isSharedBookContext &&
+      Boolean(
+        savedBook
+      )
+    );
+
   const backLabel =
     source === 'library'
       ? 'Library'
@@ -851,11 +864,11 @@ export default function BookDetailsScreen() {
       ? 'Book Cart'
       : source === 'discover'
       ? 'Discover'
+      : isSharedBookContext
+      ? savedBook
+        ? 'Library'
+        : 'Discover'
       : 'Back';
-
-  const isSavedBookContext =
-    source === 'library' ||
-    source === 'profile';
 
   function handleBack() {
     if (router.canGoBack()) {
@@ -885,6 +898,15 @@ export default function BookDetailsScreen() {
 
     if (source === 'discover') {
       router.replace('/(tabs)/discover');
+      return;
+    }
+
+    if (source === 'shared') {
+      router.replace(
+        savedBook
+          ? '/(tabs)/library'
+          : '/(tabs)/discover'
+      );
       return;
     }
 
@@ -1149,6 +1171,33 @@ export default function BookDetailsScreen() {
       ]
     )
   );
+
+  async function shareCurrentBook() {
+    if (!book) {
+      return;
+    }
+
+    try {
+      await shareBookLink({
+        googleBookId:
+          book.id,
+        title:
+          book.volumeInfo.title,
+      });
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share book:',
+        shareError
+      );
+
+      Alert.alert(
+        'Could not share book',
+        'Please try again.'
+      );
+    }
+  }
 
   function openReadingDetails() {
     if (
@@ -1886,6 +1935,26 @@ export default function BookDetailsScreen() {
             color={colors.text}
           />
           <Text style={styles.backText}>{backLabel}</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() =>
+            void shareCurrentBook()
+          }
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Share book"
+          style={({ pressed }) => [
+            styles.shareBookButton,
+            pressed &&
+              styles.shareBookButtonPressed,
+          ]}
+        >
+          <Ionicons
+            name="share-social-outline"
+            size={21}
+            color={colors.gold}
+          />
         </Pressable>
       </View>
 
@@ -4038,6 +4107,28 @@ function createStyles(
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent:
+      'space-between',
+  },
+
+  shareBookButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent:
+      'center',
+    backgroundColor:
+      colors.surface,
+    borderWidth: 1,
+    borderColor:
+      colors.border,
+  },
+
+  shareBookButtonPressed: {
+    opacity: 0.7,
   },
 
   backButton: {
