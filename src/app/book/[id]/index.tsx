@@ -2513,7 +2513,7 @@ export default function BookDetailsScreen() {
                   name={
                     savedBook?.owned
                       ? 'checkmark-circle'
-                      : 'checkmark-circle-outline'
+                      : 'add-circle-outline'
                   }
                   size={18}
                   color={
@@ -2529,9 +2529,7 @@ export default function BookDetailsScreen() {
               >
                 {savedBook?.owned
                   ? 'Owned'
-                  : savedBook
-                    ? 'Mark as Owned'
-                    : 'I Own This'}
+                  : 'Mark as Owned'}
               </Text>
             </Pressable>
 
