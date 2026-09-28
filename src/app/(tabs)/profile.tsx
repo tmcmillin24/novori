@@ -941,6 +941,8 @@ export default function ProfileScreen() {
                     source={{
                       uri:
                         book.cover_url,
+                      cache:
+                        'reload',
                     }}
                     style={
                       styles.gridCover
@@ -1107,6 +1109,8 @@ export default function ProfileScreen() {
                     source={{
                       uri:
                         book.cover_url,
+                      cache:
+                        'reload',
                     }}
                     style={
                       styles.reviewCover
@@ -1612,6 +1616,8 @@ export default function ProfileScreen() {
                             source={{
                               uri:
                                 post.book_cover_url,
+                              cache:
+                                'reload',
                             }}
                             style={
                               styles.activityFeedBookCover
