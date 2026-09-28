@@ -5,6 +5,7 @@ import {
 } from './book-search';
 import {
   resolveBookCoverUrl,
+  resolveOpenLibraryWorkCover,
 } from './book-covers';
 
 export type UserBookStatus =
@@ -483,6 +484,14 @@ async function repairSavedCover(
       book.cover_url
     );
 
+  if (
+    currentCover?.includes(
+      'covers.openlibrary.org/b/id/'
+    )
+  ) {
+    return book;
+  }
+
   try {
     const exactResponse =
       await fetchGoogleBooksJson<
@@ -523,69 +532,25 @@ async function repairSavedCover(
         ?.identifier ??
       book.isbn;
 
-    let canonicalWorkCover:
-      string | null =
-      null;
+    const openLibraryWorkCover =
+      await resolveOpenLibraryWorkCover({
+        title:
+          exactBook
+            ?.volumeInfo
+            .title ??
+          book.title,
+        authors:
+          exactBook
+            ?.volumeInfo
+            .authors ??
+          book.authors ??
+          [],
+      });
 
-    const title =
-      book.title.trim();
-
-    if (
-      title
-    ) {
-      const discoverResults =
-        await searchNovoriBooks(
-          title
-        );
-
-      const wantedTitle =
-        normalizeBookText(
-          book.title
-        );
-
-      const workMatch =
-        discoverResults.find(
-          (
-            candidate
-          ) => {
-            const candidateTitle =
-              normalizeBookText(
-                candidate
-                  .volumeInfo
-                  .title
-              );
-
-            const titleMatches =
-              candidateTitle ===
-                wantedTitle ||
-              candidateTitle.startsWith(
-                `${wantedTitle} `
-              ) ||
-              wantedTitle.startsWith(
-                `${candidateTitle} `
-              );
-
-            return (
-              titleMatches &&
-              authorsMatch(
-                book.authors ??
-                  [],
-                candidate
-                  .volumeInfo
-                  .authors ??
-                  []
-              )
-            );
-          }
-        );
-
-      canonicalWorkCover =
-        secureCoverUrl(
-          workMatch
-            ?.novoriWork
-            ?.canonicalCoverUrl
-        );
-    }
+    const canonicalWorkCover =
+      secureCoverUrl(
+        openLibraryWorkCover.url
+      );
 
     const nextCover =
       secureCoverUrl(
@@ -602,9 +567,13 @@ async function repairSavedCover(
         })
       );
 
+    const preferredCover =
+      canonicalWorkCover ??
+      nextCover;
+
     if (
-      !nextCover ||
-      nextCover ===
+      !preferredCover ||
+      preferredCover ===
         currentCover
     ) {
       return book;
@@ -620,7 +589,7 @@ async function repairSavedCover(
         )
         .update({
           cover_url:
-            nextCover,
+            preferredCover,
         })
         .eq(
           'id',
