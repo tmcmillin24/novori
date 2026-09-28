@@ -66,6 +66,7 @@ import {
   supabase,
 } from '../../lib/supabase';
 import {
+  getLibraryMutationVersion,
   getUserBooks,
   UserBook,
 } from '../../lib/user-books';
@@ -270,6 +271,11 @@ export default function ProfileScreen() {
   const forceProfileRefreshRef =
     useRef(false);
 
+  const lastSeenLibraryMutationRef =
+    useRef(
+      getLibraryMutationVersion()
+    );
+
   const [
     profileRefreshKey,
     setProfileRefreshKey,
@@ -393,6 +399,13 @@ export default function ProfileScreen() {
       forceProfileRefreshRef.current =
         false;
 
+      const currentLibraryMutationVersion =
+        getLibraryMutationVersion();
+
+      const libraryChanged =
+        currentLibraryMutationVersion !==
+        lastSeenLibraryMutationRef.current;
+
       const profileIsFresh =
         hasLoadedProfileRef.current &&
         Date.now() -
@@ -401,7 +414,8 @@ export default function ProfileScreen() {
 
       if (
         profileIsFresh &&
-        !forceRefresh
+        !forceRefresh &&
+        !libraryChanged
       ) {
         return () => {
           isMounted =
@@ -458,9 +472,13 @@ export default function ProfileScreen() {
           setProfile(
             cached.profile
           );
-          setBooks(
-            cached.books
-          );
+          if (
+            !libraryChanged
+          ) {
+            setBooks(
+              cached.books
+            );
+          }
           setFollowerCount(
             cached.followerCount
           );
@@ -531,6 +549,36 @@ export default function ProfileScreen() {
         }
 
         try {
+          const savedBooksPromise =
+            getUserBooks();
+
+          void savedBooksPromise
+            .then(
+              (
+                savedBooks
+              ) => {
+                if (
+                  isMounted
+                ) {
+                  setBooks(
+                    savedBooks
+                  );
+                  lastSeenLibraryMutationRef.current =
+                    currentLibraryMutationVersion;
+                }
+              }
+            )
+            .catch(
+              (
+                booksError
+              ) => {
+                console.warn(
+                  'Could not refresh Profile books:',
+                  booksError
+                );
+              }
+            );
+
           const [
             savedBooks,
             socialProfile,
@@ -539,7 +587,7 @@ export default function ProfileScreen() {
             publicClubs,
             savedStacks,
           ] = await Promise.all([
-            getUserBooks(),
+            savedBooksPromise,
             getReaderProfile(
               user.id
             ),
@@ -657,6 +705,8 @@ export default function ProfileScreen() {
 
           hasLoadedProfileRef.current =
             true;
+          lastSeenLibraryMutationRef.current =
+            currentLibraryMutationVersion;
           lastProfileRefreshRef.current =
             Date.now();
 
