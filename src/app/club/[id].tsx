@@ -6831,6 +6831,7 @@ export default function ClubDetailScreen() {
             false
           )
         }
+        shape="rounded-square"
       />
     </SafeAreaView>
   );
