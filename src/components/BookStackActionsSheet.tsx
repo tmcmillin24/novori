@@ -538,12 +538,12 @@ export default function BookStackActionsSheet({
 
             <View
               style={
-                styles.headingRow
+                styles.header
               }
             >
               <View
                 style={
-                  styles.headingIcon
+                  styles.stackPreview
                 }
               >
                 <Ionicons
@@ -557,32 +557,58 @@ export default function BookStackActionsSheet({
 
               <View
                 style={
-                  styles.headingCopy
+                  styles.headerText
                 }
               >
                 <Text
                   style={
                     styles.title
                   }
-                >
-                  Book Stack
-                </Text>
-
-                <Text
-                  style={
-                    styles.subtitle
-                  }
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {stackName?.trim() ||
-                    'Manage this stack'}
+                    'Book Stack'}
                 </Text>
+
+                <View
+                  style={
+                    styles.typePill
+                  }
+                >
+                  <Text
+                    style={
+                      styles.typePillText
+                    }
+                  >
+                    Book Stack
+                  </Text>
+                </View>
               </View>
+
+              <Pressable
+                onPress={() =>
+                  closeSmoothly()
+                }
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed &&
+                    styles.rowPressed,
+                ]}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
             </View>
 
             <View
               style={
-                styles.list
+                styles.actions
               }
             >
               <Pressable
@@ -592,14 +618,14 @@ export default function BookStackActionsSheet({
                   )
                 }
                 style={({ pressed }) => [
-                  styles.actionRow,
+                  styles.row,
                   pressed &&
-                    styles.actionRowPressed,
+                    styles.rowPressed,
                 ]}
               >
                 <View
                   style={
-                    styles.actionIcon
+                    styles.rowIcon
                   }
                 >
                   <Ionicons
@@ -613,22 +639,23 @@ export default function BookStackActionsSheet({
 
                 <View
                   style={
-                    styles.actionCopy
+                    styles.rowText
                   }
                 >
                   <Text
                     style={
-                      styles.actionTitle
+                      styles.rowTitle
                     }
                   >
                     Edit Stack
                   </Text>
+
                   <Text
                     style={
-                      styles.actionSubtitle
+                      styles.rowSubtitle
                     }
                   >
-                    Change the name, books, or order.
+                    Change the name, books, or order
                   </Text>
                 </View>
 
@@ -641,12 +668,6 @@ export default function BookStackActionsSheet({
                 />
               </Pressable>
 
-              <View
-                style={
-                  styles.separator
-                }
-              />
-
               <Pressable
                 onPress={() =>
                   runAction(
@@ -654,14 +675,14 @@ export default function BookStackActionsSheet({
                   )
                 }
                 style={({ pressed }) => [
-                  styles.actionRow,
+                  styles.row,
                   pressed &&
-                    styles.actionRowPressed,
+                    styles.rowPressed,
                 ]}
               >
                 <View
                   style={
-                    styles.actionIcon
+                    styles.rowIcon
                   }
                 >
                   <Ionicons
@@ -675,22 +696,23 @@ export default function BookStackActionsSheet({
 
                 <View
                   style={
-                    styles.actionCopy
+                    styles.rowText
                   }
                 >
                   <Text
                     style={
-                      styles.actionTitle
+                      styles.rowTitle
                     }
                   >
                     Share Stack
                   </Text>
+
                   <Text
                     style={
-                      styles.actionSubtitle
+                      styles.rowSubtitle
                     }
                   >
-                    Send this stack through Novori or another app.
+                    Share this Book Stack with others
                   </Text>
                 </View>
 
@@ -705,7 +727,7 @@ export default function BookStackActionsSheet({
 
               <View
                 style={
-                  styles.separator
+                  styles.divider
                 }
               />
 
@@ -716,14 +738,14 @@ export default function BookStackActionsSheet({
                   )
                 }
                 style={({ pressed }) => [
-                  styles.actionRow,
+                  styles.row,
                   pressed &&
-                    styles.actionRowPressed,
+                    styles.rowPressed,
                 ]}
               >
                 <View
                   style={[
-                    styles.actionIcon,
+                    styles.rowIcon,
                     styles.dangerIcon,
                   ]}
                 >
@@ -738,45 +760,27 @@ export default function BookStackActionsSheet({
 
                 <View
                   style={
-                    styles.actionCopy
+                    styles.rowText
                   }
                 >
                   <Text
                     style={
-                      styles.dangerTitle
+                      styles.dangerText
                     }
                   >
                     Delete Stack
                   </Text>
+
                   <Text
                     style={
-                      styles.actionSubtitle
+                      styles.rowSubtitle
                     }
                   >
-                    Permanently remove it from your profile.
+                    Permanently remove this Book Stack
                   </Text>
                 </View>
               </Pressable>
             </View>
-
-            <Pressable
-              onPress={() =>
-                closeSmoothly()
-              }
-              style={({ pressed }) => [
-                styles.cancelButton,
-                pressed &&
-                  styles.cancelButtonPressed,
-              ]}
-            >
-              <Text
-                style={
-                  styles.cancelText
-                }
-              >
-                Cancel
-              </Text>
-            </Pressable>
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -801,12 +805,15 @@ function createStyles(
     },
 
     sheet: {
+      width: '100%',
+      alignSelf: 'center',
       backgroundColor:
         colors.surface,
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      overflow: 'hidden',
       paddingHorizontal: 18,
-      paddingTop: 10,
+      paddingTop: 9,
       borderTopWidth:
         StyleSheet.hairlineWidth,
       borderColor:
@@ -814,114 +821,118 @@ function createStyles(
     },
 
     handle: {
-      width: 42,
+      width: 38,
       height: 4,
-      borderRadius: 999,
+      borderRadius: 2,
       backgroundColor:
         colors.border,
-      alignSelf:
-        'center',
-      marginBottom: 18,
+      alignSelf: 'center',
+      marginBottom: 15,
     },
 
-    headingRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      marginBottom: 18,
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingBottom: 15,
     },
 
-    headingIcon: {
+    stackPreview: {
       width: 42,
-      height: 42,
-      borderRadius: 13,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
+      height: 62,
+      borderRadius: 6,
       backgroundColor:
         colors.elevated,
-      borderWidth:
-        StyleSheet.hairlineWidth,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
       borderColor:
         colors.border,
-      marginRight: 12,
     },
 
-    headingCopy: {
+    headerText: {
       flex: 1,
-      minWidth: 0,
+      marginLeft: 12,
+      marginRight: 10,
     },
 
     title: {
       color:
         colors.text,
       fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize: 21,
+        'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
     },
 
-    subtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 12,
-      marginTop: 3,
-    },
-
-    list: {
-      borderRadius: 18,
-      overflow:
-        'hidden',
+    typePill: {
+      alignSelf: 'flex-start',
       backgroundColor:
         colors.elevated,
-      borderWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginTop: 7,
+    },
+
+    typePillText: {
+      color:
+        colors.softGold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10,
+    },
+
+    closeButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    actions: {
+      borderTopWidth: 1,
+      borderTopColor:
         colors.border,
+      paddingTop: 7,
     },
 
-    actionRow: {
-      minHeight: 68,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+    row: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 14,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
     },
 
-    actionRowPressed: {
-      opacity: 0.72,
+    rowPressed: {
+      backgroundColor:
+        colors.elevated,
     },
 
-    actionIcon: {
+    rowIcon: {
       width: 38,
       height: 38,
       borderRadius: 12,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor:
-        colors.surface,
-      marginRight: 12,
+        colors.elevated,
+      marginRight: 11,
     },
 
     dangerIcon: {
       backgroundColor:
-        colors.surface,
+        colors.background,
     },
 
-    actionCopy: {
+    rowText: {
       flex: 1,
-      minWidth: 0,
-      marginRight: 10,
+      marginRight: 8,
     },
 
-    actionTitle: {
+    rowTitle: {
       color:
         colors.text,
       fontFamily:
@@ -929,58 +940,29 @@ function createStyles(
       fontSize: 14,
     },
 
-    dangerTitle: {
-      color:
-        colors.danger,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 14,
-    },
-
-    actionSubtitle: {
+    rowSubtitle: {
       color:
         colors.mutedText,
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
-      lineHeight: 15,
+      lineHeight: 16,
       marginTop: 3,
     },
 
-    separator: {
-      height:
-        StyleSheet.hairlineWidth,
+    divider: {
+      height: 1,
       backgroundColor:
         colors.border,
-      marginLeft: 64,
+      marginVertical: 5,
     },
 
-    cancelButton: {
-      minHeight: 48,
-      borderRadius: 14,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginTop: 12,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-    },
-
-    cancelButtonPressed: {
-      opacity: 0.72,
-    },
-
-    cancelText: {
+    dangerText: {
       color:
-        colors.text,
+        colors.danger,
       fontFamily:
         'Inter_600SemiBold',
-      fontSize: 13,
+      fontSize: 14,
     },
   });
 }
