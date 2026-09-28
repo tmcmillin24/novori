@@ -24,6 +24,11 @@ import {
 } from 'react-native';
 
 import { NovoriColors } from '../../../constants/novori-theme';
+import BookCoverImage from '../../../components/BookCoverImage';
+import {
+  getBookCoverPlan,
+  resolveBookCoverUrl,
+} from '../../../lib/book-covers';
 import { useNovoriTheme } from '../../../context/theme-context';
 import { fetchGoogleBooksJson } from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
@@ -1899,14 +1904,22 @@ export default function BookDetailsScreen() {
     const info = book.volumeInfo;
 
     const coverUrl =
-      getValidatedHighResolutionCover(
-        source === 'discover'
-          ? discoverCoverUrl
-          : savedBook?.cover_url ??
-              undefined,
-        info.imageLinks
-      ) ??
-      null;
+      await resolveBookCoverUrl({
+        imageLinks:
+          info.imageLinks,
+        isbn:
+          getBookISBN(
+            book
+          ) ??
+          null,
+        existingCoverUrl:
+          source ===
+            'discover'
+            ? discoverCoverUrl
+            : savedBook
+                ?.cover_url ??
+              null,
+      });
 
     try {
       setSavingStatus(status);
@@ -1980,14 +1993,20 @@ export default function BookDetailsScreen() {
           );
       } else {
         const coverUrl =
-          getValidatedHighResolutionCover(
-            source ===
-              'discover'
-              ? discoverCoverUrl
-              : undefined,
-            info.imageLinks
-          ) ??
-          null;
+          await resolveBookCoverUrl({
+            imageLinks:
+              info.imageLinks,
+            isbn:
+              getBookISBN(
+                book
+              ) ??
+              null,
+            existingCoverUrl:
+              source ===
+                'discover'
+                ? discoverCoverUrl
+                : null,
+          });
 
         updatedBook =
           await saveUserBook({
@@ -2455,13 +2474,24 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
-  const cover =
-    getValidatedHighResolutionCover(
-      discoverCoverUrl ??
+  const coverPlan =
+    getBookCoverPlan({
+      imageLinks:
+        info.imageLinks,
+      isbn:
+        getBookISBN(
+          book
+        ) ??
+        null,
+      existingCoverUrl:
+        discoverCoverUrl ??
         savedBook?.cover_url ??
-        undefined,
-      info.imageLinks
-    );
+        null,
+    });
+
+  const cover =
+    coverPlan.primaryUrl ??
+    coverPlan.fallbackUrl;
 
   const categories =
     info.categories
@@ -2559,16 +2589,25 @@ export default function BookDetailsScreen() {
               }
             >
             {cover ? (
-              <Image
-                source={{
-                  uri:
-                    cover,
-                  cache:
-                    'reload',
-                }}
+              <BookCoverImage
+                imageLinks={
+                  info.imageLinks
+                }
+                isbn={
+                  getBookISBN(
+                    book
+                  ) ??
+                  null
+                }
+                existingCoverUrl={
+                  discoverCoverUrl ??
+                  savedBook?.cover_url ??
+                  null
+                }
                 style={
                   styles.libraryBookCover
                 }
+                resizeMode="cover"
               />
             ) : (
               <View
@@ -2873,14 +2912,25 @@ export default function BookDetailsScreen() {
             }
           >
             {cover ? (
-              <Image
-                source={{
-                  uri:
-                    cover,
-                }}
+              <BookCoverImage
+                imageLinks={
+                  info.imageLinks
+                }
+                isbn={
+                  getBookISBN(
+                    book
+                  ) ??
+                  null
+                }
+                existingCoverUrl={
+                  discoverCoverUrl ??
+                  savedBook?.cover_url ??
+                  null
+                }
                 style={
                   styles.cover
                 }
+                resizeMode="cover"
               />
             ) : (
               <View
