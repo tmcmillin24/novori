@@ -1154,7 +1154,7 @@ function collapseDuplicateEditions(
             }
           );
 
-        const representative =
+        const nativeRepresentative =
           sorted[0];
 
         const bestCoverBook =
@@ -1167,25 +1167,30 @@ function collapseDuplicateEditions(
             ?.volumeInfo
             .imageLinks;
 
-        if (
-          bestImageLinks &&
-          getCoverQuality(
-            bestCoverBook
-          ) >
-            0
-        ) {
-          for (
-            const sibling of
-              group
-          ) {
-            sibling.volumeInfo =
-              {
-                ...sibling.volumeInfo,
-                imageLinks:
-                  bestImageLinks,
-              };
-          }
-        }
+        const representative:
+          GoogleBookSearchItem =
+          {
+            ...nativeRepresentative,
+            volumeInfo: {
+              ...nativeRepresentative
+                .volumeInfo,
+              ...(
+                !nativeRepresentative
+                  .volumeInfo
+                  .imageLinks &&
+                bestImageLinks &&
+                getCoverQuality(
+                  bestCoverBook
+                ) >
+                  0
+                  ? {
+                      imageLinks:
+                        bestImageLinks,
+                    }
+                  : {}
+              ),
+            },
+          };
 
         const canonicalTitle =
           getLooseWorkTitle(
