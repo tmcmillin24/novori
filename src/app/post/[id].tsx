@@ -36,6 +36,7 @@ import {
 
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
+import CanonicalBookRating from '../../components/CanonicalBookRating';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import {
   NovoriColors,
@@ -3444,6 +3445,23 @@ export default function PostDetailScreen() {
                   >
                     {post.book_title}
                   </Text>
+
+                  {(post.post_type ===
+                    'question' ||
+                    post.post_type ===
+                      'reading_update') ? (
+                    <CanonicalBookRating
+                      googleBookId={
+                        post.google_book_id
+                      }
+                      title={
+                        post.book_title
+                      }
+                      authors={
+                        post.book_authors
+                      }
+                    />
+                  ) : null}
 
                   {post.rating ? (
                     <Text
