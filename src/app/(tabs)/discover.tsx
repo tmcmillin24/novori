@@ -4710,9 +4710,10 @@ function createStyles(
     heading: {
       color:
         colors.gold,
-      fontSize: 34,
+      fontSize: 43,
       fontFamily:
         'PlayfairDisplay_700Bold',
+      letterSpacing: 0.2,
     },
 
     subheading: {
@@ -4720,8 +4721,9 @@ function createStyles(
         colors.secondaryText,
       fontSize: 15,
       fontFamily:
-        'Inter_400Regular',
-      marginTop: 3,
+        'Inter_500Medium',
+      marginTop: 5,
+      letterSpacing: 0.15,
     },
 
     discoverModeRow: {
