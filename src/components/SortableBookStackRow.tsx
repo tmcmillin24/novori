@@ -134,12 +134,8 @@ export default function SortableBookStackRow({
         (
           event
         ) => {
-          const slotOffset =
-            event.translationY %
-            ROW_HEIGHT;
-
           translateY.value =
-            slotOffset;
+            event.translationY;
 
           runOnJS(
             onDragMove
