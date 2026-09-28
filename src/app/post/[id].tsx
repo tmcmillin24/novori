@@ -3346,6 +3346,28 @@ export default function PostDetailScreen() {
                   </Text>
                 )}
               </View>
+
+              <Pressable
+                onPress={() =>
+                  void shareCurrentPost()
+                }
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Share post"
+                style={({ pressed }) => [
+                  styles.postHeaderShare,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="share-social-outline"
+                  size={19}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
             </View>
 
             <PostTypeIdentifier
@@ -3632,36 +3654,6 @@ export default function PostDetailScreen() {
                     comments.length}
                 </Text>
               </View>
-
-              <Pressable
-                onPress={() =>
-                  void shareCurrentPost()
-                }
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Share post"
-                style={({ pressed }) => [
-                  styles.commentCount,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="share-social-outline"
-                  size={15}
-                  color={
-                    colors.mutedText
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.commentCountText
-                  }
-                >
-                  Share
-                </Text>
-              </Pressable>
             </View>
           </View>
 
@@ -4631,6 +4623,14 @@ function createStyles(
         'row',
       alignItems:
         'flex-start',
+    },
+    postHeaderShare: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 6,
+      marginTop: -2,
     },
     postAvatar: {
       width:
