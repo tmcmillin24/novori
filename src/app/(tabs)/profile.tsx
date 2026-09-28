@@ -12,6 +12,7 @@ import {
 import {
   Alert,
   Image,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -239,6 +240,15 @@ export default function ProfileScreen() {
   const [
     deleteStackTarget,
     setDeleteStackTarget,
+  ] =
+    useState<BookStack | null>(
+      null
+    );
+
+
+  const [
+    stackActionsTarget,
+    setStackActionsTarget,
   ] =
     useState<BookStack | null>(
       null
@@ -1088,6 +1098,10 @@ export default function ProfileScreen() {
                   stackId={
                     post.book_stack_id
                   }
+                  variant="profile"
+                  interactive={
+                    false
+                  }
                 />
               ) : null}
 
@@ -1316,6 +1330,35 @@ export default function ProfileScreen() {
     }
   }
 
+  function editStack(
+    stack: BookStack
+  ) {
+    setStackActionsTarget(
+      null
+    );
+
+    router.push({
+      pathname:
+        '/create-book-stack',
+      params: {
+        stackId:
+          stack.id,
+      },
+    });
+  }
+
+  async function shareStackFromMenu(
+    stack: BookStack
+  ) {
+    setStackActionsTarget(
+      null
+    );
+
+    await shareStack(
+      stack
+    );
+  }
+
   function requestDeleteStack(
     stack: BookStack
   ) {
@@ -1480,13 +1523,13 @@ export default function ProfileScreen() {
               <Pressable
                 onPress={(event) => {
                   event.stopPropagation();
-                  void shareStack(
+                  setStackActionsTarget(
                     stack
                   );
                 }}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Share Book Stack"
+                accessibilityLabel="Book Stack options"
                 style={({ pressed }) => [
                   styles.stackTileMenu,
                   pressed &&
@@ -1494,8 +1537,8 @@ export default function ProfileScreen() {
                 ]}
               >
                 <Ionicons
-                  name="share-social-outline"
-                  size={18}
+                  name="ellipsis-horizontal"
+                  size={19}
                   color={
                     colors.mutedText
                   }
@@ -1542,39 +1585,7 @@ export default function ProfileScreen() {
                     : 'books'}
                 </Text>
 
-                <Pressable
-                  disabled={
-                    deletingStackId ===
-                    stack.id
-                  }
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    requestDeleteStack(
-                      stack
-                    );
-                  }}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Delete Book Stack"
-                  style={({ pressed }) => [
-                    styles.stackTileDelete,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      deletingStackId ===
-                      stack.id
-                        ? 'hourglass-outline'
-                        : 'trash-outline'
-                    }
-                    size={15}
-                    color={
-                      colors.mutedText
-                    }
-                  />
-                </Pressable>
+
               </View>
             </Pressable>
           )
@@ -2058,6 +2069,155 @@ export default function ProfileScreen() {
         renderTabContent()
       }
 
+      <Modal
+        visible={
+          Boolean(
+            stackActionsTarget
+          )
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setStackActionsTarget(
+            null
+          )
+        }
+      >
+        <Pressable
+          style={
+            styles.stackActionsBackdrop
+          }
+          onPress={() =>
+            setStackActionsTarget(
+              null
+            )
+          }
+        >
+          <View
+            style={
+              styles.stackActionsSheet
+            }
+          >
+            <View
+              style={
+                styles.stackActionsHandle
+              }
+            />
+
+            <Text
+              style={
+                styles.stackActionsTitle
+              }
+            >
+              Book Stack
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                if (
+                  stackActionsTarget
+                ) {
+                  editStack(
+                    stackActionsTarget
+                  );
+                }
+              }}
+              style={({ pressed }) => [
+                styles.stackActionsRow,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="create-outline"
+                size={20}
+                color={
+                  colors.gold
+                }
+              />
+              <Text
+                style={
+                  styles.stackActionsText
+                }
+              >
+                Edit Stack
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                if (
+                  stackActionsTarget
+                ) {
+                  void shareStackFromMenu(
+                    stackActionsTarget
+                  );
+                }
+              }}
+              style={({ pressed }) => [
+                styles.stackActionsRow,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="share-social-outline"
+                size={20}
+                color={
+                  colors.gold
+                }
+              />
+              <Text
+                style={
+                  styles.stackActionsText
+                }
+              >
+                Share Stack
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                if (
+                  stackActionsTarget
+                ) {
+                  const stack =
+                    stackActionsTarget;
+
+                  setStackActionsTarget(
+                    null
+                  );
+
+                  requestDeleteStack(
+                    stack
+                  );
+                }
+              }}
+              style={({ pressed }) => [
+                styles.stackActionsRow,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={
+                  colors.danger
+                }
+              />
+              <Text
+                style={
+                  styles.stackActionsDangerText
+                }
+              >
+                Delete Stack
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
       <DeleteBookStackConfirmSheet
         visible={
           Boolean(
@@ -2418,6 +2578,85 @@ function createStyles(
       fontSize: 12,
     },
 
+    stackActionsBackdrop: {
+      flex: 1,
+      justifyContent:
+        'flex-end',
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    stackActionsSheet: {
+      backgroundColor:
+        colors.surface,
+      borderTopLeftRadius:
+        24,
+      borderTopRightRadius:
+        24,
+      paddingHorizontal:
+        18,
+      paddingTop:
+        10,
+      paddingBottom:
+        24,
+    },
+
+    stackActionsHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor:
+        colors.border,
+      alignSelf:
+        'center',
+      marginBottom:
+        14,
+    },
+
+    stackActionsTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        20,
+      marginBottom:
+        10,
+    },
+
+    stackActionsRow: {
+      minHeight:
+        52,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        12,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+      borderBottomColor:
+        colors.border,
+    },
+
+    stackActionsText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        14,
+    },
+
+    stackActionsDangerText: {
+      color:
+        colors.danger,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        14,
+    },
+
     stackGrid: {
       flexDirection:
         'row',
@@ -2486,8 +2725,6 @@ function createStyles(
         'row',
       alignItems:
         'center',
-      justifyContent:
-        'space-between',
       marginTop: 5,
     },
 
@@ -2497,17 +2734,6 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
-    },
-
-    stackTileDelete: {
-      width: 28,
-      height: 28,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight: -6,
-      marginBottom: -4,
     },
 
     activityList: {
