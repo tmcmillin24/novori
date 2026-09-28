@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import {
   fetchGoogleBooksJson,
-  learnNormalizedGoogleBooksCatalog,
 } from './google-books';
 
 export type GoogleBookSearchItem = {
@@ -817,139 +816,6 @@ function getAuthorIdentity(
     .join(' ');
 }
 
-function getGoogleBooksImageParamFromUrl(
-  url?: string
-) {
-  if (
-    !url
-  ) {
-    return null;
-  }
-
-  const match =
-    url.match(
-      /[?&]printsec=([^&]+)/i
-    );
-
-  return match?.[1]
-    ? decodeURIComponent(
-        match[1]
-      ).toLowerCase()
-    : null;
-}
-
-function isUsableCoverUrl(
-  url?: string
-) {
-  if (
-    !url
-  ) {
-    return false;
-  }
-
-  const printSec =
-    getGoogleBooksImageParamFromUrl(
-      url
-    );
-
-  return (
-    !printSec ||
-    printSec ===
-      'frontcover'
-  );
-}
-
-function getCoverQuality(
-  book: GoogleBookSearchItem
-) {
-  const links =
-    book.volumeInfo
-      .imageLinks;
-
-  const candidates = [
-    {
-      url:
-        links?.extraLarge,
-      score: 60,
-    },
-    {
-      url:
-        links?.large,
-      score: 50,
-    },
-    {
-      url:
-        links?.medium,
-      score: 40,
-    },
-    {
-      url:
-        links?.small,
-      score: 30,
-    },
-    {
-      url:
-        links?.thumbnail,
-      score: 20,
-    },
-    {
-      url:
-        links?.smallThumbnail,
-      score: 10,
-    },
-  ].filter(
-    (
-      candidate
-    ) =>
-      isUsableCoverUrl(
-        candidate.url
-      )
-  );
-
-  const best =
-    candidates[0];
-
-  if (
-    !best
-  ) {
-    return 0;
-  }
-
-  const printSec =
-    getGoogleBooksImageParamFromUrl(
-      best.url
-    );
-
-  return (
-    best.score +
-    (
-      printSec ===
-        'frontcover'
-        ? 5
-        : 0
-    )
-  );
-}
-
-function chooseBestCoverBook(
-  group: GoogleBookSearchItem[]
-) {
-  return [
-    ...group,
-  ].sort(
-    (
-      a,
-      b
-    ) =>
-      getCoverQuality(
-        b
-      ) -
-      getCoverQuality(
-        a
-      )
-  )[0];
-}
-
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -1156,41 +1022,6 @@ function collapseDuplicateEditions(
 
         const nativeRepresentative =
           sorted[0];
-
-        const bestCoverBook =
-          chooseBestCoverBook(
-            group
-          );
-
-        const bestImageLinks =
-          bestCoverBook
-            ?.volumeInfo
-            .imageLinks;
-
-        const representative:
-          GoogleBookSearchItem =
-          {
-            ...nativeRepresentative,
-            volumeInfo: {
-              ...nativeRepresentative
-                .volumeInfo,
-              ...(
-                !nativeRepresentative
-                  .volumeInfo
-                  .imageLinks &&
-                bestImageLinks &&
-                getCoverQuality(
-                  bestCoverBook
-                ) >
-                  0
-                  ? {
-                      imageLinks:
-                        bestImageLinks,
-                    }
-                  : {}
-              ),
-            },
-          };
 
         const canonicalTitle =
           getLooseWorkTitle(
@@ -1648,10 +1479,6 @@ export async function searchNovoriBooks(
       }
     );
 
-  void learnNormalizedGoogleBooksCatalog(
-    initialResults
-  );
-
   return collapsed;
 }
 
@@ -1786,10 +1613,6 @@ export async function searchAuthorBooks(
           false,
       }
     );
-
-  void learnNormalizedGoogleBooksCatalog(
-    candidates
-  );
 
   const excludedWorkTitle =
     getCanonicalWorkTitle(
