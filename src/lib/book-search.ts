@@ -1825,10 +1825,6 @@ export async function resolveGoogleBookRating(input: {
     process.env
       .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
-  const allowGoogleLookup =
-    input.allowGoogleLookup !==
-    false;
-
   const cleanTitle =
     input.title.trim();
 
