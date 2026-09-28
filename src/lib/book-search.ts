@@ -221,6 +221,7 @@ async function getHardcoverPopularity(
     mergedPopularity ??
     {}
   );
+}
 
 function compareBookPopularity(
   a: GoogleBookSearchItem,
