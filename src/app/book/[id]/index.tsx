@@ -2257,117 +2257,119 @@ export default function BookDetailsScreen() {
                 ) : null}
               </View>
 
-              <View
-                style={
-                  styles.libraryOwnershipRow
-                }
-              >
-                <Pressable
-                  onPress={() =>
-                    void toggleOwned()
-                  }
-                  disabled={
-                    savingOwned
-                  }
-                  style={({ pressed }) => [
-                    styles.libraryCartButton,
-                    savedBook?.owned &&
-                      styles.bookCartButtonActive,
-                    pressed &&
-                      styles.bookCartButtonPressed,
-                    savingOwned &&
-                      styles.bookCartButtonDisabled,
-                  ]}
-                >
-                  {savingOwned ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        colors.gold
-                      }
-                    />
-                  ) : (
-                    <Ionicons
-                      name={
-                        savedBook?.owned
-                          ? 'checkmark-circle'
-                          : 'checkmark-circle-outline'
-                      }
-                      size={16}
-                      color={
-                        colors.gold
-                      }
-                    />
-                  )}
 
-                  <Text
-                    style={
-                      styles.libraryCartButtonText
-                    }
-                    numberOfLines={
-                      1
-                    }
-                  >
-                    {savedBook?.owned
-                      ? 'Owned'
-                      : 'Mark as Owned'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() =>
-                    void toggleBookCart()
-                  }
-                  disabled={
-                    bookCartBusy
-                  }
-                  style={({ pressed }) => [
-                    styles.libraryCartButton,
-                    inBookCart &&
-                      styles.bookCartButtonActive,
-                    pressed &&
-                      styles.bookCartButtonPressed,
-                    bookCartBusy &&
-                      styles.bookCartButtonDisabled,
-                  ]}
-                >
-                  {bookCartBusy ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={
-                        colors.gold
-                      }
-                    />
-                  ) : (
-                    <Ionicons
-                      name={
-                        inBookCart
-                          ? 'cart'
-                          : 'cart-outline'
-                      }
-                      size={16}
-                      color={
-                        colors.gold
-                      }
-                    />
-                  )}
-
-                  <Text
-                    style={
-                      styles.libraryCartButtonText
-                    }
-                    numberOfLines={
-                      1
-                    }
-                  >
-                    {inBookCart
-                      ? 'In Book Cart'
-                      : 'Add to Cart'}
-                  </Text>
-                </Pressable>
-              </View>
             </View>
           </View>
+
+            <View
+              style={
+                styles.libraryOwnershipRow
+              }
+            >
+              <Pressable
+                onPress={() =>
+                  void toggleOwned()
+                }
+                disabled={
+                  savingOwned
+                }
+                style={({ pressed }) => [
+                  styles.libraryCartButton,
+                  savedBook?.owned &&
+                    styles.bookCartButtonActive,
+                  pressed &&
+                    styles.bookCartButtonPressed,
+                  savingOwned &&
+                    styles.bookCartButtonDisabled,
+                ]}
+              >
+                {savingOwned ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name={
+                      savedBook?.owned
+                        ? 'checkmark-circle'
+                        : 'checkmark-circle-outline'
+                    }
+                    size={16}
+                    color={
+                      colors.gold
+                    }
+                  />
+                )}
+
+                <Text
+                  style={
+                    styles.libraryCartButtonText
+                  }
+                  numberOfLines={
+                    1
+                  }
+                >
+                  {savedBook?.owned
+                    ? 'Owned'
+                    : 'Mark as Owned'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
+                  void toggleBookCart()
+                }
+                disabled={
+                  bookCartBusy
+                }
+                style={({ pressed }) => [
+                  styles.libraryCartButton,
+                  inBookCart &&
+                    styles.bookCartButtonActive,
+                  pressed &&
+                    styles.bookCartButtonPressed,
+                  bookCartBusy &&
+                    styles.bookCartButtonDisabled,
+                ]}
+              >
+                {bookCartBusy ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name={
+                      inBookCart
+                        ? 'cart'
+                        : 'cart-outline'
+                    }
+                    size={16}
+                    color={
+                      colors.gold
+                    }
+                  />
+                )}
+
+                <Text
+                  style={
+                    styles.libraryCartButtonText
+                  }
+                  numberOfLines={
+                    1
+                  }
+                >
+                  {inBookCart
+                    ? 'In Book Cart'
+                    : 'Add to Cart'}
+                </Text>
+              </Pressable>
+            </View>
         ) : (
           <View
             style={
@@ -4556,18 +4558,21 @@ function createStyles(
   },
 
   libraryOwnershipRow: {
+    width:
+      '100%',
     flexDirection:
       'row',
     alignItems:
       'stretch',
     gap: 10,
     marginTop: 12,
+    marginBottom: 4,
   },
 
   libraryCartButton: {
     flex: 1,
     minWidth: 0,
-    minHeight: 36,
+    minHeight: 40,
     flexDirection:
       'row',
     alignItems:
