@@ -53,70 +53,37 @@ type UpdateBookReadingDatesInput = {
 function secureBookCoverUrl(
   url?: string | null
 ) {
-  return url?.replace(
-    'http://',
-    'https://'
-  ) ??
-    null;
+  return (
+    url?.replace(
+      'http://',
+      'https://'
+    ) ??
+    null
+  );
 }
 
-function getCoverUrlQuality(
+function getGoogleCoverVolumeId(
   url?: string | null
 ) {
-  if (
-    !url
-  ) {
-    return 0;
-  }
-
-  const lower =
-    url.toLowerCase();
-
-  if (
-    lower.includes(
-      'printsec=frontcover'
-    )
-  ) {
-    return 10;
-  }
-
-  if (
-    lower.includes(
-      'printsec='
-    ) &&
-    !lower.includes(
-      'printsec=frontcover'
-    )
-  ) {
-    return -100;
+  if (!url) {
+    return null;
   }
 
   try {
     const parsed =
       new URL(
-        url
-      );
-
-    const zoom =
-      Number(
-        parsed.searchParams.get(
-          'zoom'
+        secureBookCoverUrl(
+          url
         ) ??
-        ''
+          url
       );
 
-    if (
-      Number.isFinite(
-        zoom
-      )
-    ) {
-      return zoom;
-    }
+    return parsed.searchParams.get(
+      'id'
+    );
   } catch {
-    // Non-Google image URLs can still be high quality.
+    return null;
   }
-
-  return 5;
 }
 
 function getCatalogCoverUrl(
@@ -199,59 +166,35 @@ function getUserBookWorkKey(
       book.title
     );
 
-  const suffixes = [
-    ' limited edition',
-    ' deluxe edition',
-    ' special edition',
-    ' collectors edition',
-    ' collector s edition',
-    ' exclusive edition',
-    ' anniversary edition',
-    ' hardcover edition',
-    ' paperback edition',
-    ' international edition',
-    ' movie tie in edition',
-    ' tv tie in edition',
-    ' mass market paperback',
-    ' large print edition',
-    ' illustrated edition',
-    ' ebook edition',
-    ' kindle edition',
-    ' trade paperback',
-    ' a novel',
-    ' a thriller',
-    ' a memoir',
-  ];
-
-  let changed =
-    true;
-
-  while (
-    changed
+  for (
+    const suffix of [
+      ' a novel',
+      ' a thriller',
+      ' a memoir',
+      ' limited edition',
+      ' deluxe edition',
+      ' special edition',
+      ' hardcover edition',
+      ' paperback edition',
+      ' mass market paperback',
+      ' large print edition',
+      ' ebook edition',
+      ' kindle edition',
+      ' trade paperback',
+    ]
   ) {
-    changed =
-      false;
-
-    for (
-      const suffix of
-        suffixes
+    if (
+      title.endsWith(
+        suffix
+      )
     ) {
-      if (
-        title.endsWith(
-          suffix
-        )
-      ) {
-        title =
-          title
-            .slice(
-              0,
-              -suffix.length
-            )
-            .trim();
-
-        changed =
-          true;
-      }
+      title =
+        title
+          .slice(
+            0,
+            -suffix.length
+          )
+          .trim();
     }
   }
 
@@ -261,10 +204,6 @@ function getUserBookWorkKey(
         /^(?:the|a|an)\s+/,
         ''
       )
-      .replace(
-        /\s+(?:book|volume|vol)\s*(?:one|1)$/,
-        ''
-      )
       .trim();
 
   const author =
@@ -272,71 +211,24 @@ function getUserBookWorkKey(
       book.authors?.[0]
     );
 
-  const authorIdentity =
-    author
-      .split(
-        ' '
-      )
-      .filter(Boolean)
-      .sort()
-      .join(
-        ' '
-      );
-
   if (
     !title ||
-    !authorIdentity
+    !author
   ) {
     return null;
   }
+
+  const authorIdentity =
+    author
+      .split(' ')
+      .filter(Boolean)
+      .sort()
+      .join(' ');
 
   return `${title}::${authorIdentity}`;
 }
 
-function getCatalogWorkKey(
-  metadata: unknown
-) {
-  if (
-    !metadata ||
-    typeof metadata !==
-      'object'
-  ) {
-    return null;
-  }
-
-  const key =
-    (
-      metadata as {
-        novoriWork?: {
-          key?: unknown;
-        };
-      }
-    ).novoriWork?.key;
-
-  return typeof key ===
-    'string'
-    ? key
-    : null;
-}
-
-function getCatalogCoverQuality(
-  metadata: unknown
-) {
-  const cover =
-    getCatalogCoverUrl(
-      metadata
-    );
-
-  return {
-    cover,
-    quality:
-      getCoverUrlQuality(
-        cover
-      ),
-  };
-}
-
-async function overlayCatalogCovers(
+async function repairCatalogCovers(
   books: UserBook[]
 ): Promise<UserBook[]> {
   if (
@@ -368,17 +260,17 @@ async function overlayCatalogCovers(
             )
             .filter(
               (
-                key
-              ): key is string =>
+                value
+              ): value is string =>
                 Boolean(
-                  key
+                  value
                 )
             )
         )
       );
 
-    const exactRequest =
-      supabase
+    const exactResult =
+      await supabase
         .from(
           'google_books_catalog'
         )
@@ -390,10 +282,10 @@ async function overlayCatalogCovers(
           ids
         );
 
-    const workRequest =
+    const workResult =
       workKeys.length >
-        0
-        ? supabase
+      0
+        ? await supabase
             .from(
               'google_books_catalog'
             )
@@ -404,110 +296,87 @@ async function overlayCatalogCovers(
               'metadata->novoriWork->>key',
               workKeys
             )
-        : Promise.resolve({
+        : {
             data: [],
             error: null,
-          });
+          };
 
-    const [
-      exactResult,
-      workResult,
-    ] =
-      await Promise.all([
-        exactRequest,
-        workRequest,
-      ]);
-
-    const rows = [
-      ...(
-        exactResult.data ??
-        []
-      ),
-      ...(
-        workResult.data ??
-        []
-      ),
-    ];
-
-    if (
-      rows.length ===
-      0
-    ) {
-      return books;
-    }
-
-    const coversByGoogleId =
+    const exactCovers =
       new Map<
         string,
         string
       >();
 
-    const coversByWorkKey =
+    const workCovers =
       new Map<
         string,
         string
       >();
 
     for (
-      const row of rows
+      const row of
+        exactResult.data ??
+        []
     ) {
-      const {
-        cover,
-        quality,
-      } =
-        getCatalogCoverQuality(
+      const candidate =
+        getCatalogCoverUrl(
           row.metadata
         );
 
       if (
-        !cover
+        !candidate
       ) {
         continue;
       }
 
-      const existingExact =
-        coversByGoogleId.get(
-          row.google_book_id
+      const candidateId =
+        getGoogleCoverVolumeId(
+          candidate
         );
 
       if (
-        !existingExact ||
-        getCoverUrlQuality(
-          existingExact
-        ) <
-          quality
+        !candidateId ||
+        candidateId ===
+          row.google_book_id
       ) {
-        coversByGoogleId.set(
+        exactCovers.set(
           row.google_book_id,
-          cover
+          candidate
         );
       }
+    }
 
-      const workKey =
-        getCatalogWorkKey(
+    for (
+      const row of
+        workResult.data ??
+        []
+    ) {
+      const key =
+        (
+          row.metadata as {
+            novoriWork?: {
+              key?: unknown;
+            };
+          }
+        )?.novoriWork?.key;
+
+      const candidate =
+        getCatalogCoverUrl(
           row.metadata
         );
 
       if (
-        workKey
+        typeof key ===
+          'string' &&
+        candidate &&
+        !workCovers.has(
+          key
+        )
       ) {
-        const existingWork =
-          coversByWorkKey.get(
-            workKey
-          );
-
-        if (
-          !existingWork ||
-          getCoverUrlQuality(
-            existingWork
-          ) <
-            quality
-        ) {
-          coversByWorkKey.set(
-            workKey,
-            cover
-          );
-        }
+        workCovers.set(
+          key,
+          candidate
+        );
       }
     }
 
@@ -516,28 +385,67 @@ async function overlayCatalogCovers(
         (
           book
         ) => {
-          const workKey =
-            getUserBookWorkKey(
-              book
+          const currentCover =
+            secureBookCoverUrl(
+              book.cover_url
             );
 
-          const cover =
-            coversByGoogleId.get(
+          const currentId =
+            getGoogleCoverVolumeId(
+              currentCover
+            );
+
+          const exactCover =
+            exactCovers.get(
               book.google_book_id
-            ) ??
+            );
+
+          const currentIsClearlyCrossEdition =
+            Boolean(
+              currentId &&
+              currentId !==
+                book.google_book_id
+            );
+
+          let nextCover =
+            currentCover;
+
+          if (
+            exactCover &&
             (
-              workKey
-                ? coversByWorkKey.get(
-                    workKey
-                  )
-                : undefined
-            ) ??
-            book.cover_url;
+              !currentCover ||
+              currentIsClearlyCrossEdition ||
+              getGoogleCoverVolumeId(
+                exactCover
+              ) ===
+                currentId
+            )
+          ) {
+            nextCover =
+              exactCover;
+          } else if (
+            !currentCover
+          ) {
+            const workKey =
+              getUserBookWorkKey(
+                book
+              );
+
+            nextCover =
+              (
+                workKey
+                  ? workCovers.get(
+                      workKey
+                    )
+                  : undefined
+              ) ??
+              null;
+          }
 
           return {
             ...book,
             cover_url:
-              cover,
+              nextCover,
           };
         }
       );
@@ -548,7 +456,6 @@ async function overlayCatalogCovers(
           book,
           index
         ) =>
-          book.cover_url &&
           book.cover_url !==
             books[index]
               ?.cover_url
@@ -580,15 +487,6 @@ async function overlayCatalogCovers(
                 book.user_id
               )
         )
-      ).catch(
-        (
-          error
-        ) => {
-          console.warn(
-            'Could not persist repaired library covers:',
-            error
-          );
-        }
       );
     }
 
@@ -647,15 +545,15 @@ export async function getUserBook(
     return null;
   }
 
-  const [
-    overlaid,
-  ] =
-    await overlayCatalogCovers([
+  const repaired =
+    await repairCatalogCovers([
       book,
     ]);
 
-  return overlaid ??
-    book;
+  return (
+    repaired[0] ??
+    book
+  );
 }
 
 export async function getUserBooks(
@@ -693,7 +591,7 @@ export async function getUserBooks(
     throw error;
   }
 
-  return overlayCatalogCovers(
+  return repairCatalogCovers(
     (data ?? []) as UserBook[]
   );
 }
