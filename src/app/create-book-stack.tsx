@@ -12,7 +12,6 @@ import {
   Alert,
   Image,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +24,9 @@ import {
 } from 'react-native-safe-area-context';
 
 import BookStackVisual from '../components/BookStackVisual';
+import SortableBookStackRow, {
+  StackDropEdge,
+} from '../components/SortableBookStackRow';
 import {
   NovoriColors,
 } from '../constants/novori-theme';
@@ -138,6 +140,27 @@ export default function CreateBookStackScreen() {
   ] =
     useState<
       string | null
+    >(null);
+
+  const [
+    dragTargetIndex,
+    setDragTargetIndex,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  const [
+    dragTargetEdge,
+    setDragTargetEdge,
+  ] =
+    useState<
+      StackDropEdge
+    >(null);
+
+  const dragStartIndexRef =
+    useRef<
+      number | null
     >(null);
 
   const timerRef =
@@ -359,26 +382,33 @@ export default function CreateBookStackScreen() {
   }
 
   function moveBookTo(
-    fromIndex: number,
+    bookId: string,
     toIndex: number
   ) {
-    if (
-      fromIndex ===
-        toIndex ||
-      fromIndex < 0 ||
-      toIndex < 0 ||
-      fromIndex >=
-        items.length ||
-      toIndex >=
-        items.length
-    ) {
-      return;
-    }
-
     setItems(
       (
         current
       ) => {
+        const fromIndex =
+          current.findIndex(
+            (
+              item
+            ) =>
+              item.googleBookId ===
+              bookId
+          );
+
+        if (
+          fromIndex < 0 ||
+          toIndex < 0 ||
+          toIndex >=
+            current.length ||
+          fromIndex ===
+            toIndex
+        ) {
+          return current;
+        }
+
         const next = [
           ...current,
         ];
@@ -399,6 +429,113 @@ export default function CreateBookStackScreen() {
 
         return next;
       }
+    );
+  }
+
+  function startBookDrag(
+    bookId: string,
+    index: number
+  ) {
+    dragStartIndexRef.current =
+      index;
+
+    setDraggingBookId(
+      bookId
+    );
+
+    setDragTargetIndex(
+      index
+    );
+
+    setDragTargetEdge(
+      null
+    );
+  }
+
+  function moveBookDrag(
+    bookId: string,
+    translationY: number
+  ) {
+    const startIndex =
+      dragStartIndexRef.current;
+
+    if (
+      startIndex ===
+      null
+    ) {
+      return;
+    }
+
+    const rowHeight =
+      72;
+
+    const rawPosition =
+      startIndex +
+      translationY /
+        rowHeight;
+
+    const targetIndex =
+      Math.max(
+        0,
+        Math.min(
+          items.length -
+            1,
+          Math.round(
+            rawPosition
+          )
+        )
+      );
+
+    const fraction =
+      rawPosition -
+      Math.floor(
+        rawPosition
+      );
+
+    const edge:
+      StackDropEdge =
+        translationY ===
+        0
+          ? null
+          : translationY >
+            0
+          ? fraction <
+            0.5
+            ? 'top'
+            : 'bottom'
+          : fraction >
+            0.5
+          ? 'bottom'
+          : 'top';
+
+    setDragTargetIndex(
+      targetIndex
+    );
+
+    setDragTargetEdge(
+      edge
+    );
+
+    moveBookTo(
+      bookId,
+      targetIndex
+    );
+  }
+
+  function endBookDrag() {
+    dragStartIndexRef.current =
+      null;
+
+    setDraggingBookId(
+      null
+    );
+
+    setDragTargetIndex(
+      null
+    );
+
+    setDragTargetEdge(
+      null
     );
   }
 
@@ -693,9 +830,7 @@ export default function CreateBookStackScreen() {
               styles.previewName
             }
           >
-            {
-              name.trim()
-            }
+            Feed Preview
           </Text>
 
           <TextInput
@@ -718,14 +853,43 @@ export default function CreateBookStackScreen() {
 
           <View
             style={
-              styles.previewVisual
+              styles.previewStackBlock
             }
           >
             <BookStackVisual
+              variant="feed"
               items={
                 visualItems
               }
             />
+
+            <View
+              style={
+                styles.previewStackCaption
+              }
+            >
+              <Text
+                style={
+                  styles.previewStackTitle
+                }
+              >
+                {
+                  name.trim()
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.previewStackCount
+                }
+              >
+                {items.length}{' '}
+                {items.length ===
+                1
+                  ? 'book'
+                  : 'books'}
+              </Text>
+            </View>
           </View>
 
           <View
@@ -738,31 +902,7 @@ export default function CreateBookStackScreen() {
                 styles.previewMetaText
               }
             >
-              {
-                items.length
-              }{' '}
-              {
-                items.length ===
-                1
-                  ? 'book'
-                  : 'books'
-              }
-            </Text>
-
-            <Text
-              style={
-                styles.previewMetaDot
-              }
-            >
-              ·
-            </Text>
-
-            <Text
-              style={
-                styles.previewMetaText
-              }
-            >
-              Will save to your profile
+              This stack will be saved to your profile when you publish.
             </Text>
           </View>
 
@@ -1012,10 +1152,50 @@ export default function CreateBookStackScreen() {
               }
             >
               <BookStackVisual
+                variant="builder"
                 items={
                   visualItems
                 }
               />
+            </View>
+
+            <View
+              style={
+                styles.featuredSummary
+              }
+            >
+              <View
+                style={
+                  styles.featuredSummaryLabel
+                }
+              >
+                <Ionicons
+                  name="star"
+                  size={11}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.featuredSummaryEyebrow
+                  }
+                >
+                  FEATURED
+                </Text>
+              </View>
+
+              <Text
+                style={
+                  styles.featuredSummaryTitle
+                }
+                numberOfLines={1}
+              >
+                {
+                  items[0]?.title
+                }
+              </Text>
             </View>
           ) : (
             <Pressable
@@ -1065,10 +1245,8 @@ export default function CreateBookStackScreen() {
               items.length >=
               MAX_STACK_BOOKS
             }
-            onPress={() =>
-              setSearchOpen(
-                true
-              )
+            onPress={
+              openBookSearch
             }
             style={({ pressed }) => [
               styles.addBookButton,
@@ -1130,122 +1308,44 @@ export default function CreateBookStackScreen() {
                   item,
                   index
                 ) => (
-                  <View
+                  <SortableBookStackRow
                     key={
                       item.googleBookId
                     }
-                    style={
-                      styles.arrangeRow
+                    item={
+                      item
                     }
-                  >
-                    {item.coverUrl ? (
-                      <Image
-                        source={{
-                          uri:
-                            item.coverUrl,
-                        }}
-                        style={
-                          styles.arrangeCover
-                        }
-                      />
-                    ) : (
-                      <View
-                        style={
-                          styles.arrangeCoverFallback
-                        }
-                      >
-                        <Ionicons
-                          name="book-outline"
-                          size={18}
-                          color={
-                            colors.gold
-                          }
-                        />
-                      </View>
-                    )}
-
-                    <View
-                      style={
-                        styles.arrangeCopy
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.arrangeTitle
-                        }
-                        numberOfLines={1}
-                      >
-                        {
-                          item.title
-                        }
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.arrangeAuthor
-                        }
-                        numberOfLines={1}
-                      >
-                        {item.authors.join(
-                          ', '
-                        ) ||
-                          'Unknown author'}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.arrangeControls
-                      }
-                    >
-                      <DragHandle
-                        index={
-                          index
-                        }
-                        itemCount={
-                          items.length
-                        }
-                        onMoveTo={
-                          moveBookTo
-                        }
-                        onDragStart={() =>
-                          setDraggingBookId(
-                            item.googleBookId
-                          )
-                        }
-                        onDragEnd={() =>
-                          setDraggingBookId(
-                            null
-                          )
-                        }
-                        colors={
-                          colors
-                        }
-                      />
-
-                      <Pressable
-                        hitSlop={6}
-                        onPress={() =>
-                          removeBook(
-                            index
-                          )
-                        }
-                        style={({ pressed }) => [
-                          styles.arrangeControl,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={18}
-                          color={
-                            colors.danger
-                          }
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
+                    index={
+                      index
+                    }
+                    isDragging={
+                      draggingBookId ===
+                      item.googleBookId
+                    }
+                    dropEdge={
+                      dragTargetIndex ===
+                        index
+                        ? dragTargetEdge
+                        : null
+                    }
+                    onDragStart={
+                      startBookDrag
+                    }
+                    onDragMove={
+                      moveBookDrag
+                    }
+                    onDragEnd={
+                      endBookDrag
+                    }
+                    onRemove={() =>
+                      removeBook(
+                        index
+                      )
+                    }
+                    colors={
+                      colors
+                    }
+                  />
                 )
               )}
             </View>
@@ -1589,231 +1689,6 @@ export default function CreateBookStackScreen() {
   );
 }
 
-function DragHandle({
-  index,
-  itemCount,
-  onMoveTo,
-  onDragStart,
-  onDragEnd,
-  colors,
-}: {
-  index: number;
-  itemCount: number;
-  onMoveTo: (
-    fromIndex: number,
-    toIndex: number
-  ) => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  colors: NovoriColors;
-}) {
-  const [
-    dragging,
-    setDragging,
-  ] =
-    useState(false);
-
-  const indexRef =
-    useRef(index);
-
-  const itemCountRef =
-    useRef(
-      itemCount
-    );
-
-  const moveRef =
-    useRef(
-      onMoveTo
-    );
-
-  const onDragStartRef =
-    useRef(
-      onDragStart
-    );
-
-  const onDragEndRef =
-    useRef(
-      onDragEnd
-    );
-
-  const startIndexRef =
-    useRef(index);
-
-  const currentIndexRef =
-    useRef(index);
-
-  const holdTimerRef =
-    useRef<
-      ReturnType<
-        typeof setTimeout
-      > | null
-    >(null);
-
-  const activeRef =
-    useRef(false);
-
-  indexRef.current =
-    index;
-  itemCountRef.current =
-    itemCount;
-  moveRef.current =
-    onMoveTo;
-  onDragStartRef.current =
-    onDragStart;
-  onDragEndRef.current =
-    onDragEnd;
-
-  function finishDrag() {
-    if (
-      holdTimerRef.current
-    ) {
-      clearTimeout(
-        holdTimerRef.current
-      );
-      holdTimerRef.current =
-        null;
-    }
-
-    if (
-      activeRef.current
-    ) {
-      onDragEndRef.current();
-    }
-
-    activeRef.current =
-      false;
-    setDragging(
-      false
-    );
-  }
-
-  const panResponder =
-    useRef(
-      PanResponder.create({
-        onStartShouldSetPanResponder:
-          () => true,
-
-        onMoveShouldSetPanResponder:
-          () => true,
-
-        onPanResponderTerminationRequest:
-          () =>
-            !activeRef.current,
-
-        onShouldBlockNativeResponder:
-          () => true,
-
-        onPanResponderGrant:
-          () => {
-            startIndexRef.current =
-              indexRef.current;
-
-            currentIndexRef.current =
-              indexRef.current;
-
-            activeRef.current =
-              false;
-
-            holdTimerRef.current =
-              setTimeout(
-                () => {
-                  activeRef.current =
-                    true;
-
-                  setDragging(
-                    true
-                  );
-
-                  onDragStartRef.current();
-                },
-                160
-              );
-          },
-
-        onPanResponderMove: (
-          _,
-          gesture
-        ) => {
-          if (
-            !activeRef.current
-          ) {
-            return;
-          }
-
-          const rowDistance =
-            58;
-
-          const offset =
-            Math.round(
-              gesture.dy /
-                rowDistance
-            );
-
-          const target =
-            Math.max(
-              0,
-              Math.min(
-                itemCountRef.current -
-                  1,
-                startIndexRef.current +
-                  offset
-              )
-            );
-
-          if (
-            target ===
-            currentIndexRef.current
-          ) {
-            return;
-          }
-
-          moveRef.current(
-            currentIndexRef.current,
-            target
-          );
-
-          currentIndexRef.current =
-            target;
-        },
-
-        onPanResponderRelease:
-          finishDrag,
-
-        onPanResponderTerminate:
-          finishDrag,
-      })
-    ).current;
-
-  return (
-    <View
-      {...panResponder.panHandlers}
-      style={{
-        width: 38,
-        height: 38,
-        alignItems:
-          'center',
-        justifyContent:
-          'center',
-        borderRadius: 10,
-        backgroundColor:
-          dragging
-            ? colors.elevated
-            : 'transparent',
-      }}
-    >
-      <Ionicons
-        name="reorder-three-outline"
-        size={25}
-        color={
-          dragging
-            ? colors.gold
-            : colors.secondaryText
-        }
-      />
-    </View>
-  );
-}
-
 function createStyles(
   colors: NovoriColors
 ) {
@@ -1969,7 +1844,7 @@ function createStyles(
     },
 
     stackPreview: {
-      minHeight: 500,
+      minHeight: 245,
       alignItems:
         'center',
       justifyContent:
@@ -1981,7 +1856,44 @@ function createStyles(
         StyleSheet.hairlineWidth,
       borderColor:
         colors.border,
-      paddingVertical: 22,
+      paddingTop: 18,
+      paddingBottom: 10,
+    },
+
+    featuredSummary: {
+      alignItems:
+        'center',
+      paddingTop: 10,
+      paddingBottom: 7,
+    },
+
+    featuredSummaryLabel: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 5,
+    },
+
+    featuredSummaryEyebrow: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 8.5,
+      letterSpacing: 0.85,
+    },
+
+    featuredSummaryTitle: {
+      maxWidth: 250,
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11,
+      marginTop: 5,
+      textAlign:
+        'center',
     },
 
     emptyStack: {
@@ -2451,14 +2363,47 @@ function createStyles(
         'top',
     },
 
-    previewVisual: {
-      minHeight: 510,
+    previewStackBlock: {
       alignItems:
         'center',
       justifyContent:
         'center',
-      marginTop: 8,
-      paddingVertical: 12,
+      marginTop: 14,
+      paddingTop: 20,
+      paddingBottom: 16,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        colors.border,
+    },
+
+    previewStackCaption: {
+      alignItems:
+        'center',
+      marginTop: 5,
+      paddingHorizontal: 12,
+    },
+
+    previewStackTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 20,
+      lineHeight: 25,
+      textAlign:
+        'center',
+    },
+
+    previewStackCount: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10.5,
+      marginTop: 4,
     },
 
     previewMeta: {
