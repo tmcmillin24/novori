@@ -7,8 +7,14 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  useEffect,
+} from 'react';
 import Animated, {
   LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from 'react-native-reanimated';
 
 import {
@@ -48,9 +54,9 @@ type Props = {
 type VariantConfig = {
   width: number;
   height: number;
-  stageHeight: number;
   overlap: number;
   selectedGap: number;
+  verticalPadding: number;
   horizontalPadding: number;
 };
 
@@ -60,38 +66,265 @@ const VARIANTS:
     VariantConfig
   > = {
     builder: {
-      width: 108,
-      height: 162,
-      stageHeight: 194,
-      overlap: 32,
-      selectedGap: 22,
+      width: 112,
+      height: 168,
+      overlap: 48,
+      selectedGap: 18,
+      verticalPadding: 18,
       horizontalPadding: 20,
     },
     feed: {
-      width: 100,
-      height: 150,
-      stageHeight: 184,
-      overlap: 30,
-      selectedGap: 20,
+      width: 104,
+      height: 156,
+      overlap: 44,
+      selectedGap: 17,
+      verticalPadding: 18,
       horizontalPadding: 18,
     },
     profile: {
-      width: 70,
-      height: 105,
-      stageHeight: 129,
-      overlap: 21,
-      selectedGap: 14,
+      width: 72,
+      height: 108,
+      overlap: 30,
+      selectedGap: 11,
+      verticalPadding: 12,
       horizontalPadding: 12,
     },
     detail: {
-      width: 128,
-      height: 192,
-      stageHeight: 228,
-      overlap: 38,
-      selectedGap: 24,
+      width: 132,
+      height: 198,
+      overlap: 56,
+      selectedGap: 22,
+      verticalPadding: 22,
       horizontalPadding: 22,
     },
   };
+
+type StackCoverProps = {
+  item: StackBook;
+  index: number;
+  selected: boolean;
+  hasSelection: boolean;
+  config: VariantConfig;
+  colors: NovoriColors;
+  compactVisual: boolean;
+  onSelect?: (
+    item: StackBook
+  ) => void;
+};
+
+function StackCover({
+  item,
+  index,
+  selected,
+  hasSelection,
+  config,
+  colors,
+  compactVisual,
+  onSelect,
+}: StackCoverProps) {
+  const selection =
+    useSharedValue(
+      selected
+        ? 1
+        : 0
+    );
+
+  const dim =
+    useSharedValue(
+      hasSelection &&
+      !selected
+        ? 1
+        : 0
+    );
+
+  useEffect(() => {
+    selection.value =
+      withSpring(
+        selected
+          ? 1
+          : 0,
+        {
+          damping: 20,
+          stiffness: 220,
+          mass: 0.72,
+        }
+      );
+
+    dim.value =
+      withSpring(
+        hasSelection &&
+        !selected
+          ? 1
+          : 0,
+        {
+          damping: 22,
+          stiffness: 210,
+          mass: 0.72,
+        }
+      );
+  }, [
+    dim,
+    hasSelection,
+    selected,
+    selection,
+  ]);
+
+  const animatedStyle =
+    useAnimatedStyle(
+      () => ({
+        transform: [
+          {
+            translateY:
+              -10 *
+              selection.value,
+          },
+          {
+            scale:
+              1 +
+              0.065 *
+                selection.value,
+          },
+        ],
+        opacity:
+          1 -
+          0.16 *
+            dim.value,
+      })
+    );
+
+  return (
+    <Animated.View
+      layout={
+        LinearTransition
+          .springify()
+          .damping(22)
+          .stiffness(185)
+      }
+      style={[
+        {
+          width:
+            config.width,
+          height:
+            config.height,
+          marginLeft:
+            index ===
+            0
+              ? 0
+              : -config.overlap,
+          marginRight:
+            selected
+              ? config.selectedGap
+              : 0,
+          zIndex:
+            selected
+              ? 100
+              : index +
+                1,
+        },
+        animatedStyle,
+      ]}
+    >
+      <Pressable
+        disabled={
+          !onSelect
+        }
+        onPress={(
+          event
+        ) => {
+          event.stopPropagation();
+
+          onSelect?.(
+            item
+          );
+        }}
+        style={({ pressed }) => [
+          stylesForCover(
+            colors,
+            config
+          ).book,
+          selected &&
+            stylesForCover(
+              colors,
+              config
+            )
+              .bookSelected,
+          pressed &&
+            onSelect &&
+            stylesForCover(
+              colors,
+              config
+            )
+              .bookPressed,
+        ]}
+      >
+        {item.cover_url ? (
+          <Image
+            source={{
+              uri:
+                item.cover_url,
+            }}
+            style={
+              stylesForCover(
+                colors,
+                config
+              ).cover
+            }
+          />
+        ) : (
+          <View
+            style={
+              stylesForCover(
+                colors,
+                config
+              )
+                .coverFallback
+            }
+          >
+            <Ionicons
+              name="book-outline"
+              size={
+                compactVisual
+                  ? 17
+                  : 25
+              }
+              color={
+                colors.gold
+              }
+            />
+
+            <Text
+              style={
+                stylesForCover(
+                  colors,
+                  config
+                )
+                  .fallbackTitle
+              }
+              numberOfLines={2}
+            >
+              {
+                item.title
+              }
+            </Text>
+          </View>
+        )}
+
+        {index ===
+        0 ? (
+          <View
+            style={
+              stylesForCover(
+                colors,
+                config
+              )
+                .featuredMarker
+            }
+          />
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function BookStackVisual({
   items,
@@ -125,16 +358,10 @@ export default function BookStackVisual({
       config
     );
 
-  const selectedIndex =
-    selectedId
-      ? items.findIndex(
-          (
-            item
-          ) =>
-            item.id ===
-            selectedId
-        )
-      : -1;
+  const hasSelection =
+    Boolean(
+      selectedId
+    );
 
   if (
     items.length ===
@@ -176,243 +403,84 @@ export default function BookStackVisual({
       showsHorizontalScrollIndicator={
         false
       }
-      contentContainerStyle={{
-        paddingHorizontal:
-          config.horizontalPadding,
-        alignItems:
-          'center',
-      }}
-      style={{
-        width: '100%',
-        height:
-          config.stageHeight,
-      }}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      style={
+        styles.scroll
+      }
     >
       <View
-        style={[
-          styles.strip,
-          {
-            minWidth:
-              config.width +
-              Math.max(
-                0,
-                items.length -
-                  1
-              ) *
-                (
-                  config.width -
-                  config.overlap
-                ) +
-              (
-                selectedIndex >=
-                0
-                  ? config.selectedGap *
-                    2
-                  : 0
-              ),
-          },
-        ]}
+        style={
+          styles.deck
+        }
       >
         {items.map(
           (
             item,
             index
-          ) => {
-            const selected =
-              selectedId ===
-              item.id;
-
-            const baseLeft =
-              index *
-              (
-                config.width -
-                config.overlap
-              );
-
-            const separation =
-              selectedIndex <
-              0
-                ? 0
-                : index <
-                    selectedIndex
-                  ? -config.selectedGap
-                  : index >
-                      selectedIndex
-                    ? config.selectedGap
-                    : 0;
-
-            const selectedCentering =
-              selectedIndex >=
-              0
-                ? config.selectedGap
-                : 0;
-
-            return (
-              <Animated.View
-                key={
-                  item.id
-                }
-                layout={
-                  LinearTransition
-                    .springify()
-                    .damping(22)
-                    .stiffness(190)
-                }
-                style={[
-                  styles.bookPosition,
-                  {
-                    left:
-                      baseLeft +
-                      separation +
-                      selectedCentering,
-                    zIndex:
-                      selected
-                        ? 100
-                        : index +
-                          1,
-                    transform: [
-                      {
-                        translateY:
-                          selected
-                            ? -9
-                            : 0,
-                      },
-                      {
-                        scale:
-                          selected
-                            ? 1.07
-                            : 1,
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <Pressable
-                  disabled={
-                    !onSelect
-                  }
-                  onPress={(
-                    event
-                  ) => {
-                    event.stopPropagation();
-
-                    onSelect?.(
-                      item
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    styles.book,
-                    selected &&
-                      styles.bookSelected,
-                    pressed &&
-                      onSelect &&
-                      styles.bookPressed,
-                  ]}
-                >
-                  {item.cover_url ? (
-                    <Image
-                      source={{
-                        uri:
-                          item.cover_url,
-                      }}
-                      style={
-                        styles.cover
-                      }
-                    />
-                  ) : (
-                    <View
-                      style={
-                        styles.coverFallback
-                      }
-                    >
-                      <Ionicons
-                        name="book-outline"
-                        size={
-                          resolvedVariant ===
-                            'profile'
-                            ? 17
-                            : 25
-                        }
-                        color={
-                          colors.gold
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.fallbackTitle
-                        }
-                        numberOfLines={2}
-                      >
-                        {
-                          item.title
-                        }
-                      </Text>
-                    </View>
-                  )}
-
-                  {index ===
-                  0 ? (
-                    <View
-                      style={
-                        styles.featuredEdge
-                      }
-                    />
-                  ) : null}
-                </Pressable>
-              </Animated.View>
-            );
-          }
+          ) => (
+            <StackCover
+              key={
+                item.id
+              }
+              item={
+                item
+              }
+              index={
+                index
+              }
+              selected={
+                selectedId ===
+                item.id
+              }
+              hasSelection={
+                hasSelection
+              }
+              config={
+                config
+              }
+              colors={
+                colors
+              }
+              compactVisual={
+                resolvedVariant ===
+                'profile'
+              }
+              onSelect={
+                onSelect
+              }
+            />
+          )
         )}
       </View>
     </ScrollView>
   );
 }
 
-function createStyles(
+function stylesForCover(
   colors: NovoriColors,
   config: VariantConfig
 ) {
   return StyleSheet.create({
-    strip: {
-      position:
-        'relative',
-      height:
-        config.stageHeight,
-    },
-
-    bookPosition: {
-      position:
-        'absolute',
-      top:
-        (
-          config.stageHeight -
-          config.height
-        ) /
-        2,
-      width:
-        config.width,
-      height:
-        config.height,
-    },
-
     book: {
       width:
         config.width,
       height:
         config.height,
-      borderRadius: 10,
+      borderRadius: 9,
       overflow:
         'hidden',
       backgroundColor:
         colors.elevated,
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
       borderColor:
         colors.border,
       shadowColor:
         '#000',
-      shadowOpacity: 0.13,
-      shadowRadius: 7,
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
       shadowOffset: {
         width: 0,
         height: 4,
@@ -421,12 +489,16 @@ function createStyles(
     },
 
     bookSelected: {
+      borderWidth: 1.5,
       borderColor:
         colors.gold,
-      borderWidth: 2,
-      shadowOpacity: 0.22,
-      shadowRadius: 11,
-      elevation: 8,
+      shadowOpacity: 0.24,
+      shadowRadius: 12,
+      shadowOffset: {
+        width: 0,
+        height: 7,
+      },
+      elevation: 9,
     },
 
     bookPressed: {
@@ -471,7 +543,7 @@ function createStyles(
       marginTop: 7,
     },
 
-    featuredEdge: {
+    featuredMarker: {
       position:
         'absolute',
       left: 0,
@@ -480,11 +552,44 @@ function createStyles(
       height: 3,
       backgroundColor:
         colors.gold,
+      opacity: 0.9,
+    },
+  });
+}
+
+function createStyles(
+  colors: NovoriColors,
+  config: VariantConfig
+) {
+  return StyleSheet.create({
+    scroll: {
+      width: '100%',
+    },
+
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        config.horizontalPadding,
+      paddingVertical:
+        config.verticalPadding,
+    },
+
+    deck: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingRight:
+        config.selectedGap,
     },
 
     empty: {
       minHeight:
-        config.stageHeight,
+        config.height +
+        config.verticalPadding *
+          2,
       alignItems:
         'center',
       justifyContent:
