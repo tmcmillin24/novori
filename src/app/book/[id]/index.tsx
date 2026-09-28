@@ -56,6 +56,13 @@ import {
 
 type GoogleBook = {
   id: string;
+  novoriWork?: {
+    key: string;
+    canonicalTitle: string;
+    primaryAuthor: string;
+    googleBookIds: string[];
+    isbns: string[];
+  };
   volumeInfo: {
     title?: string;
     subtitle?: string;
@@ -1508,10 +1515,75 @@ export default function BookDetailsScreen() {
   }
 
   async function loadSeries(currentBook: GoogleBook) {
-    const isbn = getBookISBN(currentBook);
+    const exactIsbn =
+      getBookISBN(
+        currentBook
+      );
 
-    if (!isbn) {
-      console.log('No ISBN available for Hardcover lookup.');
+    const isbns =
+      Array.from(
+        new Set(
+          [
+            exactIsbn,
+            ...(
+              currentBook
+                .novoriWork
+                ?.isbns ??
+              []
+            ),
+            ...(
+              currentBook
+                .volumeInfo
+                .industryIdentifiers ??
+              []
+            ).map(
+              (
+                identifier
+              ) =>
+                identifier.identifier
+            ),
+          ]
+            .filter(
+              (
+                value
+              ): value is string =>
+                Boolean(
+                  value
+                )
+            )
+            .map(
+              (
+                value
+              ) =>
+                value
+                  .replace(
+                    /[^0-9Xx]/g,
+                    ''
+                  )
+                  .toUpperCase()
+            )
+            .filter(Boolean)
+        )
+      );
+
+    const title =
+      currentBook.volumeInfo
+        .title ??
+      '';
+
+    const authors =
+      currentBook.volumeInfo
+        .authors ??
+      [];
+
+    if (
+      isbns.length ===
+        0 &&
+      !title
+    ) {
+      console.log(
+        'No book identity available for Hardcover series lookup.'
+      );
       return;
     }
 
@@ -1522,7 +1594,15 @@ export default function BookDetailsScreen() {
 
       const { data, error: functionError } =
         await supabase.functions.invoke('hardcover-series', {
-          body: { isbn },
+          body: {
+            isbn:
+              exactIsbn ??
+              isbns[0] ??
+              null,
+            isbns,
+            title,
+            authors,
+          },
         });
 
       if (functionError) {
