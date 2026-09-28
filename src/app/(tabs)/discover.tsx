@@ -47,6 +47,15 @@ import {
 
 type GoogleBookItem = {
   id: string;
+  novoriWork?: {
+    key: string;
+    canonicalTitle: string;
+    primaryAuthor: string;
+    googleBookIds: string[];
+    isbns: string[];
+    hardcoverRating?: number | null;
+    hardcoverRatingsCount?: number | null;
+  };
 
   volumeInfo: {
     title?: string;
@@ -2623,6 +2632,49 @@ export default function DiscoverScreen() {
               ?.join(', ') ??
               'Unknown author'}
           </Text>
+
+          {typeof item.novoriWork
+            ?.hardcoverRating ===
+          'number' ? (
+            <View
+              style={
+                styles.searchRatingStars
+              }
+            >
+              {[1,2,3,4,5].map(
+                (
+                  star
+                ) => {
+                  const rating =
+                    item.novoriWork
+                      ?.hardcoverRating ??
+                    0;
+
+                  return (
+                    <Ionicons
+                      key={
+                        star
+                      }
+                      name={
+                        rating >=
+                        star
+                          ? 'star'
+                          : rating >=
+                            star -
+                              0.5
+                            ? 'star-half'
+                            : 'star-outline'
+                      }
+                      size={14}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  );
+                }
+              )}
+            </View>
+          ) : null}
 
           {info.publishedDate ? (
             <Text
@@ -5492,6 +5544,16 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       marginBottom: 7,
+    },
+
+    searchRatingStars: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 2,
+      marginTop: 7,
+      marginBottom: 1,
     },
 
     meta: {
