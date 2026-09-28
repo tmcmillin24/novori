@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fetchGoogleBooksJson } from './google-books';
 import {
   getBestSearchCover,
   searchNovoriBooks,
@@ -52,6 +53,22 @@ type UpdateBookReadingDatesInput = {
   startedAt: string | null;
   finishedAt: string | null;
   dnfAt: string | null;
+};
+
+type ExactGoogleBook = {
+  id: string;
+  volumeInfo: {
+    title?: string;
+    authors?: string[];
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
+    };
+  };
 };
 
 function secureCoverUrl(
@@ -427,182 +444,155 @@ async function repairSavedCover(
       book.cover_url
     );
 
-  const title =
-    book.title.trim();
-
-  if (
-    !title
-  ) {
-    return book;
-  }
+  let nextCover =
+    currentCover;
 
   try {
-    const discoverResults =
-      await searchNovoriBooks(
-        title
+    const exactResponse =
+      await fetchGoogleBooksJson<
+        ExactGoogleBook
+      >(
+        `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+          book.google_book_id
+        )}`
       );
 
-    const wantedTitle =
-      normalizeBookText(
-        book.title
-      );
+    const exactBook =
+      exactResponse.ok
+        ? exactResponse.data
+        : null;
 
-    const matchingBooks =
-      discoverResults.filter(
-        (
-          candidate
-        ) => {
-          const candidateTitle =
-            normalizeBookText(
-              candidate
-                .volumeInfo
-                .title
-            );
-
-          const titleMatches =
-            candidateTitle ===
-              wantedTitle ||
-            candidateTitle.startsWith(
-              `${wantedTitle} `
-            ) ||
-            wantedTitle.startsWith(
-              `${candidateTitle} `
-            );
-
-          return (
-            titleMatches &&
-            authorsMatch(
-              book.authors ??
-                [],
-              candidate
-                .volumeInfo
-                .authors ??
-                []
-            )
-          );
-        }
-      );
-
-    const bestDiscoverMatch =
-      matchingBooks.find(
-        (
-          candidate
-        ) =>
-          Boolean(
-            getBestSearchCover(
-              candidate
-                .volumeInfo
-                .imageLinks
-            )
-          )
-      );
-
-    if (
-      !bestDiscoverMatch
-    ) {
-      return book;
-    }
-
-    const discoverCover =
+    const exactBestCover =
       secureCoverUrl(
         getBestSearchCover(
-          bestDiscoverMatch
-            .volumeInfo
+          exactBook
+            ?.volumeInfo
             .imageLinks
         )
       );
 
+    const currentCoverVolumeId =
+      getGoogleCoverInfo(
+        currentCover
+      )?.id;
+
+    const currentIsCrossEdition =
+      Boolean(
+        currentCoverVolumeId &&
+        currentCoverVolumeId !==
+          book.google_book_id
+      );
+
     if (
-      !discoverCover
+      exactBestCover
     ) {
-      return book;
-    }
-
-    let nextCover =
-      currentCover;
-
-    if (
-      !currentCover
-    ) {
-      nextCover =
-        discoverCover;
-    } else {
-      const currentVolumeId =
-        getGoogleCoverInfo(
-          currentCover
-        )?.id;
-
-      const sameVolumeResult =
-        currentVolumeId
-          ? matchingBooks.find(
-              (
-                candidate
-              ) =>
-                candidate.id ===
-                  currentVolumeId
-            )
-          : undefined;
-
       const currentTier =
         getSearchCoverTier(
           currentCover,
-          sameVolumeResult
+          exactBook
             ?.volumeInfo
             .imageLinks
         );
 
-      const sameVolumeBestCover =
-        secureCoverUrl(
-          getBestSearchCover(
-            sameVolumeResult
-              ?.volumeInfo
-              .imageLinks
-          )
-        );
-
-      const sameVolumeBestTier =
+      const exactBestTier =
         getSearchCoverTier(
-          sameVolumeBestCover,
-          sameVolumeResult
+          exactBestCover,
+          exactBook
             ?.volumeInfo
             .imageLinks
         );
 
       if (
-        sameVolumeBestCover &&
-        currentTier !==
-          null &&
-        sameVolumeBestTier !==
-          null &&
-        sameVolumeBestTier >
-          currentTier
+        !currentCover ||
+        currentIsCrossEdition ||
+        (
+          currentTier !==
+            null &&
+          exactBestTier !==
+            null &&
+          exactBestTier >
+            currentTier
+        )
       ) {
         nextCover =
-          sameVolumeBestCover;
-      } else {
-        const discoverTier =
-          getSearchCoverTier(
-            discoverCover,
-            bestDiscoverMatch
-              .volumeInfo
-              .imageLinks
+          exactBestCover;
+      }
+    }
+
+    if (
+      !nextCover ||
+      currentIsCrossEdition
+    ) {
+      const title =
+        book.title.trim();
+
+      if (
+        title
+      ) {
+        const discoverResults =
+          await searchNovoriBooks(
+            title
           );
 
-        const currentTierAgainstDiscover =
-          getSearchCoverTier(
-            currentCover,
-            bestDiscoverMatch
-              .volumeInfo
-              .imageLinks
+        const wantedTitle =
+          normalizeBookText(
+            book.title
+          );
+
+        const bestDiscoverMatch =
+          discoverResults.find(
+            (
+              candidate
+            ) => {
+              const candidateTitle =
+                normalizeBookText(
+                  candidate
+                    .volumeInfo
+                    .title
+                );
+
+              const titleMatches =
+                candidateTitle ===
+                  wantedTitle ||
+                candidateTitle.startsWith(
+                  `${wantedTitle} `
+                ) ||
+                wantedTitle.startsWith(
+                  `${candidateTitle} `
+                );
+
+              return (
+                titleMatches &&
+                authorsMatch(
+                  book.authors ??
+                    [],
+                  candidate
+                    .volumeInfo
+                    .authors ??
+                    []
+                ) &&
+                Boolean(
+                  getBestSearchCover(
+                    candidate
+                      .volumeInfo
+                      .imageLinks
+                  )
+                )
+              );
+            }
+          );
+
+        const discoverCover =
+          secureCoverUrl(
+            getBestSearchCover(
+              bestDiscoverMatch
+                ?.volumeInfo
+                .imageLinks
+            )
           );
 
         if (
-          currentTierAgainstDiscover !==
-            null &&
-          discoverTier !==
-            null &&
-          discoverTier >
-            currentTierAgainstDiscover
+          discoverCover
         ) {
           nextCover =
             discoverCover;
