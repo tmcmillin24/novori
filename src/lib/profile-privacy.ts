@@ -4,6 +4,7 @@ export type ProfilePrivacyPreferences = {
   is_private: boolean;
   show_books: boolean;
   show_reviews: boolean;
+  show_owned_books: boolean;
 };
 
 export async function getProfilePrivacy():
@@ -25,6 +26,51 @@ Promise<ProfilePrivacyPreferences> {
       ? data[0]
       : data;
 
+  const {
+    data: {
+      user,
+    },
+  } =
+    await supabase.auth.getUser();
+
+  let showOwnedBooks =
+    false;
+
+  if (
+    user
+  ) {
+    const {
+      data:
+        profileRow,
+      error:
+        profileError,
+    } =
+      await supabase
+        .from(
+          'profiles'
+        )
+        .select(
+          'show_owned_books'
+        )
+        .eq(
+          'id',
+          user.id
+        )
+        .maybeSingle();
+
+    if (
+      profileError
+    ) {
+      throw profileError;
+    }
+
+    showOwnedBooks =
+      Boolean(
+        profileRow
+          ?.show_owned_books
+      );
+  }
+
   return {
     is_private:
       row?.is_private ??
@@ -35,6 +81,8 @@ Promise<ProfilePrivacyPreferences> {
     show_reviews:
       row?.show_reviews ??
       true,
+    show_owned_books:
+      showOwnedBooks,
   };
 }
 
@@ -59,5 +107,51 @@ export async function updateProfilePrivacy(
 
   if (error) {
     throw error;
+  }
+
+  const {
+    data: {
+      user,
+    },
+    error:
+      userError,
+  } =
+    await supabase.auth.getUser();
+
+  if (
+    userError
+  ) {
+    throw userError;
+  }
+
+  if (
+    !user
+  ) {
+    throw new Error(
+      'You must be signed in to update profile privacy.'
+    );
+  }
+
+  const {
+    error:
+      ownedVisibilityError,
+  } =
+    await supabase
+      .from(
+        'profiles'
+      )
+      .update({
+        show_owned_books:
+          preferences.show_owned_books,
+      })
+      .eq(
+        'id',
+        user.id
+      );
+
+  if (
+    ownedVisibilityError
+  ) {
+    throw ownedVisibilityError;
   }
 }
