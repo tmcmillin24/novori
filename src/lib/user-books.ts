@@ -89,6 +89,69 @@ function secureCoverUrl(
   );
 }
 
+function isGoogleCoverUrl(
+  url?: string | null
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure
+  ) {
+    return false;
+  }
+
+  try {
+    const host =
+      new URL(
+        secure
+      ).hostname;
+
+    return (
+      host.includes(
+        'google'
+      ) ||
+      host.includes(
+        'ggpht'
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getExactEditionCoverUrls(
+  imageLinks:
+    | ExactGoogleBook[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  return new Set(
+    [
+      imageLinks?.extraLarge,
+      imageLinks?.large,
+      imageLinks?.medium,
+      imageLinks?.small,
+      imageLinks?.thumbnail,
+      imageLinks?.smallThumbnail,
+    ]
+      .map(
+        secureCoverUrl
+      )
+      .filter(
+        (
+          value
+        ): value is string =>
+          Boolean(
+            value
+          )
+      )
+  );
+}
+
 function isOpenLibraryCoverUrl(
   url?: string | null
 ) {
@@ -601,30 +664,39 @@ async function repairSavedCover(
           ?.smallThumbnail
       );
 
-    const currentGoogleVolumeId =
-      getGoogleCoverInfo(
-        currentCover
-      )?.id;
-
-    const currentLooksCrossEdition =
-      Boolean(
-        currentCoverWorks &&
-        currentGoogleVolumeId &&
-        currentGoogleVolumeId !==
-          book.google_book_id
+    const exactEditionCoverUrls =
+      getExactEditionCoverUrls(
+        exactBook
+          ?.volumeInfo
+          .imageLinks
       );
 
-    // Healthy saved covers are immutable. The only automatic correction
-    // allowed is undoing a proven cross-edition Google cover swap.
+    const currentLooksLikeForeignGoogleCover =
+      Boolean(
+        currentCoverWorks &&
+        currentCover &&
+        isGoogleCoverUrl(
+          currentCover
+        ) &&
+        exactEditionCoverUrls.size >
+          0 &&
+        !exactEditionCoverUrls.has(
+          currentCover
+        )
+      );
+
+    // A working saved cover is immutable unless it is a Google image that
+    // does not belong to this book's exact saved Google volume. That case
+    // is the sibling-cover regression we introduced and must be undone.
     if (
       currentCoverWorks &&
-      !currentLooksCrossEdition
+      !currentLooksLikeForeignGoogleCover
     ) {
       return book;
     }
 
     if (
-      currentLooksCrossEdition &&
+      currentLooksLikeForeignGoogleCover &&
       exactGoogleCover &&
       await remoteImageExists(
         exactGoogleCover
