@@ -1150,6 +1150,25 @@ export default function BookDetailsScreen() {
     )
   );
 
+  function openReadingDetails() {
+    if (
+      !savedBook ||
+      savedBook.status ===
+        'want_to_read'
+    ) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/reading-details/[id]',
+      params: {
+        id:
+          savedBook.google_book_id,
+      },
+    });
+  }
+
   function openRateReview() {
     if (
       !savedBook ||
@@ -2765,6 +2784,64 @@ export default function BookDetailsScreen() {
                 Saved for later. Move it to Reading whenever you start.
               </Text>
             )}
+
+            {savedBook.status !==
+              'want_to_read' ? (
+              <Pressable
+                onPress={
+                  openReadingDetails
+                }
+                style={({ pressed }) => [
+                  styles.readingDetailsButton,
+                  pressed &&
+                    styles.readingDetailsButtonPressed,
+                ]}
+              >
+                <View
+                  style={
+                    styles.readingDetailsButtonIcon
+                  }
+                >
+                  <Ionicons
+                    name="reader-outline"
+                    size={18}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.readingDetailsButtonCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.readingDetailsButtonTitle
+                    }
+                  >
+                    View Reading Details
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.readingDetailsButtonSubtitle
+                    }
+                  >
+                    Progress, notes, summary, and checkpoints
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -4356,6 +4433,59 @@ function createStyles(
     alignItems: 'center',
     justifyContent:
       'space-between',
+  },
+
+  readingDetailsButton: {
+    minHeight: 58,
+    flexDirection:
+      'row',
+    alignItems:
+      'center',
+    gap: 11,
+    marginTop: 15,
+    paddingTop: 13,
+    borderTopWidth:
+      StyleSheet.hairlineWidth,
+    borderTopColor:
+      colors.border,
+  },
+
+  readingDetailsButtonPressed: {
+    opacity: 0.7,
+  },
+
+  readingDetailsButtonIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    backgroundColor:
+      colors.elevated,
+  },
+
+  readingDetailsButtonCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  readingDetailsButtonTitle: {
+    color:
+      colors.text,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 13,
+  },
+
+  readingDetailsButtonSubtitle: {
+    color:
+      colors.mutedText,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 10.5,
+    marginTop: 3,
   },
 
   libraryReadingPanelTitle: {
