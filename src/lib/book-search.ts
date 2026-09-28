@@ -1687,10 +1687,6 @@ export async function resolveGoogleBookRating(input: {
 }): Promise<
   ResolvedGoogleBookRating | null
 > {
-  const apiKey =
-    process.env
-      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
   const cleanTitle =
     input.title.trim();
 
@@ -2008,10 +2004,6 @@ export async function resolveHardcoverRating(input: {
 }): Promise<
   ResolvedHardcoverRating | null
 > {
-  const apiKey =
-    process.env
-      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
   const allowGoogleLookup =
     input.allowGoogleLookup !==
     false;
