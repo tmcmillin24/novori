@@ -25,7 +25,6 @@ import {
 
 import { NovoriColors } from '../../../constants/novori-theme';
 import { useNovoriTheme } from '../../../context/theme-context';
-import { googleBooksFetch } from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
@@ -285,7 +284,7 @@ async function resolveClickedDiscoverBook(
   ) {
     try {
       const response =
-        await googleBooksFetch(
+        await fetch(
           `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
             query
           )}&maxResults=20&printType=books&projection=full&key=${apiKey}`
@@ -973,7 +972,7 @@ export default function BookDetailsScreen() {
         }
 
         const response =
-          await googleBooksFetch(
+          await fetch(
             `https://www.googleapis.com/books/v1/volumes/${id}?key=${apiKey}`
           );
 
@@ -1471,7 +1470,7 @@ export default function BookDetailsScreen() {
 
     const query = queryParts.join(' ');
 
-    const response = await googleBooksFetch(
+    const response = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
         query
       )}&maxResults=20&key=${apiKey}`
