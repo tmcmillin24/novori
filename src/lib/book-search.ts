@@ -1363,6 +1363,10 @@ export async function searchAuthorBooks(
   options?: {
     excludeGoogleBookId?: string | null;
     excludeTitle?: string | null;
+    onProgress?: (
+      results:
+        AuthorBookResult[]
+    ) => void;
   }
 ): Promise<AuthorBookResult[]> {
   const apiKey =
@@ -1523,6 +1527,36 @@ export async function searchAuthorBooks(
       }
     );
 
+  const initialBooks:
+    AuthorBookResult[] =
+    filtered.map(
+      (
+        book
+      ) => ({
+        book,
+        usersCount:
+          0,
+        ratingsCount:
+          book.novoriWork
+            ?.hardcoverRatingsCount ??
+          book.volumeInfo
+            .ratingsCount ??
+          0,
+        reviewsCount:
+          0,
+        rating:
+          book.novoriWork
+            ?.hardcoverRating ??
+          book.volumeInfo
+            .averageRating ??
+          null,
+      })
+    );
+
+  options?.onProgress?.(
+    initialBooks
+  );
+
   const resolvedBooks:
     AuthorBookResult[] =
     [];
@@ -1652,6 +1686,15 @@ export async function searchAuthorBooks(
       await resolveAuthorBook(
         book
       )
+    );
+
+    options?.onProgress?.(
+      [
+        ...resolvedBooks,
+        ...initialBooks.slice(
+          resolvedBooks.length
+        ),
+      ]
     );
   }
 
