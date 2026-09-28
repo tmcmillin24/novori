@@ -543,20 +543,6 @@ export default function BookStackActionsSheet({
             >
               <View
                 style={
-                  styles.stackPreview
-                }
-              >
-                <Ionicons
-                  name="albums-outline"
-                  size={20}
-                  color={
-                    colors.gold
-                  }
-                />
-              </View>
-
-              <View
-                style={
                   styles.headerText
                 }
               >
@@ -569,20 +555,6 @@ export default function BookStackActionsSheet({
                   {stackName?.trim() ||
                     'Book Stack'}
                 </Text>
-
-                <View
-                  style={
-                    styles.typePill
-                  }
-                >
-                  <Text
-                    style={
-                      styles.typePillText
-                    }
-                  >
-                    Book Stack
-                  </Text>
-                </View>
               </View>
 
               <Pressable
@@ -836,23 +808,10 @@ function createStyles(
       paddingBottom: 15,
     },
 
-    stackPreview: {
-      width: 42,
-      height: 62,
-      borderRadius: 6,
-      backgroundColor:
-        colors.elevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-    },
-
     headerText: {
       flex: 1,
-      marginLeft: 12,
       marginRight: 10,
+      paddingVertical: 6,
     },
 
     title: {
@@ -862,24 +821,6 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize: 15,
       lineHeight: 20,
-    },
-
-    typePill: {
-      alignSelf: 'flex-start',
-      backgroundColor:
-        colors.elevated,
-      borderRadius: 999,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      marginTop: 7,
-    },
-
-    typePillText: {
-      color:
-        colors.softGold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 10,
     },
 
     closeButton: {
