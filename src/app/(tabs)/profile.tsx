@@ -3,16 +3,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import {
   useFocusEffect,
+  useNavigation,
   useRouter,
 } from 'expo-router';
 import {
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
   Alert,
   Image,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -240,6 +244,25 @@ export default function ProfileScreen() {
     );
 
   const router = useRouter();
+  const navigation =
+    useNavigation();
+
+  const profileScrollRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
+  const profileScrollOffsetRef =
+    useRef(0);
+
+  const profileFocusedRef =
+    useRef(false);
+
+  const [
+    profileRefreshKey,
+    setProfileRefreshKey,
+  ] =
+    useState(0);
 
   const [
     activeTab,
@@ -348,6 +371,9 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      profileFocusedRef.current =
+        true;
+
       let isMounted = true;
 
       async function loadProfileAndBooks() {
@@ -633,8 +659,56 @@ export default function ProfileScreen() {
       return () => {
         isMounted =
           false;
+        profileFocusedRef.current =
+          false;
       };
-    }, [router])
+    }, [
+      router,
+      profileRefreshKey,
+    ])
+  );
+
+  useEffect(
+    () => {
+      const unsubscribe =
+        navigation.addListener(
+          'tabPress',
+          () => {
+            if (
+              !profileFocusedRef.current
+            ) {
+              return;
+            }
+
+            if (
+              profileScrollOffsetRef.current >
+              24
+            ) {
+              profileScrollOffsetRef.current =
+                0;
+
+              profileScrollRef.current?.scrollTo({
+                y: 0,
+                animated: true,
+              });
+              return;
+            }
+
+            setProfileRefreshKey(
+              (
+                current
+              ) =>
+                current +
+                1
+            );
+          }
+        );
+
+      return unsubscribe;
+    },
+    [
+      navigation,
+    ]
   );
 
   const rawUsername =
@@ -2093,6 +2167,14 @@ export default function ProfileScreen() {
   return (
     <TabScreen
       scroll
+      scrollRef={
+        profileScrollRef
+      }
+      onScroll={(event) => {
+        profileScrollOffsetRef.current =
+          event.nativeEvent
+            .contentOffset.y;
+      }}
     >
       <View
         style={
