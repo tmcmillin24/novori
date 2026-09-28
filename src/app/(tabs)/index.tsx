@@ -5859,11 +5859,7 @@ export default function HomeScreen() {
           {post.post_type ===
             'book_stack' &&
           post.book_stack_id ? (
-            <View
-              onStartShouldSetResponder={() =>
-                true
-              }
-            >
+            <View>
               <BookStackPostAttachment
                 stackId={
                   post.book_stack_id
