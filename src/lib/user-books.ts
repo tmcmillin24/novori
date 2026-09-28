@@ -16,6 +16,7 @@ export type UserBook = {
   isbn: string | null;
   published_date: string | null;
   status: UserBookStatus;
+  owned: boolean;
   rating: number | null;
   review_text: string | null;
   started_at: string | null;
@@ -33,6 +34,7 @@ type SaveUserBookInput = {
   isbn?: string | null;
   publishedDate?: string | null;
   status: UserBookStatus;
+  owned?: boolean;
 };
 
 type UpdateBookReviewInput = {
@@ -247,6 +249,10 @@ export async function saveUserBook(
           null,
         status:
           input.status,
+        owned:
+          input.owned ??
+          existing.owned ??
+          false,
         started_at:
           startedAt,
         finished_at:
@@ -299,6 +305,9 @@ export async function saveUserBook(
         null,
       status:
         input.status,
+      owned:
+        input.owned ??
+        false,
       started_at:
         startedAt,
       finished_at:
@@ -308,6 +317,41 @@ export async function saveUserBook(
       updated_at:
         now,
     })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as UserBook;
+}
+
+export async function updateUserBookOwned(
+  googleBookId: string,
+  owned: boolean
+): Promise<UserBook> {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('user_books')
+    .update({
+      owned,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      'user_id',
+      userId
+    )
+    .eq(
+      'google_book_id',
+      googleBookId
+    )
     .select('*')
     .single();
 
