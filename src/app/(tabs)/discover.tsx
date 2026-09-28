@@ -50,6 +50,7 @@ import {
 } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
 import {
+  getLibraryMutationVersion,
   getUserBooks,
   UserBook,
 } from '../../lib/user-books';
@@ -481,6 +482,24 @@ function isDiscoverBookInLibrary(
 const MIN_SEARCH_LENGTH = 2;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
+const DISCOVER_LIBRARY_STALE_MS =
+  5 * 60 * 1000;
+
+let discoverSessionCache = {
+  trendingBooks:
+    [] as TrendingBook[],
+  recentReleasePool:
+    [] as TrendingBook[],
+  libraryBooks:
+    [] as UserBook[],
+  refreshedAt:
+    0,
+  libraryRefreshedAt:
+    0,
+  libraryMutationVersion:
+    -1,
+};
+
 const READER_SEARCH_DELAY_MS = 300;
 const MIN_READER_SEARCH_LENGTH = 2;
 
@@ -1514,10 +1533,6 @@ export default function DiscoverScreen() {
   const discoverHomeScrollOffsetRef =
     useRef(0);
 
-  const preserveDiscoverStateOnNextBlur =
-    useRef(false);
-
-
   const [
     discoverMode,
     setDiscoverMode,
@@ -1720,19 +1735,34 @@ export default function DiscoverScreen() {
     );
 
   const [trendingBooks, setTrendingBooks] =
-    useState<TrendingBook[]>([]);
+    useState<TrendingBook[]>(
+      discoverSessionCache
+        .trendingBooks
+    );
   const [trendingLoading, setTrendingLoading] =
-    useState(true);
+    useState(
+      discoverSessionCache
+        .refreshedAt === 0
+    );
   const [trendingError, setTrendingError] =
     useState('');
   const [recentReleasePool, setRecentReleasePool] =
-    useState<TrendingBook[]>([]);
+    useState<TrendingBook[]>(
+      discoverSessionCache
+        .recentReleasePool
+    );
   const [recentReleasesLoading, setRecentReleasesLoading] =
-    useState(true);
+    useState(
+      discoverSessionCache
+        .refreshedAt === 0
+    );
   const [recentReleasesError, setRecentReleasesError] =
     useState('');
   const [libraryBooks, setLibraryBooks] =
-    useState<UserBook[]>([]);
+    useState<UserBook[]>(
+      discoverSessionCache
+        .libraryBooks
+    );
   const [discoverRefreshing, setDiscoverRefreshing] =
     useState(false);
   const [openingTrendingBookId, setOpeningTrendingBookId] =
@@ -1771,7 +1801,10 @@ export default function DiscoverScreen() {
     useRef<ScrollView | null>(null);
 
   const lastDiscoverRefreshRef =
-    useRef(0);
+    useRef(
+      discoverSessionCache
+        .refreshedAt
+    );
 
   const discoverRefreshInFlightRef =
     useRef(false);
@@ -1784,30 +1817,67 @@ export default function DiscoverScreen() {
         let active =
           true;
 
-        void getUserBooks()
-          .then(
-            (
-              savedBooks
-            ) => {
-              if (
-                active
-              ) {
+        const currentMutationVersion =
+          getLibraryMutationVersion();
+
+        const libraryCacheFresh =
+          discoverSessionCache
+            .libraryRefreshedAt >
+            0 &&
+          Date.now() -
+            discoverSessionCache
+              .libraryRefreshedAt <
+            DISCOVER_LIBRARY_STALE_MS;
+
+        const libraryChanged =
+          currentMutationVersion !==
+          discoverSessionCache
+            .libraryMutationVersion;
+
+        if (
+          !libraryCacheFresh ||
+          libraryChanged
+        ) {
+          void getUserBooks()
+            .then(
+              (
+                savedBooks
+              ) => {
+                if (
+                  !active
+                ) {
+                  return;
+                }
+
+                const refreshedAt =
+                  Date.now();
+
                 setLibraryBooks(
                   savedBooks
                 );
+
+                discoverSessionCache = {
+                  ...discoverSessionCache,
+                  libraryBooks:
+                    savedBooks,
+                  libraryRefreshedAt:
+                    refreshedAt,
+                  libraryMutationVersion:
+                    currentMutationVersion,
+                };
               }
-            }
-          )
-          .catch(
-            (
-              libraryError
-            ) => {
-              console.warn(
-                'Could not refresh Discover library exclusions:',
+            )
+            .catch(
+              (
                 libraryError
-              );
-            }
-          );
+              ) => {
+                console.warn(
+                  'Could not refresh Discover library exclusions:',
+                  libraryError
+                );
+              }
+            );
+        }
 
         return () => {
           active =
@@ -1820,100 +1890,27 @@ export default function DiscoverScreen() {
     )
   );
 
-  useFocusEffect(
-    useCallback(
-      () => {
-        return () => {
-          if (
-            preserveDiscoverStateOnNextBlur.current
-          ) {
-            preserveDiscoverStateOnNextBlur.current =
-              false;
-            return;
-          }
-
-          setDiscoverMode(
-            'books'
-          );
-
-          setQuery(
-            ''
-          );
-          setBooks(
-            []
-          );
-          setLoading(
-            false
-          );
-          setError(
-            ''
-          );
-
-          setReaderQuery(
-            ''
-          );
-          setReaderResults(
-            []
-          );
-          setReaderLoading(
-            false
-          );
-          setReaderError(
-            ''
-          );
-          setReaderFollowBusyId(
-            null
-          );
-
-          setActiveTrendingGenreKey(
-            'all'
-          );
-          setGenrePath(
-            []
-          );
-          setGenreMenuVisible(
-            false
-          );
-          setOpeningTrendingBookId(
-            null
-          );
-
-          latestRequestRef.current +=
-            1;
-          latestReaderRequestRef.current +=
-            1;
-
-          if (
-            debounceTimerRef.current
-          ) {
-            clearTimeout(
-              debounceTimerRef.current
-            );
-            debounceTimerRef.current =
-              null;
-          }
-
-          if (
-            readerDebounceTimerRef.current
-          ) {
-            clearTimeout(
-              readerDebounceTimerRef.current
-            );
-            readerDebounceTimerRef.current =
-              null;
-          }
-        };
-      },
-      []
-    )
-  );
-
   useEffect(() => {
-    refreshDiscoverData(
-      false,
-      false,
-      false
-    );
+    const discoverCacheFresh =
+      lastDiscoverRefreshRef
+        .current >
+        0 &&
+      Date.now() -
+        lastDiscoverRefreshRef
+          .current <
+        DISCOVER_AUTO_REFRESH_MS;
+
+    if (
+      !discoverCacheFresh
+    ) {
+      refreshDiscoverData(
+        lastDiscoverRefreshRef
+          .current >
+          0,
+        false,
+        false
+      );
+    }
 
     const refreshInterval =
       setInterval(() => {
@@ -2064,9 +2061,19 @@ export default function DiscoverScreen() {
         );
       }
 
+      const nextTrendingBooks =
+        response?.books ?? [];
+
       setTrendingBooks(
-        response?.books ?? []
+        nextTrendingBooks
       );
+
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        trendingBooks:
+          nextTrendingBooks,
+      };
+
       setTrendingError('');
     } catch (err) {
       console.error(
@@ -2124,9 +2131,19 @@ export default function DiscoverScreen() {
         );
       }
 
+      const nextRecentReleases =
+        response?.books ?? [];
+
       setRecentReleasePool(
-        response?.books ?? []
+        nextRecentReleases
       );
+
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        recentReleasePool:
+          nextRecentReleases,
+      };
+
       setRecentReleasesError('');
     } catch (err) {
       console.error(
@@ -2177,8 +2194,15 @@ export default function DiscoverScreen() {
         ),
       ]);
 
-      lastDiscoverRefreshRef.current =
+      const refreshedAt =
         Date.now();
+
+      lastDiscoverRefreshRef.current =
+        refreshedAt;
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        refreshedAt,
+      };
     } finally {
       discoverRefreshInFlightRef.current =
         false;
@@ -2223,7 +2247,8 @@ export default function DiscoverScreen() {
               return;
             }
 
-            handleDiscoverRefresh();
+            // Keep the session-cached Discover data. Pull-to-refresh,
+            // a three-hour TTL, or a relevant mutation will refresh it.
           }
         );
 
@@ -2405,9 +2430,6 @@ export default function DiscoverScreen() {
   function openReader(
     readerId: string
   ) {
-    preserveDiscoverStateOnNextBlur.current =
-      true;
-
     router.push({
       pathname:
         '/reader/[id]',
