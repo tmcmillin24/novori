@@ -1825,6 +1825,10 @@ export async function resolveGoogleBookRating(input: {
     process.env
       .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
 
+  const allowGoogleLookup =
+    input.allowGoogleLookup !==
+    false;
+
   const cleanTitle =
     input.title.trim();
 
@@ -2138,6 +2142,7 @@ export async function resolveHardcoverRating(input: {
   title: string;
   authors?: string[];
   isbns?: string[];
+  allowGoogleLookup?: boolean;
 }): Promise<
   ResolvedHardcoverRating | null
 > {
@@ -2195,6 +2200,7 @@ export async function resolveHardcoverRating(input: {
   if (
     providedIsbns.length ===
       0 &&
+    allowGoogleLookup &&
     apiKey &&
     input.googleBookId
   ) {
@@ -2224,6 +2230,7 @@ export async function resolveHardcoverRating(input: {
   if (
     providedIsbns.length ===
       0 &&
+    allowGoogleLookup &&
     apiKey
   ) {
     const primaryAuthor =
