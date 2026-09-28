@@ -1152,6 +1152,8 @@ export default function BookDetailsScreen() {
                   ) =>
                     identifier.identifier
                 ),
+              allowGoogleLookup:
+                false,
             });
 
           setHardcoverRating(
