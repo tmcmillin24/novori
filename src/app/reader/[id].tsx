@@ -3598,6 +3598,7 @@ export default function ReaderProfileScreen() {
             false
           )
         }
+        shape="circle"
       />
     </SafeAreaView>
   );
