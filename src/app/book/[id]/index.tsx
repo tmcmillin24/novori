@@ -870,6 +870,8 @@ export default function BookDetailsScreen() {
       ? 'Book Cart'
       : source === 'discover'
       ? 'Discover'
+      : source === 'author'
+      ? 'Author'
       : isSharedBookContext
       ? savedBook
         ? 'Library'
@@ -928,6 +930,11 @@ export default function BookDetailsScreen() {
     }
 
     if (source === 'discover') {
+      router.replace('/(tabs)/discover');
+      return;
+    }
+
+    if (source === 'author') {
       router.replace('/(tabs)/discover');
       return;
     }
