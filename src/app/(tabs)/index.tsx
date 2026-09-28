@@ -5772,60 +5772,91 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {currentUserId ? (
+          <View
+            style={
+              styles.feedHeaderActions
+            }
+          >
             <Pressable
-              disabled={
-                deletingPostId ===
-                post.id
-              }
               onPress={(event) => {
                 event.stopPropagation();
-
-                if (
-                  post.author_id ===
-                  currentUserId
-                ) {
-                  openOwnPostOptions(
-                    post
-                  );
-                } else {
-                  openPostReport(
-                    post
-                  );
-                }
+                void shareFeedPost(
+                  post
+                );
               }}
-              hitSlop={
-                10
-              }
+              hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="More post options"
+              accessibilityLabel="Share post"
               style={({ pressed }) => [
                 styles.feedMoreButton,
                 pressed &&
                   styles.pressed,
               ]}
             >
-              {deletingPostId ===
-              post.id ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    colors.mutedText
-                  }
-                />
-              ) : (
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={
-                    20
-                  }
-                  color={
-                    colors.mutedText
-                  }
-                />
-              )}
+              <Ionicons
+                name="share-social-outline"
+                size={18}
+                color={
+                  colors.mutedText
+                }
+              />
             </Pressable>
-          ) : null}
+
+            {currentUserId ? (
+              <Pressable
+                disabled={
+                  deletingPostId ===
+                  post.id
+                }
+                onPress={(event) => {
+                  event.stopPropagation();
+
+                  if (
+                    post.author_id ===
+                    currentUserId
+                  ) {
+                    openOwnPostOptions(
+                      post
+                    );
+                  } else {
+                    openPostReport(
+                      post
+                    );
+                  }
+                }}
+                hitSlop={
+                  10
+                }
+                accessibilityRole="button"
+                accessibilityLabel="More post options"
+                style={({ pressed }) => [
+                  styles.feedMoreButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                {deletingPostId ===
+                post.id ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={
+                      20
+                    }
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View
@@ -6378,38 +6409,7 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
 
-          <Pressable
-            onPress={(event) => {
-              event.stopPropagation();
-              void shareFeedPost(
-                post
-              );
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Share post"
-            style={({ pressed }) => [
-              styles.commentAction,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={16}
-              color={
-                colors.mutedText
-              }
-            />
 
-            <Text
-              style={
-                styles.commentActionText
-              }
-            >
-              Share
-            </Text>
-          </Pressable>
         </View>
       </Pressable>
     );
@@ -9416,6 +9416,17 @@ function createStyles(
       paddingTop:
         15,
     },
+    feedHeaderActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      marginLeft:
+        4,
+      marginTop:
+        -2,
+    },
+
     feedMoreButton: {
       width:
         34,
