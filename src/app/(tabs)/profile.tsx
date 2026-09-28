@@ -1938,14 +1938,9 @@ export default function ProfileScreen() {
                 stack.id
               }
               onPress={() =>
-                router.push({
-                  pathname:
-                    '/stack/[id]',
-                  params: {
-                    id:
-                      stack.id,
-                  },
-                })
+                setStackActionsTarget(
+                  stack
+                )
               }
               style={({ pressed }) => [
                 styles.stackTile,
