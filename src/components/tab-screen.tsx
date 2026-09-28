@@ -1,7 +1,5 @@
-import {
-  PropsWithChildren,
-  RefObject,
-} from 'react';
+import { PropsWithChildren } from 'react';
+import type { RefObject } from 'react';
 import {
     NativeScrollEvent,
     NativeSyntheticEvent,
