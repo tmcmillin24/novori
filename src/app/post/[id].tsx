@@ -77,6 +77,9 @@ import {
 import {
   supabase,
 } from '../../lib/supabase';
+import {
+  sharePostLink,
+} from '../../lib/share-links';
 
 type ThreadComment =
   PostComment & {
@@ -1004,6 +1007,32 @@ export default function PostDetailScreen() {
           clubId,
       },
     });
+  }
+
+  async function shareCurrentPost() {
+    if (
+      !post
+    ) {
+      return;
+    }
+
+    try {
+      await sharePostLink(
+        post.id
+      );
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share post:',
+        shareError
+      );
+
+      Alert.alert(
+        'Could not share post',
+        'Please try again.'
+      );
+    }
   }
 
   async function handleVote(
@@ -3603,6 +3632,36 @@ export default function PostDetailScreen() {
                     comments.length}
                 </Text>
               </View>
+
+              <Pressable
+                onPress={() =>
+                  void shareCurrentPost()
+                }
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share post"
+                style={({ pressed }) => [
+                  styles.commentCount,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="share-social-outline"
+                  size={15}
+                  color={
+                    colors.mutedText
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.commentCountText
+                  }
+                >
+                  Share
+                </Text>
+              </Pressable>
             </View>
           </View>
 
