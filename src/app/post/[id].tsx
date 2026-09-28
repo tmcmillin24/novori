@@ -4692,7 +4692,7 @@ function createStyles(
       fontSize:
         13,
       flexShrink:
-        1,
+        0,
     },
     postUsername: {
       color:
@@ -4701,8 +4701,12 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         11,
+      flex:
+        1,
       flexShrink:
         1,
+      minWidth:
+        0,
     },
     postAudience: {
       alignSelf:
