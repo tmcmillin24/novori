@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRouter,
+} from 'expo-router';
 import {
   useCallback,
   useEffect,
@@ -1345,6 +1349,19 @@ export default function DiscoverScreen() {
     );
 
   const router = useRouter();
+  const navigation =
+    useNavigation();
+
+  const discoverFocusedRef =
+    useRef(false);
+
+  const discoverHomeScrollRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
+  const discoverHomeScrollOffsetRef =
+    useRef(0);
 
   const preserveDiscoverStateOnNextBlur =
     useRef(false);
@@ -1661,6 +1678,9 @@ export default function DiscoverScreen() {
   useFocusEffect(
     useCallback(
       () => {
+        discoverFocusedRef.current =
+          true;
+
         let active =
           true;
 
@@ -1691,6 +1711,8 @@ export default function DiscoverScreen() {
 
         return () => {
           active =
+            false;
+          discoverFocusedRef.current =
             false;
         };
       },
@@ -2117,6 +2139,43 @@ export default function DiscoverScreen() {
       true
     );
   }
+
+  useEffect(
+    () => {
+      const unsubscribe =
+        navigation.addListener(
+          'tabPress',
+          () => {
+            if (
+              !discoverFocusedRef.current
+            ) {
+              return;
+            }
+
+            if (
+              discoverHomeScrollOffsetRef.current >
+              24
+            ) {
+              discoverHomeScrollOffsetRef.current =
+                0;
+
+              discoverHomeScrollRef.current?.scrollTo({
+                y: 0,
+                animated: true,
+              });
+              return;
+            }
+
+            handleDiscoverRefresh();
+          }
+        );
+
+      return unsubscribe;
+    },
+    [
+      navigation,
+    ]
+  );
 
   async function performReaderSearch(
     searchTerm: string,
@@ -3852,8 +3911,19 @@ export default function DiscoverScreen() {
           </View>
         ) : showDiscoverHome ? (
           <ScrollView
+            ref={
+              discoverHomeScrollRef
+            }
             style={
               styles.discoverHome
+            }
+            onScroll={(event) => {
+              discoverHomeScrollOffsetRef.current =
+                event.nativeEvent
+                  .contentOffset.y;
+            }}
+            scrollEventThrottle={
+              16
             }
             contentContainerStyle={
               styles.discoverHomeContent
