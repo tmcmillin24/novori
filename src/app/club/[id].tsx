@@ -3676,6 +3676,30 @@ export default function ClubDetailScreen() {
           </View>
         </Pressable>
 
+        <Pressable
+          onPress={() =>
+            void shareRenderedPost(
+              post.id
+            )
+          }
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Share post"
+          style={({ pressed }) => [
+            styles.postHeaderShare,
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name="share-social-outline"
+            size={18}
+            color={
+              colors.mutedText
+            }
+          />
+        </Pressable>
+
         <PostTypeIdentifier
           postType={
             post.post_type
@@ -4030,30 +4054,6 @@ export default function ClubDetailScreen() {
                 -1
                   ? colors.gold
                   : colors.mutedText
-              }
-            />
-          </Pressable>
-
-          <Pressable
-            onPress={() =>
-              void shareRenderedPost(
-                post.id
-              )
-            }
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Share post"
-            style={({ pressed }) => [
-              styles.postVoteButton,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={19}
-              color={
-                colors.mutedText
               }
             />
           </Pressable>
@@ -8404,6 +8404,16 @@ function createStyles(colors: NovoriColors) {
     postHeader: {
       flexDirection: 'row',
       alignItems: 'flex-start',
+    },
+    postHeaderShare: {
+      position: 'absolute',
+      top: 9,
+      right: 10,
+      width: 34,
+      height: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
     },
     postAvatar: {
       width: 40,
