@@ -752,8 +752,52 @@ export default function CreateBookStackScreen() {
     }
   }
 
+  const previewDraftItems =
+    draggingBookId &&
+    dragTargetIndex !==
+      null
+      ? (() => {
+          const fromIndex =
+            items.findIndex(
+              (
+                item
+              ) =>
+                item.googleBookId ===
+                draggingBookId
+            );
+
+          if (
+            fromIndex < 0 ||
+            fromIndex ===
+              dragTargetIndex
+          ) {
+            return items;
+          }
+
+          const next = [
+            ...items,
+          ];
+
+          const [
+            moved,
+          ] =
+            next.splice(
+              fromIndex,
+              1
+            );
+
+          next.splice(
+            dragTargetIndex,
+            0,
+            moved
+          );
+
+          return next;
+        })()
+      : items;
+
   const visualItems =
-    items.map(
+    previewDraftItems.map(
       (
         item,
         index
