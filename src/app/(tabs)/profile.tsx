@@ -2183,9 +2183,25 @@ export default function ProfileScreen() {
       >
         <View
           style={
-            styles.topBarSpacer
+            styles.profileTitleBlock
           }
-        />
+        >
+          <Text
+            style={
+              styles.profilePageTitle
+            }
+          >
+            Profile
+          </Text>
+
+          <Text
+            style={
+              styles.profilePageSubtitle
+            }
+          >
+            Your reading life, activity, and communities.
+          </Text>
+        </View>
 
         <Pressable
           onPress={
@@ -2748,28 +2764,54 @@ function createStyles(
     },
 
     topBar: {
-      minHeight: 34,
       flexDirection:
         'row',
       justifyContent:
         'space-between',
       alignItems:
-        'center',
-      marginBottom: 2,
+        'flex-start',
+      marginBottom: 22,
     },
 
-    topBarSpacer: {
-      width: 36,
+    profileTitleBlock: {
+      flex: 1,
+      marginTop: 2,
+    },
+
+    profilePageTitle: {
+      color:
+        colors.gold,
+      fontSize: 43,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      letterSpacing: 0.2,
+    },
+
+    profilePageSubtitle: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 15,
+      marginTop: 5,
+      letterSpacing: 0.15,
     },
 
     settingsButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      marginTop: 4,
+      marginLeft: 12,
       alignItems:
         'center',
       justifyContent:
         'center',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
     },
 
     profileHeader: {
