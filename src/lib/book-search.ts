@@ -1527,9 +1527,48 @@ export async function searchAuthorBooks(
     AuthorBookResult[] =
     [];
 
+  const fastPopularity =
+    await getHardcoverPopularity(
+      filtered,
+      false
+    );
+
   async function resolveAuthorBook(
     book: GoogleBookSearchItem
   ) {
+    const fastResolved =
+      fastPopularity[
+        book.id
+      ];
+
+    if (
+      fastResolved &&
+      fastResolved.rating !==
+        null &&
+      Number.isFinite(
+        fastResolved.rating
+      ) &&
+      fastResolved.rating >
+        0
+    ) {
+      return {
+        book,
+        usersCount:
+          fastResolved.usersCount ??
+          0,
+        ratingsCount:
+          fastResolved.ratingsCount ??
+          book.volumeInfo
+            .ratingsCount ??
+          0,
+        reviewsCount:
+          fastResolved.reviewsCount ??
+          0,
+        rating:
+          fastResolved.rating,
+      } satisfies AuthorBookResult;
+    }
+
     let resolved:
       ResolvedHardcoverRating |
       null =
@@ -1570,7 +1609,7 @@ export async function searchAuthorBooks(
           ) =>
             setTimeout(
               resolve,
-              250
+              200
             )
         );
       }
