@@ -1,8 +1,5 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
-import {
-  resolveBestWorkCover,
-} from './book-covers';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -21,6 +18,7 @@ export type GoogleBookSearchItem = {
     subtitle?: string;
     authors?: string[];
     publishedDate?: string;
+    publisher?: string;
     description?: string;
     imageLinks?: {
       smallThumbnail?: string;
@@ -39,6 +37,9 @@ export type GoogleBookSearchItem = {
     averageRating?: number;
     ratingsCount?: number;
     language?: string;
+  };
+  saleInfo?: {
+    country?: string;
   };
 };
 
@@ -714,6 +715,181 @@ function getCanonicalWorkTitleForBook(
   return title;
 }
 
+function getEditionLocaleScore(
+  book: GoogleBookSearchItem
+) {
+  const language =
+    (
+      book.volumeInfo
+        .language ??
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const country =
+    (
+      book.saleInfo
+        ?.country ??
+      ''
+    )
+      .trim()
+      .toUpperCase();
+
+  let score =
+    0;
+
+  if (
+    language ===
+      'en' ||
+    language ===
+      'eng' ||
+    language.startsWith(
+      'en-'
+    )
+  ) {
+    score +=
+      100;
+  }
+
+  if (
+    country ===
+      'US'
+  ) {
+    score +=
+      50;
+  }
+
+  return score;
+}
+
+function isEligibleAlternateEdition(
+  book: GoogleBookSearchItem
+) {
+  return (
+    getEditionLocaleScore(
+      book
+    ) >
+    0
+  );
+}
+
+function getGoogleCoverTier(
+  imageLinks:
+    | GoogleBookSearchItem[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  if (
+    imageLinks?.extraLarge
+  ) {
+    return 6;
+  }
+
+  if (
+    imageLinks?.large
+  ) {
+    return 5;
+  }
+
+  if (
+    imageLinks?.medium
+  ) {
+    return 4;
+  }
+
+  if (
+    imageLinks?.small
+  ) {
+    return 3;
+  }
+
+  if (
+    imageLinks?.thumbnail
+  ) {
+    return 2;
+  }
+
+  if (
+    imageLinks?.smallThumbnail
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getBestEligibleGoogleWorkCover(
+  editions:
+    GoogleBookSearchItem[]
+) {
+  const eligible =
+    editions.filter(
+      isEligibleAlternateEdition
+    );
+
+  const ranked =
+    eligible
+      .map(
+        (
+          edition
+        ) => ({
+          edition,
+          localeScore:
+            getEditionLocaleScore(
+              edition
+            ),
+          tier:
+            getGoogleCoverTier(
+              edition.volumeInfo
+                .imageLinks
+            ),
+          cover:
+            getBestSearchCover(
+              edition.volumeInfo
+                .imageLinks
+            ),
+        })
+      )
+      .filter(
+        (
+          candidate
+        ) =>
+          Boolean(
+            candidate.cover
+          )
+      )
+      .sort(
+        (
+          a,
+          b
+        ) => {
+          const localeDifference =
+            b.localeScore -
+            a.localeScore;
+
+          if (
+            localeDifference !==
+              0
+          ) {
+            return localeDifference;
+          }
+
+          return (
+            b.tier -
+            a.tier
+          );
+        }
+      );
+
+  return (
+    ranked[0]
+      ?.cover ??
+    null
+  );
+}
+
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -731,18 +907,15 @@ function collapseDuplicateEditions(
       searchTerm
     );
 
-  const englishResults =
+  const preferredLocaleResults =
     books.filter(
-      (book) =>
-        !book.volumeInfo.language ||
-        book.volumeInfo.language ===
-          'en'
+      isEligibleAlternateEdition
     );
 
   const candidates =
-    englishResults.length >
+    preferredLocaleResults.length >
     0
-      ? englishResults
+      ? preferredLocaleResults
       : books;
 
   const groups =
@@ -802,6 +975,21 @@ function collapseDuplicateEditions(
               a,
               b
             ) => {
+              const localeDifference =
+                getEditionLocaleScore(
+                  b
+                ) -
+                getEditionLocaleScore(
+                  a
+                );
+
+              if (
+                localeDifference !==
+                  0
+              ) {
+                return localeDifference;
+              }
+
               const aHardcover =
                 hardcoverPopularity[
                   a.id
@@ -1318,45 +1506,15 @@ export async function searchNovoriBooks(
               )
           );
 
-        const editions =
-          siblingEditions.map(
-            (
-              candidate
-            ) => ({
-              imageLinks:
-                candidate
-                  .volumeInfo
-                  .imageLinks,
-              isbn:
-                getBookIsbns(
-                  candidate
-                )[0] ??
-                null,
-            })
+        const canonicalGoogleCover =
+          getBestEligibleGoogleWorkCover(
+            siblingEditions
           );
-
-        for (
-          const isbn of
-            work.isbns
-        ) {
-          editions.push({
-            imageLinks:
-              undefined,
-            isbn,
-          });
-        }
-
-        const canonicalCover =
-          await resolveBestWorkCover({
-            editions,
-            existingCoverUrl:
-              undefined,
-          });
 
         representative.novoriWork = {
           ...work,
           canonicalCoverUrl:
-            canonicalCover.url,
+            canonicalGoogleCover,
         };
       }
     )
