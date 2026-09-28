@@ -16,7 +16,6 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'none',
-        lazy: false,
         freezeOnBlur: true,
 
         sceneStyle: {
@@ -59,6 +58,7 @@ export default function TabLayout() {
         name="discover"
         options={{
           title: 'Discover',
+          freezeOnBlur: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'compass' : 'compass-outline'}
