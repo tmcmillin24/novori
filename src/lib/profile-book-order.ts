@@ -21,7 +21,7 @@ const PROFILE_BOOK_STATUS_ORDER:
   };
 
 type ProfileBookLike = {
-  status: ProfileBookStatus;
+  status: ProfileBookStatus | null;
   created_at?: string | null;
   updated_at?: string | null;
   started_at?: string | null;
@@ -72,12 +72,20 @@ export function sortProfileBooks<
       b
     ) => {
       const statusDifference =
-        PROFILE_BOOK_STATUS_ORDER[
+        (
           a.status
-        ] -
-        PROFILE_BOOK_STATUS_ORDER[
+            ? PROFILE_BOOK_STATUS_ORDER[
+                a.status
+              ]
+            : 4
+        ) -
+        (
           b.status
-        ];
+            ? PROFILE_BOOK_STATUS_ORDER[
+                b.status
+              ]
+            : 4
+        );
 
       if (
         statusDifference !==
