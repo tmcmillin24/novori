@@ -1,4 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import {
+  Image as ExpoImage,
+} from 'expo-image';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   useFocusEffect,
@@ -16,7 +19,6 @@ import {
   Alert,
   AppState,
   FlatList,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -3070,13 +3072,18 @@ export default function DiscoverScreen() {
           ]}
         >
           {item.avatar_url ? (
-            <Image
-              source={{
-                uri:
-                  item.avatar_url,
-              }}
+            <ExpoImage
+              source={
+                item.avatar_url
+              }
               style={
                 styles.readerAvatar
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.avatar_url
               }
             />
           ) : (
@@ -3230,12 +3237,18 @@ export default function DiscoverScreen() {
           }
         >
           {item.coverUrl ? (
-            <Image
-              source={{
-                uri: item.coverUrl,
-              }}
+            <ExpoImage
+              source={
+                item.coverUrl
+              }
               style={
                 styles.trendingCover
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.coverUrl
               }
             />
           ) : (
@@ -3325,12 +3338,18 @@ export default function DiscoverScreen() {
           }
         >
           {item.coverUrl ? (
-            <Image
-              source={{
-                uri: item.coverUrl,
-              }}
+            <ExpoImage
+              source={
+                item.coverUrl
+              }
               style={
                 styles.newReleaseCover
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.coverUrl
               }
             />
           ) : (
