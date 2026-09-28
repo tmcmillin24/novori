@@ -1,3 +1,7 @@
+import {
+  Image,
+} from 'react-native';
+
 export type BookImageLinks = {
   smallThumbnail?: string;
   thumbnail?: string;
@@ -7,11 +11,24 @@ export type BookImageLinks = {
   extraLarge?: string;
 };
 
-export type BookCoverPlan = {
-  primaryUrl: string | null;
-  fallbackUrl: string | null;
-  source: 'google' | 'open-library' | 'none';
+export type BookCoverSource =
+  | 'google'
+  | 'open-library'
+  | 'existing'
+  | 'none';
+
+export type BookCoverResolution = {
+  url: string | null;
+  source: BookCoverSource;
+  width: number | null;
+  height: number | null;
 };
+
+const MIN_SATISFACTORY_WIDTH =
+  400;
+
+const MIN_SATISFACTORY_HEIGHT =
+  600;
 
 function secureUrl(
   url?: string | null
@@ -47,44 +64,53 @@ export function normalizeIsbn(
     : null;
 }
 
-export function getHighestQualityGoogleCover(
-  imageLinks?: BookImageLinks
+function uniqueUrls(
+  values:
+    (
+      | string
+      | null
+      | undefined
+    )[]
 ) {
-  return (
-    secureUrl(
-      imageLinks?.extraLarge
-    ) ??
-    secureUrl(
-      imageLinks?.large
-    ) ??
-    secureUrl(
-      imageLinks?.medium
-    ) ??
-    secureUrl(
-      imageLinks?.small
-    ) ??
-    secureUrl(
-      imageLinks?.thumbnail
-    ) ??
-    secureUrl(
-      imageLinks?.smallThumbnail
+  return Array.from(
+    new Set(
+      values
+        .map(
+          secureUrl
+        )
+        .filter(
+          (
+            value
+          ): value is string =>
+            Boolean(
+              value
+            )
+        )
     )
   );
 }
 
-export function hasSatisfactoryGoogleCover(
+export function getGoogleCoverCandidates(
   imageLinks?: BookImageLinks
 ) {
-  return Boolean(
-    secureUrl(
-      imageLinks?.extraLarge
-    ) ||
-    secureUrl(
-      imageLinks?.large
-    ) ||
-    secureUrl(
-      imageLinks?.medium
-    )
+  return uniqueUrls([
+    imageLinks?.extraLarge,
+    imageLinks?.large,
+    imageLinks?.medium,
+    imageLinks?.small,
+    imageLinks?.thumbnail,
+    imageLinks?.smallThumbnail,
+  ]);
+}
+
+export function getHighestQualityGoogleCover(
+  imageLinks?: BookImageLinks
+) {
+  return (
+    getGoogleCoverCandidates(
+      imageLinks
+    )[0] ??
+    null
   );
 }
 
@@ -105,6 +131,291 @@ export function getOpenLibraryLargeCoverUrl(
   return `https://covers.openlibrary.org/b/isbn/${normalized}-L.jpg?default=false`;
 }
 
+function getImageSize(
+  url: string
+): Promise<{
+  width: number;
+  height: number;
+} | null> {
+  return new Promise(
+    (
+      resolve
+    ) => {
+      Image.getSize(
+        url,
+        (
+          width,
+          height
+        ) => {
+          if (
+            Number.isFinite(
+              width
+            ) &&
+            Number.isFinite(
+              height
+            ) &&
+            width >
+              0 &&
+            height >
+              0
+          ) {
+            resolve({
+              width,
+              height,
+            });
+            return;
+          }
+
+          resolve(
+            null
+          );
+        },
+        () => {
+          resolve(
+            null
+          );
+        }
+      );
+    }
+  );
+}
+
+function area(
+  size:
+    | {
+        width: number;
+        height: number;
+      }
+    | null
+) {
+  return size
+    ? size.width *
+        size.height
+    : 0;
+}
+
+function isSatisfactory(
+  size:
+    | {
+        width: number;
+        height: number;
+      }
+    | null
+) {
+  return Boolean(
+    size &&
+    size.width >=
+      MIN_SATISFACTORY_WIDTH &&
+    size.height >=
+      MIN_SATISFACTORY_HEIGHT
+  );
+}
+
+async function resolveBestGoogleCandidate(
+  imageLinks?: BookImageLinks
+) {
+  const candidates =
+    getGoogleCoverCandidates(
+      imageLinks
+    );
+
+  let best:
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | null =
+    null;
+
+  for (
+    const url of
+      candidates
+  ) {
+    const size =
+      await getImageSize(
+        url
+      );
+
+    if (
+      !size
+    ) {
+      continue;
+    }
+
+    const candidate = {
+      url,
+      ...size,
+    };
+
+    if (
+      !best ||
+      area(
+        candidate
+      ) >
+        area(
+          best
+        )
+    ) {
+      best =
+        candidate;
+    }
+
+    // Google already gave us an objectively good cover.
+    // Do not spend an Open Library ISBN request unless needed.
+    if (
+      isSatisfactory(
+        candidate
+      )
+    ) {
+      break;
+    }
+  }
+
+  return best;
+}
+
+export async function resolveBestBookCover({
+  imageLinks,
+  isbn,
+  existingCoverUrl,
+}: {
+  imageLinks?: BookImageLinks;
+  isbn?: string | null;
+  existingCoverUrl?: string | null;
+}): Promise<BookCoverResolution> {
+  const google =
+    await resolveBestGoogleCandidate(
+      imageLinks
+    );
+
+  if (
+    google &&
+    isSatisfactory(
+      google
+    )
+  ) {
+    return {
+      url:
+        google.url,
+      source:
+        'google',
+      width:
+        google.width,
+      height:
+        google.height,
+    };
+  }
+
+  const openLibraryUrl =
+    getOpenLibraryLargeCoverUrl(
+      isbn
+    );
+
+  const openLibrarySize =
+    openLibraryUrl
+      ? await getImageSize(
+          openLibraryUrl
+        )
+      : null;
+
+  if (
+    openLibraryUrl &&
+    openLibrarySize &&
+    (
+      !google ||
+      area(
+        openLibrarySize
+      ) >
+        area(
+          google
+        )
+    )
+  ) {
+    return {
+      url:
+        openLibraryUrl,
+      source:
+        'open-library',
+      width:
+        openLibrarySize.width,
+      height:
+        openLibrarySize.height,
+    };
+  }
+
+  if (
+    google
+  ) {
+    return {
+      url:
+        google.url,
+      source:
+        'google',
+      width:
+        google.width,
+      height:
+        google.height,
+    };
+  }
+
+  const existing =
+    secureUrl(
+      existingCoverUrl
+    );
+
+  if (
+    existing
+  ) {
+    const existingSize =
+      await getImageSize(
+        existing
+      );
+
+    return {
+      url:
+        existing,
+      source:
+        'existing',
+      width:
+        existingSize
+          ?.width ??
+        null,
+      height:
+        existingSize
+          ?.height ??
+        null,
+    };
+  }
+
+  return {
+    url:
+      null,
+    source:
+      'none',
+    width:
+      null,
+    height:
+      null,
+  };
+}
+
+export async function resolveBookCoverUrl(
+  input: {
+    imageLinks?: BookImageLinks;
+    isbn?: string | null;
+    existingCoverUrl?: string | null;
+  }
+) {
+  return (
+    await resolveBestBookCover(
+      input
+    )
+  ).url;
+}
+
+// Synchronous initial choice for first paint. BookCoverImage immediately
+// replaces this after measuring the real remote image dimensions.
 export function getBookCoverPlan({
   imageLinks,
   isbn,
@@ -113,7 +424,7 @@ export function getBookCoverPlan({
   imageLinks?: BookImageLinks;
   isbn?: string | null;
   existingCoverUrl?: string | null;
-}): BookCoverPlan {
+}) {
   const googleCover =
     getHighestQualityGoogleCover(
       imageLinks
@@ -124,132 +435,17 @@ export function getBookCoverPlan({
       isbn
     );
 
-  if (
-    hasSatisfactoryGoogleCover(
-      imageLinks
-    )
-  ) {
-    return {
-      primaryUrl:
-        googleCover,
-      fallbackUrl:
-        openLibraryCover,
-      source:
-        googleCover
-          ? 'google'
-          : openLibraryCover
-          ? 'open-library'
-          : 'none',
-    };
-  }
-
-  if (
-    openLibraryCover
-  ) {
-    return {
-      primaryUrl:
-        openLibraryCover,
-      fallbackUrl:
-        googleCover ??
-        secureUrl(
-          existingCoverUrl
-        ),
-      source:
-        'open-library',
-    };
-  }
-
-  const existing =
-    secureUrl(
-      existingCoverUrl
-    );
-
   return {
     primaryUrl:
       googleCover ??
-      existing,
+      openLibraryCover ??
+      secureUrl(
+        existingCoverUrl
+      ),
     fallbackUrl:
-      null,
-    source:
-      googleCover
-        ? 'google'
-        : existing
-        ? 'google'
-        : 'none',
+      openLibraryCover ??
+      secureUrl(
+        existingCoverUrl
+      ),
   };
-}
-
-
-async function openLibraryCoverExists(
-  url: string
-) {
-  try {
-    const head =
-      await fetch(
-        url,
-        {
-          method:
-            'HEAD',
-        }
-      );
-
-    if (
-      head.ok
-    ) {
-      return true;
-    }
-
-    if (
-      head.status !==
-        405
-    ) {
-      return false;
-    }
-
-    const get =
-      await fetch(
-        url
-      );
-
-    return get.ok;
-  } catch {
-    return false;
-  }
-}
-
-export async function resolveBookCoverUrl({
-  imageLinks,
-  isbn,
-  existingCoverUrl,
-}: {
-  imageLinks?: BookImageLinks;
-  isbn?: string | null;
-  existingCoverUrl?: string | null;
-}) {
-  const plan =
-    getBookCoverPlan({
-      imageLinks,
-      isbn,
-      existingCoverUrl,
-    });
-
-  if (
-    plan.source !==
-      'open-library' ||
-    !plan.primaryUrl
-  ) {
-    return (
-      plan.primaryUrl ??
-      plan.fallbackUrl
-    );
-  }
-
-  const available =
-    await openLibraryCoverExists(
-      plan.primaryUrl
-    );
-
-  return available
-    ? plan.primaryUrl
-    : plan.fallbackUrl;
 }
