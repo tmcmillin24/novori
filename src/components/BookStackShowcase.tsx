@@ -5,6 +5,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   NovoriColors,
@@ -65,6 +69,130 @@ export default function BookStackShowcase({
             selectedId
         ) ?? null
       : null;
+
+  const [
+    googleRating,
+    setGoogleRating,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  const [
+    googleRatingsCount,
+    setGoogleRatingsCount,
+  ] =
+    useState<
+      number | null
+    >(null);
+
+  useEffect(() => {
+    let active =
+      true;
+
+    async function loadGoogleRating() {
+      if (
+        !selected
+      ) {
+        setGoogleRating(
+          null
+        );
+        setGoogleRatingsCount(
+          null
+        );
+        return;
+      }
+
+      const googleBookId =
+        selected.google_book_id ??
+        selected.id;
+
+      if (
+        !googleBookId
+      ) {
+        return;
+      }
+
+      try {
+        const apiKey =
+          process.env
+            .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+        const response =
+          await fetch(
+            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+              googleBookId
+            )}${apiKey
+              ? `?key=${apiKey}`
+              : ''}`
+          );
+
+        if (
+          !response.ok
+        ) {
+          return;
+        }
+
+        const data =
+          await response.json();
+
+        if (
+          !active
+        ) {
+          return;
+        }
+
+        const rating =
+          Number(
+            data?.volumeInfo
+              ?.averageRating
+          );
+
+        const count =
+          Number(
+            data?.volumeInfo
+              ?.ratingsCount
+          );
+
+        setGoogleRating(
+          Number.isFinite(
+            rating
+          )
+            ? rating
+            : null
+        );
+
+        setGoogleRatingsCount(
+          Number.isFinite(
+            count
+          )
+            ? count
+            : null
+        );
+      } catch {
+        if (
+          active
+        ) {
+          setGoogleRating(
+            null
+          );
+          setGoogleRatingsCount(
+            null
+          );
+        }
+      }
+    }
+
+    void loadGoogleRating();
+
+    return () => {
+      active =
+        false;
+    };
+  }, [
+    selected?.id,
+    selected?.google_book_id,
+  ]);
 
   return (
     <View
@@ -198,6 +326,61 @@ export default function BookStackShowcase({
               ) ||
                 'Unknown author'}
             </Text>
+
+            {googleRating !==
+            null ? (
+              <View
+                style={
+                  styles.googleRatingRow
+                }
+              >
+                <View
+                  style={
+                    styles.googleStars
+                  }
+                >
+                  {[1,2,3,4,5].map(
+                    (
+                      star
+                    ) => (
+                      <Ionicons
+                        key={
+                          star
+                        }
+                        name={
+                          googleRating >=
+                          star
+                            ? 'star'
+                            : googleRating >=
+                              star -
+                                0.5
+                              ? 'star-half'
+                              : 'star-outline'
+                        }
+                        size={12}
+                        color={
+                          colors.gold
+                        }
+                      />
+                    )
+                  )}
+                </View>
+
+                <Text
+                  style={
+                    styles.googleRatingText
+                  }
+                >
+                  {googleRating.toFixed(
+                    1
+                  )}
+                  {googleRatingsCount !==
+                  null
+                    ? ` · ${googleRatingsCount.toLocaleString()} Google ratings`
+                    : ' · Google Books'}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {onOpenBook ? (
@@ -374,6 +557,31 @@ function createStyles(
         'Inter_400Regular',
       fontSize: 10,
       marginTop: 3,
+    },
+
+    googleRatingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 7,
+      marginTop: 7,
+    },
+
+    googleStars: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 1,
+    },
+
+    googleRatingText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 9.5,
     },
 
     viewBookButton: {
