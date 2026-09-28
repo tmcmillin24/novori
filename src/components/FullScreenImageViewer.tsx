@@ -10,16 +10,23 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+type ImageViewerShape =
+  | 'natural'
+  | 'circle'
+  | 'rounded-square';
+
 type Props = {
   visible: boolean;
   uri: string | null;
   onClose: () => void;
+  shape?: ImageViewerShape;
 };
 
 export default function FullScreenImageViewer({
   visible,
   uri,
   onClose,
+  shape = 'natural',
 }: Props) {
   if (!uri) {
     return null;
@@ -84,15 +91,30 @@ export default function FullScreenImageViewer({
             styles.imageArea
           }
         >
-          <Image
-            source={{
-              uri,
-            }}
-            style={
-              styles.image
-            }
-            resizeMode="contain"
-          />
+          <View
+            style={[
+              styles.imageFrame,
+              shape ===
+                'circle' &&
+                styles.circleFrame,
+              shape ===
+                'rounded-square' &&
+                styles.roundedSquareFrame,
+              shape ===
+                'natural' &&
+                styles.naturalFrame,
+            ]}
+          >
+            <Image
+              source={{
+                uri,
+              }}
+              style={
+                styles.image
+              }
+              resizeMode="contain"
+            />
+          </View>
         </Pressable>
       </SafeAreaView>
     </Modal>
@@ -138,6 +160,34 @@ const styles =
         'center',
       paddingHorizontal: 10,
       paddingBottom: 10,
+    },
+
+    imageFrame: {
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      overflow:
+        'hidden',
+    },
+
+    circleFrame: {
+      width: '82%',
+      maxWidth: 420,
+      aspectRatio: 1,
+      borderRadius: 9999,
+    },
+
+    roundedSquareFrame: {
+      width: '82%',
+      maxWidth: 420,
+      aspectRatio: 1,
+      borderRadius: 28,
+    },
+
+    naturalFrame: {
+      width: '100%',
+      height: '100%',
     },
 
     image: {
