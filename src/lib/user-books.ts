@@ -110,6 +110,156 @@ function getCatalogCoverUrl(
   );
 }
 
+function normalizeWorkText(
+  value?: string | null
+) {
+  return (
+    value ??
+    ''
+  )
+    .toLowerCase()
+    .normalize(
+      'NFKD'
+    )
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      ' '
+    )
+    .trim();
+}
+
+function getUserBookWorkKey(
+  book: UserBook
+) {
+  let title =
+    normalizeWorkText(
+      book.title
+    );
+
+  const suffixes = [
+    ' limited edition',
+    ' deluxe edition',
+    ' special edition',
+    ' collectors edition',
+    ' collector s edition',
+    ' exclusive edition',
+    ' anniversary edition',
+    ' hardcover edition',
+    ' paperback edition',
+    ' international edition',
+    ' movie tie in edition',
+    ' tv tie in edition',
+    ' mass market paperback',
+    ' large print edition',
+    ' illustrated edition',
+    ' ebook edition',
+    ' kindle edition',
+    ' trade paperback',
+    ' a novel',
+    ' a thriller',
+    ' a memoir',
+  ];
+
+  let changed =
+    true;
+
+  while (
+    changed
+  ) {
+    changed =
+      false;
+
+    for (
+      const suffix of
+        suffixes
+    ) {
+      if (
+        title.endsWith(
+          suffix
+        )
+      ) {
+        title =
+          title
+            .slice(
+              0,
+              -suffix.length
+            )
+            .trim();
+
+        changed =
+          true;
+      }
+    }
+  }
+
+  title =
+    title
+      .replace(
+        /^(?:the|a|an)\s+/,
+        ''
+      )
+      .replace(
+        /\s+(?:book|volume|vol)\s*(?:one|1)$/,
+        ''
+      )
+      .trim();
+
+  const author =
+    normalizeWorkText(
+      book.authors?.[0]
+    );
+
+  const authorIdentity =
+    author
+      .split(
+        ' '
+      )
+      .filter(Boolean)
+      .sort()
+      .join(
+        ' '
+      );
+
+  if (
+    !title ||
+    !authorIdentity
+  ) {
+    return null;
+  }
+
+  return `${title}::${authorIdentity}`;
+}
+
+function getCatalogWorkKey(
+  metadata: unknown
+) {
+  if (
+    !metadata ||
+    typeof metadata !==
+      'object'
+  ) {
+    return null;
+  }
+
+  const key =
+    (
+      metadata as {
+        novoriWork?: {
+          key?: unknown;
+        };
+      }
+    ).novoriWork?.key;
+
+  return typeof key ===
+    'string'
+    ? key
+    : null;
+}
+
 async function overlayCatalogCovers(
   books: UserBook[]
 ): Promise<UserBook[]> {
@@ -133,11 +283,26 @@ async function overlayCatalogCovers(
         )
       );
 
-    const {
-      data,
-      error,
-    } =
-      await supabase
+    const workKeys =
+      Array.from(
+        new Set(
+          books
+            .map(
+              getUserBookWorkKey
+            )
+            .filter(
+              (
+                key
+              ): key is string =>
+                Boolean(
+                  key
+                )
+            )
+        )
+      );
+
+    const exactRequest =
+      supabase
         .from(
           'google_books_catalog'
         )
@@ -149,21 +314,66 @@ async function overlayCatalogCovers(
           ids
         );
 
+    const workRequest =
+      workKeys.length >
+        0
+        ? supabase
+            .from(
+              'google_books_catalog'
+            )
+            .select(
+              'google_book_id, metadata'
+            )
+            .in(
+              'metadata->novoriWork->>key',
+              workKeys
+            )
+        : Promise.resolve({
+            data: [],
+            error: null,
+          });
+
+    const [
+      exactResult,
+      workResult,
+    ] =
+      await Promise.all([
+        exactRequest,
+        workRequest,
+      ]);
+
+    const rows = [
+      ...(
+        exactResult.data ??
+        []
+      ),
+      ...(
+        workResult.data ??
+        []
+      ),
+    ];
+
     if (
-      error ||
-      !data
+      rows.length ===
+      0
     ) {
       return books;
     }
 
-    const covers =
+    const coversByGoogleId =
+      new Map<
+        string,
+        string
+      >();
+
+    const coversByWorkKey =
       new Map<
         string,
         string
       >();
 
     for (
-      const row of data
+      const row of rows
     ) {
       const cover =
         getCatalogCoverUrl(
@@ -171,27 +381,116 @@ async function overlayCatalogCovers(
         );
 
       if (
-        cover
+        !cover
       ) {
-        covers.set(
-          row.google_book_id,
+        continue;
+      }
+
+      coversByGoogleId.set(
+        row.google_book_id,
+        cover
+      );
+
+      const workKey =
+        getCatalogWorkKey(
+          row.metadata
+        );
+
+      if (
+        workKey &&
+        !coversByWorkKey.has(
+          workKey
+        )
+      ) {
+        coversByWorkKey.set(
+          workKey,
           cover
         );
       }
     }
 
-    return books.map(
-      (
-        book
-      ) => ({
-        ...book,
-        cover_url:
-          covers.get(
-            book.google_book_id
-          ) ??
-          book.cover_url,
-      })
-    );
+    const repaired =
+      books.map(
+        (
+          book
+        ) => {
+          const workKey =
+            getUserBookWorkKey(
+              book
+            );
+
+          const cover =
+            (
+              workKey
+                ? coversByWorkKey.get(
+                    workKey
+                  )
+                : undefined
+            ) ??
+            coversByGoogleId.get(
+              book.google_book_id
+            ) ??
+            book.cover_url;
+
+          return {
+            ...book,
+            cover_url:
+              cover,
+          };
+        }
+      );
+
+    const changed =
+      repaired.filter(
+        (
+          book,
+          index
+        ) =>
+          book.cover_url &&
+          book.cover_url !==
+            books[index]
+              ?.cover_url
+      );
+
+    if (
+      changed.length >
+      0
+    ) {
+      void Promise.all(
+        changed.map(
+          (
+            book
+          ) =>
+            supabase
+              .from(
+                'user_books'
+              )
+              .update({
+                cover_url:
+                  book.cover_url,
+              })
+              .eq(
+                'id',
+                book.id
+              )
+              .eq(
+                'user_id',
+                book.user_id
+              )
+        )
+      ).catch(
+        (
+          error
+        ) => {
+          console.warn(
+            'Could not persist repaired library covers:',
+            error
+          );
+        }
+      );
+    }
+
+    return repaired;
   } catch {
     return books;
   }
