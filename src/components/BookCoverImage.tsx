@@ -1,8 +1,9 @@
 import {
-  Image,
   ImageProps,
-  ImageSourcePropType,
 } from 'react-native';
+import {
+  Image as ExpoImage,
+} from 'expo-image';
 import {
   useEffect,
   useMemo,
@@ -31,6 +32,7 @@ export default function BookCoverImage({
   existingCoverUrl,
   preferExistingCover = false,
   onError,
+  resizeMode,
   ...imageProps
 }: Props) {
   const plan =
@@ -125,19 +127,34 @@ export default function BookCoverImage({
     return null;
   }
 
-  const source:
-    ImageSourcePropType = {
-      uri:
-        activeUrl,
-      cache:
-        'force-cache',
-    };
+  const contentFit =
+    resizeMode ===
+      'contain'
+      ? 'contain'
+      : resizeMode ===
+          'center'
+        ? 'none'
+        : resizeMode ===
+            'stretch'
+          ? 'fill'
+          : 'cover';
 
   return (
-    <Image
-      {...imageProps}
-      source={
-        source
+    <ExpoImage
+      {...(
+        imageProps as any
+      )}
+      source={{
+        uri:
+          activeUrl,
+      }}
+      cachePolicy="memory-disk"
+      contentFit={
+        contentFit
+      }
+      transition={0}
+      recyclingKey={
+        activeUrl
       }
       onError={(
         event
@@ -168,7 +185,7 @@ export default function BookCoverImage({
         }
 
         onError?.(
-          event
+          event as any
         );
       }}
     />
