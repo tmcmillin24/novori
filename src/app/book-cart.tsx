@@ -518,7 +518,7 @@ export default function BookCartScreen() {
           publishedDate:
             null,
           status:
-            'want_to_read',
+            null,
           owned:
             true,
         });
