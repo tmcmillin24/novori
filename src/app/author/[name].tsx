@@ -126,6 +126,93 @@ export default function AuthorScreen() {
       ''
     );
 
+  const [
+    sortMode,
+    setSortMode,
+  ] =
+    useState<
+      'popularity' |
+      'newest'
+    >(
+      'popularity'
+    );
+
+  const sortedBooks =
+    useMemo(
+      () => {
+        if (
+          sortMode ===
+          'popularity'
+        ) {
+          return books;
+        }
+
+        return [
+          ...books,
+        ].sort(
+          (
+            a,
+            b
+          ) => {
+            const aDate =
+              new Date(
+                a.book
+                  .volumeInfo
+                  .publishedDate ??
+                '0000-01-01'
+              ).getTime();
+
+            const bDate =
+              new Date(
+                b.book
+                  .volumeInfo
+                  .publishedDate ??
+                '0000-01-01'
+              ).getTime();
+
+            if (
+              bDate !==
+              aDate
+            ) {
+              return (
+                bDate -
+                aDate
+              );
+            }
+
+            if (
+              b.usersCount !==
+              a.usersCount
+            ) {
+              return (
+                b.usersCount -
+                a.usersCount
+              );
+            }
+
+            if (
+              b.reviewsCount !==
+              a.reviewsCount
+            ) {
+              return (
+                b.reviewsCount -
+                a.reviewsCount
+              );
+            }
+
+            return (
+              b.ratingsCount -
+              a.ratingsCount
+            );
+          }
+        );
+      },
+      [
+        books,
+        sortMode,
+      ]
+    );
+
   useEffect(
     () => {
       let cancelled =
@@ -349,13 +436,38 @@ export default function AuthorScreen() {
             {item.rating !==
             null ? (
               <>
-                <Ionicons
-                  name="star"
-                  size={13}
-                  color={
-                    colors.gold
+                <View
+                  style={
+                    styles.starRow
                   }
-                />
+                >
+                  {[1,2,3,4,5].map(
+                    (
+                      star
+                    ) => (
+                      <Ionicons
+                        key={
+                          star
+                        }
+                        name={
+                          item.rating! >=
+                          star
+                            ? 'star'
+                            : item.rating! >=
+                              star -
+                                0.5
+                              ? 'star-half'
+                              : 'star-outline'
+                        }
+                        size={13}
+                        color={
+                          colors.gold
+                        }
+                      />
+                    )
+                  )}
+                </View>
+
                 <Text
                   style={
                     styles.metricText
@@ -368,33 +480,27 @@ export default function AuthorScreen() {
               </>
             ) : null}
 
-            {item.ratingsCount >
-            0 ? (
-              <Text
-                style={
-                  styles.metricText
-                }
-              >
-                {formatCount(
-                  item.ratingsCount
-                )}{' '}
-                ratings
-              </Text>
-            ) : null}
+            <Text
+              style={
+                styles.metricText
+              }
+            >
+              {formatCount(
+                item.ratingsCount
+              )}{' '}
+              ratings
+            </Text>
 
-            {item.reviewsCount >
-            0 ? (
-              <Text
-                style={
-                  styles.metricText
-                }
-              >
-                {formatCount(
-                  item.reviewsCount
-                )}{' '}
-                reviews
-              </Text>
-            ) : null}
+            <Text
+              style={
+                styles.metricText
+              }
+            >
+              {formatCount(
+                item.reviewsCount
+              )}{' '}
+              reviews
+            </Text>
           </View>
 
           <Text
@@ -519,7 +625,7 @@ export default function AuthorScreen() {
       ) : (
         <FlatList
           data={
-            books
+            sortedBooks
           }
           keyExtractor={(
             item
@@ -531,20 +637,78 @@ export default function AuthorScreen() {
           }
           contentContainerStyle={[
             styles.listContent,
-            books.length ===
+            sortedBooks.length ===
               0 &&
               styles.emptyList,
           ]}
           ListHeaderComponent={
-            books.length >
+            sortedBooks.length >
             0 ? (
-              <Text
+              <View
                 style={
-                  styles.sortNote
+                  styles.listHeader
                 }
               >
-                Other books · ranked by reader popularity, reviews, ratings, and rating
-              </Text>
+                <Text
+                  style={
+                    styles.sortNote
+                  }
+                >
+                  Other books
+                </Text>
+
+                <View
+                  style={
+                    styles.sortControl
+                  }
+                >
+                  {(
+                    [
+                      'popularity',
+                      'newest',
+                    ] as const
+                  ).map(
+                    (
+                      option
+                    ) => {
+                      const selected =
+                        sortMode ===
+                        option;
+
+                      return (
+                        <Pressable
+                          key={
+                            option
+                          }
+                          onPress={() =>
+                            setSortMode(
+                              option
+                            )
+                          }
+                          style={[
+                            styles.sortButton,
+                            selected &&
+                              styles.sortButtonActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sortButtonText,
+                              selected &&
+                                styles.sortButtonTextActive,
+                            ]}
+                          >
+                            {option ===
+                            'popularity'
+                              ? 'Popularity'
+                              : 'Newest'}
+                          </Text>
+                        </Pressable>
+                      );
+                    }
+                  )}
+                </View>
+              </View>
             ) : null
           }
           ListEmptyComponent={
@@ -655,14 +819,66 @@ function createStyles(
       flexGrow: 1,
     },
 
+    listHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      gap: 12,
+      marginBottom: 12,
+    },
+
     sortNote: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_400Regular',
-      fontSize: 11,
+        'Inter_600SemiBold',
+      fontSize: 12,
       lineHeight: 17,
-      marginBottom: 12,
+    },
+
+    sortControl: {
+      flexDirection:
+        'row',
+      padding: 3,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+    },
+
+    sortButton: {
+      minHeight: 30,
+      paddingHorizontal: 10,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      borderRadius: 8,
+    },
+
+    sortButtonActive: {
+      backgroundColor:
+        colors.elevated,
+    },
+
+    sortButtonText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10.5,
+    },
+
+    sortButtonTextActive: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
     },
 
     bookCard: {
@@ -734,6 +950,14 @@ function createStyles(
         'wrap',
       gap: 6,
       marginTop: 9,
+    },
+
+    starRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 1,
     },
 
     metricText: {
