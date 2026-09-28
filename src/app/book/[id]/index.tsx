@@ -44,7 +44,6 @@ import {
   removeUserBook,
   saveUserBook,
   updateBookReadingDates,
-  updateUserBookCover,
   updateUserBookOwned,
   UserBook,
   UserBookStatus,
@@ -55,13 +54,6 @@ import {
 
 type GoogleBook = {
   id: string;
-  novoriWork?: {
-    key: string;
-    canonicalTitle: string;
-    primaryAuthor: string;
-    googleBookIds: string[];
-    isbns: string[];
-  };
   volumeInfo: {
     title?: string;
     subtitle?: string;
@@ -711,30 +703,6 @@ function getValidatedHighResolutionCover(
   );
 }
 
-function getGoogleCoverVolumeId(
-  url?: string | null
-) {
-  if (!url) {
-    return null;
-  }
-
-  try {
-    const parsed =
-      new URL(
-        secureGoogleBooksImageUrl(
-          url
-        ) ??
-          url
-      );
-
-    return parsed.searchParams.get(
-      'id'
-    );
-  } catch {
-    return null;
-  }
-}
-
 export default function BookDetailsScreen() {
   const {
     colors,
@@ -751,7 +719,7 @@ export default function BookDetailsScreen() {
   const {
     id,
     source,
-    coverUrl: routeCoverUrl,
+    coverUrl: discoverCoverUrl,
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
@@ -1000,12 +968,8 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
-        let existingSavedBook:
-          UserBook | null =
-          null;
-
         try {
-          existingSavedBook =
+          const existingSavedBook =
             await getUserBook(
               id
             );
@@ -1066,87 +1030,6 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
-
-        if (
-          existingSavedBook
-        ) {
-          const refreshedCover =
-            getValidatedHighResolutionCover(
-              source ===
-                'discover'
-                ? routeCoverUrl
-                : undefined,
-              resolvedBook.volumeInfo
-                .imageLinks
-            ) ??
-            null;
-
-          const currentCover =
-            existingSavedBook
-              .cover_url;
-
-          const currentCoverId =
-            getGoogleCoverVolumeId(
-              currentCover
-            );
-
-          const refreshedCoverId =
-            getGoogleCoverVolumeId(
-              refreshedCover
-            );
-
-          const currentIsCrossEdition =
-            Boolean(
-              currentCoverId &&
-              currentCoverId !==
-                resolvedBook.id
-            );
-
-          const sameExactCoverCanUpgrade =
-            Boolean(
-              currentCover &&
-              refreshedCover &&
-              currentCover !==
-                refreshedCover &&
-              currentCoverId &&
-              refreshedCoverId &&
-              currentCoverId ===
-                refreshedCoverId
-            );
-
-          if (
-            refreshedCover &&
-            (
-              !currentCover ||
-              currentIsCrossEdition ||
-              sameExactCoverCanUpgrade
-            )
-          ) {
-            void updateUserBookCover(
-              resolvedBook.id,
-              refreshedCover
-            )
-              .then(
-                (
-                  refreshedSavedBook
-                ) => {
-                  setSavedBook(
-                    refreshedSavedBook
-                  );
-                }
-              )
-              .catch(
-                (
-                  coverError
-                ) => {
-                  console.warn(
-                    'Could not repair saved book cover:',
-                    coverError
-                  );
-                }
-              );
-          }
-        }
 
         // The core book is ready. Render the page now instead of
         // blocking on cart status, ratings, reviews, library state,
@@ -1503,7 +1386,7 @@ export default function BookDetailsScreen() {
       getValidatedHighResolutionCover(
         source ===
           'discover'
-          ? routeCoverUrl
+          ? discoverCoverUrl
           : savedBook
               ?.cover_url ??
             undefined,
@@ -1567,7 +1450,9 @@ export default function BookDetailsScreen() {
     }
   }
 
-  async function loadSeries(currentBook: GoogleBook) {
+  async function loadSeries(
+    currentBook: GoogleBook
+  ) {
     const exactIsbn =
       getBookISBN(
         currentBook
@@ -1576,44 +1461,17 @@ export default function BookDetailsScreen() {
     const isbns =
       Array.from(
         new Set(
-          [
-            exactIsbn,
-            ...(
-              currentBook
-                .novoriWork
-                ?.isbns ??
-              []
-            ),
-            ...(
-              currentBook
-                .volumeInfo
-                .industryIdentifiers ??
-              []
-            ).map(
+          (
+            currentBook
+              .volumeInfo
+              .industryIdentifiers ??
+            []
+          )
+            .map(
               (
                 identifier
               ) =>
                 identifier.identifier
-            ),
-          ]
-            .filter(
-              (
-                value
-              ): value is string =>
-                Boolean(
-                  value
-                )
-            )
-            .map(
-              (
-                value
-              ) =>
-                value
-                  .replace(
-                    /[^0-9Xx]/g,
-                    ''
-                  )
-                  .toUpperCase()
             )
             .filter(Boolean)
         )
@@ -1634,9 +1492,6 @@ export default function BookDetailsScreen() {
         0 &&
       !title
     ) {
-      console.log(
-        'No book identity available for Hardcover series lookup.'
-      );
       return;
     }
 
@@ -1645,50 +1500,57 @@ export default function BookDetailsScreen() {
       setSeries(null);
       setSeriesBooks([]);
 
-      const { data, error: functionError } =
-        await supabase.functions.invoke('hardcover-series', {
-          body: {
-            isbn:
-              exactIsbn ??
-              isbns[0] ??
-              null,
-            isbns,
-            title,
-            authors,
-          },
-        });
+      const {
+        data,
+        error:
+          functionError,
+      } =
+        await supabase.functions.invoke(
+          'hardcover-series',
+          {
+            body: {
+              isbn:
+                exactIsbn ??
+                isbns[0] ??
+                null,
+              isbns,
+              title,
+              authors,
+            },
+          }
+        );
 
-      if (functionError) {
-        setSeries(
-          null
-        );
-        setSeriesBooks(
-          []
-        );
+      if (
+        functionError
+      ) {
+        setSeries(null);
+        setSeriesBooks([]);
         return;
       }
 
-      const response = data as HardcoverSeriesResponse;
+      const response =
+        data as
+          HardcoverSeriesResponse;
 
-      if (response.error) {
-        setSeries(
-          null
-        );
-        setSeriesBooks(
-          []
-        );
+      if (
+        response.error
+      ) {
+        setSeries(null);
+        setSeriesBooks([]);
         return;
       }
 
-      setSeries(response.series ?? null);
-      setSeriesBooks(response.books ?? []);
-    } catch {
       setSeries(
-        null
+        response.series ??
+          null
       );
       setSeriesBooks(
-        []
+        response.books ??
+          []
       );
+    } catch {
+      setSeries(null);
+      setSeriesBooks([]);
     } finally {
       setSeriesLoading(false);
     }
@@ -1710,15 +1572,12 @@ export default function BookDetailsScreen() {
       );
     }
 
-    const query =
-      queryParts.join(' ');
-
     const response =
       await fetchGoogleBooksJson<
         GoogleSearchResponse
       >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          query
+          queryParts.join(' ')
         )}&maxResults=40&printType=books&projection=full`
       );
 
@@ -1734,13 +1593,6 @@ export default function BookDetailsScreen() {
     const results =
       response.data.items ??
       [];
-
-    if (
-      results.length ===
-      0
-    ) {
-      return null;
-    }
 
     const wantedTitle =
       normalizeTitle(
@@ -1765,7 +1617,7 @@ export default function BookDetailsScreen() {
         )
         .filter(Boolean);
 
-    const scored =
+    const candidates =
       results
         .map(
           (
@@ -1777,23 +1629,20 @@ export default function BookDetailsScreen() {
                   .title
               );
 
-            const resultAuthors =
-              result.volumeInfo
-                .authors ??
-              [];
-
-            const exactTitle =
-              resultTitle ===
-                wantedTitle;
-
             const titleMatches =
-              exactTitle ||
+              resultTitle ===
+                wantedTitle ||
               resultTitle.includes(
                 wantedTitle
               ) ||
               wantedTitle.includes(
                 resultTitle
               );
+
+            const resultAuthors =
+              result.volumeInfo
+                .authors ??
+              [];
 
             const authorMatches =
               !author ||
@@ -1852,6 +1701,13 @@ export default function BookDetailsScreen() {
                   )
               );
 
+            const cover =
+              getValidatedHighResolutionCover(
+                undefined,
+                result.volumeInfo
+                  .imageLinks
+              );
+
             const hasPages =
               typeof result
                 .volumeInfo
@@ -1861,19 +1717,11 @@ export default function BookDetailsScreen() {
                 .pageCount >
                 0;
 
-            const hasCover =
-              Boolean(
-                getValidatedHighResolutionCover(
-                  undefined,
-                  result.volumeInfo
-                    .imageLinks
-                )
-              );
-
             let score = 0;
 
             if (
-              exactTitle
+              resultTitle ===
+                wantedTitle
             ) {
               score += 300;
             } else if (
@@ -1888,13 +1736,16 @@ export default function BookDetailsScreen() {
               score += 200;
             }
 
-            // ISBN confirms the edition, but it must not force Novori to
-            // choose a metadata-empty Google volume when another result
-            // clearly represents the same work and has usable details.
             if (
               isbnMatches
             ) {
               score += 100;
+            }
+
+            if (
+              cover
+            ) {
+              score += 220;
             }
 
             if (
@@ -1903,27 +1754,12 @@ export default function BookDetailsScreen() {
               score += 220;
             }
 
-            if (
-              hasCover
-            ) {
-              score += 220;
-            }
-
-            if (
-              result.volumeInfo
-                .publishedDate
-            ) {
-              score += 20;
-            }
-
             return {
               result,
-              score,
               titleMatches,
               authorMatches,
               isbnMatches,
-              hasPages,
-              hasCover,
+              score,
             };
           }
         )
@@ -1940,33 +1776,19 @@ export default function BookDetailsScreen() {
           (
             a,
             b
-          ) => {
-            if (
-              b.score !==
-              a.score
-            ) {
-              return (
-                b.score -
-                a.score
-              );
-            }
-
-            if (
-              b.isbnMatches !==
-              a.isbnMatches
-            ) {
-              return b
-                .isbnMatches
-                ? -1
-                : 1;
-            }
-
-            return 0;
-          }
+          ) =>
+            b.score -
+              a.score ||
+            Number(
+              b.isbnMatches
+            ) -
+              Number(
+                a.isbnMatches
+              )
         );
 
     return (
-      scored[0]
+      candidates[0]
         ?.result ??
       null
     );
@@ -1982,18 +1804,13 @@ export default function BookDetailsScreen() {
     const info = book.volumeInfo;
 
     const coverUrl =
-      (
-      secureGoogleBooksImageUrl(
-      routeCoverUrl
-    )
-    ) ??
-    getValidatedHighResolutionCover(
-      routeCoverUrl
-        ? undefined
-        : savedBook?.cover_url ??
-            undefined,
-      info.imageLinks
-    ) ??
+      getValidatedHighResolutionCover(
+        source === 'discover'
+          ? discoverCoverUrl
+          : savedBook?.cover_url ??
+              undefined,
+        info.imageLinks
+      ) ??
       null;
 
     try {
@@ -2068,13 +1885,11 @@ export default function BookDetailsScreen() {
           );
       } else {
         const coverUrl =
-          (
-            secureGoogleBooksImageUrl(
-            routeCoverUrl
-          )
-          ) ??
           getValidatedHighResolutionCover(
-            undefined,
+            source ===
+              'discover'
+              ? discoverCoverUrl
+              : undefined,
             info.imageLinks
           ) ??
           null;
@@ -2405,15 +2220,22 @@ export default function BookDetailsScreen() {
   async function openSeriesBook(
     seriesBook: HardcoverSeriesBook
   ) {
-    if (series?.currentPosition === seriesBook.position) {
+    if (
+      series?.currentPosition ===
+        seriesBook.position
+    ) {
       return;
     }
 
-    const displayTitle = getDisplayTitle(
-      seriesBook.title
-    );
+    const displayTitle =
+      getDisplayTitle(
+        seriesBook.title
+      );
 
-    if (displayTitle === 'Unannounced') {
+    if (
+      displayTitle ===
+        'Unannounced'
+    ) {
       Alert.alert(
         displayTitle,
         'This book does not have a usable title yet.'
@@ -2422,15 +2244,17 @@ export default function BookDetailsScreen() {
     }
 
     try {
-      setOpeningSeriesBookId(seriesBook.id);
+      setOpeningSeriesBookId(
+        seriesBook.id
+      );
 
-      const resolvedSeriesBook =
+      const resolved =
         await findGoogleBookForSeries(
           seriesBook
         );
 
       if (
-        !resolvedSeriesBook
+        !resolved
       ) {
         Alert.alert(
           'Book not found',
@@ -2442,8 +2266,7 @@ export default function BookDetailsScreen() {
       const resolvedCover =
         getValidatedHighResolutionCover(
           undefined,
-          resolvedSeriesBook
-            .volumeInfo
+          resolved.volumeInfo
             .imageLinks
         ) ??
         secureGoogleBooksImageUrl(
@@ -2451,17 +2274,12 @@ export default function BookDetailsScreen() {
         ) ??
         undefined;
 
-      const resolvedIsbn =
-        getBookISBN(
-          resolvedSeriesBook
-        ) ??
-        seriesBook.isbns?.[0];
-
       router.push({
-        pathname: '/book/[id]',
+        pathname:
+          '/book/[id]',
         params: {
           id:
-            resolvedSeriesBook.id,
+            resolved.id,
           ...(source
             ? {
                 source,
@@ -2474,35 +2292,42 @@ export default function BookDetailsScreen() {
               }
             : {}),
           clickedTitle:
-            resolvedSeriesBook
-              .volumeInfo
+            resolved.volumeInfo
               .title ??
             seriesBook.title,
           clickedAuthors:
             JSON.stringify(
-              resolvedSeriesBook
-                .volumeInfo
+              resolved.volumeInfo
                 .authors ??
               seriesBook.authors ??
               []
             ),
-          ...(resolvedIsbn
+          ...(getBookISBN(
+            resolved
+          )
             ? {
                 clickedIsbn:
-                  resolvedIsbn,
+                  getBookISBN(
+                    resolved
+                  ),
               }
             : {}),
         },
       });
     } catch (err) {
-      console.error('Could not open series book:', err);
+      console.error(
+        'Could not open series book:',
+        err
+      );
 
       Alert.alert(
         'Could not open book',
         'Novori had trouble finding this book. Please try again.'
       );
     } finally {
-      setOpeningSeriesBookId(null);
+      setOpeningSeriesBookId(
+        null
+      );
     }
   }
 
@@ -2536,16 +2361,10 @@ export default function BookDetailsScreen() {
   const info = book.volumeInfo;
 
   const cover =
-    (
-      secureGoogleBooksImageUrl(
-      routeCoverUrl
-    )
-    ) ??
     getValidatedHighResolutionCover(
-      routeCoverUrl
-        ? undefined
-        : savedBook?.cover_url ??
-            undefined,
+      discoverCoverUrl ??
+        savedBook?.cover_url ??
+        undefined,
       info.imageLinks
     );
 
