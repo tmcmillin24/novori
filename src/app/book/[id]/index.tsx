@@ -1600,7 +1600,7 @@ export default function BookDetailsScreen() {
               info.publishedDate ??
               null,
             status:
-              'want_to_read',
+              null,
             owned:
               true,
           });
