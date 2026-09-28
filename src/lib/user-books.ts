@@ -522,15 +522,15 @@ async function overlayCatalogCovers(
             );
 
           const cover =
+            coversByGoogleId.get(
+              book.google_book_id
+            ) ??
             (
               workKey
                 ? coversByWorkKey.get(
                     workKey
                   )
                 : undefined
-            ) ??
-            coversByGoogleId.get(
-              book.google_book_id
             ) ??
             book.cover_url;
 
