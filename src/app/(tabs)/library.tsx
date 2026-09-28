@@ -42,6 +42,9 @@ import {
 import {
   useNovoriTheme,
 } from '../../context/theme-context';
+import {
+  shouldFrameBookCover,
+} from '../../lib/book-search';
 
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 
@@ -1623,10 +1626,27 @@ export default function LibraryScreen() {
               source={
                 item.cover_url
               }
-              style={
-                styles.cover
+              style={[
+                styles.cover,
+                shouldFrameBookCover(
+                  item.cover_url
+                )
+                  ? {
+                      backgroundColor:
+                        '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor:
+                        '#E5E5E5',
+                    }
+                  : null,
+              ]}
+              contentFit={
+                shouldFrameBookCover(
+                  item.cover_url
+                )
+                  ? 'contain'
+                  : 'cover'
               }
-              contentFit="cover"
               cachePolicy="memory-disk"
               transition={0}
             />
@@ -2106,10 +2126,27 @@ export default function LibraryScreen() {
                       source={
                         selectedBook.cover_url
                       }
-                      style={
-                        styles.sheetCover
+                      style={[
+                        styles.sheetCover,
+                        shouldFrameBookCover(
+                          selectedBook.cover_url
+                        )
+                          ? {
+                              backgroundColor:
+                                '#FFFFFF',
+                              borderWidth: 1,
+                              borderColor:
+                                '#E5E5E5',
+                            }
+                          : null,
+                      ]}
+                      contentFit={
+                        shouldFrameBookCover(
+                          selectedBook.cover_url
+                        )
+                          ? 'contain'
+                          : 'cover'
                       }
-                      contentFit="cover"
                       cachePolicy="memory-disk"
                       transition={0}
                     />
