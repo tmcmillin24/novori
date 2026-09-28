@@ -510,53 +510,105 @@ function sortAuthorSearchResults(
 function getCanonicalWorkTitle(
   value?: string
 ) {
-  let title =
-    normalizeTitle(
-      value
+  if (
+    !value
+  ) {
+    return '';
+  }
+
+  let raw =
+    value
+      .normalize('NFKD')
+      .replace(
+        /[\u0300-\u036f]/g,
+        ''
+      )
+      .trim();
+
+  // Remove bracketed/parenthetical edition and series labels.
+  raw =
+    raw.replace(
+      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series)[^\])]*[\])]/gi,
+      ''
     );
 
-  const editionMarkers = [
-    'limited edition',
-    'deluxe edition',
-    'special edition',
-    'collectors edition',
-    'collector s edition',
-    'exclusive edition',
-    'anniversary edition',
-    'hardcover edition',
-    'paperback edition',
-    'international edition',
-    'movie tie in edition',
+  // Strip common edition suffixes after a colon/dash while preserving
+  // meaningful subtitles unless the suffix clearly looks like packaging.
+  raw =
+    raw.replace(
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition).*$/i,
+      ''
+    );
+
+  let title =
+    normalizeTitle(
+      raw
+    );
+
+  const removableSuffixes = [
+    ' limited edition',
+    ' deluxe edition',
+    ' special edition',
+    ' collectors edition',
+    ' collector s edition',
+    ' exclusive edition',
+    ' anniversary edition',
+    ' hardcover edition',
+    ' paperback edition',
+    ' international edition',
+    ' movie tie in edition',
+    ' tv tie in edition',
+    ' mass market paperback',
+    ' large print edition',
+    ' a novel',
   ];
 
-  for (
-    const marker of
-      editionMarkers
-  ) {
-    const markerIndex =
-      title.indexOf(
-        ` ${marker}`
-      );
+  let changed =
+    true;
 
-    if (
-      markerIndex >
-      0
+  while (
+    changed
+  ) {
+    changed =
+      false;
+
+    for (
+      const suffix of
+        removableSuffixes
     ) {
-      title =
-        title.slice(
-          0,
-          markerIndex
-        );
+      if (
+        title.endsWith(
+          suffix
+        )
+      ) {
+        title =
+          title
+            .slice(
+              0,
+              -suffix.length
+            )
+            .trim();
+
+        changed =
+          true;
+      }
     }
   }
 
-  return title.trim();
+  return title;
 }
 
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
-  searchTerm: string
+  searchTerm: string,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  > = {}
 ) {
   const normalizedQuery =
     normalizeTitle(
@@ -577,64 +629,156 @@ function collapseDuplicateEditions(
       ? englishResults
       : books;
 
-  const exactTitleExists =
-    candidates.some(
-      (book) =>
-        normalizeTitle(
-          book.volumeInfo.title
-        ) ===
-        normalizedQuery
-    );
+  const groups =
+    new Map<
+      string,
+      GoogleBookSearchItem[]
+    >();
 
-  const seen =
-    new Set<string>();
-
-  return candidates.filter(
-    (book) => {
-      const title =
-        normalizeTitle(
-          book.volumeInfo.title
-        );
-
-      const canonicalTitle =
-        getCanonicalWorkTitle(
-          book.volumeInfo.title
-        );
-
-      const primaryAuthor =
-        normalizeTitle(
-          book.volumeInfo.authors?.[0]
-        );
-
-      if (
-        exactTitleExists &&
-        title !==
-          normalizedQuery &&
-        canonicalTitle ===
-          normalizedQuery
-      ) {
-        return false;
-      }
-
-      const identity =
-        `${canonicalTitle}::${primaryAuthor}`;
-
-      if (
-        !canonicalTitle ||
-        seen.has(
-          identity
-        )
-      ) {
-        return false;
-      }
-
-      seen.add(
-        identity
+  for (
+    const book of
+      candidates
+  ) {
+    const canonicalTitle =
+      getCanonicalWorkTitle(
+        book.volumeInfo.title
       );
 
-      return true;
+    const primaryAuthor =
+      normalizeTitle(
+        book.volumeInfo.authors?.[0]
+      );
+
+    if (
+      !canonicalTitle
+    ) {
+      continue;
     }
-  );
+
+    const identity =
+      `${canonicalTitle}::${primaryAuthor}`;
+
+    const existing =
+      groups.get(
+        identity
+      ) ?? [];
+
+    existing.push(
+      book
+    );
+
+    groups.set(
+      identity,
+      existing
+    );
+  }
+
+  const representativeBooks =
+    Array.from(
+      groups.values()
+    ).map(
+      (
+        group
+      ) =>
+        [...group].sort(
+          (
+            a,
+            b
+          ) => {
+            const aHardcover =
+              hardcoverPopularity[
+                a.id
+              ];
+
+            const bHardcover =
+              hardcoverPopularity[
+                b.id
+              ];
+
+            const hardcoverUserDifference =
+              (
+                bHardcover?.usersCount ??
+                0
+              ) -
+              (
+                aHardcover?.usersCount ??
+                0
+              );
+
+            if (
+              hardcoverUserDifference !==
+              0
+            ) {
+              return hardcoverUserDifference;
+            }
+
+            const aGoogle =
+              getGoogleBookPopularity(
+                a
+              );
+
+            const bGoogle =
+              getGoogleBookPopularity(
+                b
+              );
+
+            if (
+              bGoogle.ratingsCount !==
+              aGoogle.ratingsCount
+            ) {
+              return (
+                bGoogle.ratingsCount -
+                aGoogle.ratingsCount
+              );
+            }
+
+            const aExact =
+              normalizeTitle(
+                a.volumeInfo.title
+              ) ===
+              normalizedQuery
+                ? 1
+                : 0;
+
+            const bExact =
+              normalizeTitle(
+                b.volumeInfo.title
+              ) ===
+              normalizedQuery
+                ? 1
+                : 0;
+
+            if (
+              bExact !==
+              aExact
+            ) {
+              return (
+                bExact -
+                aExact
+              );
+            }
+
+            const aHasCover =
+              a.volumeInfo.imageLinks
+                ?.thumbnail
+                ? 1
+                : 0;
+
+            const bHasCover =
+              b.volumeInfo.imageLinks
+                ?.thumbnail
+                ? 1
+                : 0;
+
+            return (
+              bHasCover -
+              aHasCover
+            );
+          }
+        )[0]
+    );
+
+  return representativeBooks;
 }
 
 function mergeGoogleBookResults(
@@ -972,7 +1116,8 @@ export async function searchNovoriBooks(
         searchTerm,
         hardcoverPopularity
       ),
-      searchTerm
+      searchTerm,
+      hardcoverPopularity
     );
   }
 
@@ -987,7 +1132,8 @@ export async function searchNovoriBooks(
       searchTerm,
       hardcoverPopularity
     ),
-    searchTerm
+    searchTerm,
+    hardcoverPopularity
   );
 }
 
