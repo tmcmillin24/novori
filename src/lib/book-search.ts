@@ -1305,6 +1305,308 @@ export async function searchNovoriBooks(
 }
 
 
+export type AuthorBookResult = {
+  book: GoogleBookSearchItem;
+  usersCount: number;
+  ratingsCount: number;
+  reviewsCount: number;
+  rating: number | null;
+};
+
+export async function searchAuthorBooks(
+  authorName: string,
+  options?: {
+    excludeGoogleBookId?: string | null;
+    excludeTitle?: string | null;
+  }
+): Promise<AuthorBookResult[]> {
+  const apiKey =
+    process.env
+      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+  const cleanAuthor =
+    authorName.trim();
+
+  if (!apiKey) {
+    throw new Error(
+      'Google Books API key is missing from the .env file.'
+    );
+  }
+
+  if (!cleanAuthor) {
+    return [];
+  }
+
+  const query =
+    encodeURIComponent(
+      `inauthor:"${cleanAuthor}"`
+    );
+
+  const pageIndexes =
+    [0, 40];
+
+  const responses =
+    await Promise.all(
+      pageIndexes.map(
+        async (
+          startIndex
+        ) => {
+          const response =
+            await fetch(
+              `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+            );
+
+          if (
+            !response.ok
+          ) {
+            return [] as GoogleBookSearchItem[];
+          }
+
+          const data:
+            GoogleBooksResponse =
+            await response.json();
+
+          return (
+            data.items ??
+            []
+          );
+        }
+      )
+    );
+
+  const merged =
+    mergeGoogleBookResults(
+      ...responses
+    );
+
+  const normalizedAuthor =
+    normalizeTitle(
+      cleanAuthor
+    );
+
+  const exactAuthorBooks =
+    merged.filter(
+      (
+        book
+      ) =>
+        (
+          book.volumeInfo
+            .authors ??
+          []
+        ).some(
+          (
+            author
+          ) =>
+            normalizeTitle(
+              author
+            ) ===
+            normalizedAuthor
+        )
+    );
+
+  const candidates =
+    exactAuthorBooks.length >
+    0
+      ? exactAuthorBooks
+      : merged.filter(
+          (
+            book
+          ) =>
+            getAuthorSearchRelevance(
+              book,
+              normalizedAuthor
+            ) >
+            0
+        );
+
+  const popularity =
+    await getHardcoverPopularity(
+      candidates,
+      true
+    );
+
+  const collapsed =
+    collapseDuplicateEditions(
+      sortAuthorSearchResults(
+        candidates,
+        cleanAuthor,
+        popularity
+      ),
+      cleanAuthor,
+      popularity
+    );
+
+  const excludedWorkTitle =
+    getCanonicalWorkTitle(
+      options?.excludeTitle ??
+      undefined
+    );
+
+  const filtered =
+    collapsed.filter(
+      (
+        book
+      ) => {
+        if (
+          options?.excludeGoogleBookId &&
+          (
+            book.id ===
+              options.excludeGoogleBookId ||
+            book.novoriWork?.googleBookIds.includes(
+              options.excludeGoogleBookId
+            )
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          excludedWorkTitle &&
+          getCanonicalWorkTitleForBook(
+            book
+          ) ===
+            excludedWorkTitle
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+
+  const withRatings =
+    await attachCanonicalHardcoverRatings(
+      filtered
+    );
+
+  const finalPopularity =
+    await getHardcoverPopularity(
+      withRatings,
+      true
+    );
+
+  return withRatings
+    .map(
+      (
+        book
+      ) => {
+        const hardcover =
+          finalPopularity[
+            book.id
+          ];
+
+        return {
+          book,
+          usersCount:
+            hardcover?.usersCount ??
+            0,
+          ratingsCount:
+            hardcover?.ratingsCount ??
+            book.novoriWork
+              ?.hardcoverRatingsCount ??
+            book.volumeInfo
+              .ratingsCount ??
+            0,
+          reviewsCount:
+            hardcover?.reviewsCount ??
+            0,
+          rating:
+            hardcover?.rating ??
+            book.novoriWork
+              ?.hardcoverRating ??
+            book.volumeInfo
+              .averageRating ??
+            null,
+        };
+      }
+    )
+    .sort(
+      (
+        a,
+        b
+      ) => {
+        if (
+          b.usersCount !==
+          a.usersCount
+        ) {
+          return (
+            b.usersCount -
+            a.usersCount
+          );
+        }
+
+        if (
+          b.reviewsCount !==
+          a.reviewsCount
+        ) {
+          return (
+            b.reviewsCount -
+            a.reviewsCount
+          );
+        }
+
+        if (
+          b.ratingsCount !==
+          a.ratingsCount
+        ) {
+          return (
+            b.ratingsCount -
+            a.ratingsCount
+          );
+        }
+
+        const ratingDifference =
+          (
+            b.rating ??
+            0
+          ) -
+          (
+            a.rating ??
+            0
+          );
+
+        if (
+          ratingDifference !==
+          0
+        ) {
+          return ratingDifference;
+        }
+
+        const bYear =
+          Number(
+            (
+              b.book.volumeInfo
+                .publishedDate ??
+              ''
+            ).slice(
+              0,
+              4
+            )
+          ) ||
+          0;
+
+        const aYear =
+          Number(
+            (
+              a.book.volumeInfo
+                .publishedDate ??
+              ''
+            ).slice(
+              0,
+              4
+            )
+          ) ||
+          0;
+
+        return (
+          bYear -
+          aYear
+        );
+      }
+    );
+}
+
+
 export type ResolvedGoogleBookRating = {
   averageRating: number;
   ratingsCount: number;
