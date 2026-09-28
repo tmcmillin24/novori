@@ -1223,6 +1223,49 @@ function isSameGoogleBooksCover(
   );
 }
 
+export function shouldFrameBookCover(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return false;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        url
+      );
+
+    if (
+      !parsed.hostname.includes(
+        'google'
+      )
+    ) {
+      return false;
+    }
+
+    const zoom =
+      Number(
+        parsed.searchParams.get(
+          'zoom'
+        ) ??
+        ''
+      );
+
+    return (
+      Number.isFinite(
+        zoom
+      ) &&
+      zoom > 0 &&
+      zoom <= 1
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function getBestSearchCover(
   imageLinks:
     | GoogleBookSearchItem[
