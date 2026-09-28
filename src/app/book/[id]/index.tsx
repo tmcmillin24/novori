@@ -876,6 +876,31 @@ export default function BookDetailsScreen() {
         : 'Discover'
       : 'Back';
 
+  function openAuthorPage(
+    authorName: string
+  ) {
+    if (
+      !book
+    ) {
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/author/[name]',
+      params: {
+        name:
+          authorName,
+        currentBookId:
+          book.id,
+        currentTitle:
+          book.volumeInfo
+            .title ??
+          '',
+      },
+    });
+  }
+
   function handleBack() {
     if (router.canGoBack()) {
       router.back();
@@ -2143,10 +2168,34 @@ export default function BookDetailsScreen() {
                   2
                 }
               >
-                {info.authors?.join(
-                  ', '
-                ) ??
-                  'Unknown author'}
+                {info.authors?.length
+                  ? info.authors.map(
+                      (
+                        author,
+                        index
+                      ) => (
+                        <Text
+                          key={
+                            author
+                          }
+                          onPress={() =>
+                            openAuthorPage(
+                              author
+                            )
+                          }
+                          style={
+                            styles.authorLink
+                          }
+                        >
+                          {index >
+                          0
+                            ? ', '
+                            : ''}
+                          {author}
+                        </Text>
+                      )
+                    )
+                  : 'Unknown author'}
               </Text>
 
               <View
@@ -2437,10 +2486,34 @@ export default function BookDetailsScreen() {
                 styles.author
               }
             >
-              {info.authors?.join(
-                ', '
-              ) ??
-                'Unknown author'}
+              {info.authors?.length
+                ? info.authors.map(
+                    (
+                      author,
+                      index
+                    ) => (
+                      <Text
+                        key={
+                          author
+                        }
+                        onPress={() =>
+                          openAuthorPage(
+                            author
+                          )
+                        }
+                        style={
+                          styles.authorLink
+                        }
+                      >
+                        {index >
+                        0
+                          ? ', '
+                          : ''}
+                        {author}
+                      </Text>
+                    )
+                  )
+                : 'Unknown author'}
             </Text>
 
             <View
@@ -4526,6 +4599,13 @@ function createStyles(
     fontSize: 15,
     textAlign: 'center',
     marginTop: 10,
+  },
+
+  authorLink: {
+    color:
+      colors.gold,
+    textDecorationLine:
+      'underline',
   },
 
   externalRatingRow: {
