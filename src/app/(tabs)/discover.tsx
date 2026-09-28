@@ -2561,7 +2561,18 @@ export default function DiscoverScreen() {
       }
 
       openBook(
-        googleBookId
+        googleBookId,
+        {
+          coverUrl:
+            trendingBook.coverUrl ??
+            undefined,
+          title:
+            trendingBook.title,
+          authors:
+            trendingBook.authors,
+          isbn:
+            trendingBook.isbns[0],
+        }
       );
     } catch (err) {
       console.error(
