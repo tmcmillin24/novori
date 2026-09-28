@@ -1,0 +1,794 @@
+import { Ionicons } from '@expo/vector-icons';
+import {
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { NovoriColors } from '../../constants/novori-theme';
+import { useNovoriTheme } from '../../context/theme-context';
+import {
+  AuthorBookResult,
+  searchAuthorBooks,
+} from '../../lib/book-search';
+
+function getCoverUrl(
+  result: AuthorBookResult
+) {
+  const images =
+    result.book.volumeInfo
+      .imageLinks;
+
+  return (
+    images?.extraLarge ??
+    images?.large ??
+    images?.medium ??
+    images?.thumbnail ??
+    images?.smallThumbnail ??
+    null
+  )?.replace(
+    'http://',
+    'https://'
+  ) ??
+  null;
+}
+
+function formatCount(
+  count: number
+) {
+  return new Intl.NumberFormat(
+    'en-US',
+    {
+      notation:
+        count >= 10000
+          ? 'compact'
+          : 'standard',
+      maximumFractionDigits: 1,
+    }
+  ).format(
+    count
+  );
+}
+
+export default function AuthorScreen() {
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    createStyles(
+      colors
+    );
+
+  const router =
+    useRouter();
+
+  const {
+    name,
+    currentBookId,
+    currentTitle,
+  } =
+    useLocalSearchParams<{
+      name: string;
+      currentBookId?: string;
+      currentTitle?: string;
+    }>();
+
+  const authorName =
+    useMemo(
+      () =>
+        Array.isArray(
+          name
+        )
+          ? name[0] ??
+            ''
+          : name ??
+            '',
+      [name]
+    );
+
+  const [
+    books,
+    setBooks,
+  ] =
+    useState<
+      AuthorBookResult[]
+    >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    error,
+    setError,
+  ] =
+    useState(
+      ''
+    );
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+      async function load() {
+        if (
+          !authorName
+        ) {
+          setBooks(
+            []
+          );
+          setLoading(
+            false
+          );
+          return;
+        }
+
+        try {
+          setLoading(
+            true
+          );
+          setError(
+            ''
+          );
+
+          const results =
+            await searchAuthorBooks(
+              authorName,
+              {
+                excludeGoogleBookId:
+                  currentBookId,
+                excludeTitle:
+                  currentTitle,
+              }
+            );
+
+          if (
+            !cancelled
+          ) {
+            setBooks(
+              results
+            );
+          }
+        } catch (
+          loadError
+        ) {
+          console.error(
+            'Could not load author books:',
+            loadError
+          );
+
+          if (
+            !cancelled
+          ) {
+            setError(
+              'Novori could not load this author’s books. Please try again.'
+            );
+          }
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setLoading(
+              false
+            );
+          }
+        }
+      }
+
+      void load();
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [
+      authorName,
+      currentBookId,
+      currentTitle,
+    ]
+  );
+
+  function openBook(
+    result:
+      AuthorBookResult
+  ) {
+    const book =
+      result.book;
+
+    const coverUrl =
+      getCoverUrl(
+        result
+      );
+
+    router.push({
+      pathname:
+        '/book/[id]',
+      params: {
+        id:
+          book.id,
+        source:
+          'discover',
+        ...(coverUrl
+          ? {
+              coverUrl,
+            }
+          : {}),
+        ...(book.volumeInfo
+          .title
+          ? {
+              clickedTitle:
+                book.volumeInfo
+                  .title,
+            }
+          : {}),
+        ...(book.volumeInfo
+          .authors?.length
+          ? {
+              clickedAuthors:
+                JSON.stringify(
+                  book.volumeInfo
+                    .authors
+                ),
+            }
+          : {}),
+      },
+    });
+  }
+
+  function renderBook({
+    item,
+  }: {
+    item:
+      AuthorBookResult;
+  }) {
+    const info =
+      item.book
+        .volumeInfo;
+
+    const coverUrl =
+      getCoverUrl(
+        item
+      );
+
+    return (
+      <Pressable
+        onPress={() =>
+          openBook(
+            item
+          )
+        }
+        style={({ pressed }) => [
+          styles.bookCard,
+          pressed &&
+            styles.pressed,
+        ]}
+      >
+        {coverUrl ? (
+          <Image
+            source={{
+              uri:
+                coverUrl,
+            }}
+            style={
+              styles.cover
+            }
+          />
+        ) : (
+          <View
+            style={
+              styles.coverPlaceholder
+            }
+          >
+            <Ionicons
+              name="book-outline"
+              size={28}
+              color={
+                colors.mutedText
+              }
+            />
+          </View>
+        )}
+
+        <View
+          style={
+            styles.bookCopy
+          }
+        >
+          <Text
+            style={
+              styles.bookTitle
+            }
+            numberOfLines={
+              2
+            }
+          >
+            {info.title ??
+              'Untitled'}
+          </Text>
+
+          {info.publishedDate ? (
+            <Text
+              style={
+                styles.published
+              }
+            >
+              {info.publishedDate.slice(
+                0,
+                4
+              )}
+            </Text>
+          ) : null}
+
+          <View
+            style={
+              styles.metricRow
+            }
+          >
+            {item.rating !==
+            null ? (
+              <>
+                <Ionicons
+                  name="star"
+                  size={13}
+                  color={
+                    colors.gold
+                  }
+                />
+                <Text
+                  style={
+                    styles.metricText
+                  }
+                >
+                  {item.rating.toFixed(
+                    2
+                  )}
+                </Text>
+              </>
+            ) : null}
+
+            {item.ratingsCount >
+            0 ? (
+              <Text
+                style={
+                  styles.metricText
+                }
+              >
+                {formatCount(
+                  item.ratingsCount
+                )}{' '}
+                ratings
+              </Text>
+            ) : null}
+
+            {item.reviewsCount >
+            0 ? (
+              <Text
+                style={
+                  styles.metricText
+                }
+              >
+                {formatCount(
+                  item.reviewsCount
+                )}{' '}
+                reviews
+              </Text>
+            ) : null}
+          </View>
+
+          <Text
+            style={
+              styles.viewBook
+            }
+          >
+            View book
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+    >
+      <View
+        style={
+          styles.header
+        }
+      >
+        <Pressable
+          onPress={() =>
+            router.canGoBack()
+              ? router.back()
+              : router.replace(
+                  '/(tabs)/discover'
+                )
+          }
+          hitSlop={
+            10
+          }
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed &&
+              styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={22}
+            color={
+              colors.gold
+            }
+          />
+        </Pressable>
+
+        <View
+          style={
+            styles.headerCopy
+          }
+        >
+          <Text
+            style={
+              styles.eyebrow
+            }
+          >
+            AUTHOR
+          </Text>
+
+          <Text
+            style={
+              styles.heading
+            }
+            numberOfLines={
+              2
+            }
+          >
+            {authorName}
+          </Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <View
+          style={
+            styles.centerState
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              colors.gold
+            }
+          />
+
+          <Text
+            style={
+              styles.stateText
+            }
+          >
+            Finding books by{' '}
+            {authorName}…
+          </Text>
+        </View>
+      ) : error ? (
+        <View
+          style={
+            styles.centerState
+          }
+        >
+          <Text
+            style={
+              styles.stateTitle
+            }
+          >
+            Couldn’t load books
+          </Text>
+
+          <Text
+            style={
+              styles.stateText
+            }
+          >
+            {error}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={
+            books
+          }
+          keyExtractor={(
+            item
+          ) =>
+            item.book.id
+          }
+          renderItem={
+            renderBook
+          }
+          contentContainerStyle={[
+            styles.listContent,
+            books.length ===
+              0 &&
+              styles.emptyList,
+          ]}
+          ListHeaderComponent={
+            books.length >
+            0 ? (
+              <Text
+                style={
+                  styles.sortNote
+                }
+              >
+                Other books · ranked by reader popularity, reviews, ratings, and rating
+              </Text>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View
+              style={
+                styles.centerState
+              }
+            >
+              <Text
+                style={
+                  styles.stateTitle
+                }
+              >
+                No other books found
+              </Text>
+
+              <Text
+                style={
+                  styles.stateText
+                }
+              >
+                Novori didn’t find another distinct title for this author.
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+function createStyles(
+  colors:
+    NovoriColors
+) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
+
+    header: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf:
+        'center',
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      paddingHorizontal:
+        20,
+      paddingTop: 8,
+      paddingBottom:
+        14,
+    },
+
+    backButton: {
+      width: 38,
+      height: 38,
+      borderRadius:
+        12,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 8,
+    },
+
+    headerCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    eyebrow: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
+      letterSpacing:
+        1.2,
+      marginBottom: 3,
+    },
+
+    heading: {
+      color:
+        colors.gold,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 30,
+      lineHeight: 35,
+    },
+
+    listContent: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf:
+        'center',
+      paddingHorizontal:
+        20,
+      paddingBottom:
+        48,
+    },
+
+    emptyList: {
+      flexGrow: 1,
+    },
+
+    sortNote: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 17,
+      marginBottom: 12,
+    },
+
+    bookCard: {
+      flexDirection:
+        'row',
+      minHeight: 132,
+      marginBottom: 12,
+      padding: 11,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+    },
+
+    cover: {
+      width: 76,
+      height: 114,
+      borderRadius: 8,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    coverPlaceholder: {
+      width: 76,
+      height: 114,
+      borderRadius: 8,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+    },
+
+    bookCopy: {
+      flex: 1,
+      minWidth: 0,
+      marginLeft: 13,
+      justifyContent:
+        'center',
+    },
+
+    bookTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 17,
+      lineHeight: 21,
+    },
+
+    published: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      marginTop: 4,
+    },
+
+    metricRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      flexWrap:
+        'wrap',
+      gap: 6,
+      marginTop: 9,
+    },
+
+    metricText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10.5,
+    },
+
+    viewBook: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11,
+      marginTop: 9,
+    },
+
+    centerState: {
+      flex: 1,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        32,
+      paddingBottom:
+        80,
+    },
+
+    stateTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 21,
+      textAlign:
+        'center',
+    },
+
+    stateText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign:
+        'center',
+      marginTop: 8,
+    },
+
+    pressed: {
+      opacity: 0.68,
+    },
+  });
+}
