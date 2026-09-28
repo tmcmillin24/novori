@@ -834,16 +834,28 @@ export default function ProfileScreen() {
   }
 
   function openBook(
-    googleBookId: string
+    book: UserBook
   ) {
     router.push({
       pathname:
         '/book/[id]',
       params: {
         id:
-          googleBookId,
+          book.google_book_id,
         source:
           'profile',
+        savedTitle:
+          book.title,
+        savedAuthors:
+          JSON.stringify(
+            book.authors ?? []
+          ),
+        savedCoverUrl:
+          book.cover_url ?? '',
+        savedIsbn:
+          book.isbn ?? '',
+        savedPublishedDate:
+          book.published_date ?? '',
       },
     });
   }
@@ -920,7 +932,7 @@ export default function ProfileScreen() {
               }
               onPress={() =>
                 openBook(
-                  book.google_book_id
+                  book
                 )
               }
               style={({
