@@ -1294,54 +1294,6 @@ function isSameGoogleBooksCover(
   );
 }
 
-function getBestSearchCover(
-  imageLinks:
-    | GoogleBookItem['volumeInfo']['imageLinks']
-    | undefined
-) {
-  const thumbnail =
-    secureGoogleBooksImageUrl(
-      imageLinks?.thumbnail
-    ) ||
-    secureGoogleBooksImageUrl(
-      imageLinks?.smallThumbnail
-    );
-
-  if (!thumbnail) {
-    return undefined;
-  }
-
-  const higherResolutionCandidates = [
-    imageLinks?.extraLarge,
-    imageLinks?.large,
-    imageLinks?.medium,
-    imageLinks?.small,
-  ]
-    .map(
-      secureGoogleBooksImageUrl
-    )
-    .filter(
-      (
-        candidate
-      ): candidate is string =>
-        Boolean(candidate)
-    );
-
-  const matchingCandidate =
-    higherResolutionCandidates.find(
-      (candidate) =>
-        isSameGoogleBooksCover(
-          thumbnail,
-          candidate
-        )
-    );
-
-  return (
-    matchingCandidate ||
-    thumbnail
-  );
-}
-
 export default function DiscoverScreen() {
   const {
     colors,
