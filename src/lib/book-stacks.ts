@@ -461,3 +461,118 @@ export async function deleteBookStack(
     throw error;
   }
 }
+
+
+export async function updateBookStack(
+  stackId: string,
+  name: string,
+  items: BookStackDraftItem[]
+): Promise<BookStack> {
+  const userId =
+    await getCurrentUserId();
+
+  const cleanName =
+    name.trim();
+
+  if (
+    cleanName.length < 1 ||
+    cleanName.length > 80
+  ) {
+    throw new Error(
+      'Stack names must be between 1 and 80 characters.'
+    );
+  }
+
+  if (
+    items.length < 2 ||
+    items.length > 10
+  ) {
+    throw new Error(
+      'Book Stacks need between 2 and 10 books.'
+    );
+  }
+
+  const {
+    error:
+      stackError,
+  } =
+    await supabase
+      .from(
+        'book_stacks'
+      )
+      .update({
+        name:
+          cleanName,
+        updated_at:
+          new Date()
+            .toISOString(),
+      })
+      .eq(
+        'id',
+        stackId
+      )
+      .eq(
+        'user_id',
+        userId
+      );
+
+  if (stackError) {
+    throw stackError;
+  }
+
+  const {
+    error:
+      deleteError,
+  } =
+    await supabase
+      .from(
+        'book_stack_items'
+      )
+      .delete()
+      .eq(
+        'stack_id',
+        stackId
+      );
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  const {
+    error:
+      itemError,
+  } =
+    await supabase
+      .from(
+        'book_stack_items'
+      )
+      .insert(
+        items.map(
+          (
+            item,
+            index
+          ) => ({
+            stack_id:
+              stackId,
+            google_book_id:
+              item.googleBookId,
+            title:
+              item.title,
+            authors:
+              item.authors,
+            cover_url:
+              item.coverUrl,
+            position:
+              index,
+          })
+        )
+      );
+
+  if (itemError) {
+    throw itemError;
+  }
+
+  return getBookStack(
+    stackId
+  );
+}
