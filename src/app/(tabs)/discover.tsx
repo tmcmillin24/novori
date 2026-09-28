@@ -2492,9 +2492,10 @@ export default function DiscoverScreen() {
       );
     }
 
-    for (
-      const isbn of trendingBook.isbns.slice(0, 6)
-    ) {
+    const isbn =
+      trendingBook.isbns[0];
+
+    if (isbn) {
       const response =
         await fetchGoogleBooksJson<
           GoogleBooksResponse
@@ -2505,36 +2506,32 @@ export default function DiscoverScreen() {
         );
 
       if (
-        !response.ok ||
-        !response.data
+        response.ok &&
+        response.data
       ) {
-        continue;
-      }
+        const results =
+          response.data.items ??
+          [];
 
-      const data =
-        response.data;
+        const exactIsbnMatch =
+          results.find(
+            (result) =>
+              result.volumeInfo
+                .industryIdentifiers
+                ?.some(
+                  (identifier) =>
+                    identifier.identifier ===
+                    isbn
+                )
+          );
 
-      const results =
-        data.items ?? [];
+        if (exactIsbnMatch) {
+          return exactIsbnMatch.id;
+        }
 
-      const exactIsbnMatch =
-        results.find(
-          (result) =>
-            result.volumeInfo
-              .industryIdentifiers
-              ?.some(
-                (identifier) =>
-                  identifier.identifier ===
-                  isbn
-              )
-        );
-
-      if (exactIsbnMatch) {
-        return exactIsbnMatch.id;
-      }
-
-      if (results[0]?.id) {
-        return results[0].id;
+        if (results[0]?.id) {
+          return results[0].id;
+        }
       }
     }
 
