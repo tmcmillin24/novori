@@ -470,17 +470,13 @@ export async function resolveBestWorkCover({
   }
 
   if (
-    bestOpenLibrary &&
-    (
-      !currentBest ||
-      area(
-        bestOpenLibrary
-      ) >
-        area(
-          currentBest
-        )
-    )
+    bestOpenLibrary
   ) {
+    // Work-level cover art is allowed to come from another verified
+    // edition. Prefer Open Library's original large cover over a Google
+    // rendition when one exists, because Google frequently reports
+    // server-resized dimensions that can make a blurry source look
+    // artificially "larger" than it really is.
     return {
       url:
         bestOpenLibrary.url,
