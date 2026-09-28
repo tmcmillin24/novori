@@ -43,6 +43,7 @@ import {
   removeUserBook,
   saveUserBook,
   updateBookReadingDates,
+  updateUserBookOwned,
   UserBook,
   UserBookStatus,
 } from '../../../lib/user-books';
@@ -775,6 +776,8 @@ export default function BookDetailsScreen() {
   const [savingStatus, setSavingStatus] =
     useState<UserBookStatus | null>(null);
   const [removingBook, setRemovingBook] =
+    useState(false);
+  const [savingOwned, setSavingOwned] =
     useState(false);
   const [series, setSeries] =
     useState<HardcoverSeries | null>(null);
@@ -1539,6 +1542,116 @@ export default function BookDetailsScreen() {
     }
   }
 
+  async function toggleOwned() {
+    if (
+      !book ||
+      savingOwned
+    ) {
+      return;
+    }
+
+    const info =
+      book.volumeInfo;
+
+    try {
+      setSavingOwned(
+        true
+      );
+
+      let updatedBook:
+        UserBook;
+
+      if (
+        savedBook
+      ) {
+        updatedBook =
+          await updateUserBookOwned(
+            book.id,
+            !savedBook.owned
+          );
+      } else {
+        const coverUrl =
+          getValidatedHighResolutionCover(
+            source ===
+              'discover'
+              ? discoverCoverUrl
+              : undefined,
+            info.imageLinks
+          ) ??
+          null;
+
+        updatedBook =
+          await saveUserBook({
+            googleBookId:
+              book.id,
+            title:
+              info.title ??
+              'Untitled',
+            authors:
+              info.authors ??
+              [],
+            coverUrl,
+            isbn:
+              getBookISBN(
+                book
+              ) ??
+              null,
+            publishedDate:
+              info.publishedDate ??
+              null,
+            status:
+              'want_to_read',
+            owned:
+              true,
+          });
+      }
+
+      setSavedBook(
+        updatedBook
+      );
+      setReadingStatus(
+        updatedBook.status
+      );
+
+      if (
+        updatedBook.owned &&
+        inBookCart
+      ) {
+        try {
+          await removeBookFromCart(
+            book.id
+          );
+          setInBookCart(
+            false
+          );
+        } catch (
+          cartError
+        ) {
+          console.warn(
+            'Could not remove owned book from Book Cart:',
+            cartError
+          );
+        }
+      }
+    } catch (
+      ownedError
+    ) {
+      console.error(
+        'Could not update book ownership:',
+        ownedError
+      );
+
+      Alert.alert(
+        'Could not update ownership',
+        'Please try again.'
+      );
+    } finally {
+      setSavingOwned(
+        false
+      );
+    }
+  }
+
   function confirmRemoveFromLibrary() {
     if (
       !book ||
@@ -2139,6 +2252,55 @@ export default function BookDetailsScreen() {
 
               <Pressable
                 onPress={() =>
+                  void toggleOwned()
+                }
+                disabled={
+                  savingOwned
+                }
+                style={({ pressed }) => [
+                  styles.libraryCartButton,
+                  savedBook?.owned &&
+                    styles.bookCartButtonActive,
+                  pressed &&
+                    styles.bookCartButtonPressed,
+                  savingOwned &&
+                    styles.bookCartButtonDisabled,
+                ]}
+              >
+                {savingOwned ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name={
+                      savedBook?.owned
+                        ? 'checkmark-circle'
+                        : 'checkmark-circle-outline'
+                    }
+                    size={16}
+                    color={
+                      colors.gold
+                    }
+                  />
+                )}
+
+                <Text
+                  style={
+                    styles.libraryCartButtonText
+                  }
+                >
+                  {savedBook?.owned
+                    ? 'Owned'
+                    : 'Mark as Owned'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
                   void toggleBookCart()
                 }
                 disabled={
@@ -2321,6 +2483,57 @@ export default function BookDetailsScreen() {
                 </>
               ) : null}
             </View>
+
+            <Pressable
+              onPress={() =>
+                void toggleOwned()
+              }
+              disabled={
+                savingOwned
+              }
+              style={({ pressed }) => [
+                styles.bookCartButton,
+                savedBook?.owned &&
+                  styles.bookCartButtonActive,
+                pressed &&
+                  styles.bookCartButtonPressed,
+                savingOwned &&
+                  styles.bookCartButtonDisabled,
+              ]}
+            >
+              {savingOwned ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    colors.gold
+                  }
+                />
+              ) : (
+                <Ionicons
+                  name={
+                    savedBook?.owned
+                      ? 'checkmark-circle'
+                      : 'checkmark-circle-outline'
+                  }
+                  size={18}
+                  color={
+                    colors.gold
+                  }
+                />
+              )}
+
+              <Text
+                style={
+                  styles.bookCartButtonText
+                }
+              >
+                {savedBook?.owned
+                  ? 'Owned'
+                  : savedBook
+                    ? 'Mark as Owned'
+                    : 'I Own This'}
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={() =>
