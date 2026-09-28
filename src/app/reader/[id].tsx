@@ -33,6 +33,7 @@ import {
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
+import FeedPostImage from '../../components/FeedPostImage';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import {
@@ -422,9 +423,22 @@ export default function ReaderProfileScreen() {
             blockedByViewer
           );
 
+          let viewerClubIds =
+            new Set<string>();
+
           try {
             const myClubData =
               await getMyClubs();
+
+            viewerClubIds =
+              new Set(
+                myClubData.map(
+                  (
+                    club
+                  ) =>
+                    club.id
+                )
+              );
 
             setManagerClubs(
               myClubData.filter(
@@ -441,7 +455,7 @@ export default function ReaderProfileScreen() {
             clubLoadError
           ) {
             console.error(
-              'Could not load clubs managed by this reader:',
+              'Could not load viewer clubs:',
               clubLoadError
             );
 
@@ -515,7 +529,15 @@ export default function ReaderProfileScreen() {
             reviewData
           );
           setPosts(
-            postData
+            postData.filter(
+              (
+                post
+              ) =>
+                !post.club_id ||
+                viewerClubIds.has(
+                  post.club_id
+                )
+            )
           );
           setClubs(
             clubData
@@ -1512,7 +1534,86 @@ export default function ReaderProfileScreen() {
           />
         ) : null}
 
+        {post.post_image_url ? (
+          <FeedPostImage
+            uri={
+              post.post_image_url
+            }
+            colors={
+              colors
+            }
+          />
+        ) : null}
+
         {post.book_title ? (
+          post.post_image_url &&
+          post.google_book_id ? (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname:
+                    '/book/[id]',
+                  params: {
+                    id:
+                      post.google_book_id!,
+                    source:
+                      'shared',
+                  },
+                })
+              }
+              style={({ pressed }) => [
+                styles.compactBookLink,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="book-outline"
+                size={14}
+                color={
+                  colors.gold
+                }
+              />
+
+              <View
+                style={
+                  styles.compactBookCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.bookTitle
+                  }
+                  numberOfLines={1}
+                >
+                  {
+                    post.book_title
+                  }
+                </Text>
+
+                {post.book_authors?.length ? (
+                  <Text
+                    style={
+                      styles.bookAuthor
+                    }
+                    numberOfLines={1}
+                  >
+                    {post.book_authors.join(
+                      ', '
+                    )}
+                  </Text>
+                ) : null}
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={17}
+                color={
+                  colors.mutedText
+                }
+              />
+            </Pressable>
+          ) : (
           <View
             style={
               styles.bookCard
@@ -1578,6 +1679,7 @@ export default function ReaderProfileScreen() {
               ) : null}
             </View>
           </View>
+          )
         ) : null}
 
         <View
@@ -4278,6 +4380,21 @@ function createStyles(
       lineHeight: 21,
       marginTop: 11,
     },
+    compactBookLink: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 8,
+      marginTop: 12,
+      paddingVertical: 6,
+    },
+
+    compactBookCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
     bookCard: {
       flexDirection:
         'row',
@@ -4312,6 +4429,15 @@ function createStyles(
     bookCopy: {
       flex: 1,
     },
+    bookAuthor: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.5,
+      marginTop: 2,
+    },
+
     bookTitle: {
       color:
         colors.text,
