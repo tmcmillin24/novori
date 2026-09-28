@@ -549,7 +549,7 @@ function getCanonicalWorkTitle(
   // Remove bracketed/parenthetical edition and series labels.
   raw =
     raw.replace(
-      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series)[^\])]*[\])]/gi,
+      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series|#\s*\d+|,\s*\d+)[^\])]*[\])]/gi,
       ''
     );
 
@@ -557,7 +557,7 @@ function getCanonicalWorkTitle(
   // meaningful subtitles unless the suffix clearly looks like packaging.
   raw =
     raw.replace(
-      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition).*$/i,
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
       ''
     );
 
@@ -581,6 +581,12 @@ function getCanonicalWorkTitle(
     ' tv tie in edition',
     ' mass market paperback',
     ' large print edition',
+    ' uncut edition',
+    ' illustrated edition',
+    ' gift edition',
+    ' ebook edition',
+    ' kindle edition',
+    ' trade paperback',
     ' a novel',
   ];
 
