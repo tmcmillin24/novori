@@ -807,8 +807,6 @@ export async function fetchGoogleBooksJson<T>(
             200,
           data:
             catalogBook,
-          exactFetched:
-            false,
         }
       );
 
@@ -820,6 +818,8 @@ export async function fetchGoogleBooksJson<T>(
             DETAIL_CACHE_MS,
           data:
             catalogBook,
+          exactFetched:
+            false,
         }
       );
 
@@ -1014,6 +1014,8 @@ export async function fetchGoogleBooksJson<T>(
                   SEARCH_CACHE_MS,
                 data:
                   item,
+                exactFetched:
+                  false,
               }
             );
           }
