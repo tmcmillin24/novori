@@ -1074,7 +1074,7 @@ export default function BookDetailsScreen() {
             getValidatedHighResolutionCover(
               source ===
                 'discover'
-                ? discoverCoverUrl
+                ? routeCoverUrl
                 : undefined,
               resolvedBook.volumeInfo
                 .imageLinks
@@ -1712,7 +1712,7 @@ export default function BookDetailsScreen() {
       >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           query
-        )}&maxResults=20`
+        )}&maxResults=20&projection=full`
       );
 
     if (
@@ -1786,6 +1786,59 @@ export default function BookDetailsScreen() {
               );
 
             let score = 0;
+
+            const resultIsbns =
+              (
+                result.volumeInfo
+                  .industryIdentifiers ??
+                []
+              )
+                .map(
+                  (
+                    identifier
+                  ) =>
+                    identifier.identifier
+                      .replace(
+                        /[^0-9Xx]/g,
+                        ''
+                      )
+                      .toUpperCase()
+                )
+                .filter(Boolean);
+
+            const wantedIsbns =
+              (
+                seriesBook.isbns ??
+                []
+              )
+                .map(
+                  (
+                    isbn
+                  ) =>
+                    isbn
+                      .replace(
+                        /[^0-9Xx]/g,
+                        ''
+                      )
+                      .toUpperCase()
+                )
+                .filter(Boolean);
+
+            const isbnMatches =
+              wantedIsbns.some(
+                (
+                  wanted
+                ) =>
+                  resultIsbns.includes(
+                    wanted
+                  )
+              );
+
+            if (
+              isbnMatches
+            ) {
+              score += 300;
+            }
 
             if (
               exactTitle
