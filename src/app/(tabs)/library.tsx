@@ -1639,7 +1639,7 @@ export default function LibraryScreen() {
                 uri:
                   item.cover_url,
                 cache:
-                  'reload',
+        'force-cache',
               }}
               style={
                 styles.cover
@@ -2123,7 +2123,7 @@ export default function LibraryScreen() {
                         uri:
                           selectedBook.cover_url,
                         cache:
-                          'reload',
+        'force-cache',
                       }}
                       style={
                         styles.sheetCover
