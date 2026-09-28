@@ -8,6 +8,8 @@ export type GoogleBookSearchItem = {
     primaryAuthor: string;
     googleBookIds: string[];
     isbns: string[];
+    hardcoverRating?: number | null;
+    hardcoverRatingsCount?: number | null;
   };
   volumeInfo: {
     title?: string;
@@ -892,6 +894,50 @@ function collapseDuplicateEditions(
   return representativeBooks;
 }
 
+async function attachCanonicalHardcoverRatings(
+  books: GoogleBookSearchItem[]
+) {
+  if (
+    books.length ===
+    0
+  ) {
+    return books;
+  }
+
+  const popularity =
+    await getHardcoverPopularity(
+      books,
+      true
+    );
+
+  return books.map(
+    (
+      book
+    ) => {
+      const resolved =
+        popularity[
+          book.id
+        ];
+
+      if (
+        book.novoriWork
+      ) {
+        book.novoriWork = {
+          ...book.novoriWork,
+          hardcoverRating:
+            resolved?.rating ??
+            null,
+          hardcoverRatingsCount:
+            resolved?.ratingsCount ??
+            null,
+        };
+      }
+
+      return book;
+    }
+  );
+}
+
 function mergeGoogleBookResults(
   ...groups:
     GoogleBookSearchItem[][]
@@ -1221,14 +1267,19 @@ export async function searchNovoriBooks(
         merged
       );
 
-    return collapseDuplicateEditions(
-      sortAuthorSearchResults(
-        merged,
+    const canonicalBooks =
+      collapseDuplicateEditions(
+        sortAuthorSearchResults(
+          merged,
+          searchTerm,
+          hardcoverPopularity
+        ),
         searchTerm,
         hardcoverPopularity
-      ),
-      searchTerm,
-      hardcoverPopularity
+      );
+
+    return attachCanonicalHardcoverRatings(
+      canonicalBooks
     );
   }
 
@@ -1237,14 +1288,19 @@ export async function searchNovoriBooks(
       initialResults
     );
 
-  return collapseDuplicateEditions(
-    sortTitleSearchResults(
-      initialResults,
+  const canonicalBooks =
+    collapseDuplicateEditions(
+      sortTitleSearchResults(
+        initialResults,
+        searchTerm,
+        hardcoverPopularity
+      ),
       searchTerm,
       hardcoverPopularity
-    ),
-    searchTerm,
-    hardcoverPopularity
+    );
+
+  return attachCanonicalHardcoverRatings(
+    canonicalBooks
   );
 }
 
