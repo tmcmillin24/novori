@@ -1286,3 +1286,209 @@ export async function resolveGoogleBookRating(input: {
       best.id,
   };
 }
+
+
+export type ResolvedHardcoverRating = {
+  rating: number;
+  usersCount: number;
+  googleBookId: string;
+};
+
+export async function resolveHardcoverRating(input: {
+  googleBookId?: string | null;
+  title: string;
+  authors?: string[];
+}): Promise<
+  ResolvedHardcoverRating | null
+> {
+  const apiKey =
+    process.env
+      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+  if (
+    !apiKey
+  ) {
+    return null;
+  }
+
+  const cleanTitle =
+    input.title.trim();
+
+  if (
+    !cleanTitle
+  ) {
+    return null;
+  }
+
+  const expectedAuthors =
+    input.authors ??
+    [];
+
+  const groups:
+    GoogleBookSearchItem[][] =
+    [];
+
+  if (
+    input.googleBookId
+  ) {
+    try {
+      const response =
+        await fetch(
+          `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+            input.googleBookId
+          )}?key=${apiKey}`
+        );
+
+      if (
+        response.ok
+      ) {
+        const volume:
+          GoogleBookSearchItem =
+          await response.json();
+
+        groups.push([
+          volume,
+        ]);
+      }
+    } catch {
+      // Fall through to the work-level search.
+    }
+  }
+
+  const primaryAuthor =
+    expectedAuthors[0]
+      ?.trim() ??
+    '';
+
+  const query =
+    primaryAuthor
+      ? `intitle:"${cleanTitle}" inauthor:"${primaryAuthor}"`
+      : `intitle:"${cleanTitle}"`;
+
+  try {
+    const response =
+      await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          query
+        )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+      );
+
+    if (
+      response.ok
+    ) {
+      const data:
+        GoogleBooksResponse =
+        await response.json();
+
+      groups.push(
+        data.items ??
+        []
+      );
+    }
+  } catch {
+    // Use any exact-volume data already collected.
+  }
+
+  const matchingBooks =
+    mergeGoogleBookResults(
+      ...groups
+    )
+      .filter(
+        (
+          book
+        ) =>
+          titlesRepresentSameWork(
+            cleanTitle,
+            book.volumeInfo
+              .title
+          ) &&
+          authorsRepresentSameWork(
+            expectedAuthors,
+            book.volumeInfo
+              .authors ??
+              []
+          )
+      )
+      .filter(
+        (
+          book
+        ) =>
+          getBookIsbns(
+            book
+          ).length >
+          0
+      );
+
+  if (
+    matchingBooks.length ===
+    0
+  ) {
+    return null;
+  }
+
+  const popularity =
+    await getHardcoverPopularity(
+      matchingBooks
+    );
+
+  const ranked =
+    matchingBooks
+      .map(
+        (
+          book
+        ) => ({
+          googleBookId:
+            book.id,
+          rating:
+            popularity[
+              book.id
+            ]?.rating ??
+            null,
+          usersCount:
+            popularity[
+              book.id
+            ]?.usersCount ??
+            0,
+        })
+      )
+      .filter(
+        (
+          result
+        ) =>
+          result.rating !==
+            null &&
+          Number.isFinite(
+            result.rating
+          ) &&
+          result.rating >
+            0
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.usersCount -
+          a.usersCount
+      );
+
+  const best =
+    ranked[0];
+
+  if (
+    !best ||
+    best.rating ===
+      null
+  ) {
+    return null;
+  }
+
+  return {
+    rating:
+      best.rating,
+    usersCount:
+      best.usersCount,
+    googleBookId:
+      best.googleBookId,
+  };
+}
