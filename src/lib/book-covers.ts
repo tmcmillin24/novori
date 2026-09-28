@@ -964,6 +964,23 @@ export async function resolveBestBookCover({
     };
   }
 
+  // Google/existing is the normal path. Do not contact Open Library
+  // unless there is no usable cover at all.
+  if (
+    currentBest
+  ) {
+    return {
+      url:
+        currentBest.url,
+      source:
+        currentBest.source,
+      width:
+        currentBest.width,
+      height:
+        currentBest.height,
+    };
+  }
+
   const openLibraryUrl =
     getOpenLibraryLargeCoverUrl(
       isbn
@@ -978,16 +995,7 @@ export async function resolveBestBookCover({
 
   if (
     openLibraryUrl &&
-    openLibrarySize &&
-    (
-      !currentBest ||
-      area(
-        openLibrarySize
-      ) >
-        area(
-          currentBest
-        )
-    )
+    openLibrarySize
   ) {
     return {
       url:
@@ -998,21 +1006,6 @@ export async function resolveBestBookCover({
         openLibrarySize.width,
       height:
         openLibrarySize.height,
-    };
-  }
-
-  if (
-    currentBest
-  ) {
-    return {
-      url:
-        currentBest.url,
-      source:
-        currentBest.source,
-      width:
-        currentBest.width,
-      height:
-        currentBest.height,
     };
   }
 
@@ -1048,6 +1041,33 @@ export function getBookCoverPlan({
   imageLinks,
   isbn,
   existingCoverUrl,
+}: {
+  imageLinks?: BookImageLinks;
+  isbn?: string | null;
+  existingCoverUrl?: string | null;
+}) {
+  const googleCover =
+    getHighestQualityGoogleCover(
+      imageLinks
+    );
+
+  const existing =
+    secureUrl(
+      existingCoverUrl
+    );
+
+  const openLibraryCover =
+    getOpenLibraryLargeCoverUrl(
+      isbn
+    );
+
+  return {
+    primaryUrl:
+      googleCover ??
+      existing,
+    fallbackUrl:
+      openLibraryCover,
+  };
 }: {
   imageLinks?: BookImageLinks;
   isbn?: string | null;
