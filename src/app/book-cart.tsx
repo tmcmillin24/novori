@@ -137,7 +137,7 @@ export default function BookCartScreen() {
         id:
           item.google_book_id,
         source:
-          'library',
+          'cart',
       },
     });
   }
