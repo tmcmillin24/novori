@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import {
@@ -90,10 +91,16 @@ export default function RootLayout() {
   }
 
   return (
-    <KeyboardProvider>
-      <NovoriThemeProvider>
-        <AppNavigator />
-      </NovoriThemeProvider>
-    </KeyboardProvider>
+    <GestureHandlerRootView
+      style={{
+        flex: 1,
+      }}
+    >
+      <KeyboardProvider>
+        <NovoriThemeProvider>
+          <AppNavigator />
+        </NovoriThemeProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }
