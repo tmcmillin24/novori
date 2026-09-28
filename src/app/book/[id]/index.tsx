@@ -34,6 +34,11 @@ import {
   getCommunityBookReviews,
 } from '../../../lib/feed';
 import {
+  addBookToCart,
+  getBookCartItem,
+  removeBookFromCart,
+} from '../../../lib/book-cart';
+import {
   getUserBook,
   removeUserBook,
   saveUserBook,
@@ -802,6 +807,18 @@ export default function BookDetailsScreen() {
     useState(false);
 
   const [
+    inBookCart,
+    setInBookCart,
+  ] =
+    useState(false);
+
+  const [
+    bookCartBusy,
+    setBookCartBusy,
+  ] =
+    useState(false);
+
+  const [
     communityReviews,
     setCommunityReviews,
   ] =
@@ -925,6 +942,30 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
+
+        try {
+          const cartItem =
+            await getBookCartItem(
+              resolvedBook.id
+            );
+
+          setInBookCart(
+            Boolean(
+              cartItem
+            )
+          );
+        } catch (
+          cartError
+        ) {
+          console.error(
+            'Could not load Book Cart status:',
+            cartError
+          );
+
+          setInBookCart(
+            false
+          );
+        }
 
         setHardcoverRatingLoading(
           true
@@ -1154,6 +1195,85 @@ export default function BookDetailsScreen() {
             .trim(),
       },
     });
+  }
+
+  async function toggleBookCart() {
+    if (
+      !book ||
+      bookCartBusy
+    ) {
+      return;
+    }
+
+    const info =
+      book.volumeInfo;
+
+    const coverUrl =
+      getValidatedHighResolutionCover(
+        source ===
+          'discover'
+          ? discoverCoverUrl
+          : savedBook
+              ?.cover_url ??
+            undefined,
+        info.imageLinks
+      ) ??
+      null;
+
+    try {
+      setBookCartBusy(
+        true
+      );
+
+      if (
+        inBookCart
+      ) {
+        await removeBookFromCart(
+          book.id
+        );
+
+        setInBookCart(
+          false
+        );
+      } else {
+        await addBookToCart({
+          googleBookId:
+            book.id,
+          title:
+            info.title ??
+            'Untitled',
+          authors:
+            info.authors ??
+            [],
+          coverUrl,
+          isbn:
+            getBookISBN(
+              book
+            ) ??
+            null,
+        });
+
+        setInBookCart(
+          true
+        );
+      }
+    } catch (
+      cartError
+    ) {
+      console.error(
+        'Could not update Book Cart:',
+        cartError
+      );
+
+      Alert.alert(
+        'Book Cart',
+        'Novori could not update your Book Cart. Please try again.'
+      );
+    } finally {
+      setBookCartBusy(
+        false
+      );
+    }
   }
 
   async function loadSeries(currentBook: GoogleBook) {
@@ -1987,6 +2107,55 @@ export default function BookDetailsScreen() {
                 </>
               ) : null}
             </View>
+
+            <Pressable
+              onPress={() =>
+                void toggleBookCart()
+              }
+              disabled={
+                bookCartBusy
+              }
+              style={({ pressed }) => [
+                styles.bookCartButton,
+                inBookCart &&
+                  styles.bookCartButtonActive,
+                pressed &&
+                  styles.bookCartButtonPressed,
+                bookCartBusy &&
+                  styles.bookCartButtonDisabled,
+              ]}
+            >
+              {bookCartBusy ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    colors.gold
+                  }
+                />
+              ) : (
+                <Ionicons
+                  name={
+                    inBookCart
+                      ? 'cart'
+                      : 'cart-outline'
+                  }
+                  size={18}
+                  color={
+                    colors.gold
+                  }
+                />
+              )}
+
+              <Text
+                style={
+                  styles.bookCartButtonText
+                }
+              >
+                {inBookCart
+                  ? 'In Book Cart'
+                  : 'Add to Cart'}
+              </Text>
+            </Pressable>
 
             {series ? (
               <View
@@ -3839,6 +4008,46 @@ function createStyles(
     fontFamily:
       'Inter_500Medium',
     fontSize: 12,
+  },
+
+  bookCartButton: {
+    minHeight: 40,
+    flexDirection:
+      'row',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginTop: 12,
+    backgroundColor:
+      colors.surface,
+  },
+
+  bookCartButtonActive: {
+    backgroundColor:
+      colors.elevated,
+  },
+
+  bookCartButtonText: {
+    color:
+      colors.gold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 12,
+  },
+
+  bookCartButtonPressed: {
+    opacity: 0.72,
+  },
+
+  bookCartButtonDisabled: {
+    opacity: 0.55,
   },
 
   seriesBadge: {
