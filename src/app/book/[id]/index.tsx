@@ -1694,17 +1694,24 @@ export default function BookDetailsScreen() {
     }
   }
 
-  async function findGoogleBookId(
+  async function findGoogleBookForSeries(
     seriesBook: HardcoverSeriesBook
-  ) {
-    const author = seriesBook.authors?.[0];
-    const queryParts = [`intitle:"${seriesBook.title}"`];
+  ): Promise<GoogleBook | null> {
+    const author =
+      seriesBook.authors?.[0];
+
+    const queryParts = [
+      `intitle:"${seriesBook.title}"`,
+    ];
 
     if (author) {
-      queryParts.push(`inauthor:"${author}"`);
+      queryParts.push(
+        `inauthor:"${author}"`
+      );
     }
 
-    const query = queryParts.join(' ');
+    const query =
+      queryParts.join(' ');
 
     const response =
       await fetchGoogleBooksJson<
@@ -1712,7 +1719,7 @@ export default function BookDetailsScreen() {
       >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           query
-        )}&maxResults=20&projection=full`
+        )}&maxResults=40&printType=books&projection=full`
       );
 
     if (
@@ -1728,7 +1735,10 @@ export default function BookDetailsScreen() {
       response.data.items ??
       [];
 
-    if (results.length === 0) {
+    if (
+      results.length ===
+      0
+    ) {
       return null;
     }
 
@@ -1736,6 +1746,24 @@ export default function BookDetailsScreen() {
       normalizeTitle(
         seriesBook.title
       );
+
+    const wantedIsbns =
+      (
+        seriesBook.isbns ??
+        []
+      )
+        .map(
+          (
+            isbn
+          ) =>
+            isbn
+              .replace(
+                /[^0-9Xx]/g,
+                ''
+              )
+              .toUpperCase()
+        )
+        .filter(Boolean);
 
     const scored =
       results
@@ -1773,19 +1801,27 @@ export default function BookDetailsScreen() {
                 (
                   resultAuthor
                 ) =>
-                  resultAuthor
-                    .toLowerCase()
-                    .includes(
-                      author.toLowerCase()
+                  normalizeAuthorName(
+                    resultAuthor
+                  ) ===
+                    normalizeAuthorName(
+                      author
                     ) ||
-                  author
-                    .toLowerCase()
-                    .includes(
-                      resultAuthor.toLowerCase()
+                  normalizeAuthorName(
+                    resultAuthor
+                  ).includes(
+                    normalizeAuthorName(
+                      author
                     )
+                  ) ||
+                  normalizeAuthorName(
+                    author
+                  ).includes(
+                    normalizeAuthorName(
+                      resultAuthor
+                    )
+                  )
               );
-
-            let score = 0;
 
             const resultIsbns =
               (
@@ -1806,24 +1842,6 @@ export default function BookDetailsScreen() {
                 )
                 .filter(Boolean);
 
-            const wantedIsbns =
-              (
-                seriesBook.isbns ??
-                []
-              )
-                .map(
-                  (
-                    isbn
-                  ) =>
-                    isbn
-                      .replace(
-                        /[^0-9Xx]/g,
-                        ''
-                      )
-                      .toUpperCase()
-                )
-                .filter(Boolean);
-
             const isbnMatches =
               wantedIsbns.some(
                 (
@@ -1834,65 +1852,68 @@ export default function BookDetailsScreen() {
                   )
               );
 
-            if (
-              isbnMatches
-            ) {
-              score += 300;
-            }
-
-            if (
-              exactTitle
-            ) {
-              score += 200;
-            } else if (
-              titleMatches
-            ) {
-              score += 100;
-            }
-
-            if (
-              authorMatches
-            ) {
-              score += 100;
-            }
-
-            if (
+            const hasPages =
               typeof result
                 .volumeInfo
                 .pageCount ===
                 'number' &&
               result.volumeInfo
                 .pageCount >
-                0
+                0;
+
+            const hasCover =
+              Boolean(
+                getValidatedHighResolutionCover(
+                  undefined,
+                  result.volumeInfo
+                    .imageLinks
+                )
+              );
+
+            let score = 0;
+
+            if (
+              exactTitle
             ) {
-              score += 50;
+              score += 300;
+            } else if (
+              titleMatches
+            ) {
+              score += 150;
             }
 
             if (
-              result.volumeInfo
-                .imageLinks
-                ?.thumbnail ||
-              result.volumeInfo
-                .imageLinks
-                ?.small ||
-              result.volumeInfo
-                .imageLinks
-                ?.medium ||
-              result.volumeInfo
-                .imageLinks
-                ?.large ||
-              result.volumeInfo
-                .imageLinks
-                ?.extraLarge
+              authorMatches
             ) {
-              score += 40;
+              score += 200;
+            }
+
+            // ISBN confirms the edition, but it must not force Novori to
+            // choose a metadata-empty Google volume when another result
+            // clearly represents the same work and has usable details.
+            if (
+              isbnMatches
+            ) {
+              score += 100;
+            }
+
+            if (
+              hasPages
+            ) {
+              score += 220;
+            }
+
+            if (
+              hasCover
+            ) {
+              score += 220;
             }
 
             if (
               result.volumeInfo
                 .publishedDate
             ) {
-              score += 10;
+              score += 20;
             }
 
             return {
@@ -1900,6 +1921,9 @@ export default function BookDetailsScreen() {
               score,
               titleMatches,
               authorMatches,
+              isbnMatches,
+              hasPages,
+              hasCover,
             };
           }
         )
@@ -1916,15 +1940,34 @@ export default function BookDetailsScreen() {
           (
             a,
             b
-          ) =>
-            b.score -
-            a.score
+          ) => {
+            if (
+              b.score !==
+              a.score
+            ) {
+              return (
+                b.score -
+                a.score
+              );
+            }
+
+            if (
+              b.isbnMatches !==
+              a.isbnMatches
+            ) {
+              return b
+                .isbnMatches
+                ? 1
+                : -1;
+            }
+
+            return 0;
+          }
         );
 
     return (
       scored[0]
-        ?.result.id ??
-      results[0]?.id ??
+        ?.result ??
       null
     );
   }
@@ -2381,9 +2424,14 @@ export default function BookDetailsScreen() {
     try {
       setOpeningSeriesBookId(seriesBook.id);
 
-      const googleBookId = await findGoogleBookId(seriesBook);
+      const resolvedSeriesBook =
+        await findGoogleBookForSeries(
+          seriesBook
+        );
 
-      if (!googleBookId) {
+      if (
+        !resolvedSeriesBook
+      ) {
         Alert.alert(
           'Book not found',
           'Novori could not find this book in Google Books yet.'
@@ -2391,13 +2439,57 @@ export default function BookDetailsScreen() {
         return;
       }
 
+      const resolvedCover =
+        getValidatedHighResolutionCover(
+          undefined,
+          resolvedSeriesBook
+            .volumeInfo
+            .imageLinks
+        ) ??
+        secureGoogleBooksImageUrl(
+          seriesBook.imageUrl
+        ) ??
+        undefined;
+
+      const resolvedIsbn =
+        getBookISBN(
+          resolvedSeriesBook
+        ) ??
+        seriesBook.isbns?.[0];
+
       router.push({
         pathname: '/book/[id]',
         params: {
-          id: googleBookId,
+          id:
+            resolvedSeriesBook.id,
           ...(source
             ? {
                 source,
+              }
+            : {}),
+          ...(resolvedCover
+            ? {
+                coverUrl:
+                  resolvedCover,
+              }
+            : {}),
+          clickedTitle:
+            resolvedSeriesBook
+              .volumeInfo
+              .title ??
+            seriesBook.title,
+          clickedAuthors:
+            JSON.stringify(
+              resolvedSeriesBook
+                .volumeInfo
+                .authors ??
+              seriesBook.authors ??
+              []
+            ),
+          ...(resolvedIsbn
+            ? {
+                clickedIsbn:
+                  resolvedIsbn,
               }
             : {}),
         },
