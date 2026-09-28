@@ -826,6 +826,9 @@ async function repairSavedCover(
         const siblingGoogleCover =
           secureCoverUrl(
             googleWorkMatch
+              ?.novoriWork
+              ?.canonicalCoverUrl ??
+            googleWorkMatch
               ?.volumeInfo
               .imageLinks
               ?.extraLarge ??
@@ -850,6 +853,52 @@ async function repairSavedCover(
               .imageLinks
               ?.smallThumbnail
           );
+
+        const siblingGoogleTier =
+          googleWorkMatch
+            ?.novoriWork
+            ?.canonicalGoogleCoverTier ??
+          0;
+
+        if (
+          currentCoverWorks &&
+          isOpenLibraryCoverUrl(
+            currentCover
+          ) &&
+          siblingGoogleCover &&
+          siblingGoogleTier >=
+            5 &&
+          await remoteImageExists(
+            siblingGoogleCover
+          )
+        ) {
+          const {
+            data,
+            error,
+          } =
+            await supabase
+              .from(
+                'user_books'
+              )
+              .update({
+                cover_url:
+                  siblingGoogleCover,
+              })
+              .eq(
+                'id',
+                book.id
+              )
+              .eq(
+                'user_id',
+                book.user_id
+              )
+              .select('*')
+              .single();
+
+          return error
+            ? book
+            : data as UserBook;
+        }
 
         if (
           siblingGoogleCover &&
