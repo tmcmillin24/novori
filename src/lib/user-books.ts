@@ -60,6 +60,65 @@ function secureBookCoverUrl(
     null;
 }
 
+function getCoverUrlQuality(
+  url?: string | null
+) {
+  if (
+    !url
+  ) {
+    return 0;
+  }
+
+  const lower =
+    url.toLowerCase();
+
+  if (
+    lower.includes(
+      'printsec=frontcover'
+    )
+  ) {
+    return 10;
+  }
+
+  if (
+    lower.includes(
+      'printsec='
+    ) &&
+    !lower.includes(
+      'printsec=frontcover'
+    )
+  ) {
+    return -100;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        url
+      );
+
+    const zoom =
+      Number(
+        parsed.searchParams.get(
+          'zoom'
+        ) ??
+        ''
+      );
+
+    if (
+      Number.isFinite(
+        zoom
+      )
+    ) {
+      return zoom;
+    }
+  } catch {
+    // Non-Google image URLs can still be high quality.
+  }
+
+  return 5;
+}
+
 function getCatalogCoverUrl(
   metadata: unknown
 ) {
@@ -260,6 +319,23 @@ function getCatalogWorkKey(
     : null;
 }
 
+function getCatalogCoverQuality(
+  metadata: unknown
+) {
+  const cover =
+    getCatalogCoverUrl(
+      metadata
+    );
+
+  return {
+    cover,
+    quality:
+      getCoverUrlQuality(
+        cover
+      ),
+  };
+}
+
 async function overlayCatalogCovers(
   books: UserBook[]
 ): Promise<UserBook[]> {
@@ -375,8 +451,11 @@ async function overlayCatalogCovers(
     for (
       const row of rows
     ) {
-      const cover =
-        getCatalogCoverUrl(
+      const {
+        cover,
+        quality,
+      } =
+        getCatalogCoverQuality(
           row.metadata
         );
 
@@ -386,10 +465,23 @@ async function overlayCatalogCovers(
         continue;
       }
 
-      coversByGoogleId.set(
-        row.google_book_id,
-        cover
-      );
+      const existingExact =
+        coversByGoogleId.get(
+          row.google_book_id
+        );
+
+      if (
+        !existingExact ||
+        getCoverUrlQuality(
+          existingExact
+        ) <
+          quality
+      ) {
+        coversByGoogleId.set(
+          row.google_book_id,
+          cover
+        );
+      }
 
       const workKey =
         getCatalogWorkKey(
@@ -397,15 +489,25 @@ async function overlayCatalogCovers(
         );
 
       if (
-        workKey &&
-        !coversByWorkKey.has(
-          workKey
-        )
+        workKey
       ) {
-        coversByWorkKey.set(
-          workKey,
-          cover
-        );
+        const existingWork =
+          coversByWorkKey.get(
+            workKey
+          );
+
+        if (
+          !existingWork ||
+          getCoverUrlQuality(
+            existingWork
+          ) <
+            quality
+        ) {
+          coversByWorkKey.set(
+            workKey,
+            cover
+          );
+        }
       }
     }
 
