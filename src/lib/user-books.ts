@@ -15,6 +15,7 @@ export type UserBook = {
   cover_url: string | null;
   isbn: string | null;
   published_date: string | null;
+  book_metadata: Record<string, unknown> | null;
   status: UserBookStatus | null;
   owned: boolean;
   rating: number | null;
@@ -33,6 +34,7 @@ type SaveUserBookInput = {
   coverUrl?: string | null;
   isbn?: string | null;
   publishedDate?: string | null;
+  bookMetadata?: Record<string, unknown> | null;
   status?: UserBookStatus | null;
   owned?: boolean;
 };
@@ -247,6 +249,10 @@ export async function saveUserBook(
         published_date:
           input.publishedDate ??
           null,
+        book_metadata:
+          input.bookMetadata ??
+          existing.book_metadata ??
+          null,
         status:
           input.status ??
           existing.status,
@@ -304,6 +310,9 @@ export async function saveUserBook(
       published_date:
         input.publishedDate ??
         null,
+      book_metadata:
+        input.bookMetadata ??
+        null,
       status:
         input.status ??
         null,
@@ -331,7 +340,8 @@ export async function saveUserBook(
 
 export async function updateUserBookOwned(
   googleBookId: string,
-  owned: boolean
+  owned: boolean,
+  bookMetadata?: Record<string, unknown> | null
 ): Promise<UserBook> {
   const userId =
     await getCurrentUserId();
@@ -343,6 +353,48 @@ export async function updateUserBookOwned(
     .from('user_books')
     .update({
       owned,
+      ...(bookMetadata !== undefined
+        ? {
+            book_metadata:
+              bookMetadata,
+          }
+        : {}),
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      'user_id',
+      userId
+    )
+    .eq(
+      'google_book_id',
+      googleBookId
+    )
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as UserBook;
+}
+
+export async function updateUserBookMetadata(
+  googleBookId: string,
+  bookMetadata: Record<string, unknown>
+): Promise<UserBook> {
+  const userId =
+    await getCurrentUserId();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('user_books')
+    .update({
+      book_metadata:
+        bookMetadata,
       updated_at:
         new Date().toISOString(),
     })
