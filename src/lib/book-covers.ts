@@ -114,6 +114,265 @@ export function getHighestQualityGoogleCover(
   );
 }
 
+export function getOpenLibraryCoverIdUrl(
+  coverId?:
+    | number
+    | null
+) {
+  if (
+    !coverId ||
+    !Number.isFinite(
+      coverId
+    )
+  ) {
+    return null;
+  }
+
+  return `https://covers.openlibrary.org/b/id/${coverId}-L.jpg?default=false`;
+}
+
+function normalizeWorkLookupText(
+  value?: string | null
+) {
+  return (
+    value ??
+    ''
+  )
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      ' '
+    )
+    .trim();
+}
+
+type OpenLibrarySearchResponse = {
+  docs?: {
+    key?: string;
+    title?: string;
+    author_name?: string[];
+    cover_i?: number;
+    isbn?: string[];
+  }[];
+};
+
+export async function resolveOpenLibraryWorkCover({
+  title,
+  authors,
+}: {
+  title?: string | null;
+  authors?: string[];
+}): Promise<BookCoverResolution> {
+  const cleanTitle =
+    title?.trim() ??
+    '';
+
+  const primaryAuthor =
+    authors?.[0]?.trim() ??
+    '';
+
+  if (
+    !cleanTitle
+  ) {
+    return {
+      url:
+        null,
+      source:
+        'none',
+      width:
+        null,
+      height:
+        null,
+    };
+  }
+
+  try {
+    const params =
+      new URLSearchParams();
+
+    params.set(
+      'title',
+      cleanTitle
+    );
+
+    if (
+      primaryAuthor
+    ) {
+      params.set(
+        'author',
+        primaryAuthor
+      );
+    }
+
+    params.set(
+      'fields',
+      'key,title,author_name,cover_i,isbn'
+    );
+
+    params.set(
+      'limit',
+      '10'
+    );
+
+    const response =
+      await fetch(
+        `https://openlibrary.org/search.json?${params.toString()}`
+      );
+
+    if (
+      !response.ok
+    ) {
+      return {
+        url:
+          null,
+        source:
+          'none',
+        width:
+          null,
+        height:
+          null,
+      };
+    }
+
+    const payload =
+      await response.json() as
+        OpenLibrarySearchResponse;
+
+    const wantedTitle =
+      normalizeWorkLookupText(
+        cleanTitle
+      );
+
+    const wantedAuthor =
+      normalizeWorkLookupText(
+        primaryAuthor
+      );
+
+    const candidate =
+      (
+        payload.docs ??
+        []
+      ).find(
+        (
+          doc
+        ) => {
+          const candidateTitle =
+            normalizeWorkLookupText(
+              doc.title
+            );
+
+          const titleMatches =
+            candidateTitle ===
+              wantedTitle ||
+            candidateTitle.startsWith(
+              `${wantedTitle} `
+            ) ||
+            wantedTitle.startsWith(
+              `${candidateTitle} `
+            );
+
+          const candidateAuthors =
+            (
+              doc.author_name ??
+              []
+            ).map(
+              normalizeWorkLookupText
+            );
+
+          const authorMatches =
+            !wantedAuthor ||
+            candidateAuthors.some(
+              (
+                candidateAuthor
+              ) =>
+                candidateAuthor ===
+                  wantedAuthor ||
+                candidateAuthor.includes(
+                  wantedAuthor
+                ) ||
+                wantedAuthor.includes(
+                  candidateAuthor
+                )
+            );
+
+          return (
+            titleMatches &&
+            authorMatches &&
+            Boolean(
+              doc.cover_i
+            )
+          );
+        }
+      );
+
+    const url =
+      getOpenLibraryCoverIdUrl(
+        candidate?.cover_i
+      );
+
+    if (
+      !url
+    ) {
+      return {
+        url:
+          null,
+        source:
+          'none',
+        width:
+          null,
+        height:
+          null,
+      };
+    }
+
+    const size =
+      await getImageSize(
+        url
+      );
+
+    if (
+      !size
+    ) {
+      return {
+        url:
+          null,
+        source:
+          'none',
+        width:
+          null,
+        height:
+          null,
+      };
+    }
+
+    return {
+      url,
+      source:
+        'open-library',
+      width:
+        size.width,
+      height:
+        size.height,
+    };
+  } catch {
+    return {
+      url:
+        null,
+      source:
+        'none',
+      width:
+        null,
+      height:
+        null,
+    };
+  }
+}
+
 export function getOpenLibraryLargeCoverUrl(
   isbn?: string | null
 ) {
