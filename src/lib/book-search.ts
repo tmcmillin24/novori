@@ -1909,27 +1909,26 @@ export async function resolveGoogleBookRating(input: {
     input.googleBookId
   ) {
     requests.push(
-      fetch(
+      fetchGoogleBooksJson<
+        GoogleBookSearchItem
+      >(
         `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
           input.googleBookId
         )}?key=${apiKey}`
       )
         .then(
-          async (
+          (
             response
           ) => {
             if (
-              !response.ok
+              !response.ok ||
+              !response.data
             ) {
               return [];
             }
 
-            const volume:
-              GoogleBookSearchItem =
-              await response.json();
-
             return [
-              volume,
+              response.data,
             ];
           }
         )
@@ -1950,27 +1949,26 @@ export async function resolveGoogleBookRating(input: {
       : `intitle:"${cleanTitle}"`;
 
   requests.push(
-    fetch(
+    fetchGoogleBooksJson<
+      GoogleBooksResponse
+    >(
       `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
         query
       )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
     )
       .then(
-        async (
+        (
           response
         ) => {
           if (
-            !response.ok
+            !response.ok ||
+            !response.data
           ) {
             return [];
           }
 
-          const data:
-            GoogleBooksResponse =
-            await response.json();
-
           return (
-            data.items ??
+            response.data.items ??
             []
           );
         }
