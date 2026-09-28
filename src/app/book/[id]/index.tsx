@@ -29,6 +29,7 @@ import { fetchGoogleBooksJson } from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
+  shouldFrameBookCover,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -44,6 +45,7 @@ import {
   removeUserBook,
   saveUserBook,
   updateBookReadingDates,
+  updateUserBookCover,
   updateUserBookOwned,
   UserBook,
   UserBookStatus,
@@ -968,8 +970,12 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
+        let existingSavedBook:
+          UserBook | null =
+          null;
+
         try {
-          const existingSavedBook =
+          existingSavedBook =
             await getUserBook(
               id
             );
@@ -1030,6 +1036,49 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
+
+        if (
+          existingSavedBook
+        ) {
+          const refreshedCover =
+            getValidatedHighResolutionCover(
+              undefined,
+              resolvedBook.volumeInfo
+                .imageLinks
+            ) ??
+            null;
+
+          if (
+            refreshedCover &&
+            refreshedCover !==
+              existingSavedBook
+                .cover_url
+          ) {
+            void updateUserBookCover(
+              resolvedBook.id,
+              refreshedCover
+            )
+              .then(
+                (
+                  refreshedSavedBook
+                ) => {
+                  setSavedBook(
+                    refreshedSavedBook
+                  );
+                }
+              )
+              .catch(
+                (
+                  coverError
+                ) => {
+                  console.warn(
+                    'Could not refresh saved book cover:',
+                    coverError
+                  );
+                }
+              );
+          }
+        }
 
         // The core book is ready. Render the page now instead of
         // blocking on cart status, ratings, reviews, library state,
@@ -2196,8 +2245,27 @@ export default function BookDetailsScreen() {
                   uri:
                     cover,
                 }}
-                style={
-                  styles.libraryBookCover
+                style={[
+                  styles.libraryBookCover,
+                  shouldFrameBookCover(
+                    cover
+                  )
+                    ? {
+                        backgroundColor:
+                          '#FFFFFF',
+                        borderWidth:
+                          1,
+                        borderColor:
+                          '#E5E5E5',
+                      }
+                    : null,
+                ]}
+                resizeMode={
+                  shouldFrameBookCover(
+                    cover
+                  )
+                    ? 'contain'
+                    : 'cover'
                 }
               />
             ) : (
@@ -2508,8 +2576,27 @@ export default function BookDetailsScreen() {
                   uri:
                     cover,
                 }}
-                style={
-                  styles.cover
+                style={[
+                  styles.cover,
+                  shouldFrameBookCover(
+                    cover
+                  )
+                    ? {
+                        backgroundColor:
+                          '#FFFFFF',
+                        borderWidth:
+                          1,
+                        borderColor:
+                          '#E5E5E5',
+                      }
+                    : null,
+                ]}
+                resizeMode={
+                  shouldFrameBookCover(
+                    cover
+                  )
+                    ? 'contain'
+                    : 'cover'
                 }
               />
             ) : (
