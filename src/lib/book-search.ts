@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fetchGoogleBooksJson } from './google-books';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -1212,21 +1213,23 @@ export async function searchNovoriBooks(
     );
 
   const response =
-    await fetch(
+    await fetchGoogleBooksJson<
+      GoogleBooksResponse
+    >(
       `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full&key=${apiKey}`
     );
 
   if (
-    !response.ok
+    !response.ok ||
+    !response.data
   ) {
     throw new Error(
       `Google Books request failed: ${response.status}`
     );
   }
 
-  const data:
-    GoogleBooksResponse =
-    await response.json();
+  const data =
+    response.data;
 
   const initialResults =
     data.items ??
@@ -1279,7 +1282,9 @@ export async function searchNovoriBooks(
     looksLikeAuthorSearch
   ) {
     const authorResponse =
-      await fetch(
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           `inauthor:"${searchTerm}"`
         )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
@@ -1290,14 +1295,11 @@ export async function searchNovoriBooks(
       [];
 
     if (
-      authorResponse.ok
+      authorResponse.ok &&
+      authorResponse.data
     ) {
-      const authorData:
-        GoogleBooksResponse =
-        await authorResponse.json();
-
       authorSpecificResults =
-        authorData.items ??
+        authorResponse.data.items ??
         [];
     }
 
@@ -1401,22 +1403,21 @@ export async function searchAuthorBooks(
           startIndex
         ) => {
           const response =
-            await fetch(
+            await fetchGoogleBooksJson<
+              GoogleBooksResponse
+            >(
               `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full&key=${apiKey}`
             );
 
           if (
-            !response.ok
+            !response.ok ||
+            !response.data
           ) {
             return [] as GoogleBookSearchItem[];
           }
 
-          const data:
-            GoogleBooksResponse =
-            await response.json();
-
           return (
-            data.items ??
+            response.data.items ??
             []
           );
         }
@@ -2235,21 +2236,20 @@ export async function resolveHardcoverRating(input: {
   ) {
     try {
       const response =
-        await fetch(
+        await fetchGoogleBooksJson<
+          GoogleBookSearchItem
+        >(
           `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
             input.googleBookId
           )}?key=${apiKey}`
         );
 
       if (
-        response.ok
+        response.ok &&
+        response.data
       ) {
-        const volume:
-          GoogleBookSearchItem =
-          await response.json();
-
         groups.push([
-          volume,
+          response.data,
         ]);
       }
     } catch {
@@ -2269,21 +2269,20 @@ export async function resolveHardcoverRating(input: {
 
   try {
     const response =
-      await fetch(
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           query
         )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
       );
 
     if (
-      response.ok
+      response.ok &&
+      response.data
     ) {
-      const data:
-        GoogleBooksResponse =
-        await response.json();
-
       groups.push(
-        data.items ??
+        response.data.items ??
         []
       );
     }
