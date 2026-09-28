@@ -2604,6 +2604,13 @@ export default function BookDetailsScreen() {
                   savedBook?.cover_url ??
                   null
                 }
+                preferExistingCover={
+                  source ===
+                    'discover' &&
+                  Boolean(
+                    discoverCoverUrl
+                  )
+                }
                 style={
                   styles.libraryBookCover
                 }
@@ -2926,6 +2933,13 @@ export default function BookDetailsScreen() {
                   discoverCoverUrl ??
                   savedBook?.cover_url ??
                   null
+                }
+                preferExistingCover={
+                  source ===
+                    'discover' &&
+                  Boolean(
+                    discoverCoverUrl
+                  )
                 }
                 style={
                   styles.cover
