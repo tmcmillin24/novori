@@ -95,6 +95,9 @@ import {
 import {
   supabase,
 } from '../../lib/supabase';
+import {
+  sharePostLink,
+} from '../../lib/share-links';
 
 type HomeSection =
   | 'feed'
@@ -5455,6 +5458,28 @@ export default function HomeScreen() {
     );
   }
 
+  async function shareFeedPost(
+    post: FeedPost
+  ) {
+    try {
+      await sharePostLink(
+        post.id
+      );
+    } catch (
+      shareError
+    ) {
+      console.error(
+        'Could not share post:',
+        shareError
+      );
+
+      Alert.alert(
+        'Could not share post',
+        'Please try again.'
+      );
+    }
+  }
+
   async function handlePostVote(
     postId: string,
     voteValue:
@@ -6350,6 +6375,39 @@ export default function HomeScreen() {
               1
                 ? 'comment'
                 : 'comments'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              void shareFeedPost(
+                post
+              );
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Share post"
+            style={({ pressed }) => [
+              styles.commentAction,
+              pressed &&
+                styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={16}
+              color={
+                colors.mutedText
+              }
+            />
+
+            <Text
+              style={
+                styles.commentActionText
+              }
+            >
+              Share
             </Text>
           </Pressable>
         </View>
