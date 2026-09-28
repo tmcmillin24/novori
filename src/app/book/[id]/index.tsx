@@ -1957,8 +1957,8 @@ export default function BookDetailsScreen() {
             ) {
               return b
                 .isbnMatches
-                ? 1
-                : -1;
+                ? -1
+                : 1;
             }
 
             return 0;
