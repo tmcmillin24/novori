@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import {
   useFocusEffect,
+  useNavigation,
   useRouter,
 } from 'expo-router';
 import {
@@ -184,7 +185,26 @@ export default function HomeScreen() {
     );
 
   const router = useRouter();
+  const navigation =
+    useNavigation();
   const insets = useSafeAreaInsets();
+
+  const homeScrollRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
+  const homeScrollOffsetRef =
+    useRef(0);
+
+  const homeFocusedRef =
+    useRef(false);
+
+  const [
+    showStickyHomeHeader,
+    setShowStickyHomeHeader,
+  ] =
+    useState(false);
 
   const {
     height:
@@ -1141,6 +1161,9 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      homeFocusedRef.current =
+        true;
+
       const now =
         Date.now();
 
@@ -1169,6 +1192,9 @@ export default function HomeScreen() {
       void loadComposerProfile();
 
       return () => {
+        homeFocusedRef.current =
+          false;
+
         Keyboard.dismiss();
 
         if (
@@ -1309,6 +1335,41 @@ export default function HomeScreen() {
       setRefreshing(false);
     }
   }
+
+  useEffect(
+    () => {
+      const unsubscribe =
+        navigation.addListener(
+          'tabPress',
+          () => {
+            if (
+              !homeFocusedRef.current
+            ) {
+              return;
+            }
+
+            if (
+              homeScrollOffsetRef.current >
+              24
+            ) {
+              homeScrollRef.current?.scrollTo({
+                y: 0,
+                animated: true,
+              });
+              return;
+            }
+
+            void handleRefresh();
+          }
+        );
+
+      return unsubscribe;
+    },
+    [
+      navigation,
+      loadHomeData,
+    ]
+  );
 
   function openClub(
     clubId: string
@@ -7206,11 +7267,38 @@ export default function HomeScreen() {
         ]}
       >
       <ScrollView
+        ref={
+          homeScrollRef
+        }
         style={
           styles.screen
         }
         contentContainerStyle={
           styles.scrollContent
+        }
+        onScroll={(event) => {
+          const y =
+            event.nativeEvent
+              .contentOffset.y;
+
+          homeScrollOffsetRef.current =
+            y;
+
+          const shouldShow =
+            y >
+            76;
+
+          if (
+            shouldShow !==
+            showStickyHomeHeader
+          ) {
+            setShowStickyHomeHeader(
+              shouldShow
+            );
+          }
+        }}
+        scrollEventThrottle={
+          16
         }
         refreshControl={
           <RefreshControl
@@ -7376,6 +7464,35 @@ export default function HomeScreen() {
             : renderClubs()}
         </View>
       </ScrollView>
+
+      {showStickyHomeHeader ? (
+        <Pressable
+          onPress={() => {
+            if (
+              homeScrollOffsetRef.current >
+              24
+            ) {
+              homeScrollRef.current?.scrollTo({
+                y: 0,
+                animated: true,
+              });
+            } else {
+              void handleRefresh();
+            }
+          }}
+          style={
+            styles.stickyHomeHeader
+          }
+        >
+          <Text
+            style={
+              styles.stickyHomeLogo
+            }
+          >
+            Novori
+          </Text>
+        </Pressable>
+      ) : null}
       </SafeAreaView>
 
       <Modal
@@ -9007,6 +9124,33 @@ function createStyles(
       flex: 1,
       backgroundColor:
         colors.background,
+    },
+
+    stickyHomeHeader: {
+      position:
+        'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 46,
+      zIndex: 50,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        colors.border,
+    },
+
+    stickyHomeLogo: {
+      color:
+        colors.gold,
+      fontSize: 22,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
     },
     scrollContent: {
       flexGrow: 1,
