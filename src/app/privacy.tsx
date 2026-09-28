@@ -63,6 +63,12 @@ export default function PrivacyScreen() {
     useState(true);
 
   const [
+    showOwnedBooks,
+    setShowOwnedBooks,
+  ] =
+    useState(false);
+
+  const [
     loading,
     setLoading,
   ] =
@@ -76,6 +82,7 @@ export default function PrivacyScreen() {
       'private' |
       'books' |
       'reviews' |
+      'owned' |
       null
     >(null);
 
@@ -96,6 +103,10 @@ export default function PrivacyScreen() {
 
           setShowReviews(
             preferences.show_reviews
+          );
+
+          setShowOwnedBooks(
+            preferences.show_owned_books
           );
         } catch (
           error
@@ -133,7 +144,8 @@ export default function PrivacyScreen() {
     key:
       | 'private'
       | 'books'
-      | 'reviews',
+      | 'reviews'
+      | 'owned',
     value: boolean
   ) {
     const nextPrivate =
@@ -154,6 +166,12 @@ export default function PrivacyScreen() {
         ? value
         : showReviews;
 
+    const nextOwnedBooks =
+      key ===
+      'owned'
+        ? value
+        : showOwnedBooks;
+
     if (
       key ===
       'private'
@@ -168,8 +186,15 @@ export default function PrivacyScreen() {
       setShowBooks(
         value
       );
-    } else {
+    } else if (
+      key ===
+      'reviews'
+    ) {
       setShowReviews(
+        value
+      );
+    } else {
+      setShowOwnedBooks(
         value
       );
     }
@@ -186,6 +211,8 @@ export default function PrivacyScreen() {
           nextBooks,
         show_reviews:
           nextReviews,
+        show_owned_books:
+          nextOwnedBooks,
       });
     } catch (
       error
@@ -209,8 +236,15 @@ export default function PrivacyScreen() {
         setShowBooks(
           !value
         );
-      } else {
+      } else if (
+        key ===
+        'reviews'
+      ) {
         setShowReviews(
+          !value
+        );
+      } else {
+        setShowOwnedBooks(
           !value
         );
       }
@@ -480,6 +514,83 @@ export default function PrivacyScreen() {
                 }
               >
                 <Ionicons
+                  name="checkmark-circle-outline"
+                  size={
+                    19
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.rowCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.rowTitle
+                  }
+                >
+                  Show Owned Books
+                </Text>
+
+                <Text
+                  style={
+                    styles.rowText
+                  }
+                >
+                  Off by default. When enabled, books you mark as Owned without a reading status can appear on your profile.
+                </Text>
+              </View>
+
+              <Switch
+                value={
+                  showOwnedBooks
+                }
+                disabled={
+                  savingKey !==
+                  null
+                }
+                onValueChange={(
+                  value
+                ) =>
+                  update(
+                    'owned',
+                    value
+                  )
+                }
+                trackColor={{
+                  false:
+                    colors.elevated,
+                  true:
+                    colors.gold,
+                }}
+                thumbColor={
+                  colors.text
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.divider
+              }
+            />
+
+            <View
+              style={
+                styles.row
+              }
+            >
+              <View
+                style={
+                  styles.iconWrap
+                }
+              >
+                <Ionicons
                   name="star-outline"
                   size={
                     19
@@ -561,7 +672,7 @@ export default function PrivacyScreen() {
                 styles.infoText
               }
             >
-              Private Profile is off by default. Books and Reviews are public by default. Your underlying library table stays protected; private-profile access is enforced server-side.
+              Private Profile is off by default. Reading-status books and Reviews keep their existing visibility rules. Owned-only books stay hidden unless you turn on Show Owned Books. Your underlying library table stays protected; private-profile access is enforced server-side.
             </Text>
           </View>
         </ScrollView>
