@@ -151,6 +151,34 @@ function normalizeTitle(title?: string) {
   return title?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
 }
 
+function normalizeSeriesWorkTitle(
+  title?: string
+) {
+  if (
+    !title
+  ) {
+    return '';
+  }
+
+  const baseTitle =
+    title
+      .split(':')[0]
+      ?.trim() ??
+    title;
+
+  return normalizeTitle(
+    baseTitle
+      .replace(
+        /\s*[-–—]\s*(?:a\s+)?(?:terminal\s+list\s+)?thriller.*$/i,
+        ''
+      )
+      .replace(
+        /\s+\((?:[^)]*edition|[^)]*series)[^)]*\)$/i,
+        ''
+      )
+  );
+}
+
 
 function normalizeAuthorName(
   author?: string
@@ -1639,7 +1667,7 @@ export default function BookDetailsScreen() {
     }
 
     const wantedTitle =
-      normalizeTitle(
+      normalizeSeriesWorkTitle(
         seriesBook.title
       );
 
@@ -1668,7 +1696,7 @@ export default function BookDetailsScreen() {
             result
           ) => {
             const resultTitle =
-              normalizeTitle(
+              normalizeSeriesWorkTitle(
                 result.volumeInfo
                   .title
               );
