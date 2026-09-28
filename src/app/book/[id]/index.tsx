@@ -2005,9 +2005,7 @@ export default function BookDetailsScreen() {
           </View>
         )}
 
-        {source ===
-          'library' &&
-        savedBook &&
+        {savedBook &&
         (
           savedBook.status ===
             'read' ||
