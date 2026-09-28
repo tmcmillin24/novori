@@ -127,6 +127,9 @@ const STATUS_ICONS:
   };
 
 
+const LIBRARY_STALE_MS =
+  60 * 1000;
+
 function normalizeLibrarySearch(
   value: string
 ) {
@@ -455,6 +458,12 @@ export default function LibraryScreen() {
   const hasLoadedLibraryRef =
     useRef(false);
 
+  const lastLibraryRefreshRef =
+    useRef(0);
+
+  const forceLibraryRefreshRef =
+    useRef(false);
+
   function restoreLibraryScrollPosition() {
     requestAnimationFrame(
       () => {
@@ -494,6 +503,28 @@ export default function LibraryScreen() {
 
       let active = true;
 
+      const forceRefresh =
+        forceLibraryRefreshRef.current;
+      forceLibraryRefreshRef.current =
+        false;
+
+      const libraryIsFresh =
+        hasLoadedLibraryRef.current &&
+        Date.now() -
+          lastLibraryRefreshRef.current <
+          LIBRARY_STALE_MS;
+
+      if (
+        libraryIsFresh &&
+        !forceRefresh
+      ) {
+        return () => {
+          active = false;
+          libraryFocusedRef.current =
+            false;
+        };
+      }
+
       async function loadLibrary() {
         const isFirstLoad =
           !hasLoadedLibraryRef.current;
@@ -526,6 +557,8 @@ export default function LibraryScreen() {
             setBooks(data);
             hasLoadedLibraryRef.current =
               true;
+            lastLibraryRefreshRef.current =
+              Date.now();
 
             if (!isFirstLoad) {
               restoreLibraryScrollPosition();
@@ -587,6 +620,8 @@ export default function LibraryScreen() {
               return;
             }
 
+            forceLibraryRefreshRef.current =
+              true;
             setLibraryRefreshKey(
               (
                 current
