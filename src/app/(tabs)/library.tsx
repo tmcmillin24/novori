@@ -833,28 +833,16 @@ export default function LibraryScreen() {
       : 'Recently Updated';
 
   function openBook(
-    book: UserBook
+    googleBookId: string
   ) {
     router.push({
       pathname:
         '/book/[id]',
       params: {
         id:
-          book.google_book_id,
+          googleBookId,
         source:
           'library',
-        savedTitle:
-          book.title,
-        savedAuthors:
-          JSON.stringify(
-            book.authors ?? []
-          ),
-        savedCoverUrl:
-          book.cover_url ?? '',
-        savedIsbn:
-          book.isbn ?? '',
-        savedPublishedDate:
-          book.published_date ?? '',
       },
     });
   }
@@ -929,7 +917,10 @@ export default function LibraryScreen() {
       return;
     }
 
-    dismissBookSheet(() => openBook(selectedBook));
+    const googleBookId =
+      selectedBook.google_book_id;
+
+    dismissBookSheet(() => openBook(googleBookId));
   }
 
   function openSelectedReadingDetails() {
@@ -1613,7 +1604,7 @@ export default function LibraryScreen() {
       <Pressable
         onPress={() =>
           openBook(
-            item
+            item.google_book_id
           )
         }
         style={({ pressed }) => [
