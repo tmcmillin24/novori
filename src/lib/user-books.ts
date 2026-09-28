@@ -90,6 +90,30 @@ function secureCoverUrl(
   );
 }
 
+function isOpenLibraryCoverUrl(
+  url?: string | null
+) {
+  const secure =
+    secureCoverUrl(
+      url
+    );
+
+  if (
+    !secure
+  ) {
+    return false;
+  }
+
+  try {
+    return new URL(
+      secure
+    ).hostname ===
+      'covers.openlibrary.org';
+  } catch {
+    return false;
+  }
+}
+
 function getGoogleCoverInfo(
   url?: string | null
 ) {
@@ -241,6 +265,15 @@ function chooseSavedCover(
   if (
     !incomingGoogle
   ) {
+    if (
+      isOpenLibraryCoverUrl(
+        incoming
+      ) &&
+      existingGoogle
+    ) {
+      return incoming;
+    }
+
     return existing;
   }
 
@@ -523,6 +556,15 @@ async function repairSavedCover(
     if (
       exactBestCover
     ) {
+      if (
+        isOpenLibraryCoverUrl(
+          exactBestCover
+        )
+      ) {
+        nextCover =
+          exactBestCover;
+      }
+
       const currentTier =
         getSearchCoverTier(
           currentCover,
@@ -540,15 +582,20 @@ async function repairSavedCover(
         );
 
       if (
-        !currentCover ||
-        currentIsCrossEdition ||
+        !isOpenLibraryCoverUrl(
+          exactBestCover
+        ) &&
         (
-          currentTier !==
-            null &&
-          exactBestTier !==
-            null &&
-          exactBestTier >
-            currentTier
+          !currentCover ||
+          currentIsCrossEdition ||
+          (
+            currentTier !==
+              null &&
+            exactBestTier !==
+              null &&
+            exactBestTier >
+              currentTier
+          )
         )
       ) {
         nextCover =
