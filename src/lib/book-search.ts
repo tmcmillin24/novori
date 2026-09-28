@@ -990,3 +990,299 @@ export async function searchNovoriBooks(
     searchTerm
   );
 }
+
+
+export type ResolvedGoogleBookRating = {
+  averageRating: number;
+  ratingsCount: number;
+  volumeId: string;
+};
+
+function titlesRepresentSameWork(
+  a?: string | null,
+  b?: string | null
+) {
+  const left =
+    getCanonicalWorkTitle(
+      a ?? undefined
+    );
+
+  const right =
+    getCanonicalWorkTitle(
+      b ?? undefined
+    );
+
+  if (
+    !left ||
+    !right
+  ) {
+    return false;
+  }
+
+  return (
+    left ===
+      right ||
+    left.startsWith(
+      `${right} `
+    ) ||
+    right.startsWith(
+      `${left} `
+    )
+  );
+}
+
+function authorsRepresentSameWork(
+  expectedAuthors:
+    string[],
+  candidateAuthors:
+    string[]
+) {
+  if (
+    expectedAuthors.length ===
+      0 ||
+    candidateAuthors.length ===
+      0
+  ) {
+    return true;
+  }
+
+  const expected =
+    expectedAuthors
+      .map(
+        normalizeTitle
+      )
+      .filter(Boolean);
+
+  const candidate =
+    candidateAuthors
+      .map(
+        normalizeTitle
+      )
+      .filter(Boolean);
+
+  return expected.some(
+    (
+      expectedAuthor
+    ) =>
+      candidate.some(
+        (
+          candidateAuthor
+        ) =>
+          candidateAuthor ===
+            expectedAuthor ||
+          candidateAuthor.includes(
+            expectedAuthor
+          ) ||
+          expectedAuthor.includes(
+            candidateAuthor
+          )
+      )
+  );
+}
+
+export async function resolveGoogleBookRating(input: {
+  googleBookId?: string | null;
+  title: string;
+  authors?: string[];
+}): Promise<
+  ResolvedGoogleBookRating | null
+> {
+  const apiKey =
+    process.env
+      .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+  if (
+    !apiKey
+  ) {
+    return null;
+  }
+
+  const cleanTitle =
+    input.title.trim();
+
+  if (
+    !cleanTitle
+  ) {
+    return null;
+  }
+
+  const expectedAuthors =
+    input.authors ??
+    [];
+
+  const requests:
+    Promise<
+      GoogleBookSearchItem[]
+    >[] = [];
+
+  if (
+    input.googleBookId
+  ) {
+    requests.push(
+      fetch(
+        `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+          input.googleBookId
+        )}?key=${apiKey}`
+      )
+        .then(
+          async (
+            response
+          ) => {
+            if (
+              !response.ok
+            ) {
+              return [];
+            }
+
+            const volume:
+              GoogleBookSearchItem =
+              await response.json();
+
+            return [
+              volume,
+            ];
+          }
+        )
+        .catch(
+          () => []
+        )
+    );
+  }
+
+  const primaryAuthor =
+    expectedAuthors[0]
+      ?.trim() ??
+    '';
+
+  const query =
+    primaryAuthor
+      ? `intitle:"${cleanTitle}" inauthor:"${primaryAuthor}"`
+      : `intitle:"${cleanTitle}"`;
+
+  requests.push(
+    fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+        query
+      )}&maxResults=40&printType=books&projection=full&key=${apiKey}`
+    )
+      .then(
+        async (
+          response
+        ) => {
+          if (
+            !response.ok
+          ) {
+            return [];
+          }
+
+          const data:
+            GoogleBooksResponse =
+            await response.json();
+
+          return (
+            data.items ??
+            []
+          );
+        }
+      )
+      .catch(
+        () => []
+      )
+  );
+
+  const groups =
+    await Promise.all(
+      requests
+    );
+
+  const candidates =
+    mergeGoogleBookResults(
+      ...groups
+    )
+      .filter(
+        (
+          book
+        ) =>
+          titlesRepresentSameWork(
+            cleanTitle,
+            book.volumeInfo
+              .title
+          ) &&
+          authorsRepresentSameWork(
+            expectedAuthors,
+            book.volumeInfo
+              .authors ??
+              []
+          )
+      )
+      .filter(
+        (
+          book
+        ) => {
+          const rating =
+            Number(
+              book.volumeInfo
+                .averageRating
+            );
+
+          const count =
+            Number(
+              book.volumeInfo
+                .ratingsCount
+            );
+
+          return (
+            Number.isFinite(
+              rating
+            ) &&
+            rating >
+              0 &&
+            Number.isFinite(
+              count
+            ) &&
+            count >
+              0
+          );
+        }
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          (
+            b.volumeInfo
+              .ratingsCount ??
+            0
+          ) -
+          (
+            a.volumeInfo
+              .ratingsCount ??
+            0
+          )
+      );
+
+  const best =
+    candidates[0];
+
+  if (
+    !best
+  ) {
+    return null;
+  }
+
+  return {
+    averageRating:
+      Number(
+        best.volumeInfo
+          .averageRating
+      ),
+    ratingsCount:
+      Number(
+        best.volumeInfo
+          .ratingsCount
+      ),
+    volumeId:
+      best.id,
+  };
+}
