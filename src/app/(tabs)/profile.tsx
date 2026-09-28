@@ -422,6 +422,62 @@ export default function ProfileScreen() {
         };
       }
 
+      if (
+        profileIsFresh &&
+        libraryChanged
+      ) {
+        void getUserBooks()
+          .then(
+            (
+              savedBooks
+            ) => {
+              if (
+                !isMounted
+              ) {
+                return;
+              }
+
+              setBooks(
+                savedBooks
+              );
+              lastSeenLibraryMutationRef.current =
+                currentLibraryMutationVersion;
+
+              if (
+                profileSessionCache
+              ) {
+                profileSessionCache = {
+                  ...profileSessionCache,
+                  snapshot: {
+                    ...profileSessionCache.snapshot,
+                    books:
+                      savedBooks,
+                  },
+                  libraryMutationVersion:
+                    currentLibraryMutationVersion,
+                };
+              }
+            }
+          )
+          .catch(
+            (
+              booksError
+            ) => {
+              console.warn(
+                'Could not refresh Profile books:',
+                booksError
+              );
+            }
+          );
+
+        return () => {
+          isMounted =
+            false;
+          profileFocusedRef.current =
+            false;
+        };
+      }
+
       async function loadProfileAndBooks() {
         const {
           data: {
