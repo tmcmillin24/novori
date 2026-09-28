@@ -1041,6 +1041,14 @@ export default function BookDetailsScreen() {
           existingSavedBook
         ) {
           const refreshedCover =
+            (
+              source ===
+                'discover'
+                ? secureGoogleBooksImageUrl(
+                    discoverCoverUrl
+                  )
+                : undefined
+            ) ??
             getValidatedHighResolutionCover(
               undefined,
               resolvedBook.volumeInfo
@@ -1638,13 +1646,20 @@ export default function BookDetailsScreen() {
     const info = book.volumeInfo;
 
     const coverUrl =
-      getValidatedHighResolutionCover(
-        source === 'discover'
-          ? discoverCoverUrl
-          : savedBook?.cover_url ??
-              undefined,
-        info.imageLinks
-      ) ??
+      (
+      source === 'discover'
+        ? secureGoogleBooksImageUrl(
+            discoverCoverUrl
+          )
+        : undefined
+    ) ??
+    getValidatedHighResolutionCover(
+      source === 'discover'
+        ? undefined
+        : savedBook?.cover_url ??
+            undefined,
+      info.imageLinks
+    ) ??
       null;
 
     try {
@@ -1719,11 +1734,16 @@ export default function BookDetailsScreen() {
           );
       } else {
         const coverUrl =
-          getValidatedHighResolutionCover(
+          (
             source ===
               'discover'
-              ? discoverCoverUrl
-              : undefined,
+              ? secureGoogleBooksImageUrl(
+                  discoverCoverUrl
+                )
+              : undefined
+          ) ??
+          getValidatedHighResolutionCover(
+            undefined,
             info.imageLinks
           ) ??
           null;
@@ -2136,9 +2156,16 @@ export default function BookDetailsScreen() {
   const info = book.volumeInfo;
 
   const cover =
+    (
+      source === 'discover'
+        ? secureGoogleBooksImageUrl(
+            discoverCoverUrl
+          )
+        : undefined
+    ) ??
     getValidatedHighResolutionCover(
       source === 'discover'
-        ? discoverCoverUrl
+        ? undefined
         : savedBook?.cover_url ??
             undefined,
       info.imageLinks
