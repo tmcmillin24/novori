@@ -562,8 +562,7 @@ Deno.serve(
               'google',
           }),
           {
-            status:
-              googleResponse.status,
+            status: 200,
             headers: {
               ...corsHeaders,
               'Content-Type':
