@@ -1411,18 +1411,148 @@ export default function DiscoverScreen() {
     }
   }
 
-  function handleBookBarcode(data: string) {
-    if (scanLocked.current) return;
-    scanLocked.current = true;
-    setScannerOpen(false);
-    const isbn = data.replace(/[^0-9]/g, '');
-    if (!/^(978|979)\d{10}$/.test(isbn)) {
-      Alert.alert('Not a book ISBN',
-        'Scan the 13-digit ISBN barcode on the back of the book, or enter its ISBN in search.');
+  async function handleBookBarcode(
+    data: string
+  ) {
+    if (
+      scanLocked.current
+    ) {
       return;
     }
-    setDiscoverMode('books');
-    setQuery(`isbn:${isbn}`);
+
+    scanLocked.current =
+      true;
+    setScannerOpen(
+      false
+    );
+
+    const isbn =
+      data.replace(
+        /[^0-9]/g,
+        ''
+      );
+
+    if (
+      !/^(978|979)\d{10}$/.test(
+        isbn
+      )
+    ) {
+      scanLocked.current =
+        false;
+
+      Alert.alert(
+        'Not a book ISBN',
+        'Scan the 13-digit ISBN barcode on the back of the book, or enter its ISBN in search.'
+      );
+      return;
+    }
+
+    try {
+      const apiKey =
+        process.env
+          .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
+
+      if (
+        !apiKey
+      ) {
+        throw new Error(
+          'Google Books API key is missing.'
+        );
+      }
+
+      const response =
+        await fetch(
+          `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
+            isbn
+          )}&maxResults=10&key=${apiKey}`
+        );
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          `Google Books request failed with status ${response.status}.`
+        );
+      }
+
+      const payload =
+        await response.json() as GoogleBooksResponse;
+
+      const matches =
+        payload.items ??
+        [];
+
+      const exactMatch =
+        matches.find(
+          (
+            candidate
+          ) =>
+            candidate.volumeInfo
+              .industryIdentifiers
+              ?.some(
+                (
+                  identifier
+                ) =>
+                  normalizeIsbn(
+                    identifier.identifier
+                  ) ===
+                  normalizeIsbn(
+                    isbn
+                  )
+              )
+        ) ??
+        matches[0];
+
+      if (
+        !exactMatch
+      ) {
+        Alert.alert(
+          'Book not found',
+          'Novori could not find a book for that ISBN. Try scanning again or search by title.'
+        );
+        return;
+      }
+
+      const imageLinks =
+        exactMatch.volumeInfo
+          .imageLinks;
+
+      const coverUrl =
+        imageLinks?.extraLarge ??
+        imageLinks?.large ??
+        imageLinks?.medium ??
+        imageLinks?.thumbnail ??
+        imageLinks?.smallThumbnail;
+
+      openBook(
+        exactMatch.id,
+        {
+          coverUrl,
+          title:
+            exactMatch.volumeInfo
+              .title,
+          authors:
+            exactMatch.volumeInfo
+              .authors,
+          isbn,
+        }
+      );
+    } catch (
+      scanError
+    ) {
+      console.error(
+        'Could not open scanned book:',
+        scanError
+      );
+
+      Alert.alert(
+        'Could not open book',
+        'Novori found the barcode but could not load the book. Please try again.'
+      );
+    } finally {
+      scanLocked.current =
+        false;
+    }
   }
 
   const [books, setBooks] = useState<GoogleBookItem[]>([]);
