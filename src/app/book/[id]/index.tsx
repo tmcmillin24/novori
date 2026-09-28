@@ -29,7 +29,6 @@ import { fetchGoogleBooksJson } from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
-  shouldFrameBookCover,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -655,13 +654,13 @@ function getValidatedHighResolutionCover(
 ) {
   const reference =
     secureGoogleBooksImageUrl(
+      referenceCoverUrl
+    ) ||
+    secureGoogleBooksImageUrl(
       imageLinks?.thumbnail
     ) ||
     secureGoogleBooksImageUrl(
       imageLinks?.smallThumbnail
-    ) ||
-    secureGoogleBooksImageUrl(
-      referenceCoverUrl
     );
 
   if (!reference) {
@@ -710,6 +709,30 @@ function getValidatedHighResolutionCover(
     matchingCandidate ||
     reference
   );
+}
+
+function getGoogleCoverVolumeId(
+  url?: string | null
+) {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        secureGoogleBooksImageUrl(
+          url
+        ) ??
+          url
+      );
+
+    return parsed.searchParams.get(
+      'id'
+    );
+  } catch {
+    return null;
+  }
 }
 
 export default function BookDetailsScreen() {
@@ -1048,23 +1071,56 @@ export default function BookDetailsScreen() {
           existingSavedBook
         ) {
           const refreshedCover =
-            (
-              secureGoogleBooksImageUrl(
-                routeCoverUrl
-              )
-            ) ??
             getValidatedHighResolutionCover(
-              undefined,
+              source ===
+                'discover'
+                ? discoverCoverUrl
+                : undefined,
               resolvedBook.volumeInfo
                 .imageLinks
             ) ??
             null;
 
+          const currentCover =
+            existingSavedBook
+              .cover_url;
+
+          const currentCoverId =
+            getGoogleCoverVolumeId(
+              currentCover
+            );
+
+          const refreshedCoverId =
+            getGoogleCoverVolumeId(
+              refreshedCover
+            );
+
+          const currentIsCrossEdition =
+            Boolean(
+              currentCoverId &&
+              currentCoverId !==
+                resolvedBook.id
+            );
+
+          const sameExactCoverCanUpgrade =
+            Boolean(
+              currentCover &&
+              refreshedCover &&
+              currentCover !==
+                refreshedCover &&
+              currentCoverId &&
+              refreshedCoverId &&
+              currentCoverId ===
+                refreshedCoverId
+            );
+
           if (
             refreshedCover &&
-            refreshedCover !==
-              existingSavedBook
-                .cover_url
+            (
+              !currentCover ||
+              currentIsCrossEdition ||
+              sameExactCoverCanUpgrade
+            )
           ) {
             void updateUserBookCover(
               resolvedBook.id,
@@ -1084,7 +1140,7 @@ export default function BookDetailsScreen() {
                   coverError
                 ) => {
                   console.warn(
-                    'Could not refresh saved book cover:',
+                    'Could not repair saved book cover:',
                     coverError
                   );
                 }
@@ -2449,27 +2505,8 @@ export default function BookDetailsScreen() {
                   uri:
                     cover,
                 }}
-                style={[
-                  styles.libraryBookCover,
-                  shouldFrameBookCover(
-                    cover
-                  )
-                    ? {
-                        backgroundColor:
-                          '#FFFFFF',
-                        borderWidth:
-                          1,
-                        borderColor:
-                          '#E5E5E5',
-                      }
-                    : null,
-                ]}
-                resizeMode={
-                  shouldFrameBookCover(
-                    cover
-                  )
-                    ? 'contain'
-                    : 'cover'
+                style={
+                  styles.libraryBookCover
                 }
               />
             ) : (
@@ -2780,27 +2817,8 @@ export default function BookDetailsScreen() {
                   uri:
                     cover,
                 }}
-                style={[
-                  styles.cover,
-                  shouldFrameBookCover(
-                    cover
-                  )
-                    ? {
-                        backgroundColor:
-                          '#FFFFFF',
-                        borderWidth:
-                          1,
-                        borderColor:
-                          '#E5E5E5',
-                      }
-                    : null,
-                ]}
-                resizeMode={
-                  shouldFrameBookCover(
-                    cover
-                  )
-                    ? 'contain'
-                    : 'cover'
+                style={
+                  styles.cover
                 }
               />
             ) : (
