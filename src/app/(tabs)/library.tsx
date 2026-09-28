@@ -129,7 +129,17 @@ const STATUS_ICONS:
 
 
 const LIBRARY_STALE_MS =
-  60 * 1000;
+  5 * 60 * 1000;
+
+let librarySessionCache:
+  | {
+      books: UserBook[];
+      cartCount: number;
+      refreshedAt: number;
+      mutationVersion: number;
+    }
+  | null =
+  null;
 
 function normalizeLibrarySearch(
   value: string
@@ -155,14 +165,10 @@ export default function LibraryScreen() {
   const libraryFocusedRef =
     useRef(false);
 
-  const [
-    libraryRefreshKey,
-    setLibraryRefreshKey,
-  ] =
-    useState(0);
-
   const lastSeenLibraryMutationRef =
     useRef(
+      librarySessionCache
+        ?.mutationVersion ??
       getLibraryMutationVersion()
     );
 
@@ -178,19 +184,29 @@ export default function LibraryScreen() {
     books,
     setBooks,
   ] =
-    useState<UserBook[]>([]);
+    useState<UserBook[]>(
+      librarySessionCache
+        ?.books ??
+      []
+    );
 
   const [
     cartCount,
     setCartCount,
   ] =
-    useState(0);
+    useState(
+      librarySessionCache
+        ?.cartCount ??
+      0
+    );
 
   const [
     loading,
     setLoading,
   ] =
-    useState(true);
+    useState(
+      !librarySessionCache
+    );
 
   const [
     error,
@@ -462,13 +478,18 @@ export default function LibraryScreen() {
     useRef(false);
 
   const hasLoadedLibraryRef =
-    useRef(false);
+    useRef(
+      Boolean(
+        librarySessionCache
+      )
+    );
 
   const lastLibraryRefreshRef =
-    useRef(0);
-
-  const forceLibraryRefreshRef =
-    useRef(false);
+    useRef(
+      librarySessionCache
+        ?.refreshedAt ??
+      0
+    );
 
   function restoreLibraryScrollPosition() {
     requestAnimationFrame(
@@ -509,11 +530,6 @@ export default function LibraryScreen() {
 
       let active = true;
 
-      const forceRefresh =
-        forceLibraryRefreshRef.current;
-      forceLibraryRefreshRef.current =
-        false;
-
       const currentLibraryMutationVersion =
         getLibraryMutationVersion();
 
@@ -529,7 +545,6 @@ export default function LibraryScreen() {
 
       if (
         libraryIsFresh &&
-        !forceRefresh &&
         !libraryChanged
       ) {
         return () => {
@@ -568,13 +583,26 @@ export default function LibraryScreen() {
                 true;
             }
 
+            const refreshedAt =
+              Date.now();
+
             setBooks(data);
             lastSeenLibraryMutationRef.current =
               currentLibraryMutationVersion;
             hasLoadedLibraryRef.current =
               true;
             lastLibraryRefreshRef.current =
-              Date.now();
+              refreshedAt;
+
+            librarySessionCache = {
+              books:
+                data,
+              cartCount:
+                cartItems.length,
+              refreshedAt,
+              mutationVersion:
+                currentLibraryMutationVersion,
+            };
 
             if (!isFirstLoad) {
               restoreLibraryScrollPosition();
@@ -605,9 +633,7 @@ export default function LibraryScreen() {
         libraryFocusedRef.current =
           false;
       };
-    }, [
-      libraryRefreshKey,
-    ])
+    }, [])
   );
 
   useEffect(
@@ -636,15 +662,8 @@ export default function LibraryScreen() {
               return;
             }
 
-            forceLibraryRefreshRef.current =
-              true;
-            setLibraryRefreshKey(
-              (
-                current
-              ) =>
-                current +
-                1
-            );
+            // Keep the in-memory Library snapshot. A book mutation
+            // or the five-minute TTL will refresh it automatically.
           }
         );
 
