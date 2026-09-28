@@ -728,7 +728,7 @@ export default function BookDetailsScreen() {
   const {
     id,
     source,
-    coverUrl: discoverCoverUrl,
+    coverUrl: routeCoverUrl,
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
@@ -1049,12 +1049,9 @@ export default function BookDetailsScreen() {
         ) {
           const refreshedCover =
             (
-              source ===
-                'discover'
-                ? secureGoogleBooksImageUrl(
-                    discoverCoverUrl
-                  )
-                : undefined
+              secureGoogleBooksImageUrl(
+                routeCoverUrl
+              )
             ) ??
             getValidatedHighResolutionCover(
               undefined,
@@ -1450,7 +1447,7 @@ export default function BookDetailsScreen() {
       getValidatedHighResolutionCover(
         source ===
           'discover'
-          ? discoverCoverUrl
+          ? routeCoverUrl
           : savedBook
               ?.cover_url ??
             undefined,
@@ -1727,14 +1724,12 @@ export default function BookDetailsScreen() {
 
     const coverUrl =
       (
-      source === 'discover'
-        ? secureGoogleBooksImageUrl(
-            discoverCoverUrl
-          )
-        : undefined
+      secureGoogleBooksImageUrl(
+      routeCoverUrl
+    )
     ) ??
     getValidatedHighResolutionCover(
-      source === 'discover'
+      routeCoverUrl
         ? undefined
         : savedBook?.cover_url ??
             undefined,
@@ -1815,12 +1810,9 @@ export default function BookDetailsScreen() {
       } else {
         const coverUrl =
           (
-            source ===
-              'discover'
-              ? secureGoogleBooksImageUrl(
-                  discoverCoverUrl
-                )
-              : undefined
+            secureGoogleBooksImageUrl(
+            routeCoverUrl
+          )
           ) ??
           getValidatedHighResolutionCover(
             undefined,
@@ -2237,14 +2229,12 @@ export default function BookDetailsScreen() {
 
   const cover =
     (
-      source === 'discover'
-        ? secureGoogleBooksImageUrl(
-            discoverCoverUrl
-          )
-        : undefined
+      secureGoogleBooksImageUrl(
+      routeCoverUrl
+    )
     ) ??
     getValidatedHighResolutionCover(
-      source === 'discover'
+      routeCoverUrl
         ? undefined
         : savedBook?.cover_url ??
             undefined,
