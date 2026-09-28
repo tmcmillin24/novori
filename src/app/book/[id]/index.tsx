@@ -2605,10 +2605,9 @@ export default function BookDetailsScreen() {
                   null
                 }
                 preferExistingCover={
-                  source ===
-                    'discover' &&
                   Boolean(
-                    discoverCoverUrl
+                    discoverCoverUrl ??
+                    savedBook?.cover_url
                   )
                 }
                 style={
@@ -2935,10 +2934,9 @@ export default function BookDetailsScreen() {
                   null
                 }
                 preferExistingCover={
-                  source ===
-                    'discover' &&
                   Boolean(
-                    discoverCoverUrl
+                    discoverCoverUrl ??
+                    savedBook?.cover_url
                   )
                 }
                 style={
