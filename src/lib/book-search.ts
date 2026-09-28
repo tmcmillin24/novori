@@ -1527,30 +1527,51 @@ export async function searchAuthorBooks(
       }
     );
 
+  const fastPopularity =
+    await getHardcoverPopularity(
+      filtered,
+      false
+    );
+
   const initialBooks:
     AuthorBookResult[] =
     filtered.map(
       (
         book
-      ) => ({
-        book,
-        usersCount:
-          0,
-        ratingsCount:
-          book.novoriWork
-            ?.hardcoverRatingsCount ??
-          book.volumeInfo
-            .ratingsCount ??
-          0,
-        reviewsCount:
-          0,
-        rating:
-          book.novoriWork
-            ?.hardcoverRating ??
-          book.volumeInfo
-            .averageRating ??
-          null,
-      })
+      ) => {
+        const fastResolved =
+          fastPopularity[
+            book.id
+          ];
+
+        return {
+          book,
+          usersCount:
+            fastResolved
+              ?.usersCount ??
+            0,
+          ratingsCount:
+            fastResolved
+              ?.ratingsCount ??
+            book.novoriWork
+              ?.hardcoverRatingsCount ??
+            book.volumeInfo
+              .ratingsCount ??
+            0,
+          reviewsCount:
+            fastResolved
+              ?.reviewsCount ??
+            0,
+          rating:
+            fastResolved
+              ?.rating ??
+            book.novoriWork
+              ?.hardcoverRating ??
+            book.volumeInfo
+              .averageRating ??
+            null,
+        };
+      }
     );
 
   options?.onProgress?.(
@@ -1561,12 +1582,6 @@ export async function searchAuthorBooks(
     AuthorBookResult[] =
     [];
 
-  const fastPopularity =
-    await getHardcoverPopularity(
-      filtered,
-      false
-    );
-
   async function resolveAuthorBook(
     book: GoogleBookSearchItem
   ) {
@@ -1574,34 +1589,6 @@ export async function searchAuthorBooks(
       fastPopularity[
         book.id
       ];
-
-    if (
-      fastResolved &&
-      fastResolved.rating !==
-        null &&
-      Number.isFinite(
-        fastResolved.rating
-      ) &&
-      fastResolved.rating >
-        0
-    ) {
-      return {
-        book,
-        usersCount:
-          fastResolved.usersCount ??
-          0,
-        ratingsCount:
-          fastResolved.ratingsCount ??
-          book.volumeInfo
-            .ratingsCount ??
-          0,
-        reviewsCount:
-          fastResolved.reviewsCount ??
-          0,
-        rating:
-          fastResolved.rating,
-      } satisfies AuthorBookResult;
-    }
 
     let resolved:
       ResolvedHardcoverRating |
@@ -1654,9 +1641,13 @@ export async function searchAuthorBooks(
       usersCount:
         resolved
           ?.usersCount ??
+        fastResolved
+          ?.usersCount ??
         0,
       ratingsCount:
         resolved
+          ?.ratingsCount ??
+        fastResolved
           ?.ratingsCount ??
         book.novoriWork
           ?.hardcoverRatingsCount ??
@@ -1666,9 +1657,13 @@ export async function searchAuthorBooks(
       reviewsCount:
         resolved
           ?.reviewsCount ??
+        fastResolved
+          ?.reviewsCount ??
         0,
       rating:
         resolved
+          ?.rating ??
+        fastResolved
           ?.rating ??
         book.novoriWork
           ?.hardcoverRating ??
