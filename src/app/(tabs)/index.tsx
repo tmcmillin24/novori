@@ -5159,6 +5159,25 @@ export default function HomeScreen() {
       return;
     }
 
+    if (
+      post.post_type ===
+        'book_stack' &&
+      post.book_stack_id
+    ) {
+      router.push({
+        pathname:
+          '/create-book-stack',
+        params: {
+          editPostId:
+            post.id,
+          stackId:
+            post.book_stack_id,
+        },
+      });
+
+      return;
+    }
+
     router.push({
       pathname:
         '/create-post',
