@@ -2,6 +2,13 @@ import { supabase } from './supabase';
 
 export type GoogleBookSearchItem = {
   id: string;
+  novoriWork?: {
+    key: string;
+    canonicalTitle: string;
+    primaryAuthor: string;
+    googleBookIds: string[];
+    isbns: string[];
+  };
   volumeInfo: {
     title?: string;
     subtitle?: string;
@@ -612,6 +619,43 @@ function getCanonicalWorkTitle(
   return title;
 }
 
+function getCanonicalWorkTitleForBook(
+  book: GoogleBookSearchItem
+) {
+  let title =
+    getCanonicalWorkTitle(
+      book.volumeInfo.title
+    );
+
+  const primaryAuthor =
+    normalizeTitle(
+      book.volumeInfo.authors?.[0]
+    );
+
+  if (
+    title &&
+    primaryAuthor
+  ) {
+    const authorPrefix =
+      `${primaryAuthor} s `;
+
+    if (
+      title.startsWith(
+        authorPrefix
+      )
+    ) {
+      title =
+        title
+          .slice(
+            authorPrefix.length
+          )
+          .trim();
+    }
+  }
+
+  return title;
+}
+
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -654,8 +698,8 @@ function collapseDuplicateEditions(
       candidates
   ) {
     const canonicalTitle =
-      getCanonicalWorkTitle(
-        book.volumeInfo.title
+      getCanonicalWorkTitleForBook(
+        book
       );
 
     const primaryAuthor =
@@ -693,103 +737,150 @@ function collapseDuplicateEditions(
     ).map(
       (
         group
-      ) =>
-        [...group].sort(
-          (
-            a,
-            b
-          ) => {
-            const aHardcover =
-              hardcoverPopularity[
-                a.id
-              ];
+      ) => {
+        const sorted =
+          [...group].sort(
+            (
+              a,
+              b
+            ) => {
+              const aHardcover =
+                hardcoverPopularity[
+                  a.id
+                ];
 
-            const bHardcover =
-              hardcoverPopularity[
-                b.id
-              ];
+              const bHardcover =
+                hardcoverPopularity[
+                  b.id
+                ];
 
-            const hardcoverUserDifference =
-              (
-                bHardcover?.usersCount ??
+              const hardcoverUserDifference =
+                (
+                  bHardcover?.usersCount ??
+                  0
+                ) -
+                (
+                  aHardcover?.usersCount ??
+                  0
+                );
+
+              if (
+                hardcoverUserDifference !==
                 0
-              ) -
-              (
-                aHardcover?.usersCount ??
-                0
-              );
+              ) {
+                return hardcoverUserDifference;
+              }
 
-            if (
-              hardcoverUserDifference !==
-              0
-            ) {
-              return hardcoverUserDifference;
-            }
+              const aGoogle =
+                getGoogleBookPopularity(
+                  a
+                );
 
-            const aGoogle =
-              getGoogleBookPopularity(
-                a
-              );
+              const bGoogle =
+                getGoogleBookPopularity(
+                  b
+                );
 
-            const bGoogle =
-              getGoogleBookPopularity(
-                b
-              );
-
-            if (
-              bGoogle.ratingsCount !==
-              aGoogle.ratingsCount
-            ) {
-              return (
-                bGoogle.ratingsCount -
+              if (
+                bGoogle.ratingsCount !==
                 aGoogle.ratingsCount
-              );
-            }
+              ) {
+                return (
+                  bGoogle.ratingsCount -
+                  aGoogle.ratingsCount
+                );
+              }
 
-            const aExact =
-              normalizeTitle(
-                a.volumeInfo.title
-              ) ===
-              normalizedQuery
-                ? 1
-                : 0;
+              const aExact =
+                normalizeTitle(
+                  a.volumeInfo.title
+                ) ===
+                normalizedQuery
+                  ? 1
+                  : 0;
 
-            const bExact =
-              normalizeTitle(
-                b.volumeInfo.title
-              ) ===
-              normalizedQuery
-                ? 1
-                : 0;
+              const bExact =
+                normalizeTitle(
+                  b.volumeInfo.title
+                ) ===
+                normalizedQuery
+                  ? 1
+                  : 0;
 
-            if (
-              bExact !==
-              aExact
-            ) {
-              return (
-                bExact -
+              if (
+                bExact !==
                 aExact
+              ) {
+                return (
+                  bExact -
+                  aExact
+                );
+              }
+
+              const aHasCover =
+                a.volumeInfo.imageLinks
+                  ?.thumbnail
+                  ? 1
+                  : 0;
+
+              const bHasCover =
+                b.volumeInfo.imageLinks
+                  ?.thumbnail
+                  ? 1
+                  : 0;
+
+              return (
+                bHasCover -
+                aHasCover
               );
             }
+          );
 
-            const aHasCover =
-              a.volumeInfo.imageLinks
-                ?.thumbnail
-                ? 1
-                : 0;
+        const representative =
+          sorted[0];
 
-            const bHasCover =
-              b.volumeInfo.imageLinks
-                ?.thumbnail
-                ? 1
-                : 0;
+        const canonicalTitle =
+          getCanonicalWorkTitleForBook(
+            representative
+          );
 
-            return (
-              bHasCover -
-              aHasCover
-            );
-          }
-        )[0]
+        const primaryAuthor =
+          normalizeTitle(
+            representative.volumeInfo
+              .authors?.[0]
+          );
+
+        const isbns =
+          Array.from(
+            new Set(
+              group.flatMap(
+                (
+                  book
+                ) =>
+                  getBookIsbns(
+                    book
+                  )
+              )
+            )
+          );
+
+        representative.novoriWork = {
+          key:
+            `${canonicalTitle}::${primaryAuthor}`,
+          canonicalTitle,
+          primaryAuthor,
+          googleBookIds:
+            group.map(
+              (
+                book
+              ) =>
+                book.id
+            ),
+          isbns,
+        };
+
+        return representative;
+      }
     );
 
   return representativeBooks;
@@ -1678,106 +1769,95 @@ export async function resolveHardcoverRating(input: {
               .authors ??
               []
           )
-      )
-      .filter(
-        (
-          book
-        ) =>
-          getBookIsbns(
-            book
-          ).length >
-          0
       );
 
-  if (
-    matchingBooks.length ===
-    0
-  ) {
-    return findHardcoverDiscoveryMatch(
-      cleanTitle,
-      expectedAuthors
+  const allIsbns =
+    Array.from(
+      new Set(
+        matchingBooks.flatMap(
+          (
+            book
+          ) =>
+            getBookIsbns(
+              book
+            )
+        )
+      )
     );
+
+  const requestKey =
+    input.googleBookId ??
+    matchingBooks[0]?.id ??
+    `${getCanonicalWorkTitle(
+      cleanTitle
+    )}::${normalizeTitle(
+      expectedAuthors[0]
+    )}`;
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.functions.invoke(
+      'hardcover-search-popularity',
+      {
+        body: {
+          allowTitleFallback:
+            true,
+          books: [
+            {
+              googleBookId:
+                requestKey,
+              title:
+                cleanTitle,
+              authors:
+                expectedAuthors,
+              isbns:
+                allIsbns,
+            },
+          ],
+        },
+      }
+    );
+
+  if (
+    error
+  ) {
+    return null;
   }
 
-  const popularity =
-    await getHardcoverPopularity(
-      matchingBooks,
-      true
-    );
+  const response =
+    data as
+      HardcoverSearchPopularityResponse;
 
-  const ranked =
-    matchingBooks
-      .map(
-        (
-          book
-        ) => ({
-          googleBookId:
-            book.id,
-          rating:
-            popularity[
-              book.id
-            ]?.rating ??
-            null,
-          usersCount:
-            popularity[
-              book.id
-            ]?.usersCount ??
-            0,
-          ratingsCount:
-            popularity[
-              book.id
-            ]?.ratingsCount ??
-            null,
-          reviewsCount:
-            popularity[
-              book.id
-            ]?.reviewsCount ??
-            null,
-        })
-      )
-      .filter(
-        (
-          result
-        ) =>
-          result.rating !==
-            null &&
-          Number.isFinite(
-            result.rating
-          ) &&
-          result.rating >
-            0
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          b.usersCount -
-          a.usersCount
-      );
-
-  const best =
-    ranked[0];
+  const resolved =
+    response?.popularity?.[
+      requestKey
+    ];
 
   if (
-    !best ||
-    best.rating ===
-      null
+    !resolved ||
+    resolved.rating ===
+      null ||
+    !Number.isFinite(
+      resolved.rating
+    ) ||
+    resolved.rating <=
+      0
   ) {
-    return findHardcoverDiscoveryMatch(
-      cleanTitle,
-      expectedAuthors
-    );
+    return null;
   }
 
   return {
     rating:
-      best.rating,
+      resolved.rating,
     ratingsCount:
-      best.ratingsCount,
+      resolved.ratingsCount ??
+      null,
     reviewsCount:
-      best.reviewsCount,
+      resolved.reviewsCount ??
+      null,
     googleBookId:
-      best.googleBookId,
+      requestKey,
   };
 }
