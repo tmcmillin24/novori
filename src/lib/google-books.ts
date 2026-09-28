@@ -33,7 +33,7 @@ const MAX_PERSISTED_BOOKS =
   150;
 
 const PERSISTED_INDEX_KEY =
-  'novori:google-books:detail-index:v1';
+  'novori:google-books:detail-index:v3';
 
 const memoryCache =
   new Map<string, MemoryEntry>();
@@ -87,7 +87,7 @@ function getVolumeId(
 function detailKey(
   id: string
 ) {
-  return `novori:google-books:detail:${id}`;
+  return `novori:google-books:detail:v3:${id}`;
 }
 
 async function readPersistentDetail<T>(
@@ -651,49 +651,6 @@ export async function fetchGoogleBooksJson<T>(
       const data =
         await response.json();
 
-      if (
-        data &&
-        typeof data ===
-          'object' &&
-        Array.isArray(
-          (
-            data as {
-              items?: unknown[];
-            }
-          ).items
-        )
-      ) {
-        for (
-          const item of
-            (
-              data as {
-                items: {
-                  id?: unknown;
-                }[];
-              }
-            ).items
-        ) {
-          if (
-            item &&
-            typeof item ===
-              'object' &&
-            typeof item.id ===
-              'string'
-          ) {
-            volumeMemoryCache.set(
-              item.id,
-              {
-                expiresAt:
-                  Date.now() +
-                  SEARCH_CACHE_MS,
-                data:
-                  item,
-              }
-            );
-          }
-        }
-      }
-
       const catalogBooks =
         catalogBooksFromPayload(
           data,
@@ -766,6 +723,16 @@ export async function fetchGoogleBooksJson<T>(
       );
 
       if (detailId) {
+        volumeMemoryCache.set(
+          detailId,
+          {
+            expiresAt:
+              Date.now() +
+              DETAIL_CACHE_MS,
+            data,
+          }
+        );
+
         void persistDetail(
           detailId,
           data
