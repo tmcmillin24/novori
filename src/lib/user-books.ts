@@ -50,6 +50,153 @@ type UpdateBookReadingDatesInput = {
   dnfAt: string | null;
 };
 
+function secureBookCoverUrl(
+  url?: string | null
+) {
+  return url?.replace(
+    'http://',
+    'https://'
+  ) ??
+    null;
+}
+
+function getCatalogCoverUrl(
+  metadata: unknown
+) {
+  if (
+    !metadata ||
+    typeof metadata !==
+      'object'
+  ) {
+    return null;
+  }
+
+  const links =
+    (
+      metadata as {
+        volumeInfo?: {
+          imageLinks?: {
+            extraLarge?: string;
+            large?: string;
+            medium?: string;
+            small?: string;
+            thumbnail?: string;
+            smallThumbnail?: string;
+          };
+        };
+      }
+    ).volumeInfo
+      ?.imageLinks;
+
+  return (
+    secureBookCoverUrl(
+      links?.extraLarge
+    ) ??
+    secureBookCoverUrl(
+      links?.large
+    ) ??
+    secureBookCoverUrl(
+      links?.medium
+    ) ??
+    secureBookCoverUrl(
+      links?.small
+    ) ??
+    secureBookCoverUrl(
+      links?.thumbnail
+    ) ??
+    secureBookCoverUrl(
+      links?.smallThumbnail
+    )
+  );
+}
+
+async function overlayCatalogCovers(
+  books: UserBook[]
+): Promise<UserBook[]> {
+  if (
+    books.length ===
+    0
+  ) {
+    return books;
+  }
+
+  try {
+    const ids =
+      Array.from(
+        new Set(
+          books.map(
+            (
+              book
+            ) =>
+              book.google_book_id
+          )
+        )
+      );
+
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from(
+          'google_books_catalog'
+        )
+        .select(
+          'google_book_id, metadata'
+        )
+        .in(
+          'google_book_id',
+          ids
+        );
+
+    if (
+      error ||
+      !data
+    ) {
+      return books;
+    }
+
+    const covers =
+      new Map<
+        string,
+        string
+      >();
+
+    for (
+      const row of data
+    ) {
+      const cover =
+        getCatalogCoverUrl(
+          row.metadata
+        );
+
+      if (
+        cover
+      ) {
+        covers.set(
+          row.google_book_id,
+          cover
+        );
+      }
+    }
+
+    return books.map(
+      (
+        book
+      ) => ({
+        ...book,
+        cover_url:
+          covers.get(
+            book.google_book_id
+          ) ??
+          book.cover_url,
+      })
+    );
+  } catch {
+    return books;
+  }
+}
+
 async function getCurrentUserId() {
   const {
     data: { user },
@@ -90,9 +237,24 @@ export async function getUserBook(
     throw error;
   }
 
-  return (
-    data as UserBook | null
-  );
+  const book =
+    data as UserBook | null;
+
+  if (
+    !book
+  ) {
+    return null;
+  }
+
+  const [
+    overlaid,
+  ] =
+    await overlayCatalogCovers([
+      book,
+    ]);
+
+  return overlaid ??
+    book;
 }
 
 export async function getUserBooks(
@@ -130,7 +292,7 @@ export async function getUserBooks(
     throw error;
   }
 
-  return (
+  return overlayCatalogCovers(
     (data ?? []) as UserBook[]
   );
 }
