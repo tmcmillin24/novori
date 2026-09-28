@@ -715,12 +715,12 @@ function getCanonicalWorkTitleForBook(
   return title;
 }
 
-function getLooseWorkTitle(
-  book: GoogleBookSearchItem
+function getLooseTitleValue(
+  value?: string
 ) {
   let title =
-    getCanonicalWorkTitleForBook(
-      book
+    getCanonicalWorkTitle(
+      value
     );
 
   title =
@@ -742,6 +742,41 @@ function getLooseWorkTitle(
     );
 
   return title.trim();
+}
+
+function getLooseWorkTitle(
+  book: GoogleBookSearchItem
+) {
+  return getLooseTitleValue(
+    book.volumeInfo.title
+  );
+}
+
+function isLikelyMultiBookSet(
+  book: GoogleBookSearchItem
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  return (
+    /\bbox(?:ed)? set\b/.test(
+      title
+    ) ||
+    /\bcomplete series\b/.test(
+      title
+    ) ||
+    /\bbooks?\s+\d+\s*(?:-|–|to|through)\s*\d+\b/.test(
+      title
+    ) ||
+    /\bvolumes?\s+\d+\s*(?:-|–|to|through)\s*\d+\b/.test(
+      title
+    ) ||
+    /\b\d+\s+book set\b/.test(
+      title
+    )
+  );
 }
 
 function getAuthorIdentity(
@@ -925,10 +960,18 @@ function collapseDuplicateEditions(
       usersCount: number;
       rating: number | null;
     }
-  > = {}
+  > = {},
+  options?: {
+    titleSearch?: boolean;
+  }
 ) {
   const normalizedQuery =
     normalizeTitle(
+      searchTerm
+    );
+
+  const looseQueryTitle =
+    getLooseTitleValue(
       searchTerm
     );
 
@@ -956,10 +999,26 @@ function collapseDuplicateEditions(
     const book of
       candidates
   ) {
-    const canonicalTitle =
+    const looseTitle =
       getLooseWorkTitle(
         book
       );
+
+    const canonicalTitle =
+      options?.titleSearch &&
+      looseQueryTitle &&
+      (
+        looseTitle ===
+          looseQueryTitle ||
+        looseTitle.startsWith(
+          `${looseQueryTitle} `
+        ) ||
+        looseQueryTitle.startsWith(
+          `${looseTitle} `
+        )
+      )
+        ? looseQueryTitle
+        : looseTitle;
 
     const primaryAuthor =
       getAuthorIdentity(
@@ -1502,9 +1561,19 @@ export async function searchNovoriBooks(
     );
   }
 
-  const initialResults =
+  const rawResults =
     response.data.items ??
     [];
+
+  const initialResults =
+    rawResults.filter(
+      (
+        book
+      ) =>
+        !isLikelyMultiBookSet(
+          book
+        )
+    );
 
   if (
     initialResults.length ===
@@ -1567,7 +1636,11 @@ export async function searchNovoriBooks(
     collapseDuplicateEditions(
       sorted,
       searchTerm,
-      {}
+      {},
+      {
+        titleSearch:
+          !looksLikeAuthorSearch,
+      }
     );
 
   void learnNormalizedGoogleBooksCatalog(
@@ -1702,7 +1775,11 @@ export async function searchAuthorBooks(
         popularity
       ),
       cleanAuthor,
-      popularity
+      popularity,
+      {
+        titleSearch:
+          false,
+      }
     );
 
   void learnNormalizedGoogleBooksCatalog(
