@@ -291,11 +291,15 @@ export default function BookStackVisual({
                 disabled={
                   !onSelect
                 }
-                onPress={() =>
+                onPress={(
+                  event
+                ) => {
+                  event.stopPropagation();
+
                   onSelect?.(
                     item
-                  )
-                }
+                  );
+                }}
                 style={[
                   styles.book,
                   {
