@@ -29,6 +29,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import CanonicalBookRating from '../components/CanonicalBookRating';
 import {
   NovoriColors,
 } from '../constants/novori-theme';
@@ -962,6 +963,18 @@ export default function CreateReadingUpdateScreen() {
                     selectedBook.authors
                   )}
                 </Text>
+
+                <CanonicalBookRating
+                  googleBookId={
+                    selectedBook.google_book_id
+                  }
+                  title={
+                    selectedBook.title
+                  }
+                  authors={
+                    selectedBook.authors
+                  }
+                />
 
                 <View
                   style={
