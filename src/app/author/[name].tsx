@@ -247,6 +247,22 @@ export default function AuthorScreen() {
                   currentBookId,
                 excludeTitle:
                   currentTitle,
+                onProgress: (
+                  progressiveResults
+                ) => {
+                  if (
+                    cancelled
+                  ) {
+                    return;
+                  }
+
+                  setBooks(
+                    progressiveResults
+                  );
+                  setLoading(
+                    false
+                  );
+                },
               }
             );
 
