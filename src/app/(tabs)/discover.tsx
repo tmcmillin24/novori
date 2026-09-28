@@ -1477,25 +1477,13 @@ export default function DiscoverScreen() {
     }
 
     try {
-      const apiKey =
-        process.env
-          .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-      if (
-        !apiKey
-      ) {
-        throw new Error(
-          'Google Books API key is missing.'
-        );
-      }
-
       const response =
         await fetchGoogleBooksJson<
           GoogleBooksResponse
         >(
           `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
             isbn
-          )}&maxResults=10&key=${apiKey}`
+          )}&maxResults=10`
         );
 
       if (
@@ -2439,15 +2427,6 @@ export default function DiscoverScreen() {
   async function findGoogleBookIdForTrending(
     trendingBook: TrendingBook
   ) {
-    const apiKey =
-      process.env.EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-    if (!apiKey) {
-      throw new Error(
-        'Google Books API key is missing.'
-      );
-    }
-
     const isbn =
       trendingBook.isbns[0];
 
@@ -2458,7 +2437,7 @@ export default function DiscoverScreen() {
         >(
           `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
             `isbn:${isbn}`
-          )}&maxResults=5&printType=books&key=${apiKey}`
+          )}&maxResults=5&printType=books`
         );
 
       if (
@@ -2510,7 +2489,7 @@ export default function DiscoverScreen() {
       >(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
           queryParts.join(' ')
-        )}&maxResults=20&printType=books&key=${apiKey}`
+        )}&maxResults=20&printType=books`
       );
 
     if (
