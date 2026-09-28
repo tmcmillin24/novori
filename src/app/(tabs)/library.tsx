@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
 import {
   useFocusEffect,
   useNavigation,
@@ -1619,16 +1618,15 @@ export default function LibraryScreen() {
           }
         >
           {item.cover_url ? (
-            <ExpoImage
-              source={
-                item.cover_url
-              }
+            <Image
+              source={{
+                uri:
+                  item.cover_url,
+              }}
               style={
                 styles.cover
               }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
+              resizeMode="cover"
             />
           ) : (
             <View
@@ -2102,16 +2100,15 @@ export default function LibraryScreen() {
                   }
                 >
                   {selectedBook.cover_url ? (
-                    <ExpoImage
-                      source={
-                        selectedBook.cover_url
-                      }
+                    <Image
+                      source={{
+                        uri:
+                          selectedBook.cover_url,
+                      }}
                       style={
                         styles.sheetCover
                       }
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={0}
+                      resizeMode="cover"
                     />
                   ) : (
                     <View
