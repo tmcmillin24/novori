@@ -200,7 +200,7 @@ export default function BookStackPostAttachment({
         }
       >
         <BookStackVisual
-          compact
+          variant="feed"
           items={
             stack.items
           }
@@ -260,7 +260,7 @@ function createStyles(
     },
 
     visual: {
-      minHeight: 250,
+      minHeight: 215,
       alignItems:
         'center',
       justifyContent:
