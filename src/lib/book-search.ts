@@ -1,8 +1,5 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
-import {
-  resolveBestWorkCover,
-} from './book-covers';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -15,6 +12,7 @@ export type GoogleBookSearchItem = {
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
     canonicalCoverUrl?: string | null;
+    canonicalGoogleCoverTier?: number;
   };
   volumeInfo: {
     title?: string;
@@ -1196,6 +1194,104 @@ export function getBestSearchCover(
   );
 }
 
+function getGoogleCoverTier(
+  imageLinks:
+    | GoogleBookSearchItem[
+        'volumeInfo'
+      ]['imageLinks']
+    | undefined
+) {
+  if (
+    imageLinks?.extraLarge
+  ) {
+    return 6;
+  }
+
+  if (
+    imageLinks?.large
+  ) {
+    return 5;
+  }
+
+  if (
+    imageLinks?.medium
+  ) {
+    return 4;
+  }
+
+  if (
+    imageLinks?.small
+  ) {
+    return 3;
+  }
+
+  if (
+    imageLinks?.thumbnail
+  ) {
+    return 2;
+  }
+
+  if (
+    imageLinks?.smallThumbnail
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getBestGoogleWorkCover(
+  editions:
+    GoogleBookSearchItem[]
+) {
+  const ranked =
+    [...editions]
+      .map(
+        (
+          edition
+        ) => ({
+          edition,
+          tier:
+            getGoogleCoverTier(
+              edition.volumeInfo
+                .imageLinks
+            ),
+          cover:
+            getBestSearchCover(
+              edition.volumeInfo
+                .imageLinks
+            ),
+        })
+      )
+      .filter(
+        (
+          candidate
+        ) =>
+          Boolean(
+            candidate.cover
+          )
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.tier -
+          a.tier
+      );
+
+  return {
+    url:
+      ranked[0]
+        ?.cover ??
+      null,
+    tier:
+      ranked[0]
+        ?.tier ??
+      0,
+  };
+}
+
 export async function searchNovoriBooks(
   searchTerm: string
 ) {
@@ -1318,45 +1414,17 @@ export async function searchNovoriBooks(
               )
           );
 
-        const editions =
-          siblingEditions.map(
-            (
-              candidate
-            ) => ({
-              imageLinks:
-                candidate
-                  .volumeInfo
-                  .imageLinks,
-              isbn:
-                getBookIsbns(
-                  candidate
-                )[0] ??
-                null,
-            })
+        const canonicalGoogleCover =
+          getBestGoogleWorkCover(
+            siblingEditions
           );
-
-        for (
-          const isbn of
-            work.isbns
-        ) {
-          editions.push({
-            imageLinks:
-              undefined,
-            isbn,
-          });
-        }
-
-        const canonicalCover =
-          await resolveBestWorkCover({
-            editions,
-            existingCoverUrl:
-              undefined,
-          });
 
         representative.novoriWork = {
           ...work,
           canonicalCoverUrl:
-            canonicalCover.url,
+            canonicalGoogleCover.url,
+          canonicalGoogleCoverTier:
+            canonicalGoogleCover.tier,
         };
       }
     )
