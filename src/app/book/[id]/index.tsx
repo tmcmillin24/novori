@@ -2535,6 +2535,8 @@ export default function BookDetailsScreen() {
                 source={{
                   uri:
                     cover,
+                  cache:
+                    'reload',
                 }}
                 style={
                   styles.libraryBookCover
