@@ -146,7 +146,7 @@ function formatActivityTime(
 }
 
 const PROFILE_STALE_MS =
-  60 * 1000;
+  2 * 60 * 1000;
 
 type ProfileTab =
   | 'library'
@@ -176,6 +176,16 @@ type ProfileCacheSnapshot = {
   clubs: ClubWithMembership[];
   stacks: BookStack[];
 };
+
+let profileSessionCache:
+  | {
+      userId: string;
+      snapshot: ProfileCacheSnapshot;
+      refreshedAt: number;
+      libraryMutationVersion: number;
+    }
+  | null =
+  null;
 
 function profileCacheKey(
   userId: string
@@ -268,19 +278,12 @@ export default function ProfileScreen() {
   const lastProfileRefreshRef =
     useRef(0);
 
-  const forceProfileRefreshRef =
-    useRef(false);
-
   const lastSeenLibraryMutationRef =
     useRef(
+      profileSessionCache
+        ?.libraryMutationVersion ??
       getLibraryMutationVersion()
     );
-
-  const [
-    profileRefreshKey,
-    setProfileRefreshKey,
-  ] =
-    useState(0);
 
   const [
     activeTab,
@@ -394,11 +397,6 @@ export default function ProfileScreen() {
 
       let isMounted = true;
 
-      const forceRefresh =
-        forceProfileRefreshRef.current;
-      forceProfileRefreshRef.current =
-        false;
-
       const currentLibraryMutationVersion =
         getLibraryMutationVersion();
 
@@ -414,7 +412,6 @@ export default function ProfileScreen() {
 
       if (
         profileIsFresh &&
-        !forceRefresh &&
         !libraryChanged
       ) {
         return () => {
@@ -439,6 +436,14 @@ export default function ProfileScreen() {
           session?.user ??
           null;
 
+        const memoryCache =
+          user &&
+          profileSessionCache
+            ?.userId ===
+            user.id
+            ? profileSessionCache
+            : null;
+
         if (
           sessionError ||
           !user
@@ -457,6 +462,54 @@ export default function ProfileScreen() {
             '/auth'
           );
 
+          return;
+        }
+
+        if (
+          memoryCache &&
+          Date.now() -
+            memoryCache.refreshedAt <
+            PROFILE_STALE_MS &&
+          !libraryChanged
+        ) {
+          const snapshot =
+            memoryCache.snapshot;
+
+          if (
+            isMounted
+          ) {
+            setProfile(
+              snapshot.profile
+            );
+            setBooks(
+              snapshot.books
+            );
+            setFollowerCount(
+              snapshot.followerCount
+            );
+            setFollowingCount(
+              snapshot.followingCount
+            );
+            setPosts(
+              snapshot.posts
+            );
+            setClubs(
+              snapshot.clubs
+            );
+            setStacks(
+              snapshot.stacks
+            );
+            setProfileHydrated(
+              true
+            );
+          }
+
+          hasLoadedProfileRef.current =
+            true;
+          lastProfileRefreshRef.current =
+            memoryCache.refreshedAt;
+          lastSeenLibraryMutationRef.current =
+            memoryCache.libraryMutationVersion;
           return;
         }
 
@@ -703,12 +756,24 @@ export default function ProfileScreen() {
             );
           }
 
+          const refreshedAt =
+            Date.now();
+
           hasLoadedProfileRef.current =
             true;
           lastSeenLibraryMutationRef.current =
             currentLibraryMutationVersion;
           lastProfileRefreshRef.current =
-            Date.now();
+            refreshedAt;
+
+          profileSessionCache = {
+            userId:
+              user.id,
+            snapshot,
+            refreshedAt,
+            libraryMutationVersion:
+              currentLibraryMutationVersion,
+          };
 
           void writeProfileCache(
             user.id,
@@ -758,7 +823,6 @@ export default function ProfileScreen() {
       };
     }, [
       router,
-      profileRefreshKey,
     ])
   );
 
@@ -788,15 +852,9 @@ export default function ProfileScreen() {
               return;
             }
 
-            forceProfileRefreshRef.current =
-              true;
-            setProfileRefreshKey(
-              (
-                current
-              ) =>
-                current +
-                1
-            );
+            // Keep the in-memory Profile snapshot. Book mutations
+            // invalidate it immediately, and the two-minute TTL covers
+            // remote social/profile changes.
           }
         );
 
