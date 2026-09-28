@@ -12,11 +12,11 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      detachInactiveScreens
+      detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
         animation: 'none',
-        freezeOnBlur: true,
+        freezeOnBlur: false,
 
         sceneStyle: {
           backgroundColor: colors.background,
@@ -58,7 +58,6 @@ export default function TabLayout() {
         name="discover"
         options={{
           title: 'Discover',
-          freezeOnBlur: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'compass' : 'compass-outline'}
