@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  useLocalSearchParams,
   useRouter,
 } from 'expo-router';
 import {
@@ -42,9 +43,13 @@ import {
   BookStackDraftItem,
   createBookStack,
   deleteBookStack,
+  getBookStack,
+  updateBookStack,
 } from '../lib/book-stacks';
 import {
   createPost,
+  getPostDetail,
+  updatePost,
 } from '../lib/feed';
 
 const MAX_STACK_BOOKS = 10;
@@ -53,6 +58,30 @@ const MIN_STACK_BOOKS = 2;
 export default function CreateBookStackScreen() {
   const router =
     useRouter();
+
+  const params =
+    useLocalSearchParams<{
+      editPostId?: string;
+      stackId?: string;
+    }>();
+
+  const editPostId =
+    typeof params.editPostId ===
+    'string'
+      ? params.editPostId
+      : '';
+
+  const editStackId =
+    typeof params.stackId ===
+    'string'
+      ? params.stackId
+      : '';
+
+  const isEditing =
+    Boolean(
+      editPostId &&
+      editStackId
+    );
 
   const {
     colors,
@@ -135,6 +164,14 @@ export default function CreateBookStackScreen() {
     useState(false);
 
   const [
+    loadingExistingStack,
+    setLoadingExistingStack,
+  ] =
+    useState(
+      isEditing
+    );
+
+  const [
     draggingBookId,
     setDraggingBookId,
   ] =
@@ -182,6 +219,108 @@ export default function CreateBookStackScreen() {
 
   const requestRef =
     useRef(0);
+
+  useEffect(() => {
+    let active =
+      true;
+
+    async function loadExistingStack() {
+      if (
+        !isEditing
+      ) {
+        setLoadingExistingStack(
+          false
+        );
+        return;
+      }
+
+      try {
+        const [
+          stack,
+          post,
+        ] =
+          await Promise.all([
+            getBookStack(
+              editStackId
+            ),
+            getPostDetail(
+              editPostId
+            ),
+          ]);
+
+        if (
+          !active
+        ) {
+          return;
+        }
+
+        setName(
+          stack.name
+        );
+
+        setItems(
+          stack.items.map(
+            (
+              item
+            ) => ({
+              googleBookId:
+                item.google_book_id,
+              title:
+                item.title,
+              authors:
+                item.authors,
+              coverUrl:
+                item.cover_url,
+            })
+          )
+        );
+
+        setPostText(
+          post.body
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          'Could not load Book Stack for editing:',
+          error
+        );
+
+        Alert.alert(
+          'Could not load stack',
+          'Please try again.',
+          [
+            {
+              text:
+                'OK',
+              onPress: () =>
+                router.back(),
+            },
+          ]
+        );
+      } finally {
+        if (
+          active
+        ) {
+          setLoadingExistingStack(
+            false
+          );
+        }
+      }
+    }
+
+    void loadExistingStack();
+
+    return () => {
+      active =
+        false;
+    };
+  }, [
+    editPostId,
+    editStackId,
+    isEditing,
+    router,
+  ]);
 
   useEffect(() => {
     if (
@@ -671,24 +810,44 @@ export default function CreateBookStackScreen() {
         true
       );
 
-      const stack =
-        await createBookStack(
-          name,
-          items
+      if (
+        isEditing
+      ) {
+        const stack =
+          await updateBookStack(
+            editStackId,
+            name,
+            items
+          );
+
+        await updatePost(
+          editPostId,
+          {
+            body:
+              postText.trim() ||
+              stack.name,
+          }
         );
+      } else {
+        const stack =
+          await createBookStack(
+            name,
+            items
+          );
 
-      createdStackId =
-        stack.id;
+        createdStackId =
+          stack.id;
 
-      await createPost({
-        body:
-          postText.trim() ||
-          stack.name,
-        postType:
-          'book_stack',
-        bookStackId:
-          stack.id,
-      });
+        await createPost({
+          body:
+            postText.trim() ||
+            stack.name,
+          postType:
+            'book_stack',
+          bookStackId:
+            stack.id,
+        });
+      }
 
       router.replace(
         '/(tabs)'
@@ -822,6 +981,35 @@ export default function CreateBookStackScreen() {
     );
 
   if (
+    loadingExistingStack
+  ) {
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+      >
+        <View
+          style={{
+            flex: 1,
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
+          }}
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              colors.gold
+            }
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (
     previewing
   ) {
     return (
@@ -860,7 +1048,9 @@ export default function CreateBookStackScreen() {
               styles.headerTitle
             }
           >
-            Preview
+            {isEditing
+              ? 'Edit Preview'
+              : 'Preview'}
           </Text>
 
           <View
@@ -1014,7 +1204,9 @@ export default function CreateBookStackScreen() {
                     styles.publishButtonText
                   }
                 >
-                  Publish
+                  {isEditing
+                    ? 'Save Changes'
+                    : 'Publish'}
                 </Text>
 
                 <Ionicons
