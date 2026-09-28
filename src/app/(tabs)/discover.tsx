@@ -34,6 +34,7 @@ import {
   searchNovoriBooks,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
+import { fetchGoogleBooksJson } from '../../lib/google-books';
 import {
   cancelFollowRequest,
   followReader,
@@ -1490,14 +1491,17 @@ export default function DiscoverScreen() {
       }
 
       const response =
-        await fetch(
+        await fetchGoogleBooksJson<
+          GoogleBooksResponse
+        >(
           `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
             isbn
           )}&maxResults=10&key=${apiKey}`
         );
 
       if (
-        !response.ok
+        !response.ok ||
+        !response.data
       ) {
         throw new Error(
           `Google Books request failed with status ${response.status}.`
@@ -1505,7 +1509,7 @@ export default function DiscoverScreen() {
       }
 
       const payload =
-        await response.json() as GoogleBooksResponse;
+        response.data;
 
       const matches =
         payload.items ??
@@ -2491,19 +2495,24 @@ export default function DiscoverScreen() {
     for (
       const isbn of trendingBook.isbns.slice(0, 6)
     ) {
-      const response = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          `isbn:${isbn}`
-        )}&maxResults=5&printType=books&key=${apiKey}`
-      );
+      const response =
+        await fetchGoogleBooksJson<
+          GoogleBooksResponse
+        >(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            `isbn:${isbn}`
+          )}&maxResults=5&printType=books&key=${apiKey}`
+        );
 
-      if (!response.ok) {
+      if (
+        !response.ok ||
+        !response.data
+      ) {
         continue;
       }
 
-      const data:
-        GoogleBooksResponse =
-        await response.json();
+      const data =
+        response.data;
 
       const results =
         data.items ?? [];
@@ -2542,21 +2551,26 @@ export default function DiscoverScreen() {
       );
     }
 
-    const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-        queryParts.join(' ')
-      )}&maxResults=20&printType=books&key=${apiKey}`
-    );
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          queryParts.join(' ')
+        )}&maxResults=20&printType=books&key=${apiKey}`
+      );
 
-    if (!response.ok) {
+    if (
+      !response.ok ||
+      !response.data
+    ) {
       throw new Error(
         `Google Books search failed: ${response.status}`
       );
     }
 
-    const data:
-      GoogleBooksResponse =
-      await response.json();
+    const data =
+      response.data;
 
     const results =
       data.items ?? [];
