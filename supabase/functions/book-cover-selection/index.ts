@@ -539,6 +539,13 @@ Deno.serve(
         ] =
           selectedUrl;
 
+        const authoritativeCoverUrl =
+          selectedUrl &&
+          selection
+            ?.locked
+            ? selectedUrl
+            : null;
+
         canonicalBooks[
           volumeId
         ] =
@@ -574,7 +581,7 @@ Deno.serve(
                   canonicalEdition
                     .pageCount,
                 coverUrl:
-                  selectedUrl ??
+                  authoritativeCoverUrl ??
                   canonicalEdition
                     .coverUrl,
                 imageLinks:
