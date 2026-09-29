@@ -30,7 +30,10 @@ import {
   resolveBookCoverUrl,
 } from '../../../lib/book-covers';
 import { useNovoriTheme } from '../../../context/theme-context';
-import { fetchGoogleBooksJson } from '../../../lib/google-books';
+import {
+  fetchGoogleBooksJson,
+  resolveGoogleBooksIdentity,
+} from '../../../lib/google-books';
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
@@ -284,6 +287,55 @@ async function resolveClickedDiscoverBook(
     )
   ) {
     return initialBook;
+  }
+
+  if (clickedTitle) {
+    try {
+      const identity =
+        await resolveGoogleBooksIdentity({
+          title:
+            clickedTitle,
+          author:
+            clickedAuthors[0],
+          isbn:
+            clickedIsbn,
+        });
+
+      if (
+        identity.ok &&
+        identity.googleBookId
+      ) {
+        const detail =
+          await fetchGoogleBooksJson<
+            GoogleBook
+          >(
+            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+              identity.googleBookId
+            )}`
+          );
+
+        if (
+          detail.ok &&
+          detail.data &&
+          bookMatchesClickedIdentity(
+            detail.data,
+            clickedTitle,
+            clickedAuthors
+          )
+        ) {
+          return detail.data;
+        }
+      }
+
+      if (
+        identity.status ===
+          429
+      ) {
+        return null;
+      }
+    } catch {
+      // Fall through to the existing targeted searches.
+    }
   }
 
   const queries: string[] =
@@ -1995,6 +2047,68 @@ export default function BookDetailsScreen() {
                 a.isbnMatches
               )
         );
+    }
+
+    try {
+      const identity =
+        await resolveGoogleBooksIdentity({
+          title:
+            seriesBook.title,
+          author,
+          isbn:
+            wantedIsbns[0],
+        });
+
+      if (
+        identity.ok &&
+        identity.googleBookId
+      ) {
+        const detail =
+          await fetchGoogleBooksJson<
+            GoogleBook
+          >(
+            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+              identity.googleBookId
+            )}`
+          );
+
+        if (
+          detail.ok &&
+          detail.data
+        ) {
+          const [
+            identityCandidate,
+          ] =
+            rankResults([
+              detail.data,
+            ]);
+
+          if (
+            identityCandidate &&
+            (
+              identityCandidate
+                .isbnMatches ||
+              (
+                identityCandidate
+                  .exactTitle &&
+                identityCandidate
+                  .authorMatches
+              )
+            )
+          ) {
+            return detail.data;
+          }
+        }
+      }
+
+      if (
+        identity.status ===
+          429
+      ) {
+        return null;
+      }
+    } catch {
+      // Fall through to the progressive series searches.
     }
 
     const queries =
