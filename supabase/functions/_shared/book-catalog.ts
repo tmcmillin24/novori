@@ -2,6 +2,10 @@ import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import {
+  selectCanonicalGoogleCoversForWorkIds,
+} from './book-cover-selector.ts';
+
 const GOOGLE_PROVIDER =
   'google_books';
 
@@ -1093,8 +1097,34 @@ export async function recordGoogleBooksInCatalog(
           'Could not update Novori Google cover candidates:',
           coverCandidateError.message
         );
+        return;
       }
     }
+
+    await selectCanonicalGoogleCoversForWorkIds(
+      supabaseAdmin,
+      Array.from(
+        new Set(
+          prepared
+            .map(
+              (
+                book
+              ) =>
+                workIds.get(
+                  book.workKey
+                )
+            )
+            .filter(
+              (
+                workId
+              ): workId is string =>
+                Boolean(
+                  workId
+                )
+            )
+        )
+      )
+    );
   } catch (
     error
   ) {
