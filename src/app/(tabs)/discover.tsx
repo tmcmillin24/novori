@@ -1832,8 +1832,6 @@ export default function DiscoverScreen() {
             exactMatch.volumeInfo
               .authors,
           isbn,
-          exactEdition:
-            true,
         }
       );
     } catch (
@@ -2708,7 +2706,6 @@ export default function DiscoverScreen() {
       authors?: string[];
       isbn?: string;
       canonicalizeWork?: boolean;
-      exactEdition?: boolean;
     }
   ) {
     router.push({
@@ -2746,12 +2743,6 @@ export default function DiscoverScreen() {
         ...(options?.canonicalizeWork
           ? {
               canonicalizeWork:
-                '1',
-            }
-          : {}),
-        ...(options?.exactEdition
-          ? {
-              exactEdition:
                 '1',
             }
           : {}),
@@ -3142,11 +3133,6 @@ export default function DiscoverScreen() {
             }
             existingCoverUrl={
               canonicalCover
-            }
-            preferExistingCover={
-              Boolean(
-                canonicalCover
-              )
             }
             style={
               styles.cover
