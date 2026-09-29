@@ -247,6 +247,8 @@ Deno.serve(
         !selection ||
         selection.status !==
           'selected' ||
+        selection.locked !==
+          true ||
         !selection.candidate_id
       ) {
         return jsonResponse(
@@ -266,6 +268,8 @@ Deno.serve(
                 null,
               locked:
                 selection?.locked ??
+                false,
+              authoritative:
                 false,
               url:
                 null,
@@ -326,6 +330,8 @@ Deno.serve(
               selection.score,
             locked:
               selection.locked,
+            authoritative:
+              true,
             url:
               selectedUrl,
             provider:
