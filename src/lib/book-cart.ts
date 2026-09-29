@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import {
   CanonicalBookPresentation,
   getCanonicalBookPresentations,
-} from './user-books';
+} from './canonical-books';
 
 export type BookCartItem = {
   id: string;
