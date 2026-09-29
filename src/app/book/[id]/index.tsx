@@ -3641,9 +3641,9 @@ export default function BookDetailsScreen() {
                 >
                   <Ionicons
                     name="star-outline"
-                    size={18}
+                    size={17}
                     color={
-                      colors.gold
+                      colors.secondaryText
                     }
                   />
                 </View>
@@ -3658,9 +3658,9 @@ export default function BookDetailsScreen() {
 
                 <Ionicons
                   name="chevron-forward"
-                  size={18}
+                  size={17}
                   color={
-                    colors.gold
+                    colors.mutedText
                   }
                 />
               </Pressable>
@@ -6334,37 +6334,38 @@ function createStyles(
   },
 
   reviewEmptyAction: {
-    minHeight: 52,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
     marginTop: 8,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingHorizontal: 11,
+    borderRadius: 12,
     backgroundColor:
-      colors.elevated,
-    borderWidth: 1,
+      colors.surface,
+    borderWidth:
+      StyleSheet.hairlineWidth,
     borderColor:
-      colors.gold,
+      colors.border,
   },
 
   reviewEmptyActionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor:
-      colors.surface,
+      colors.elevated,
   },
 
   reviewEmptyActionText: {
     flex: 1,
     color:
-      colors.softGold,
+      colors.secondaryText,
     fontFamily:
-      'Inter_700Bold',
-    fontSize: 13.5,
+      'Inter_600SemiBold',
+    fontSize: 12.5,
   },
 
   libraryDetailsSection: {
