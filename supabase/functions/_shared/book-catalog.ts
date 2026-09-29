@@ -8,6 +8,15 @@ const GOOGLE_PROVIDER =
 const WORK_IDENTITY_VERSION =
   1;
 
+const GOOGLE_COVER_VARIANTS = [
+  'extraLarge',
+  'large',
+  'medium',
+  'small',
+  'thumbnail',
+  'smallThumbnail',
+] as const;
+
 type GoogleBookItem = {
   id?: unknown;
   volumeInfo?: {
@@ -100,6 +109,22 @@ function nullableString(
 
   return cleaned ||
     null;
+}
+
+function secureCoverUrl(
+  value: unknown
+) {
+  const cleaned =
+    nullableString(
+      value
+    );
+
+  return cleaned
+    ? cleaned.replace(
+        /^http:\/\//i,
+        'https://'
+      )
+    : null;
 }
 
 function normalizeText(
@@ -595,7 +620,11 @@ export async function recordGoogleBooksInCatalog(
   supabaseAdmin:
     SupabaseClient,
   payload: unknown,
-  detailComplete: boolean
+  detailComplete: boolean,
+  discoverySource =
+    detailComplete
+      ? 'google_detail'
+      : 'google_search'
 ) {
   try {
     const prepared =
@@ -876,43 +905,426 @@ export async function recordGoogleBooksInCatalog(
         );
 
     if (
-      editions.length ===
+      editions.length >
         0
     ) {
-      return;
+      const {
+        error:
+          editionUpsertError,
+      } =
+        await supabaseAdmin
+          .from(
+            'book_editions'
+          )
+          .upsert(
+            editions,
+            {
+              onConflict:
+                'provider,provider_book_id',
+            }
+          );
+
+      if (
+        editionUpsertError
+      ) {
+        console.warn(
+          'Could not update Novori book editions catalog:',
+          editionUpsertError.message
+        );
+        return;
+      }
     }
 
     const {
+      data:
+        editionRows,
       error:
-        editionUpsertError,
+        editionRowsError,
     } =
       await supabaseAdmin
         .from(
           'book_editions'
         )
+        .select(
+          'id, work_id, provider_book_id'
+        )
+        .eq(
+          'provider',
+          GOOGLE_PROVIDER
+        )
+        .in(
+          'provider_book_id',
+          providerIds
+        );
+
+    if (
+      editionRowsError
+    ) {
+      console.warn(
+        'Could not read Novori editions for cover discovery:',
+        editionRowsError.message
+      );
+      return;
+    }
+
+    const editionsByProviderId =
+      new Map<
+        string,
+        {
+          id: string;
+          workId: string;
+        }
+      >(
+        (
+          editionRows ??
+          []
+        ).map(
+          (
+            row
+          ) => [
+            row.provider_book_id as
+              string,
+            {
+              id:
+                row.id as
+                  string,
+              workId:
+                row.work_id as
+                  string,
+            },
+          ]
+        )
+      );
+
+    const coverCandidates:
+      Record<
+        string,
+        unknown
+      >[] =
+      [];
+
+    for (
+      const book of
+        prepared
+    ) {
+      const edition =
+        editionsByProviderId.get(
+          book.googleBookId
+        );
+
+      if (
+        !edition ||
+        !book.imageLinks
+      ) {
+        continue;
+      }
+
+      for (
+        const variant of
+          GOOGLE_COVER_VARIANTS
+      ) {
+        const url =
+          secureCoverUrl(
+            book.imageLinks[
+              variant
+            ]
+          );
+
+        if (!url) {
+          continue;
+        }
+
+        coverCandidates.push({
+          candidate_key:
+            `google_books:${book.googleBookId}:${variant}`,
+          work_id:
+            edition.workId,
+          edition_id:
+            edition.id,
+          scope:
+            'edition',
+          provider:
+            GOOGLE_PROVIDER,
+          source_kind:
+            'image_link',
+          source_variant:
+            variant,
+          external_id:
+            book.googleBookId,
+          url,
+          discovery_source:
+            discoverySource,
+          source_metadata: {
+            detailComplete,
+            googleBookId:
+              book.googleBookId,
+            variant,
+          },
+          last_seen_at:
+            now,
+        });
+      }
+    }
+
+    if (
+      coverCandidates.length >
+        0
+    ) {
+      const {
+        error:
+          coverCandidateError,
+      } =
+        await supabaseAdmin
+          .from(
+            'book_cover_candidates'
+          )
+          .upsert(
+            coverCandidates,
+            {
+              onConflict:
+                'candidate_key',
+            }
+          );
+
+      if (
+        coverCandidateError
+      ) {
+        console.warn(
+          'Could not update Novori Google cover candidates:',
+          coverCandidateError.message
+        );
+      }
+    }
+  } catch (
+    error
+  ) {
+    // Catalog and candidate discovery are intentionally best effort.
+    // They must never block the existing book experience.
+    console.warn(
+      'Novori book catalog ingestion failed:',
+      error
+    );
+  }
+}
+
+export async function recordOpenLibraryWorkCoverCandidates(
+  supabaseAdmin:
+    SupabaseClient,
+  {
+    title,
+    author,
+    openLibraryWorkKey,
+    coverIds,
+    discoverySource =
+      'open_library_work',
+  }: {
+    title: string;
+    author: string;
+    openLibraryWorkKey?:
+      | string
+      | null;
+    coverIds: number[];
+    discoverySource?: string;
+  }
+) {
+  try {
+    const validCoverIds =
+      Array.from(
+        new Set(
+          coverIds.filter(
+            (
+              coverId
+            ) =>
+              Number.isFinite(
+                coverId
+              ) &&
+              coverId >
+                0
+          )
+        )
+      );
+
+    if (
+      validCoverIds.length ===
+        0
+    ) {
+      return;
+    }
+
+    const cleanTitle =
+      title.trim();
+
+    const cleanAuthor =
+      author.trim();
+
+    const normalizedTitle =
+      canonicalWorkTitleForBook(
+        cleanTitle,
+        cleanAuthor ||
+          null
+      );
+
+    if (
+      !normalizedTitle
+    ) {
+      return;
+    }
+
+    const normalizedAuthor =
+      normalizeText(
+        cleanAuthor
+      );
+
+    const workKey =
+      `${normalizedTitle}::${normalizedAuthor}`;
+
+    const {
+      error:
+        workUpsertError,
+    } =
+      await supabaseAdmin
+        .from(
+          'book_works'
+        )
         .upsert(
-          editions,
+          {
+            work_key:
+              workKey,
+            identity_version:
+              WORK_IDENTITY_VERSION,
+            title:
+              cleanTitle,
+            primary_author:
+              cleanAuthor ||
+              null,
+            normalized_title:
+              normalizedTitle,
+            normalized_primary_author:
+              normalizedAuthor,
+          },
           {
             onConflict:
-              'provider,provider_book_id',
+              'work_key',
+            ignoreDuplicates:
+              true,
           }
         );
 
     if (
-      editionUpsertError
+      workUpsertError
     ) {
       console.warn(
-        'Could not update Novori book editions catalog:',
-        editionUpsertError.message
+        'Could not prepare Novori work for Open Library covers:',
+        workUpsertError.message
+      );
+      return;
+    }
+
+    const {
+      data:
+        workRow,
+      error:
+        workReadError,
+    } =
+      await supabaseAdmin
+        .from(
+          'book_works'
+        )
+        .select(
+          'id'
+        )
+        .eq(
+          'work_key',
+          workKey
+        )
+        .maybeSingle();
+
+    if (
+      workReadError ||
+      !workRow?.id
+    ) {
+      if (
+        workReadError
+      ) {
+        console.warn(
+          'Could not read Novori work for Open Library covers:',
+          workReadError.message
+        );
+      }
+      return;
+    }
+
+    const now =
+      new Date()
+        .toISOString();
+
+    const candidates =
+      validCoverIds.map(
+        (
+          coverId
+        ) => ({
+          candidate_key:
+            `open_library:${workRow.id}:cover_id:${coverId}`,
+          work_id:
+            workRow.id,
+          edition_id:
+            null,
+          scope:
+            'work',
+          provider:
+            'open_library',
+          source_kind:
+            'cover_id',
+          source_variant:
+            'L',
+          external_id:
+            String(
+              coverId
+            ),
+          url:
+            `https://covers.openlibrary.org/b/id/${coverId}-L.jpg?default=false`,
+          discovery_source:
+            discoverySource,
+          source_metadata: {
+            openLibraryWorkKey:
+              openLibraryWorkKey ??
+              null,
+            coverId,
+          },
+          last_seen_at:
+            now,
+        })
+      );
+
+    const {
+      error:
+        candidateError,
+    } =
+      await supabaseAdmin
+        .from(
+          'book_cover_candidates'
+        )
+        .upsert(
+          candidates,
+          {
+            onConflict:
+              'candidate_key',
+          }
+        );
+
+    if (
+      candidateError
+    ) {
+      console.warn(
+        'Could not update Novori Open Library cover candidates:',
+        candidateError.message
       );
     }
   } catch (
     error
   ) {
-    // Catalog building is intentionally best effort in Phase 5.
-    // It must never block the existing book experience.
     console.warn(
-      'Novori book catalog ingestion failed:',
+      'Novori Open Library cover discovery failed:',
       error
     );
   }
