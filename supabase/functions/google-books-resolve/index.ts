@@ -2,6 +2,13 @@ import {
   createClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import {
+  cacheRowIsFresh,
+  claimApiCacheRefresh,
+  jitteredDurationMs,
+  waitForApiCacheFill,
+} from '../_shared/api-cache-guard.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -497,13 +504,17 @@ async function writeCache(
   const expiresAt =
     new Date(
       fetchedAt.getTime() +
-        freshMs
+        jitteredDurationMs(
+          freshMs
+        )
     );
 
   const staleUntil =
     new Date(
       fetchedAt.getTime() +
-        staleMs
+        jitteredDurationMs(
+          staleMs
+        )
     );
 
   const {
@@ -871,6 +882,105 @@ Deno.serve(
               reason:
                 'soft_quota_guard',
             },
+          }
+        );
+      }
+
+      const refreshOwnerToken =
+        crypto.randomUUID();
+
+      const refreshClaim =
+        await claimApiCacheRefresh(
+          supabaseAdmin,
+          PROVIDER,
+          requestKey,
+          refreshOwnerToken
+        );
+
+      if (
+        !refreshClaim.acquired
+      ) {
+        if (
+          staleAvailable
+        ) {
+          await recordCacheHit(
+            supabaseAdmin,
+            requestKey,
+            true
+          );
+
+          return jsonResponse(
+            {
+              ok: true,
+              status: 200,
+              data:
+                cache
+                  ?.response_json,
+              cache: {
+                status:
+                  'stale',
+                googleRequestMade:
+                  false,
+                reason:
+                  'refresh_in_progress',
+              },
+            }
+          );
+        }
+
+        const filledCache =
+          await waitForApiCacheFill(
+            supabaseAdmin,
+            PROVIDER,
+            requestKey
+          );
+
+        if (
+          filledCache
+        ) {
+          const filledIsFresh =
+            cacheRowIsFresh(
+              filledCache
+            );
+
+          await recordCacheHit(
+            supabaseAdmin,
+            requestKey,
+            !filledIsFresh
+          );
+
+          return jsonResponse(
+            {
+              ok: true,
+              status: 200,
+              data:
+                filledCache
+                  .response_json,
+              cache: {
+                status:
+                  filledIsFresh
+                    ? 'hit'
+                    : 'stale',
+                googleRequestMade:
+                  false,
+                reason:
+                  'waited_for_refresh',
+                expiresAt:
+                  filledCache
+                    .expires_at,
+              },
+            }
+          );
+        }
+
+        return jsonResponse(
+          {
+            ok: false,
+            status: 409,
+            error:
+              'This book mapping is already being refreshed. Please try again.',
+            reason:
+              'refresh_in_progress',
           }
         );
       }
