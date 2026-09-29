@@ -1184,6 +1184,18 @@ export default function ReadingDetailsScreen() {
       .journey_status ===
     'paused';
 
+  const needsHistoryDate =
+    Boolean(
+      isFinished &&
+        !data?.book
+          .finished_at
+    ) ||
+    Boolean(
+      isDnf &&
+        !data?.book
+          .dnf_at
+    );
+
   const resumeEyebrow =
     isFinished
       ? 'READING COMPLETED'
@@ -1876,12 +1888,6 @@ export default function ReadingDetailsScreen() {
             endedDateInput
           );
 
-        if (!finishedAt) {
-          throw new Error(
-            'A finished date is required for a finished book.'
-          );
-        }
-
         dnfAt =
           null;
       }
@@ -1894,12 +1900,6 @@ export default function ReadingDetailsScreen() {
           parseDateInput(
             endedDateInput
           );
-
-        if (!dnfAt) {
-          throw new Error(
-            'A stopped date is required for a DNF book.'
-          );
-        }
 
         finishedAt =
           null;
@@ -2426,22 +2426,46 @@ export default function ReadingDetailsScreen() {
           </View>
 
           <View
-            style={
-              styles.timelineCard
-            }
+            style={[
+              styles.timelineCard,
+              needsHistoryDate &&
+                styles.timelineCardNeedsDates,
+            ]}
           >
             <View
               style={
                 styles.timelineHeader
               }
             >
-              <Text
+              <View
                 style={
-                  styles.timelineHeaderText
+                  styles.timelineHeaderCopy
                 }
               >
-                Reading dates
-              </Text>
+                <Text
+                  style={
+                    styles.timelineHeaderText
+                  }
+                >
+                  {needsHistoryDate
+                    ? 'Add reading dates'
+                    : 'Reading dates'}
+                </Text>
+
+                {needsHistoryDate ? (
+                  <Text
+                    style={
+                      styles.timelineHeaderPrompt
+                    }
+                  >
+                    Add a {
+                      isFinished
+                        ? 'finish'
+                        : 'stopped'
+                    } date to place this book in your reading history.
+                  </Text>
+                ) : null}
+              </View>
 
               <Pressable
                 onPress={
@@ -2559,7 +2583,7 @@ export default function ReadingDetailsScreen() {
                             data.book
                               .dnf_at
                           )
-                        : 'Not recorded'
+                        : 'Date not added'
                       : data.book
                           .finished_at
                       ? formatDate(
@@ -2570,7 +2594,7 @@ export default function ReadingDetailsScreen() {
                           .status ===
                         'reading'
                       ? 'In progress'
-                      : 'Not finished'
+                      : 'Date not added'
                   }
                 </Text>
               </View>
@@ -3636,7 +3660,9 @@ export default function ReadingDetailsScreen() {
                           styles.modalSubtitle
                         }
                       >
-                        Adjust dates if you started or finished on a different day.
+                        {needsHistoryDate
+                          ? 'Add the dates you remember. Start date is optional.'
+                          : 'Adjust dates if you started or finished on a different day.'}
                       </Text>
                     </View>
 
@@ -3746,6 +3772,19 @@ export default function ReadingDetailsScreen() {
                           styles.input
                         }
                       />
+
+                      <Text
+                        style={
+                          styles.dateInputHint
+                        }
+                      >
+                        Leave blank if you do not remember. A {
+                          data.book.status ===
+                            'read'
+                            ? 'finish'
+                            : 'stopped'
+                        } date is what places this book into monthly and yearly history.
+                      </Text>
                     </View>
                   ) : null}
 
@@ -4973,6 +5012,12 @@ function createStyles(
       marginBottom:
         14,
     },
+    timelineCardNeedsDates: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
     timelineHeader: {
       flexDirection:
         'row',
@@ -4989,6 +5034,11 @@ function createStyles(
       borderBottomColor:
         colors.border,
     },
+    timelineHeaderCopy: {
+      flex: 1,
+      minWidth: 0,
+      marginRight: 12,
+    },
     timelineHeaderText: {
       color:
         colors.text,
@@ -4996,6 +5046,18 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize:
         12.5,
+    },
+    timelineHeaderPrompt: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      lineHeight:
+        15,
+      marginTop:
+        4,
     },
     timelineEditButton: {
       flexDirection:
