@@ -6,6 +6,18 @@ import type {
   CanonicalBookPresentation,
 } from './canonical-books';
 
+let bookCartMutationVersion =
+  0;
+
+function markBookCartChanged() {
+  bookCartMutationVersion +=
+    1;
+}
+
+export function getBookCartMutationVersion() {
+  return bookCartMutationVersion;
+}
+
 export type BookCartItem = {
   id: string;
   user_id: string;
@@ -292,6 +304,8 @@ export async function addBookToCart(
       throw error;
     }
 
+    markBookCartChanged();
+
     return data as
       BookCartItem;
   }
@@ -332,6 +346,8 @@ export async function addBookToCart(
     throw error;
   }
 
+  markBookCartChanged();
+
   return data as
     BookCartItem;
 }
@@ -371,4 +387,6 @@ export async function removeBookFromCart(
   if (error) {
     throw error;
   }
+
+  markBookCartChanged();
 }
