@@ -217,6 +217,45 @@ function canonicalWorkTitle(
   return title;
 }
 
+function canonicalWorkTitleForBook(
+  book: GoogleBookItem
+) {
+  let title =
+    canonicalWorkTitle(
+      book.volumeInfo
+        .title
+    );
+
+  const primaryAuthor =
+    normalizeTitle(
+      book.volumeInfo
+        .authors?.[0]
+    );
+
+  if (
+    title &&
+    primaryAuthor
+  ) {
+    const authorPrefix =
+      `${primaryAuthor} s `;
+
+    if (
+      title.startsWith(
+        authorPrefix
+      )
+    ) {
+      title =
+        title
+          .slice(
+            authorPrefix.length
+          )
+          .trim();
+    }
+  }
+
+  return title;
+}
+
 function authorMatchesWork(
   expectedAuthor: string,
   candidateAuthors:
@@ -342,9 +381,8 @@ function canonicalIdentityBook(
           if (
             localeScore ===
               null ||
-            canonicalWorkTitle(
-              book.volumeInfo
-                .title
+            canonicalWorkTitleForBook(
+              book
             ) !==
               wantedWorkTitle ||
             !authorMatchesWork(
