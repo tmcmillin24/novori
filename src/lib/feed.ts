@@ -1,4 +1,7 @@
 import { supabase } from './supabase';
+import {
+  getCanonicalBookPresentations,
+} from './user-books';
 
 export type FeedPostType =
   | 'post'
@@ -245,6 +248,82 @@ async function attachPostImageUrls(
   );
 }
 
+export async function canonicalizeFeedPosts(
+  posts: FeedPost[]
+): Promise<FeedPost[]> {
+  const googleBookIds =
+    posts
+      .map(
+        (
+          post
+        ) =>
+          post.google_book_id
+      )
+      .filter(
+        (
+          value
+        ): value is string =>
+          Boolean(
+            value
+          )
+      );
+
+  if (
+    googleBookIds.length ===
+      0
+  ) {
+    return posts;
+  }
+
+  const canonicalBooks =
+    await getCanonicalBookPresentations(
+      googleBookIds
+    );
+
+  if (
+    canonicalBooks.size ===
+      0
+  ) {
+    return posts;
+  }
+
+  return posts.map(
+    (
+      post
+    ) => {
+      if (
+        !post.google_book_id
+      ) {
+        return post;
+      }
+
+      const canonical =
+        canonicalBooks.get(
+          post.google_book_id
+        );
+
+      if (!canonical) {
+        return post;
+      }
+
+      return {
+        ...post,
+        book_title:
+          canonical.title ||
+          post.book_title,
+        book_cover_url:
+          canonical.coverUrl ??
+          post.book_cover_url,
+        book_authors:
+          canonical.authors.length >
+            0
+            ? canonical.authors
+            : post.book_authors,
+      };
+    }
+  );
+}
+
 export type PostImageUpload = {
   uri: string;
   fileName?: string | null;
@@ -362,7 +441,7 @@ export async function getHomeFeed(
       []
     ) as FeedPost[];
 
-  return (
+  return canonicalizeFeedPosts(
     await attachPostImageUrls(
       posts
     )
@@ -408,7 +487,14 @@ export async function getPostDetail(
       row as FeedPost,
     ]);
 
-  return hydratedPost;
+  const [
+    canonicalPost,
+  ] =
+    await canonicalizeFeedPosts([
+      hydratedPost,
+    ]);
+
+  return canonicalPost;
 }
 
 export async function getClubPosts(
@@ -441,7 +527,7 @@ export async function getClubPosts(
       []
     ) as FeedPost[];
 
-  return (
+  return canonicalizeFeedPosts(
     await attachPostImageUrls(
       posts
     )
