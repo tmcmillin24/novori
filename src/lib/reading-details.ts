@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import {
   getUserBook,
   notifyLibraryChanged,
-  updateBookReadingDates,
   UserBook,
   UserBookStatus,
 } from './user-books';
@@ -788,54 +787,48 @@ export async function updateReadingDetailsDates(
   finishedAt: string | null,
   dnfAt: string | null
 ): Promise<UserBook> {
-  const user =
-    await requireUser();
-
-  const updatedBook =
-    await updateBookReadingDates({
-      googleBookId,
-      startedAt,
-      finishedAt,
-      dnfAt,
-    });
+  await requireUser();
 
   const {
-    error:
-      sessionError,
+    data,
+    error,
   } =
-    await supabase
-      .from(
-        'reading_sessions'
-      )
-      .update({
-        started_at:
+    await supabase.rpc(
+      'update_reading_journey_dates',
+      {
+        target_session_id:
+          sessionId,
+        target_started_at:
           startedAt,
-        finished_at:
+        target_finished_at:
           status ===
           'read'
             ? finishedAt
             : null,
-        dnf_at:
+        target_dnf_at:
           status ===
           'dnf'
             ? dnfAt
             : null,
-        updated_at:
-          new Date()
-            .toISOString(),
-      })
-      .eq(
-        'id',
-        sessionId
-      )
-      .eq(
-        'user_id',
-        user.id
-      );
+      }
+    );
 
-  if (sessionError) {
-    throw sessionError;
+  if (error) {
+    throw error;
   }
 
-  return updatedBook;
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    throw new Error(
+      'Could not update these reading dates.'
+    );
+  }
+
+  notifyLibraryChanged();
+
+  return row as UserBook;
 }
