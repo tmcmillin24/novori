@@ -8,7 +8,7 @@ import {
 import { supabase } from './supabase';
 import {
   getCanonicalBookPresentations,
-} from './user-books';
+} from './canonical-books';
 
 export type ReaderSocialProfile = {
   id: string;
