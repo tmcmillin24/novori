@@ -1919,6 +1919,8 @@ export default function BookDetailsScreen() {
             : savedBook
                 ?.cover_url ??
               null,
+        allowExactIsbnFallback:
+          true,
       });
 
     try {
@@ -2610,6 +2612,10 @@ export default function BookDetailsScreen() {
                     savedBook?.cover_url
                   )
                 }
+                allowExactIsbnFallback={
+                  source ===
+                    'discover'
+                }
                 style={
                   styles.libraryBookCover
                 }
@@ -2938,6 +2944,10 @@ export default function BookDetailsScreen() {
                     discoverCoverUrl ??
                     savedBook?.cover_url
                   )
+                }
+                allowExactIsbnFallback={
+                  source ===
+                    'discover'
                 }
                 style={
                   styles.cover
