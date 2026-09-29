@@ -8,6 +8,9 @@ import {
   jitteredDurationMs,
   waitForApiCacheFill,
 } from '../_shared/api-cache-guard.ts';
+import {
+  recordGoogleBooksInCatalog,
+} from '../_shared/book-catalog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':
@@ -728,6 +731,12 @@ Deno.serve(
       const payload =
         await googleResponse
           .json();
+
+      await recordGoogleBooksInCatalog(
+        supabaseAdmin,
+        payload,
+        true
+      );
 
       const fetchedAt =
         new Date();
