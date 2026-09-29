@@ -58,8 +58,6 @@ import {
 
 import {
   getBookCart,
-  getBookCartMutationVersion,
-  subscribeBookCartChanges,
 } from '../../lib/book-cart';
 
 import {
@@ -145,7 +143,6 @@ let librarySessionCache:
       cartCount: number;
       refreshedAt: number;
       mutationVersion: number;
-      cartMutationVersion: number;
     }
   | null =
   null;
@@ -179,13 +176,6 @@ export default function LibraryScreen() {
       librarySessionCache
         ?.mutationVersion ??
       getLibraryMutationVersion()
-    );
-
-  const lastSeenCartMutationRef =
-    useRef(
-      librarySessionCache
-        ?.cartMutationVersion ??
-      getBookCartMutationVersion()
     );
 
   const {
@@ -549,16 +539,9 @@ export default function LibraryScreen() {
       const currentLibraryMutationVersion =
         getLibraryMutationVersion();
 
-      const currentCartMutationVersion =
-        getBookCartMutationVersion();
-
       const libraryChanged =
         currentLibraryMutationVersion !==
         lastSeenLibraryMutationRef.current;
-
-      const cartChanged =
-        currentCartMutationVersion !==
-        lastSeenCartMutationRef.current;
 
       const libraryIsFresh =
         hasLoadedLibraryRef.current &&
@@ -568,8 +551,7 @@ export default function LibraryScreen() {
 
       if (
         libraryIsFresh &&
-        !libraryChanged &&
-        !cartChanged
+        !libraryChanged
       ) {
         return () => {
           active = false;
@@ -613,8 +595,6 @@ export default function LibraryScreen() {
             setBooks(data);
             lastSeenLibraryMutationRef.current =
               currentLibraryMutationVersion;
-            lastSeenCartMutationRef.current =
-              currentCartMutationVersion;
             hasLoadedLibraryRef.current =
               true;
             lastLibraryRefreshRef.current =
@@ -628,8 +608,6 @@ export default function LibraryScreen() {
               refreshedAt,
               mutationVersion:
                 currentLibraryMutationVersion,
-              cartMutationVersion:
-                currentCartMutationVersion,
             };
 
             if (!isFirstLoad) {
@@ -662,68 +640,6 @@ export default function LibraryScreen() {
           false;
       };
     }, [])
-  );
-
-  useEffect(
-    () => {
-      let active =
-        true;
-
-      const unsubscribe =
-        subscribeBookCartChanges(
-          () => {
-            void getBookCart()
-              .then(
-                (
-                  cartItems
-                ) => {
-                  if (!active) {
-                    return;
-                  }
-
-                  const nextCount =
-                    cartItems.length;
-
-                  setCartCount(
-                    nextCount
-                  );
-
-                  lastSeenCartMutationRef.current =
-                    getBookCartMutationVersion();
-
-                  if (
-                    librarySessionCache
-                  ) {
-                    librarySessionCache = {
-                      ...librarySessionCache,
-                      cartCount:
-                        nextCount,
-                      cartMutationVersion:
-                        lastSeenCartMutationRef.current,
-                    };
-                  }
-                }
-              )
-              .catch(
-                (
-                  cartError
-                ) => {
-                  console.warn(
-                    'Could not refresh Book Cart badge:',
-                    cartError
-                  );
-                }
-              );
-          }
-        );
-
-      return () => {
-        active =
-          false;
-        unsubscribe();
-      };
-    },
-    []
   );
 
   useEffect(
