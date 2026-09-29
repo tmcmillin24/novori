@@ -104,6 +104,122 @@ type GoogleBooksResponse = {
   items?: GoogleBookItem[];
 };
 
+type SharedGoogleBooksResolverEnvelope = {
+  ok?: boolean;
+  status?: number;
+  data?: {
+    kind?: 'isbn' | 'trending';
+    book?: GoogleBookItem | null;
+    googleBookId?: string | null;
+  } | null;
+  error?: string;
+  reason?: string;
+  cache?: {
+    status?: 'hit' | 'miss' | 'stale';
+    googleRequestMade?: boolean;
+    expiresAt?: string;
+    reason?: string;
+  };
+  quota?: {
+    upstreamRequestsToday?: number;
+    userWindowRequests?: number | null;
+    userDailyRequests?: number | null;
+  };
+};
+
+async function invokeSharedGoogleBooksResolver(
+  body: {
+    mode: 'isbn' | 'trending';
+    isbn?: string;
+    title?: string;
+    author?: string;
+  }
+): Promise<
+  SharedGoogleBooksResolverEnvelope | null
+> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'google-books-resolve',
+        {
+          body,
+        }
+      );
+
+    if (error) {
+      console.warn(
+        'Shared Google Books resolver unavailable; using direct fallback:',
+        error
+      );
+      return null;
+    }
+
+    const response =
+      data as
+        SharedGoogleBooksResolverEnvelope;
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (__DEV__) {
+        console.log(
+          '[Novori Google resolver cache]',
+          {
+            mode:
+              body.mode,
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            googleRequestMade:
+              response.cache
+                ?.googleRequestMade ??
+              false,
+            quota:
+              response.quota ??
+              null,
+          }
+        );
+      }
+
+      return response;
+    }
+
+    if (
+      response?.ok ===
+        false &&
+      (
+        response.status ??
+        500
+      ) <
+        500
+    ) {
+      return response;
+    }
+
+    console.warn(
+      'Shared Google Books resolver failed; using direct fallback:',
+      response?.error ??
+        response?.status ??
+        'unexpected response'
+    );
+    return null;
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Google Books resolver failed; using direct fallback:',
+      error
+    );
+    return null;
+  }
+}
+
 type HardcoverSearchPopularityResponse = {
   popularity?: Record<
     string,
@@ -285,6 +401,40 @@ async function findGoogleBookForScannedIsbn(
     normalizeIsbn(
       scannedIsbn
     );
+
+  const sharedResolver =
+    await invokeSharedGoogleBooksResolver({
+      mode:
+        'isbn',
+      isbn:
+        isbn13,
+    });
+
+  if (
+    sharedResolver
+  ) {
+    if (
+      sharedResolver.ok ===
+        true
+    ) {
+      return (
+        sharedResolver.data
+          ?.book ??
+        null
+      );
+    }
+
+    if (
+      sharedResolver.status ===
+        429
+    ) {
+      throw new Error(
+        'Google Books rate limit reached.'
+      );
+    }
+
+    return null;
+  }
 
   const isbn10 =
     isbn13ToIsbn10(
@@ -2560,6 +2710,43 @@ export default function DiscoverScreen() {
   ) {
     const isbn =
       trendingBook.isbns[0];
+
+    const sharedResolver =
+      await invokeSharedGoogleBooksResolver({
+        mode:
+          'trending',
+        isbn,
+        title:
+          trendingBook.title,
+        author:
+          trendingBook.authors?.[0],
+      });
+
+    if (
+      sharedResolver
+    ) {
+      if (
+        sharedResolver.ok ===
+          true
+      ) {
+        return (
+          sharedResolver.data
+            ?.googleBookId ??
+          null
+        );
+      }
+
+      if (
+        sharedResolver.status ===
+          429
+      ) {
+        throw new Error(
+          'Google Books rate limit reached.'
+        );
+      }
+
+      return null;
+    }
 
     if (isbn) {
       const response =
