@@ -119,6 +119,38 @@ function secureCoverUrl(
 }
 
 
+function applyCanonicalPresentation(
+  book: UserBook,
+  canonical:
+    CanonicalBookPresentation
+    | undefined
+): UserBook {
+  if (!canonical) {
+    return book;
+  }
+
+  return {
+    ...book,
+    title:
+      canonical.title ||
+      book.title,
+    authors:
+      canonical.authors.length >
+        0
+        ? canonical.authors
+        : book.authors,
+    cover_url:
+      canonical.coverUrl ??
+      book.cover_url,
+    isbn:
+      canonical.isbn ??
+      book.isbn,
+    published_date:
+      canonical.publishedDate ??
+      book.published_date,
+  };
+}
+
 async function remoteCoverExists(
   url?: string | null
 ) {
