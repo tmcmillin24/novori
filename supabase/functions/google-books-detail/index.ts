@@ -14,9 +14,9 @@ const PROVIDER =
 const CACHE_VERSION =
   1;
 const CACHE_TTL_MS =
-  30 * 24 * 60 * 60 * 1000;
+  60 * 24 * 60 * 60 * 1000;
 const STALE_TTL_MS =
-  90 * 24 * 60 * 60 * 1000;
+  180 * 24 * 60 * 60 * 1000;
 const SOFT_DAILY_GUARD =
   650;
 
