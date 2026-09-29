@@ -18,7 +18,7 @@ const CACHE_TTL_MS =
 const STALE_TTL_MS =
   7 * 24 * 60 * 60 * 1000;
 const SOFT_DAILY_GUARD =
-  800;
+  650;
 
 type CacheRow = {
   response_json:
