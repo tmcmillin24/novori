@@ -2717,6 +2717,55 @@ export default function BookDetailsScreen() {
       (status) => status.value === readingStatus
     )?.label ?? null;
 
+  const savedReadingPresentation =
+    !savedBook?.status
+      ? {
+          title:
+            'Choose a status',
+          badge:
+            null,
+          icon:
+            'library-outline' as keyof typeof Ionicons.glyphMap,
+        }
+      : savedBook.status ===
+        'want_to_read'
+      ? {
+          title:
+            'Ready when you are',
+          badge:
+            'TBR',
+          icon:
+            'bookmark-outline' as keyof typeof Ionicons.glyphMap,
+        }
+      : savedBook.status ===
+        'reading'
+      ? {
+          title:
+            'Currently reading',
+          badge:
+            'READING',
+          icon:
+            'book-outline' as keyof typeof Ionicons.glyphMap,
+        }
+      : savedBook.status ===
+        'read'
+      ? {
+          title:
+            'Journey complete',
+          badge:
+            'FINISHED',
+          icon:
+            'checkmark-circle-outline' as keyof typeof Ionicons.glyphMap,
+        }
+      : {
+          title:
+            'Reading stopped',
+          badge:
+            'DNF',
+          icon:
+            'close-circle-outline' as keyof typeof Ionicons.glyphMap,
+        };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
@@ -3691,41 +3740,78 @@ export default function BookDetailsScreen() {
               styles.libraryReadingPanel
             }
           >
-            <Text
+            <View
               style={
-                styles.sectionLabel
+                styles.libraryReadingStatusHeader
               }
             >
-              MY READING
-            </Text>
+              <View
+                style={
+                  styles.libraryReadingStatusIcon
+                }
+              >
+                <Ionicons
+                  name={
+                    savedReadingPresentation.icon
+                  }
+                  size={18}
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
 
-            <Text
-              style={
-                styles.libraryReadingPanelTitle
-              }
-            >
-              {!savedBook.status
-                ? 'Set Reading Status'
-                : savedBook.status ===
-                  'want_to_read'
-                ? 'TBR'
-                : savedBook.status ===
-                  'reading'
-                ? 'Reading'
-                : savedBook.status ===
-                  'read'
-                ? 'Finished'
-                : 'Did Not Finish'}
-            </Text>
+              <View
+                style={
+                  styles.libraryReadingStatusCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.sectionLabel
+                  }
+                >
+                  MY READING
+                </Text>
+
+                <Text
+                  style={
+                    styles.libraryReadingPanelTitle
+                  }
+                >
+                  {
+                    savedReadingPresentation.title
+                  }
+                </Text>
+              </View>
+
+              {savedReadingPresentation.badge ? (
+                <View
+                  style={
+                    styles.libraryReadingStatusBadge
+                  }
+                >
+                  <Text
+                    style={
+                      styles.libraryReadingStatusBadgeText
+                    }
+                  >
+                    {
+                      savedReadingPresentation.badge
+                    }
+                  </Text>
+                </View>
+              ) : null}
+            </View>
 
             {!savedBook.status ? (
               <>
                 <Text
                   style={
-                    styles.libraryTbrHint
+                    styles.libraryReadingSupportingText
                   }
                 >
-                  Choose where this book belongs. After that, journey changes move to Reading Details.
+                  Choose where this book belongs. Future journey changes will live in Reading Details.
                 </Text>
 
                 <View
@@ -3774,17 +3860,23 @@ export default function BookDetailsScreen() {
                             />
                           ) : (
                             <>
-                              <Ionicons
-                                name={
-                                  status.icon
+                              <View
+                                style={
+                                  styles.libraryStatusChoiceIcon
                                 }
-                                size={
-                                  16
-                                }
-                                color={
-                                  colors.mutedText
-                                }
-                              />
+                              >
+                                <Ionicons
+                                  name={
+                                    status.icon
+                                  }
+                                  size={
+                                    16
+                                  }
+                                  color={
+                                    colors.gold
+                                  }
+                                />
+                              </View>
 
                               <Text
                                 style={
@@ -3810,25 +3902,25 @@ export default function BookDetailsScreen() {
               <>
                 <Text
                   style={
-                    styles.libraryTbrHint
+                    styles.libraryReadingSupportingText
                   }
                 >
                   {savedBook.status ===
                   'want_to_read'
-                    ? 'Saved for later. Start reading when you are ready to begin a journey.'
+                    ? 'Saved to your TBR. Start whenever you are ready.'
                     : savedBook.status ===
                       'read'
                     ? savedBook.finished_at
-                      ? `Finished ${formatReadingDate(savedBook.finished_at)}. Manage this journey in Reading Details.`
-                      : 'This journey is finished. Manage dates and history in Reading Details.'
+                      ? `Finished ${formatReadingDate(savedBook.finished_at)} · Your full journey is saved.`
+                      : 'Your completed journey is saved in Reading Details.'
                     : savedBook.status ===
                       'dnf'
                     ? savedBook.dnf_at
-                      ? `Stopped ${formatReadingDate(savedBook.dnf_at)}. Manage this journey in Reading Details.`
-                      : 'This journey was not finished. Manage dates and history in Reading Details.'
+                      ? `Stopped ${formatReadingDate(savedBook.dnf_at)} · Your reading history is preserved.`
+                      : 'Your reading history is preserved in Reading Details.'
                     : savedBook.started_at
-                    ? `Started ${formatReadingDate(savedBook.started_at)}. Progress, pauses, and dates live in Reading Details.`
-                    : 'Your active journey is managed in Reading Details.'}
+                    ? `Started ${formatReadingDate(savedBook.started_at)} · Keep your journey moving.`
+                    : 'Your active reading journey is ready to update.'}
                 </Text>
 
                 <Pressable
@@ -3847,6 +3939,9 @@ export default function BookDetailsScreen() {
                     pressed,
                   }) => [
                     styles.readingDetailsButton,
+                    savedBook.status ===
+                      'want_to_read' &&
+                      styles.readingDetailsButtonPrimary,
                     (
                       pressed ||
                       savingStatus !==
@@ -3856,9 +3951,12 @@ export default function BookDetailsScreen() {
                   ]}
                 >
                   <View
-                    style={
-                      styles.readingDetailsButtonIcon
-                    }
+                    style={[
+                      styles.readingDetailsButtonIcon,
+                      savedBook.status ===
+                        'want_to_read' &&
+                        styles.readingDetailsButtonIconPrimary,
+                    ]}
                   >
                     {savingStatus ===
                     'reading' &&
@@ -3867,7 +3965,7 @@ export default function BookDetailsScreen() {
                       <ActivityIndicator
                         size="small"
                         color={
-                          colors.gold
+                          colors.background
                         }
                       />
                     ) : (
@@ -3875,12 +3973,15 @@ export default function BookDetailsScreen() {
                         name={
                           savedBook.status ===
                             'want_to_read'
-                            ? 'play-outline'
+                            ? 'play'
                             : 'reader-outline'
                         }
                         size={18}
                         color={
-                          colors.gold
+                          savedBook.status ===
+                            'want_to_read'
+                            ? colors.background
+                            : colors.gold
                         }
                       />
                     )}
@@ -3892,9 +3993,12 @@ export default function BookDetailsScreen() {
                     }
                   >
                     <Text
-                      style={
-                        styles.readingDetailsButtonTitle
-                      }
+                      style={[
+                        styles.readingDetailsButtonTitle,
+                        savedBook.status ===
+                          'want_to_read' &&
+                          styles.readingDetailsButtonTitlePrimary,
+                      ]}
                     >
                       {savedBook.status ===
                       'want_to_read'
@@ -3903,14 +4007,17 @@ export default function BookDetailsScreen() {
                     </Text>
 
                     <Text
-                      style={
-                        styles.readingDetailsButtonSubtitle
-                      }
+                      style={[
+                        styles.readingDetailsButtonSubtitle,
+                        savedBook.status ===
+                          'want_to_read' &&
+                          styles.readingDetailsButtonSubtitlePrimary,
+                      ]}
                     >
                       {savedBook.status ===
                       'want_to_read'
                         ? 'Begin your first reading journey'
-                        : 'Manage progress, dates, pause or resume, and history'}
+                        : 'Progress · dates · notes · journey history'}
                     </Text>
                   </View>
 
@@ -3918,7 +4025,10 @@ export default function BookDetailsScreen() {
                     name="chevron-forward"
                     size={18}
                     color={
-                      colors.mutedText
+                      savedBook.status ===
+                        'want_to_read'
+                        ? colors.background
+                        : colors.gold
                     }
                   />
                 </Pressable>
@@ -5576,6 +5686,64 @@ function createStyles(
       'space-between',
   },
 
+  libraryReadingStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  libraryReadingStatusIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      colors.elevated,
+    borderWidth:
+      StyleSheet.hairlineWidth,
+    borderColor:
+      colors.border,
+    marginRight: 11,
+  },
+
+  libraryReadingStatusCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  libraryReadingStatusBadge: {
+    minHeight: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    marginLeft: 10,
+    backgroundColor:
+      colors.elevated,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+  },
+
+  libraryReadingStatusBadgeText: {
+    color:
+      colors.softGold,
+    fontFamily:
+      'Inter_700Bold',
+    fontSize: 9.5,
+    letterSpacing: 0.75,
+  },
+
+  libraryReadingSupportingText: {
+    color:
+      colors.secondaryText,
+    fontFamily:
+      'Inter_400Regular',
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginTop: 11,
+  },
+
   readingDetailsButton: {
     minHeight: 58,
     flexDirection:
@@ -5583,12 +5751,22 @@ function createStyles(
     alignItems:
       'center',
     gap: 11,
-    marginTop: 15,
-    paddingTop: 13,
-    borderTopWidth:
-      StyleSheet.hairlineWidth,
-    borderTopColor:
-      colors.border,
+    marginTop: 13,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
+    borderRadius: 14,
+    backgroundColor:
+      colors.elevated,
+  },
+
+  readingDetailsButtonPrimary: {
+    backgroundColor:
+      colors.gold,
+    borderColor:
+      colors.gold,
   },
 
   readingDetailsButtonPressed: {
@@ -5604,7 +5782,12 @@ function createStyles(
     justifyContent:
       'center',
     backgroundColor:
-      colors.elevated,
+      colors.surface,
+  },
+
+  readingDetailsButtonIconPrimary: {
+    backgroundColor:
+      colors.softGold,
   },
 
   readingDetailsButtonCopy: {
@@ -5614,19 +5797,29 @@ function createStyles(
 
   readingDetailsButtonTitle: {
     color:
-      colors.text,
+      colors.softGold,
     fontFamily:
       'Inter_700Bold',
-    fontSize: 13,
+    fontSize: 13.5,
+  },
+
+  readingDetailsButtonTitlePrimary: {
+    color:
+      colors.background,
   },
 
   readingDetailsButtonSubtitle: {
     color:
-      colors.mutedText,
+      colors.secondaryText,
     fontFamily:
       'Inter_400Regular',
     fontSize: 10.5,
     marginTop: 3,
+  },
+
+  readingDetailsButtonSubtitlePrimary: {
+    color:
+      colors.background,
   },
 
   libraryReadingPanelTitle: {
@@ -5634,8 +5827,8 @@ function createStyles(
       colors.text,
     fontFamily:
       'Inter_700Bold',
-    fontSize: 15,
-    marginTop: 3,
+    fontSize: 16,
+    marginTop: 2,
   },
 
   libraryReadingEdit: {
@@ -5674,11 +5867,21 @@ function createStyles(
     gap: 4,
     borderRadius: 11,
     backgroundColor:
-      colors.elevated,
+      colors.background,
     borderWidth: 1,
     borderColor:
-      'transparent',
+      colors.border,
     paddingHorizontal: 3,
+  },
+
+  libraryStatusChoiceIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      colors.elevated,
   },
 
   libraryStatusChoiceSelected: {
@@ -5690,6 +5893,8 @@ function createStyles(
 
   libraryStatusChoicePressed: {
     opacity: 0.68,
+    borderColor:
+      colors.gold,
   },
 
   libraryStatusChoiceText: {
