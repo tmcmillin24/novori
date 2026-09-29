@@ -94,14 +94,146 @@ function uniqueUrls(
   );
 }
 
+function getGoogleBooksImageParam(
+  url: string,
+  key: string
+) {
+  try {
+    const parsed =
+      new URL(
+        url
+      );
+
+    return parsed.searchParams.get(
+      key
+    );
+  } catch {
+    return null;
+  }
+}
+
+function isSameGoogleBooksCover(
+  referenceUrl: string,
+  candidateUrl: string
+) {
+  const reference =
+    secureUrl(
+      referenceUrl
+    );
+
+  const candidate =
+    secureUrl(
+      candidateUrl
+    );
+
+  if (
+    !reference ||
+    !candidate
+  ) {
+    return false;
+  }
+
+  const referenceId =
+    getGoogleBooksImageParam(
+      reference,
+      'id'
+    );
+
+  const candidateId =
+    getGoogleBooksImageParam(
+      candidate,
+      'id'
+    );
+
+  if (
+    referenceId &&
+    candidateId &&
+    referenceId !==
+      candidateId
+  ) {
+    return false;
+  }
+
+  const referencePrintSec =
+    getGoogleBooksImageParam(
+      reference,
+      'printsec'
+    );
+
+  const candidatePrintSec =
+    getGoogleBooksImageParam(
+      candidate,
+      'printsec'
+    );
+
+  if (
+    referencePrintSec &&
+    candidatePrintSec &&
+    referencePrintSec !==
+      candidatePrintSec
+  ) {
+    return false;
+  }
+
+  if (
+    referencePrintSec ===
+      'frontcover' &&
+    candidatePrintSec &&
+    candidatePrintSec !==
+      'frontcover'
+  ) {
+    return false;
+  }
+
+  if (
+    referenceId &&
+    candidateId
+  ) {
+    return true;
+  }
+
+  return (
+    reference.split(
+      '?'
+    )[0] ===
+    candidate.split(
+      '?'
+    )[0]
+  );
+}
+
 export function getGoogleCoverCandidates(
   imageLinks?: BookImageLinks
 ) {
+  const thumbnail =
+    secureUrl(
+      imageLinks?.thumbnail ??
+      imageLinks?.smallThumbnail
+    );
+
+  const higherResolution =
+    uniqueUrls([
+      imageLinks?.extraLarge,
+      imageLinks?.large,
+      imageLinks?.medium,
+      imageLinks?.small,
+    ]);
+
+  const matchingHigherResolution =
+    thumbnail
+      ? higherResolution.filter(
+          (
+            candidate
+          ) =>
+            isSameGoogleBooksCover(
+              thumbnail,
+              candidate
+            )
+        )
+      : higherResolution;
+
   return uniqueUrls([
-    imageLinks?.extraLarge,
-    imageLinks?.large,
-    imageLinks?.medium,
-    imageLinks?.small,
+    ...matchingHigherResolution,
     imageLinks?.thumbnail,
     imageLinks?.smallThumbnail,
   ]);
