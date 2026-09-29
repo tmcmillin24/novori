@@ -2579,6 +2579,44 @@ export default function DiscoverScreen() {
     );
   }
 
+  function clearActiveSearch() {
+    if (
+      discoverMode ===
+        'books'
+    ) {
+      if (
+        debounceTimerRef.current
+      ) {
+        clearTimeout(
+          debounceTimerRef.current
+        );
+      }
+
+      latestRequestRef.current +=
+        1;
+      setQuery('');
+      setBooks([]);
+      setError('');
+      setLoading(false);
+      return;
+    }
+
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    latestReaderRequestRef.current +=
+      1;
+    setReaderQuery('');
+    setReaderResults([]);
+    setReaderError('');
+    setReaderLoading(false);
+  }
+
   function openReader(
     readerId: string
   ) {
@@ -4035,9 +4073,14 @@ export default function DiscoverScreen() {
             }
           >
             <TextInput
-              style={
-                styles.input
-              }
+              style={[
+                styles.input,
+                discoverMode ===
+                  'books' &&
+                  query.length >
+                    0 &&
+                  styles.inputWithScannerAndClear,
+              ]}
               placeholder={
                 discoverMode ===
                 'books'
@@ -4071,6 +4114,44 @@ export default function DiscoverScreen() {
               spellCheck={false}
               blurOnSubmit={false}
             />
+
+            {(
+              discoverMode ===
+                'books'
+                ? query.length >
+                  0
+                : readerQuery.length >
+                  0
+            ) &&
+            !(
+              discoverMode ===
+                'books'
+                ? loading
+                : readerLoading
+            ) ? (
+              <Pressable
+                onPress={
+                  clearActiveSearch
+                }
+                style={[
+                  styles.clearSearchButton,
+                  discoverMode ===
+                    'books' &&
+                    styles.clearSearchButtonWithScanner,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                hitSlop={6}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
+            ) : null}
 
             {discoverMode === 'books' ? (
               <Pressable
@@ -5114,6 +5195,28 @@ function createStyles(
       fontSize: 15,
       fontFamily:
         'Inter_400Regular',
+    },
+
+    inputWithScannerAndClear: {
+      paddingRight: 82,
+    },
+
+    clearSearchButton: {
+      position:
+        'absolute',
+      right: 7,
+      top: 5,
+      width: 40,
+      height: 40,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex: 2,
+    },
+
+    clearSearchButtonWithScanner: {
+      right: 47,
     },
 
     scanButton: {
