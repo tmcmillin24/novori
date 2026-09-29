@@ -499,6 +499,21 @@ export default function RateReviewScreen() {
     'read';
 
 
+  const hasExistingReview =
+
+    book?.rating !==
+
+      null ||
+
+    Boolean(
+
+      book?.review_text
+
+        ?.trim()
+
+    );
+
+
 
   if (
 
@@ -1696,6 +1711,63 @@ export default function RateReviewScreen() {
           </Pressable>
 
 
+          {!hasExistingReview ? (
+
+            <Pressable
+
+              disabled={
+
+                saving
+
+              }
+
+              onPress={() =>
+
+                router.back()
+
+              }
+
+              style={({
+
+                pressed,
+
+              }) => [
+
+                styles.maybeLaterButton,
+
+                (
+
+                  pressed ||
+
+                  saving
+
+                ) &&
+
+                  styles.pressed,
+
+              ]}
+
+            >
+
+              <Text
+
+                style={
+
+                  styles.maybeLaterButtonText
+
+                }
+
+              >
+
+                Maybe later
+
+              </Text>
+
+            </Pressable>
+
+          ) : null}
+
+
 
           <Text
 
@@ -2396,6 +2468,40 @@ function createStyles(
         'Inter_700Bold',
 
       fontSize: 15,
+
+    },
+
+
+    maybeLaterButton: {
+
+      minHeight: 44,
+
+      alignItems:
+
+        'center',
+
+      justifyContent:
+
+        'center',
+
+      marginTop: 8,
+
+      borderRadius: 13,
+
+    },
+
+
+    maybeLaterButtonText: {
+
+      color:
+
+        colors.secondaryText,
+
+      fontFamily:
+
+        'Inter_600SemiBold',
+
+      fontSize: 13,
 
     },
 
