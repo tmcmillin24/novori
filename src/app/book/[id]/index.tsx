@@ -3622,89 +3622,48 @@ export default function BookDetailsScreen() {
                 </View>
               </View>
             ) : (
-              <View
-                style={
-                  styles.reviewEmptyContent
+              <Pressable
+                onPress={
+                  openRateReview
                 }
+                style={({
+                  pressed,
+                }) => [
+                  styles.reviewEmptyAction,
+                  pressed &&
+                    styles.reviewButtonPressed,
+                ]}
               >
                 <View
                   style={
-                    styles.reviewEmptyStars
+                    styles.reviewEmptyActionIcon
                   }
                 >
-                  {[
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                  ].map(
-                    (
-                      starNumber
-                    ) => (
-                      <Ionicons
-                        key={
-                          starNumber
-                        }
-                        name="star-outline"
-                        size={
-                          22
-                        }
-                        color={
-                          colors.gold
-                        }
-                      />
-                    )
-                  )}
+                  <Ionicons
+                    name="star-outline"
+                    size={18}
+                    color={
+                      colors.gold
+                    }
+                  />
                 </View>
 
                 <Text
                   style={
-                    styles.reviewEmptyTitle
+                    styles.reviewEmptyActionText
                   }
                 >
-                  No review yet
+                  Rate & Review
                 </Text>
 
-                <Text
-                  style={
-                    styles.reviewEmptySubtitle
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={
+                    colors.gold
                   }
-                >
-                  Add one whenever you want — it stays with this book.
-                </Text>
-
-                <Pressable
-                  onPress={
-                    openRateReview
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.reviewPrimaryButton,
-                    styles.reviewEmptyButton,
-                    pressed &&
-                      styles.reviewButtonPressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="star-outline"
-                    size={
-                      17
-                    }
-                    color={
-                      colors.background
-                    }
-                  />
-                  <Text
-                    style={
-                      styles.reviewPrimaryButtonText
-                    }
-                  >
-                    Rate & Review
-                  </Text>
-                </Pressable>
-              </View>
+                />
+              </Pressable>
             )}
           </View>
         ) : null}
@@ -6374,39 +6333,38 @@ function createStyles(
     opacity: 0.72,
   },
 
-  reviewEmptyContent: {
-    marginTop: 7,
-    alignItems: 'flex-start',
-    paddingBottom: 3,
-  },
-
-  reviewEmptyStars: {
+  reviewEmptyAction: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-  },
-
-  reviewEmptyTitle: {
-    color:
-      colors.text,
-    fontFamily:
-      'Inter_600SemiBold',
-    fontSize: 13.5,
+    gap: 10,
     marginTop: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor:
+      colors.elevated,
+    borderWidth: 1,
+    borderColor:
+      colors.gold,
   },
 
-  reviewEmptySubtitle: {
+  reviewEmptyActionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      colors.surface,
+  },
+
+  reviewEmptyActionText: {
+    flex: 1,
     color:
-      colors.secondaryText,
+      colors.softGold,
     fontFamily:
-      'Inter_400Regular',
-    fontSize: 11.5,
-    lineHeight: 16,
-    marginTop: 3,
-  },
-
-  reviewEmptyButton: {
-    marginTop: 12,
+      'Inter_700Bold',
+    fontSize: 13.5,
   },
 
   libraryDetailsSection: {
