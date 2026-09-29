@@ -2474,6 +2474,23 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
+  const exactDiscoverCoverUrl =
+    source ===
+        'discover' &&
+      discoverCoverUrl
+      ? getValidatedHighResolutionCover(
+          discoverCoverUrl,
+          info.imageLinks
+        ) ??
+        discoverCoverUrl
+      : null;
+
+  const displayExistingCoverUrl =
+    exactDiscoverCoverUrl ??
+    discoverCoverUrl ??
+    savedBook?.cover_url ??
+    null;
+
   const coverPlan =
     getBookCoverPlan({
       imageLinks:
@@ -2484,9 +2501,7 @@ export default function BookDetailsScreen() {
         ) ??
         null,
       existingCoverUrl:
-        discoverCoverUrl ??
-        savedBook?.cover_url ??
-        null,
+        displayExistingCoverUrl,
     });
 
   const cover =
@@ -2600,14 +2615,11 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  discoverCoverUrl ??
-                  savedBook?.cover_url ??
-                  null
+                  displayExistingCoverUrl
                 }
                 preferExistingCover={
                   Boolean(
-                    discoverCoverUrl ??
-                    savedBook?.cover_url
+                    displayExistingCoverUrl
                   )
                 }
                 style={
@@ -2929,14 +2941,11 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  discoverCoverUrl ??
-                  savedBook?.cover_url ??
-                  null
+                  displayExistingCoverUrl
                 }
                 preferExistingCover={
                   Boolean(
-                    discoverCoverUrl ??
-                    savedBook?.cover_url
+                    displayExistingCoverUrl
                   )
                 }
                 style={
