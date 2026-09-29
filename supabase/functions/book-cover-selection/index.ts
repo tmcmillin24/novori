@@ -147,19 +147,63 @@ Deno.serve(
       const body =
         await request.json();
 
-      const volumeId =
+      const singleVolumeId =
         typeof body?.volumeId ===
           'string'
           ? body.volumeId
               .trim()
           : '';
 
+      const requestedVolumeIds =
+        Array.isArray(
+          body?.volumeIds
+        )
+          ? body.volumeIds
+              .filter(
+                (
+                  value
+                ): value is string =>
+                  typeof value ===
+                  'string'
+              )
+              .map(
+                (
+                  value
+                ) =>
+                  value.trim()
+              )
+          : [];
+
+      const volumeIds =
+        Array.from(
+          new Set(
+            [
+              ...(singleVolumeId
+                ? [
+                    singleVolumeId,
+                  ]
+                : []),
+              ...requestedVolumeIds,
+            ].filter(
+              Boolean
+            )
+          )
+        );
+
       if (
-        !volumeId ||
-        volumeId.length >
+        volumeIds.length ===
+          0 ||
+        volumeIds.length >
           200 ||
-        !/^[A-Za-z0-9_-]+$/.test(
-          volumeId
+        volumeIds.some(
+          (
+            volumeId
+          ) =>
+            volumeId.length >
+              200 ||
+            !/^[A-Za-z0-9_-]+$/.test(
+              volumeId
+            )
         )
       ) {
         return jsonResponse(
@@ -167,14 +211,14 @@ Deno.serve(
             ok: false,
             status: 400,
             error:
-              'Invalid Google Books volume ID.',
+              'Invalid Google Books volume ID request.',
           }
         );
       }
 
       const {
         data:
-          edition,
+          editions,
         error:
           editionError,
       } =
@@ -183,167 +227,360 @@ Deno.serve(
             'book_editions'
           )
           .select(
-            'work_id'
+            'provider_book_id, work_id'
           )
           .eq(
             'provider',
             'google_books'
           )
-          .eq(
+          .in(
             'provider_book_id',
-            volumeId
-          )
-          .maybeSingle();
+            volumeIds
+          );
 
       if (editionError) {
         throw new Error(
-          `Could not read Novori edition: ${editionError.message}`
+          `Could not read Novori editions: ${editionError.message}`
         );
       }
 
-      if (
-        !edition?.work_id
-      ) {
-        return jsonResponse(
-          {
-            ok: true,
-            status: 200,
-            data: {
-              selectionStatus:
-                'unavailable',
-              url:
-                null,
-            },
-          }
-        );
-      }
+      const editionRows =
+        editions ??
+        [];
 
-      const {
-        data:
-          selection,
-        error:
-          selectionError,
-      } =
-        await supabaseAdmin
-          .from(
-            'book_cover_selections'
-          )
-          .select(
-            'candidate_id, selector_version, status, score, locked'
-          )
-          .eq(
-            'work_id',
-            edition.work_id
-          )
-          .maybeSingle();
-
-      if (selectionError) {
-        throw new Error(
-          `Could not read Novori cover selection: ${selectionError.message}`
-        );
-      }
-
-      if (
-        !selection ||
-        selection.status !==
-          'selected' ||
-        selection.locked !==
-          true ||
-        !selection.candidate_id
-      ) {
-        return jsonResponse(
-          {
-            ok: true,
-            status: 200,
-            data: {
-              selectionStatus:
-                selection?.status ??
-                'unavailable',
-              selectorVersion:
-                selection
-                  ?.selector_version ??
-                null,
-              score:
-                selection?.score ??
-                null,
-              locked:
-                selection?.locked ??
-                false,
-              authoritative:
-                false,
-              url:
-                null,
-            },
-          }
-        );
-      }
-
-      const {
-        data:
-          candidate,
-        error:
-          candidateError,
-      } =
-        await supabaseAdmin
-          .from(
-            'book_cover_candidates'
-          )
-          .select(
-            'url, provider, source_variant, scope'
-          )
-          .eq(
-            'id',
-            selection.candidate_id
-          )
-          .maybeSingle();
-
-      if (candidateError) {
-        throw new Error(
-          `Could not read Novori cover candidate: ${candidateError.message}`
-        );
-      }
-
-      const selectedUrl =
-        typeof candidate?.url ===
-          'string' &&
-        candidate.url.trim()
-          ? candidate.url
-              .replace(
-                'http://',
-                'https://'
+      const workIds =
+        Array.from(
+          new Set(
+            editionRows
+              .map(
+                (
+                  edition
+                ) =>
+                  edition.work_id
               )
-          : null;
+              .filter(
+                (
+                  value
+                ): value is string =>
+                  typeof value ===
+                    'string' &&
+                  Boolean(
+                    value
+                  )
+              )
+          )
+        );
+
+      const selectionsByWork =
+        new Map<
+          string,
+          {
+            candidate_id:
+              string;
+            selector_version:
+              number;
+            score:
+              number | null;
+            locked:
+              boolean;
+          }
+        >();
+
+      if (
+        workIds.length >
+        0
+      ) {
+        const {
+          data:
+            selections,
+          error:
+            selectionError,
+        } =
+          await supabaseAdmin
+            .from(
+              'book_cover_selections'
+            )
+            .select(
+              'work_id, candidate_id, selector_version, status, score, locked'
+            )
+            .in(
+              'work_id',
+              workIds
+            )
+            .eq(
+              'status',
+              'selected'
+            )
+            .eq(
+              'locked',
+              true
+            );
+
+        if (selectionError) {
+          throw new Error(
+            `Could not read Novori cover selections: ${selectionError.message}`
+          );
+        }
+
+        for (
+          const selection of
+            selections ??
+            []
+        ) {
+          if (
+            typeof selection.work_id ===
+              'string' &&
+            typeof selection.candidate_id ===
+              'string'
+          ) {
+            selectionsByWork.set(
+              selection.work_id,
+              {
+                candidate_id:
+                  selection.candidate_id,
+                selector_version:
+                  selection.selector_version,
+                score:
+                  selection.score,
+                locked:
+                  selection.locked,
+              }
+            );
+          }
+        }
+      }
+
+      const candidateIds =
+        Array.from(
+          new Set(
+            Array.from(
+              selectionsByWork.values()
+            ).map(
+              (
+                selection
+              ) =>
+                selection.candidate_id
+            )
+          )
+        );
+
+      const candidatesById =
+        new Map<
+          string,
+          {
+            url:
+              string | null;
+            provider:
+              string | null;
+            source_variant:
+              string | null;
+            scope:
+              string | null;
+          }
+        >();
+
+      if (
+        candidateIds.length >
+        0
+      ) {
+        const {
+          data:
+            candidates,
+          error:
+            candidateError,
+        } =
+          await supabaseAdmin
+            .from(
+              'book_cover_candidates'
+            )
+            .select(
+              'id, url, provider, source_variant, scope'
+            )
+            .in(
+              'id',
+              candidateIds
+            );
+
+        if (candidateError) {
+          throw new Error(
+            `Could not read Novori cover candidates: ${candidateError.message}`
+          );
+        }
+
+        for (
+          const candidate of
+            candidates ??
+            []
+        ) {
+          if (
+            typeof candidate.id ===
+              'string'
+          ) {
+            candidatesById.set(
+              candidate.id,
+              {
+                url:
+                  typeof candidate.url ===
+                    'string' &&
+                  candidate.url.trim()
+                    ? candidate.url
+                        .replace(
+                          'http://',
+                          'https://'
+                        )
+                    : null,
+                provider:
+                  candidate.provider ??
+                  null,
+                source_variant:
+                  candidate.source_variant ??
+                  null,
+                scope:
+                  candidate.scope ??
+                  null,
+              }
+            );
+          }
+        }
+      }
+
+      const covers:
+        Record<
+          string,
+          string | null
+        > = {};
+
+      const details:
+        Record<
+          string,
+          Record<
+            string,
+            unknown
+          >
+        > = {};
+
+      const workByVolumeId =
+        new Map<
+          string,
+          string
+        >();
+
+      for (
+        const edition of
+          editionRows
+      ) {
+        if (
+          typeof edition.provider_book_id ===
+            'string' &&
+          typeof edition.work_id ===
+            'string'
+        ) {
+          workByVolumeId.set(
+            edition.provider_book_id,
+            edition.work_id
+          );
+        }
+      }
+
+      for (
+        const volumeId of
+          volumeIds
+      ) {
+        const workId =
+          workByVolumeId.get(
+            volumeId
+          );
+
+        const selection =
+          workId
+            ? selectionsByWork.get(
+                workId
+              )
+            : undefined;
+
+        const candidate =
+          selection
+            ? candidatesById.get(
+                selection.candidate_id
+              )
+            : undefined;
+
+        const selectedUrl =
+          candidate?.url ??
+          null;
+
+        covers[
+          volumeId
+        ] =
+          selectedUrl;
+
+        details[
+          volumeId
+        ] = {
+          selectionStatus:
+            selectedUrl
+              ? 'selected'
+              : 'unavailable',
+          selectorVersion:
+            selection
+              ?.selector_version ??
+            null,
+          score:
+            selection
+              ?.score ??
+            null,
+          locked:
+            Boolean(
+              selectedUrl &&
+              selection
+                ?.locked
+            ),
+          authoritative:
+            Boolean(
+              selectedUrl &&
+              selection
+                ?.locked
+            ),
+          url:
+            selectedUrl,
+          provider:
+            candidate
+              ?.provider ??
+            null,
+          sourceVariant:
+            candidate
+              ?.source_variant ??
+            null,
+          scope:
+            candidate
+              ?.scope ??
+            null,
+        };
+      }
+
+      if (
+        singleVolumeId &&
+        requestedVolumeIds.length ===
+          0
+      ) {
+        return jsonResponse(
+          {
+            ok: true,
+            status: 200,
+            data: details[
+              singleVolumeId
+            ],
+          }
+        );
+      }
 
       return jsonResponse(
         {
           ok: true,
           status: 200,
           data: {
-            selectionStatus:
-              selectedUrl
-                ? 'selected'
-                : 'unavailable',
-            selectorVersion:
-              selection
-                .selector_version,
-            score:
-              selection.score,
-            locked:
-              selection.locked,
-            authoritative:
-              true,
-            url:
-              selectedUrl,
-            provider:
-              candidate?.provider ??
-              null,
-            sourceVariant:
-              candidate
-                ?.source_variant ??
-              null,
-            scope:
-              candidate?.scope ??
-              null,
+            covers,
+            details,
           },
         }
       );
