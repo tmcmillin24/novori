@@ -24,11 +24,13 @@ const PROVIDER =
 const CACHE_VERSION =
   1;
 const CACHE_TTL_MS =
-  7 * 24 * 60 * 60 * 1000;
+  14 * 24 * 60 * 60 * 1000;
 const STALE_TTL_MS =
-  30 * 24 * 60 * 60 * 1000;
+  60 * 24 * 60 * 60 * 1000;
 const SOFT_DAILY_GUARD =
   650;
+const EMERGENCY_DAILY_GUARD =
+  900;
 
 type CacheRow = {
   response_json:
@@ -500,6 +502,30 @@ Deno.serve(
               reason:
                 'soft_quota_guard',
             },
+            quota: {
+              upstreamRequestsToday:
+                upstreamToday,
+            },
+          }
+        );
+      }
+
+      if (
+        upstreamToday >=
+          EMERGENCY_DAILY_GUARD
+      ) {
+        console.info(
+          'google-books-search blocked reason=emergency-quota-guard'
+        );
+
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            error:
+              'Google Books daily safety reserve is active. Please try again later.',
+            reason:
+              'emergency_quota_guard',
             quota: {
               upstreamRequestsToday:
                 upstreamToday,
