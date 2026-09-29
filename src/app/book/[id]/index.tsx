@@ -180,22 +180,20 @@ function normalizeSeriesWorkTitle(
     return '';
   }
 
+  const cleanTitle =
+    getSeriesWorkSearchTitle(
+      title
+    ) ||
+    title;
+
   const baseTitle =
-    title
+    cleanTitle
       .split(':')[0]
       ?.trim() ??
-    title;
+    cleanTitle;
 
   return normalizeTitle(
     baseTitle
-      .replace(
-        /\s*[-–—]\s*(?:a\s+)?(?:terminal\s+list\s+)?thriller.*$/i,
-        ''
-      )
-      .replace(
-        /\s+\((?:[^)]*edition|[^)]*series)[^)]*\)$/i,
-        ''
-      )
   );
 }
 
