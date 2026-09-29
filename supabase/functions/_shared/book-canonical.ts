@@ -201,6 +201,209 @@ function highestQualityImageLink(
   );
 }
 
+function isRecord(
+  value: unknown
+): value is Record<
+  string,
+  unknown
+> {
+  return Boolean(
+    value &&
+    typeof value ===
+      'object' &&
+    !Array.isArray(
+      value
+    )
+  );
+}
+
+function normalizedIsbn(
+  value: unknown
+) {
+  if (
+    typeof value !==
+      'string'
+  ) {
+    return null;
+  }
+
+  const cleaned =
+    value
+      .replace(
+        /[^0-9Xx]/g,
+        ''
+      )
+      .toUpperCase();
+
+  return (
+    cleaned.length ===
+      10 ||
+    cleaned.length ===
+      13
+  )
+    ? cleaned
+    : null;
+}
+
+function readDetailCachePresentation(
+  payload: unknown
+) {
+  if (
+    !isRecord(
+      payload
+    ) ||
+    !isRecord(
+      payload.volumeInfo
+    )
+  ) {
+    return null;
+  }
+
+  const volumeInfo =
+    payload.volumeInfo;
+
+  const title =
+    typeof volumeInfo.title ===
+      'string'
+      ? volumeInfo.title.trim()
+      : '';
+
+  if (!title) {
+    return null;
+  }
+
+  const authors =
+    cleanAuthors(
+      volumeInfo.authors
+    );
+
+  let isbn10:
+    string | null =
+    null;
+
+  let isbn13:
+    string | null =
+    null;
+
+  if (
+    Array.isArray(
+      volumeInfo.industryIdentifiers
+    )
+  ) {
+    for (
+      const identifier of
+        volumeInfo.industryIdentifiers
+    ) {
+      if (
+        !isRecord(
+          identifier
+        )
+      ) {
+        continue;
+      }
+
+      const type =
+        typeof identifier.type ===
+          'string'
+          ? identifier.type
+              .trim()
+              .toUpperCase()
+          : '';
+
+      const value =
+        normalizedIsbn(
+          identifier.identifier
+        );
+
+      if (
+        type ===
+          'ISBN_13' &&
+        value?.length ===
+          13
+      ) {
+        isbn13 =
+          isbn13 ??
+          value;
+      }
+
+      if (
+        type ===
+          'ISBN_10' &&
+        value?.length ===
+          10
+      ) {
+        isbn10 =
+          isbn10 ??
+          value;
+      }
+    }
+  }
+
+  const pageCount =
+    typeof volumeInfo.pageCount ===
+      'number' &&
+    Number.isFinite(
+      volumeInfo.pageCount
+    ) &&
+    volumeInfo.pageCount >
+      0
+      ? Math.trunc(
+          volumeInfo.pageCount
+        )
+      : null;
+
+  const imageLinks =
+    cleanImageLinks(
+      volumeInfo.imageLinks
+    );
+
+  const saleCountry =
+    isRecord(
+      payload.saleInfo
+    ) &&
+    typeof payload.saleInfo.country ===
+      'string'
+      ? payload.saleInfo.country
+          .trim() ||
+        null
+      : null;
+
+  return {
+    title,
+    subtitle:
+      typeof volumeInfo.subtitle ===
+        'string'
+        ? volumeInfo.subtitle
+            .trim() ||
+          null
+        : null,
+    authors,
+    isbn10,
+    isbn13,
+    publishedDate:
+      typeof volumeInfo.publishedDate ===
+        'string'
+        ? volumeInfo.publishedDate
+            .trim() ||
+          null
+        : null,
+    pageCount,
+    language:
+      typeof volumeInfo.language ===
+        'string'
+        ? volumeInfo.language
+            .trim() ||
+          null
+        : null,
+    saleCountry,
+    imageLinks,
+    coverUrl:
+      highestQualityImageLink(
+        imageLinks
+      ),
+  };
+}
+
 function localeScore(
   edition:
     EditionRow
@@ -595,6 +798,180 @@ export async function getCanonicalGoogleEditionsForWorkIds(
           ),
       }
     );
+  }
+
+  const canonicalValues =
+    Array.from(
+      result.values()
+    );
+
+  if (
+    canonicalValues.length >
+      0
+  ) {
+    const requestKeys =
+      canonicalValues.map(
+        (
+          canonical
+        ) =>
+          `detail:v1:${canonical.googleBookId}`
+      );
+
+    const {
+      data:
+        detailCacheRows,
+      error:
+        detailCacheError,
+    } =
+      await supabaseAdmin
+        .from(
+          'book_api_cache'
+        )
+        .select(
+          'request_key, response_json, stale_until'
+        )
+        .eq(
+          'provider',
+          GOOGLE_PROVIDER
+        )
+        .in(
+          'request_key',
+          requestKeys
+        );
+
+    if (detailCacheError) {
+      console.warn(
+        'Could not read exact Google detail cache for canonical books:',
+        detailCacheError.message
+      );
+    } else {
+      const now =
+        Date.now();
+
+      const cachedByGoogleBookId =
+        new Map<
+          string,
+          ReturnType<
+            typeof readDetailCachePresentation
+          >
+        >();
+
+      for (
+        const row of
+          detailCacheRows ??
+          []
+      ) {
+        const staleUntil =
+          typeof row.stale_until ===
+            'string'
+            ? Date.parse(
+                row.stale_until
+              )
+            : NaN;
+
+        if (
+          !Number.isFinite(
+            staleUntil
+          ) ||
+          staleUntil <=
+            now
+        ) {
+          continue;
+        }
+
+        const requestKey =
+          typeof row.request_key ===
+            'string'
+            ? row.request_key
+            : '';
+
+        const googleBookId =
+          requestKey.startsWith(
+            'detail:v1:'
+          )
+            ? requestKey.slice(
+                'detail:v1:'
+                  .length
+              )
+            : '';
+
+        if (!googleBookId) {
+          continue;
+        }
+
+        const cachedPresentation =
+          readDetailCachePresentation(
+            row.response_json
+          );
+
+        if (
+          cachedPresentation
+        ) {
+          cachedByGoogleBookId.set(
+            googleBookId,
+            cachedPresentation
+          );
+        }
+      }
+
+      for (
+        const [
+          workId,
+          canonical,
+        ] of result
+      ) {
+        const cached =
+          cachedByGoogleBookId.get(
+            canonical.googleBookId
+          );
+
+        if (!cached) {
+          continue;
+        }
+
+        result.set(
+          workId,
+          {
+            ...canonical,
+            title:
+              cached.title,
+            subtitle:
+              cached.subtitle,
+            authors:
+              cached.authors.length >
+                0
+                ? cached.authors
+                : canonical.authors,
+            isbn10:
+              cached.isbn10 ??
+              canonical.isbn10,
+            isbn13:
+              cached.isbn13 ??
+              canonical.isbn13,
+            publishedDate:
+              cached.publishedDate ??
+              canonical.publishedDate,
+            pageCount:
+              cached.pageCount ??
+              canonical.pageCount,
+            language:
+              cached.language ??
+              canonical.language,
+            saleCountry:
+              cached.saleCountry ??
+              canonical.saleCountry,
+            coverUrl:
+              cached.coverUrl ??
+              canonical.coverUrl,
+            imageLinks:
+              cached.imageLinks ??
+              canonical.imageLinks,
+            detailComplete:
+              true,
+          }
+        );
+      }
+    }
   }
 
   return result;
