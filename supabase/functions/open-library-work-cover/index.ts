@@ -273,6 +273,61 @@ async function claimOpenLibraryRequest(
     UpstreamClaimResult | null;
 }
 
+
+function sleep(
+  milliseconds: number
+) {
+  return new Promise<void>(
+    (
+      resolve
+    ) => {
+      setTimeout(
+        resolve,
+        milliseconds
+      );
+    }
+  );
+}
+
+async function claimOpenLibraryRequestWithRetry(
+  supabaseAdmin:
+    ReturnType<
+      typeof createClient
+    >,
+  userId: string
+) {
+  for (
+    let attempt = 0;
+    attempt < 4;
+    attempt += 1
+  ) {
+    const claim =
+      await claimOpenLibraryRequest(
+        supabaseAdmin,
+        userId
+      );
+
+    if (
+      claim?.allowed ||
+      claim?.reason !==
+        'global_min_interval'
+    ) {
+      return claim;
+    }
+
+    if (
+      attempt <
+      3
+    ) {
+      await sleep(
+        1100
+      );
+    }
+  }
+
+  return null;
+}
+
 async function writeCache(
   supabaseAdmin:
     ReturnType<
@@ -765,7 +820,7 @@ Deno.serve(
       }
 
       const searchClaim =
-        await claimOpenLibraryRequest(
+        await claimOpenLibraryRequestWithRetry(
           supabaseAdmin,
           user.id
         );
@@ -838,7 +893,15 @@ Deno.serve(
       try {
         searchResponse =
           await fetch(
-            `https://openlibrary.org/search.json?${params.toString()}`
+            `https://openlibrary.org/search.json?${params.toString()}`,
+            {
+              headers: {
+                'Accept':
+                  'application/json',
+                'User-Agent':
+                  'Novori/1.0',
+              },
+            }
           );
       } catch {
         if (
@@ -988,7 +1051,7 @@ Deno.serve(
         workKey
       ) {
         const workClaim =
-          await claimOpenLibraryRequest(
+          await claimOpenLibraryRequestWithRetry(
             supabaseAdmin,
             user.id
           );
@@ -1044,7 +1107,15 @@ Deno.serve(
             await fetch(
               `https://openlibrary.org/works/${encodeURIComponent(
                 workKey
-              )}.json`
+              )}.json`,
+              {
+                headers: {
+                  'Accept':
+                    'application/json',
+                  'User-Agent':
+                    'Novori/1.0',
+                },
+              }
             );
         } catch {
           const payload:
