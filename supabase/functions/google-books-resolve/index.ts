@@ -10,13 +10,13 @@ const corsHeaders = {
 
 const PROVIDER = 'google_books';
 const ISBN_CACHE_TTL_MS =
-  90 * 24 * 60 * 60 * 1000;
+  365 * 24 * 60 * 60 * 1000;
 const ISBN_STALE_TTL_MS =
-  180 * 24 * 60 * 60 * 1000;
+  730 * 24 * 60 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS =
-  30 * 24 * 60 * 60 * 1000;
-const TRENDING_STALE_TTL_MS =
   90 * 24 * 60 * 60 * 1000;
+const TRENDING_STALE_TTL_MS =
+  180 * 24 * 60 * 60 * 1000;
 const SOFT_DAILY_GUARD = 650;
 
 type GoogleBookItem = {
