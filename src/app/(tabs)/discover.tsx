@@ -3143,6 +3143,11 @@ export default function DiscoverScreen() {
             existingCoverUrl={
               canonicalCover
             }
+            preferExistingCover={
+              Boolean(
+                canonicalCover
+              )
+            }
             style={
               styles.cover
             }
