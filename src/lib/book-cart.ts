@@ -9,9 +9,36 @@ import type {
 let bookCartMutationVersion =
   0;
 
+const bookCartListeners =
+  new Set<
+    () => void
+  >();
+
+export function subscribeBookCartChanges(
+  listener: () => void
+) {
+  bookCartListeners.add(
+    listener
+  );
+
+  return () => {
+    bookCartListeners.delete(
+      listener
+    );
+  };
+}
+
+
 function markBookCartChanged() {
   bookCartMutationVersion +=
     1;
+
+  for (
+    const listener of
+      bookCartListeners
+  ) {
+    listener();
+  }
 }
 
 export function getBookCartMutationVersion() {
