@@ -692,26 +692,8 @@ async function findCanonicalCatalogGoogleBookId(
     return null;
   }
 
-  let workQuery =
-    supabaseAdmin
-      .from(
-        'book_works'
-      )
-      .select(
-        'id, normalized_title, normalized_primary_author'
-      )
-      .eq(
-        'normalized_title',
-        normalizedWorkTitle
-      );
-
-  if (normalizedAuthor) {
-    workQuery =
-      workQuery.eq(
-        'normalized_primary_author',
-        normalizedAuthor
-      );
-  }
+  const workKey =
+    `${normalizedWorkTitle}::${normalizedAuthor}`;
 
   const {
     data:
@@ -719,8 +701,18 @@ async function findCanonicalCatalogGoogleBookId(
     error:
       workError,
   } =
-    await workQuery
-      .limit(5);
+    await supabaseAdmin
+      .from(
+        'book_works'
+      )
+      .select(
+        'id'
+      )
+      .eq(
+        'work_key',
+        workKey
+      )
+      .limit(1);
 
   if (workError) {
     throw new Error(
