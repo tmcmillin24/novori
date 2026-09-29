@@ -3888,12 +3888,12 @@ export default function BookDetailsScreen() {
                       'read'
                     ? savedBook.finished_at
                       ? `Finished ${formatReadingDate(savedBook.finished_at)} · Your full journey is saved.`
-                      : 'Your completed journey is saved in Reading Details.'
+                      : 'Reading dates not added · Add them in Reading Details.'
                     : savedBook.status ===
                       'dnf'
                     ? savedBook.dnf_at
                       ? `Stopped ${formatReadingDate(savedBook.dnf_at)} · Your reading history is preserved.`
-                      : 'Your reading history is preserved in Reading Details.'
+                      : 'Reading dates not added · Add them in Reading Details.'
                     : savedBook.started_at
                     ? `Started ${formatReadingDate(savedBook.started_at)} · Keep your journey moving.`
                     : 'Your active reading journey is ready to update.'}
