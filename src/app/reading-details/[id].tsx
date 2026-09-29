@@ -55,6 +55,7 @@ import {
   ReadingNote,
   saveReadingCheckpoint,
   saveReadingSummary,
+  transitionReadingJourney,
   updateReadingDetailsDates,
   updateReadingNote,
 } from '../../lib/reading-details';
@@ -870,6 +871,16 @@ export default function ReadingDetailsScreen() {
     useState('');
 
   const [
+    journeyAction,
+    setJourneyAction,
+  ] =
+    useState<
+      'pause' |
+      'resume' |
+      null
+    >(null);
+
+  const [
     progressEditorOpen,
     setProgressEditorOpen,
   ] =
@@ -1168,11 +1179,18 @@ export default function ReadingDetailsScreen() {
     data?.book.status ===
     'dnf';
 
+  const isPaused =
+    data?.session
+      .journey_status ===
+    'paused';
+
   const resumeEyebrow =
     isFinished
       ? 'READING COMPLETED'
       : isDnf
       ? 'READING STOPPED'
+      : isPaused
+      ? 'READING PAUSED'
       : 'YOU LEFT OFF HERE';
 
   const lastPosition = useMemo(() => {
@@ -1280,6 +1298,51 @@ export default function ReadingDetailsScreen() {
     } finally {
       setRefreshing(
         false
+      );
+    }
+  }
+
+  async function changeJourneyState(
+    action:
+      | 'pause'
+      | 'resume'
+  ) {
+    if (
+      !data ||
+      journeyAction
+    ) {
+      return;
+    }
+
+    try {
+      setJourneyAction(
+        action
+      );
+
+      await transitionReadingJourney(
+        googleBookId,
+        action
+      );
+
+      await loadData(
+        false
+      );
+    } catch (
+      journeyError
+    ) {
+      Alert.alert(
+        action ===
+          'pause'
+          ? 'Could not pause reading'
+          : 'Could not resume reading',
+        journeyError instanceof
+          Error
+          ? journeyError.message
+          : 'Please try again.'
+      );
+    } finally {
+      setJourneyAction(
+        null
       );
     }
   }
@@ -2168,8 +2231,10 @@ export default function ReadingDetailsScreen() {
     'Unknown author';
 
   const statusLabel =
-    data.book.status ===
-      'reading'
+    isPaused
+      ? 'Paused'
+      : data.book.status ===
+        'reading'
       ? 'Currently Reading'
       : data.book.status ===
         'read'
@@ -2461,9 +2526,11 @@ export default function ReadingDetailsScreen() {
                   }
                 >
                   {
-                    data.book
-                        .status ===
-                      'dnf'
+                    isPaused
+                      ? 'Paused'
+                      : data.book
+                          .status ===
+                        'dnf'
                       ? 'Stopped'
                       : 'Finished'
                   }
@@ -2475,9 +2542,17 @@ export default function ReadingDetailsScreen() {
                   }
                 >
                   {
-                    data.book
-                        .status ===
-                      'dnf'
+                    isPaused
+                      ? data.session
+                          .paused_at
+                        ? formatDate(
+                            data.session
+                              .paused_at
+                          )
+                        : 'Paused'
+                      : data.book
+                          .status ===
+                        'dnf'
                       ? data.book
                           .dnf_at
                         ? formatDate(
@@ -2545,11 +2620,17 @@ export default function ReadingDetailsScreen() {
                         ? `Final position · ${formatDate(lastPosition.createdAt)}`
                         : isDnf
                         ? `Last position · ${formatDate(lastPosition.createdAt)}`
+                        : isPaused
+                        ? data.session.paused_at
+                          ? `Paused ${formatDate(data.session.paused_at)}`
+                          : 'Reading is paused.'
                         : `Updated ${formatDate(lastPosition.createdAt)}`
                       : isFinished
                       ? 'This reading session is complete.'
                       : isDnf
                       ? 'No position was saved before this reading session ended.'
+                      : isPaused
+                      ? 'Resume whenever you are ready. Your reading position is preserved.'
                       : 'Save your first reading position whenever you stop.'
                   }
                 </Text>
@@ -2583,34 +2664,144 @@ export default function ReadingDetailsScreen() {
             ) : null}
 
             {isReading ? (
-              <Pressable
-                onPress={
-                  openProgressEditor
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.primaryButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={18}
-                  color={
-                    colors.background
+              isPaused ? (
+                <Pressable
+                  onPress={() =>
+                    void changeJourneyState(
+                      'resume'
+                    )
                   }
-                />
-
-                <Text
-                  style={
-                    styles.primaryButtonText
+                  disabled={
+                    journeyAction !==
+                    null
                   }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.primaryButton,
+                    (
+                      pressed ||
+                      journeyAction !==
+                        null
+                    ) &&
+                      styles.pressed,
+                  ]}
                 >
-                  Update progress
-                </Text>
-              </Pressable>
+                  {journeyAction ===
+                  'resume' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.background
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name="play-outline"
+                      size={18}
+                      color={
+                        colors.background
+                      }
+                    />
+                  )}
+
+                  <Text
+                    style={
+                      styles.primaryButtonText
+                    }
+                  >
+                    Resume reading
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={
+                      openProgressEditor
+                    }
+                    disabled={
+                      journeyAction !==
+                      null
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.primaryButton,
+                      (
+                        pressed ||
+                        journeyAction !==
+                          null
+                      ) &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={18}
+                      color={
+                        colors.background
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.primaryButtonText
+                      }
+                    >
+                      Update progress
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() =>
+                      void changeJourneyState(
+                        'pause'
+                      )
+                    }
+                    disabled={
+                      journeyAction !==
+                      null
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.journeySecondaryButton,
+                      (
+                        pressed ||
+                        journeyAction !==
+                          null
+                      ) &&
+                        styles.pressed,
+                    ]}
+                  >
+                    {journeyAction ===
+                    'pause' ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.gold
+                        }
+                      />
+                    ) : (
+                      <Ionicons
+                        name="pause-outline"
+                        size={17}
+                        color={
+                          colors.gold
+                        }
+                      />
+                    )}
+
+                    <Text
+                      style={
+                        styles.journeySecondaryButtonText
+                      }
+                    >
+                      Pause reading
+                    </Text>
+                  </Pressable>
+                </>
+              )
             ) : (
               <Text
                 style={
@@ -4976,6 +5167,36 @@ function createStyles(
         16,
       marginTop:
         16,
+    },
+    journeySecondaryButton: {
+      minHeight:
+        42,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        7,
+      borderWidth:
+        1,
+      borderColor:
+        colors.gold,
+      borderRadius:
+        13,
+      paddingHorizontal:
+        16,
+      marginTop:
+        9,
+    },
+    journeySecondaryButtonText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
     },
     smallPrimaryButton: {
       minHeight:
