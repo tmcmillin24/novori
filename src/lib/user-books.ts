@@ -1,16 +1,4 @@
 import { supabase } from './supabase';
-import {
-  getCanonicalBookPresentations,
-} from './canonical-books';
-import type {
-  CanonicalBookPresentation,
-} from './canonical-books';
-export {
-  getCanonicalBookPresentations,
-} from './canonical-books';
-export type {
-  CanonicalBookPresentation,
-} from './canonical-books';
 import { fetchGoogleBooksJson } from './google-books';
 import {
   searchNovoriBooks,
@@ -118,37 +106,113 @@ function secureCoverUrl(
   );
 }
 
+async function getLockedVerifiedCoverUrls(
+  googleBookIds:
+    string[]
+) {
+  const ids =
+    Array.from(
+      new Set(
+        googleBookIds.filter(
+          Boolean
+        )
+      )
+    );
 
-function applyCanonicalPresentation(
-  book: UserBook,
-  canonical:
-    CanonicalBookPresentation
-    | undefined
-): UserBook {
-  if (!canonical) {
-    return book;
+  const covers =
+    new Map<
+      string,
+      string
+    >();
+
+  if (
+    ids.length ===
+    0
+  ) {
+    return covers;
   }
 
-  return {
-    ...book,
-    title:
-      canonical.title ||
-      book.title,
-    authors:
-      canonical.authors.length >
-        0
-        ? canonical.authors
-        : book.authors,
-    cover_url:
-      canonical.coverUrl ??
-      book.cover_url,
-    isbn:
-      canonical.isbn ??
-      book.isbn,
-    published_date:
-      canonical.publishedDate ??
-      book.published_date,
-  };
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'book-cover-selection',
+        {
+          body: {
+            volumeIds:
+              ids,
+          },
+        }
+      );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Could not load verified Novori library covers:',
+        error
+      );
+      return covers;
+    }
+
+    const response =
+      data as
+        | {
+            ok?: boolean;
+            data?: {
+              covers?: Record<
+                string,
+                string | null
+              >;
+            };
+          }
+        | null;
+
+    if (
+      response?.ok !==
+        true ||
+      !response.data
+        ?.covers
+    ) {
+      return covers;
+    }
+
+    for (
+      const [
+        googleBookId,
+        url,
+      ] of
+        Object.entries(
+          response.data
+            .covers
+        )
+    ) {
+      const secured =
+        secureCoverUrl(
+          url
+        );
+
+      if (
+        secured
+      ) {
+        covers.set(
+          googleBookId,
+          secured
+        );
+      }
+    }
+  } catch (
+    coverError
+  ) {
+    console.warn(
+      'Could not load verified Novori library covers:',
+      coverError
+    );
+  }
+
+  return covers;
 }
 
 async function remoteCoverExists(
@@ -666,39 +730,6 @@ function normalizeBookText(
     .trim();
 }
 
-function normalizeWorkTitle(
-  value?: string | null
-) {
-  if (!value) {
-    return '';
-  }
-
-  let raw =
-    value
-      .normalize('NFKD')
-      .replace(
-        /[\u0300-\u036f]/g,
-        ''
-      )
-      .trim();
-
-  raw =
-    raw.replace(
-      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series|#\s*\d+|,\s*\d+)[^\])]*[\])]/gi,
-      ''
-    );
-
-  raw =
-    raw.replace(
-      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
-      ''
-    );
-
-  return normalizeBookText(
-    raw
-  );
-}
-
 function authorsMatch(
   expected:
     string[],
@@ -1063,128 +1094,33 @@ export async function getUserBook(
     throw error;
   }
 
-  let book =
+  const book =
     data as UserBook | null;
 
   if (
     !book
   ) {
-    const {
-      data:
-        candidateRows,
-      error:
-        candidateError,
-    } =
-      await supabase
-        .from(
-          'user_books'
-        )
-        .select('*')
-        .eq(
-          'user_id',
-          userId
-        );
-
-    if (candidateError) {
-      throw candidateError;
-    }
-
-    const candidates =
-      (
-        candidateRows ??
-        []
-      ) as UserBook[];
-
-    if (
-      candidates.length ===
-        0
-    ) {
-      return null;
-    }
-
-    const canonicalCandidates =
-      await getCanonicalBookPresentations([
-        googleBookId,
-        ...candidates.map(
-          (
-            candidate
-          ) =>
-            candidate.google_book_id
-        ),
-      ]);
-
-    const targetCanonicalId =
-      canonicalCandidates.get(
-        googleBookId
-      )?.googleBookId ??
-      googleBookId;
-
-    book =
-      candidates.find(
-        (
-          candidate
-        ) =>
-          (
-            canonicalCandidates.get(
-              candidate.google_book_id
-            )?.googleBookId ??
-            candidate.google_book_id
-          ) ===
-            targetCanonicalId
-      ) ??
-      null;
-
-    if (!book) {
-      const targetCanonical =
-        canonicalCandidates.get(
-          googleBookId
-        );
-
-      if (targetCanonical) {
-        const targetTitle =
-          normalizeWorkTitle(
-            targetCanonical.title
-          );
-
-        book =
-          candidates.find(
-            (
-              candidate
-            ) =>
-              normalizeWorkTitle(
-                candidate.title
-              ) ===
-                targetTitle &&
-              authorsMatch(
-                targetCanonical.authors,
-                candidate.authors ??
-                  []
-              )
-          ) ??
-          null;
-      }
-    }
-
-    if (!book) {
-      return null;
-    }
+    return null;
   }
 
-  const canonicalBooks =
-    await getCanonicalBookPresentations([
+  const verifiedCovers =
+    await getLockedVerifiedCoverUrls([
       book.google_book_id,
     ]);
 
-  const canonicalBook =
-    canonicalBooks.get(
+  const verifiedCover =
+    verifiedCovers.get(
       book.google_book_id
     );
 
-  if (canonicalBook) {
-    return applyCanonicalPresentation(
-      book,
-      canonicalBook
-    );
+  if (
+    verifiedCover
+  ) {
+    return {
+      ...book,
+      cover_url:
+        verifiedCover,
+    };
   }
 
   return repairSavedCover(
@@ -1227,17 +1163,16 @@ export async function getUserBooks(
     throw error;
   }
 
-  // List reads stay fast: one server-side batch lookup normalizes
-  // presentation to Novori's canonical work while preserving the original
-  // saved google_book_id for statuses, reviews, journeys, and notes.
+  // List reads must stay fast. Do one server-side batch lookup for
+  // locked/verified work covers, but never run per-book remote cover repair.
   const books =
     (
       data ??
       []
     ) as UserBook[];
 
-  const canonicalBooks =
-    await getCanonicalBookPresentations(
+  const verifiedCovers =
+    await getLockedVerifiedCoverUrls(
       books.map(
         (
           book
@@ -1247,8 +1182,8 @@ export async function getUserBooks(
     );
 
   if (
-    canonicalBooks.size ===
-      0
+    verifiedCovers.size ===
+    0
   ) {
     return books;
   }
@@ -1256,13 +1191,20 @@ export async function getUserBooks(
   return books.map(
     (
       book
-    ) =>
-      applyCanonicalPresentation(
-        book,
-        canonicalBooks.get(
+    ) => {
+      const verifiedCover =
+        verifiedCovers.get(
           book.google_book_id
-        )
-      )
+        );
+
+      return verifiedCover
+        ? {
+            ...book,
+            cover_url:
+              verifiedCover,
+          }
+        : book;
+    }
   );
 }
 
