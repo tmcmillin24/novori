@@ -1315,6 +1315,28 @@ export default function BookDetailsScreen() {
           );
         }
 
+        if (__DEV__) {
+          console.log(
+            '[Novori cover debug]',
+            {
+              clickedId:
+                id,
+              resolvedId:
+                resolvedBook.id,
+              clickedTitle:
+                clickedTitle ??
+                null,
+              discoverCoverUrl:
+                discoverCoverUrl ??
+                null,
+              resolvedImageLinks:
+                resolvedBook.volumeInfo
+                  .imageLinks ??
+                null,
+            }
+          );
+        }
+
         setBook(
           resolvedBook
         );
