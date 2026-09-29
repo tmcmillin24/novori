@@ -199,6 +199,31 @@ function normalizeSeriesWorkTitle(
   );
 }
 
+function getSeriesWorkSearchTitle(
+  title?: string
+) {
+  if (!title) {
+    return '';
+  }
+
+  return title
+    .trim()
+    .replace(
+      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series|#\s*\d+|,\s*\d+)[^\])]*[\])]\s*$/i,
+      ''
+    )
+    .replace(
+      /\s*[-–—]\s*(?:a\s+)?(?:terminal\s+list\s+)?thriller.*$/i,
+      ''
+    )
+    .replace(
+      /\s*:\s*(?:a\s+)?(?:terminal\s+list\s+)?thriller.*$/i,
+      ''
+    )
+    .trim();
+}
+
+
 
 function normalizeAuthorName(
   author?: string
@@ -1855,9 +1880,15 @@ export default function BookDetailsScreen() {
       );
 
     try {
+      const discoverSearchTitle =
+        getSeriesWorkSearchTitle(
+          seriesBook.title
+        ) ||
+        seriesBook.title;
+
       const discoverResults =
         await searchNovoriBooks(
-          seriesBook.title
+          discoverSearchTitle
         );
 
       const discoverMatch =
