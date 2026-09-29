@@ -240,8 +240,7 @@ Deno.serve(
             status: 401,
             error:
               'Authentication required.',
-          },
-          401
+          }
         );
       }
 
@@ -284,8 +283,7 @@ Deno.serve(
             status: 401,
             error:
               'Invalid session.',
-          },
-          401
+          }
         );
       }
 
@@ -311,8 +309,7 @@ Deno.serve(
             status: 400,
             error:
               'Search query must be between 2 and 200 characters.',
-          },
-          400
+          }
         );
       }
 
