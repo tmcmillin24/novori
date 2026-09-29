@@ -1,7 +1,9 @@
 import { supabase } from './supabase';
 import {
-  CanonicalBookPresentation,
   getCanonicalBookPresentations,
+} from './canonical-books';
+import type {
+  CanonicalBookPresentation,
 } from './canonical-books';
 
 export type BookCartItem = {
