@@ -360,7 +360,8 @@ Deno.serve(
         await recordGoogleBooksInCatalog(
           supabaseAdmin,
           cache.response_json,
-          true
+          true,
+          'google_detail_cache'
         );
 
         return jsonResponse(
@@ -452,7 +453,8 @@ Deno.serve(
         await recordGoogleBooksInCatalog(
           supabaseAdmin,
           cache?.response_json,
-          true
+          true,
+          'google_detail_cache'
         );
 
         return jsonResponse(
@@ -508,7 +510,8 @@ Deno.serve(
           await recordGoogleBooksInCatalog(
             supabaseAdmin,
             cache?.response_json,
-            true
+            true,
+            'google_detail_cache'
           );
 
           return jsonResponse(
@@ -558,7 +561,8 @@ Deno.serve(
           await recordGoogleBooksInCatalog(
             supabaseAdmin,
             filledCache.response_json,
-            true
+            true,
+            'google_detail_cache'
           );
 
           return jsonResponse(
@@ -642,7 +646,8 @@ Deno.serve(
           await recordGoogleBooksInCatalog(
             supabaseAdmin,
             cache?.response_json,
-            true
+            true,
+            'google_detail_cache'
           );
 
           return jsonResponse(
@@ -731,7 +736,8 @@ Deno.serve(
           await recordGoogleBooksInCatalog(
             supabaseAdmin,
             cache?.response_json,
-            true
+            true,
+            'google_detail_cache'
           );
 
           return jsonResponse(
@@ -771,7 +777,8 @@ Deno.serve(
       await recordGoogleBooksInCatalog(
         supabaseAdmin,
         payload,
-        true
+        true,
+        'google_detail'
       );
 
       const fetchedAt =
