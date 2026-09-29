@@ -449,7 +449,8 @@ async function googleSearch(
   await recordGoogleBooksInCatalog(
     supabaseAdmin,
     data,
-    false
+    false,
+    'google_resolve'
   );
 
   return {
