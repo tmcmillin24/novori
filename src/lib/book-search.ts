@@ -48,6 +48,148 @@ type GoogleBooksResponse = {
   items?: GoogleBookSearchItem[];
 };
 
+type SharedGoogleBooksSearchEnvelope = {
+  ok?: boolean;
+  status?: number;
+  data?: GoogleBooksResponse | null;
+  error?: string;
+  reason?: string;
+  cache?: {
+    status?: 'hit' | 'miss' | 'stale';
+    googleRequestMade?: boolean;
+    expiresAt?: string;
+    reason?: string;
+  };
+  quota?: {
+    upstreamRequestsToday?: number;
+    userWindowRequests?: number;
+    userDailyRequests?: number;
+  };
+};
+
+async function fetchSharedGoogleBooksSearch(
+  searchTerm: string
+) {
+  const directUrl =
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+      searchTerm
+    )}&maxResults=40&printType=books&projection=full`;
+
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'google-books-search',
+        {
+          body: {
+            query:
+              searchTerm,
+          },
+        }
+      );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Shared Google Books search unavailable; using direct fallback:',
+        error
+      );
+
+      return fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
+        directUrl
+      );
+    }
+
+    const response =
+      data as
+        SharedGoogleBooksSearchEnvelope;
+
+    if (
+      response?.ok ===
+        false
+    ) {
+      return {
+        ok: false,
+        status:
+          response.status ??
+          500,
+        data:
+          null,
+        fromCache:
+          false,
+      };
+    }
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (
+        __DEV__
+      ) {
+        console.log(
+          '[Novori book search cache]',
+          {
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            googleRequestMade:
+              response.cache
+                ?.googleRequestMade ??
+              false,
+            quota:
+              response.quota ??
+              null,
+          }
+        );
+      }
+
+      return {
+        ok: true,
+        status:
+          response.status ??
+          200,
+        data:
+          response.data,
+        fromCache:
+          response.cache
+            ?.status !==
+          'miss',
+      };
+    }
+
+    console.warn(
+      'Shared Google Books search returned an unexpected payload; using direct fallback.'
+    );
+
+    return fetchGoogleBooksJson<
+      GoogleBooksResponse
+    >(
+      directUrl
+    );
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Google Books search failed; using direct fallback:',
+      error
+    );
+
+    return fetchGoogleBooksJson<
+      GoogleBooksResponse
+    >(
+      directUrl
+    );
+  }
+}
+
 type HardcoverSearchPopularityResponse = {
   popularity?: Record<
     string,
@@ -1432,16 +1574,9 @@ export function getBestSearchCover(
 export async function searchNovoriBooks(
   searchTerm: string
 ) {
-  const encodedQuery =
-    encodeURIComponent(
-      searchTerm
-    );
-
   const response =
-    await fetchGoogleBooksJson<
-      GoogleBooksResponse
-    >(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=40&printType=books&projection=full`
+    await fetchSharedGoogleBooksSearch(
+      searchTerm
     );
 
   if (
