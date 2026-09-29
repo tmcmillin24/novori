@@ -1,11 +1,15 @@
 import { supabase } from './supabase';
 import {
-  CanonicalBookPresentation,
   getCanonicalBookPresentations,
 } from './canonical-books';
-export {
+import type {
   CanonicalBookPresentation,
+} from './canonical-books';
+export {
   getCanonicalBookPresentations,
+} from './canonical-books';
+export type {
+  CanonicalBookPresentation,
 } from './canonical-books';
 import { fetchGoogleBooksJson } from './google-books';
 import {
