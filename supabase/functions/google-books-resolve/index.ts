@@ -612,7 +612,7 @@ function identityCacheKey(
   author: string
 ) {
   return (
-    'identity:v3:' +
+    'identity:v4:' +
     canonicalWorkTitle(
       title
     ) +
