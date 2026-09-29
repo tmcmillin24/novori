@@ -1068,10 +1068,12 @@ export async function resolveBestBookCover({
   imageLinks,
   isbn,
   existingCoverUrl,
+  allowExactIsbnFallback = false,
 }: {
   imageLinks?: BookImageLinks;
   isbn?: string | null;
   existingCoverUrl?: string | null;
+  allowExactIsbnFallback?: boolean;
 }): Promise<BookCoverResolution> {
   const google =
     await resolveBestGoogleCandidate(
@@ -1137,10 +1139,17 @@ export async function resolveBestBookCover({
     };
   }
 
-  // Google/existing is the normal path. Do not contact Open Library
-  // unless there is no usable cover at all.
+  // Google/existing remains the normal path. Only an explicit
+  // detail/save flow may probe Open Library by this exact edition ISBN,
+  // and only when the Google/existing image is objectively too small.
   if (
-    currentBest
+    currentBest &&
+    (
+      !allowExactIsbnFallback ||
+      isSatisfactory(
+        currentBest
+      )
+    )
   ) {
     return {
       url:
@@ -1155,9 +1164,12 @@ export async function resolveBestBookCover({
   }
 
   const openLibraryUrl =
-    getOpenLibraryLargeCoverUrl(
-      isbn
-    );
+    allowExactIsbnFallback ||
+    !currentBest
+      ? getOpenLibraryLargeCoverUrl(
+          isbn
+        )
+      : null;
 
   const openLibrarySize =
     openLibraryUrl
@@ -1168,7 +1180,13 @@ export async function resolveBestBookCover({
 
   if (
     openLibraryUrl &&
-    openLibrarySize
+    openLibrarySize &&
+    (
+      !currentBest ||
+      isSatisfactory(
+        openLibrarySize
+      )
+    )
   ) {
     return {
       url:
@@ -1179,6 +1197,21 @@ export async function resolveBestBookCover({
         openLibrarySize.width,
       height:
         openLibrarySize.height,
+    };
+  }
+
+  if (
+    currentBest
+  ) {
+    return {
+      url:
+        currentBest.url,
+      source:
+        currentBest.source,
+      width:
+        currentBest.width,
+      height:
+        currentBest.height,
     };
   }
 
@@ -1199,6 +1232,7 @@ export async function resolveBookCoverUrl(
     imageLinks?: BookImageLinks;
     isbn?: string | null;
     existingCoverUrl?: string | null;
+    allowExactIsbnFallback?: boolean;
   }
 ) {
   return (
