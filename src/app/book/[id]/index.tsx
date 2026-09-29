@@ -3704,8 +3704,10 @@ export default function BookDetailsScreen() {
                 styles.libraryReadingPanelTitle
               }
             >
-              {savedBook.status ===
-              'want_to_read'
+              {!savedBook.status
+                ? 'Set Reading Status'
+                : savedBook.status ===
+                  'want_to_read'
                 ? 'TBR'
                 : savedBook.status ===
                   'reading'
@@ -3716,120 +3718,212 @@ export default function BookDetailsScreen() {
                 : 'Did Not Finish'}
             </Text>
 
-            <Text
-              style={
-                styles.libraryTbrHint
-              }
-            >
-              {savedBook.status ===
-              'want_to_read'
-                ? 'Saved for later. Start reading when you are ready to begin a journey.'
-                : savedBook.status ===
-                  'read'
-                ? savedBook.finished_at
-                  ? `Finished ${formatReadingDate(savedBook.finished_at)}. Manage this journey in Reading Details.`
-                  : 'This journey is finished. Manage dates and history in Reading Details.'
-                : savedBook.status ===
-                  'dnf'
-                ? savedBook.dnf_at
-                  ? `Stopped ${formatReadingDate(savedBook.dnf_at)}. Manage this journey in Reading Details.`
-                  : 'This journey was not finished. Manage dates and history in Reading Details.'
-                : savedBook.started_at
-                ? `Started ${formatReadingDate(savedBook.started_at)}. Progress, pauses, and dates live in Reading Details.`
-                : 'Your active journey is managed in Reading Details.'}
-            </Text>
+            {!savedBook.status ? (
+              <>
+                <Text
+                  style={
+                    styles.libraryTbrHint
+                  }
+                >
+                  Choose where this book belongs. After that, journey changes move to Reading Details.
+                </Text>
 
-            <Pressable
-              onPress={
-                savedBook.status ===
+                <View
+                  style={
+                    styles.libraryStatusSelector
+                  }
+                >
+                  {statuses.map(
+                    (
+                      status
+                    ) => {
+                      const saving =
+                        savingStatus ===
+                        status.value;
+
+                      return (
+                        <Pressable
+                          key={
+                            status.value
+                          }
+                          disabled={
+                            savingStatus !==
+                            null
+                          }
+                          onPress={() =>
+                            saveReadingStatus(
+                              status.value
+                            )
+                          }
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.libraryStatusChoice,
+                            pressed &&
+                              savingStatus ===
+                                null &&
+                              styles.libraryStatusChoicePressed,
+                          ]}
+                        >
+                          {saving ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={
+                                colors.gold
+                              }
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name={
+                                  status.icon
+                                }
+                                size={
+                                  16
+                                }
+                                color={
+                                  colors.mutedText
+                                }
+                              />
+
+                              <Text
+                                style={
+                                  styles.libraryStatusChoiceText
+                                }
+                                numberOfLines={
+                                  1
+                                }
+                              >
+                                {
+                                  status.label
+                                }
+                              </Text>
+                            </>
+                          )}
+                        </Pressable>
+                      );
+                    }
+                  )}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text
+                  style={
+                    styles.libraryTbrHint
+                  }
+                >
+                  {savedBook.status ===
                   'want_to_read'
-                  ? () =>
-                      void startSavedReadingJourney()
-                  : openReadingDetails
-              }
-              disabled={
-                savingStatus !==
-                null
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.readingDetailsButton,
-                (
-                  pressed ||
-                  savingStatus !==
+                    ? 'Saved for later. Start reading when you are ready to begin a journey.'
+                    : savedBook.status ===
+                      'read'
+                    ? savedBook.finished_at
+                      ? `Finished ${formatReadingDate(savedBook.finished_at)}. Manage this journey in Reading Details.`
+                      : 'This journey is finished. Manage dates and history in Reading Details.'
+                    : savedBook.status ===
+                      'dnf'
+                    ? savedBook.dnf_at
+                      ? `Stopped ${formatReadingDate(savedBook.dnf_at)}. Manage this journey in Reading Details.`
+                      : 'This journey was not finished. Manage dates and history in Reading Details.'
+                    : savedBook.started_at
+                    ? `Started ${formatReadingDate(savedBook.started_at)}. Progress, pauses, and dates live in Reading Details.`
+                    : 'Your active journey is managed in Reading Details.'}
+                </Text>
+
+                <Pressable
+                  onPress={
+                    savedBook.status ===
+                      'want_to_read'
+                      ? () =>
+                          void startSavedReadingJourney()
+                      : openReadingDetails
+                  }
+                  disabled={
+                    savingStatus !==
                     null
-                ) &&
-                  styles.readingDetailsButtonPressed,
-              ]}
-            >
-              <View
-                style={
-                  styles.readingDetailsButtonIcon
-                }
-              >
-                {savingStatus ===
-                'reading' &&
-                savedBook.status ===
-                  'want_to_read' ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.gold
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.readingDetailsButton,
+                    (
+                      pressed ||
+                      savingStatus !==
+                        null
+                    ) &&
+                      styles.readingDetailsButtonPressed,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.readingDetailsButtonIcon
                     }
-                  />
-                ) : (
+                  >
+                    {savingStatus ===
+                    'reading' &&
+                    savedBook.status ===
+                      'want_to_read' ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.gold
+                        }
+                      />
+                    ) : (
+                      <Ionicons
+                        name={
+                          savedBook.status ===
+                            'want_to_read'
+                            ? 'play-outline'
+                            : 'reader-outline'
+                        }
+                        size={18}
+                        color={
+                          colors.gold
+                        }
+                      />
+                    )}
+                  </View>
+
+                  <View
+                    style={
+                      styles.readingDetailsButtonCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.readingDetailsButtonTitle
+                      }
+                    >
+                      {savedBook.status ===
+                      'want_to_read'
+                        ? 'Start Reading'
+                        : 'View Reading Details'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.readingDetailsButtonSubtitle
+                      }
+                    >
+                      {savedBook.status ===
+                      'want_to_read'
+                        ? 'Begin your first reading journey'
+                        : 'Manage progress, dates, pause or resume, and history'}
+                    </Text>
+                  </View>
+
                   <Ionicons
-                    name={
-                      savedBook.status ===
-                        'want_to_read'
-                        ? 'play-outline'
-                        : 'reader-outline'
-                    }
+                    name="chevron-forward"
                     size={18}
                     color={
-                      colors.gold
+                      colors.mutedText
                     }
                   />
-                )}
-              </View>
-
-              <View
-                style={
-                  styles.readingDetailsButtonCopy
-                }
-              >
-                <Text
-                  style={
-                    styles.readingDetailsButtonTitle
-                  }
-                >
-                  {savedBook.status ===
-                  'want_to_read'
-                    ? 'Start Reading'
-                    : 'View Reading Details'}
-                </Text>
-
-                <Text
-                  style={
-                    styles.readingDetailsButtonSubtitle
-                  }
-                >
-                  {savedBook.status ===
-                  'want_to_read'
-                    ? 'Begin your first reading journey'
-                    : 'Manage progress, dates, pause or resume, and history'}
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={
-                  colors.mutedText
-                }
-              />
-            </Pressable>
+                </Pressable>
+              </>
+            )}
           </View>
         ) : null}
 
