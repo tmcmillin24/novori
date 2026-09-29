@@ -1,9 +1,6 @@
 import {
   createClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
-import {
-  getCanonicalGoogleEditionsForWorkIds,
-} from '../_shared/book-canonical.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':
@@ -274,12 +271,6 @@ Deno.serve(
           )
         );
 
-      const canonicalEditionsByWork =
-        await getCanonicalGoogleEditionsForWorkIds(
-          supabaseAdmin,
-          workIds
-        );
-
       const selectionsByWork =
         new Map<
           string,
@@ -468,15 +459,6 @@ Deno.serve(
           >
         > = {};
 
-      const canonicalBooks:
-        Record<
-          string,
-          Record<
-            string,
-            unknown
-          > | null
-        > = {};
-
       const workByVolumeId =
         new Map<
           string,
@@ -527,71 +509,10 @@ Deno.serve(
           candidate?.url ??
           null;
 
-        const canonicalEdition =
-          workId
-            ? canonicalEditionsByWork.get(
-                workId
-              )
-            : undefined;
-
         covers[
           volumeId
         ] =
           selectedUrl;
-
-        const authoritativeCoverUrl =
-          selectedUrl &&
-          selection
-            ?.locked
-            ? selectedUrl
-            : null;
-
-        canonicalBooks[
-          volumeId
-        ] =
-          canonicalEdition
-            ? {
-                googleBookId:
-                  canonicalEdition
-                    .googleBookId,
-                title:
-                  canonicalEdition
-                    .title,
-                subtitle:
-                  canonicalEdition
-                    .subtitle,
-                authors:
-                  canonicalEdition
-                    .authors,
-                isbn:
-                  canonicalEdition
-                    .isbn13 ??
-                  canonicalEdition
-                    .isbn10,
-                isbn10:
-                  canonicalEdition
-                    .isbn10,
-                isbn13:
-                  canonicalEdition
-                    .isbn13,
-                publishedDate:
-                  canonicalEdition
-                    .publishedDate,
-                pageCount:
-                  canonicalEdition
-                    .pageCount,
-                coverUrl:
-                  authoritativeCoverUrl ??
-                  canonicalEdition
-                    .coverUrl,
-                imageLinks:
-                  canonicalEdition
-                    .imageLinks,
-                workId:
-                  canonicalEdition
-                    .workId,
-              }
-            : null;
 
         details[
           volumeId
@@ -646,16 +567,9 @@ Deno.serve(
           {
             ok: true,
             status: 200,
-            data: {
-              ...details[
-                singleVolumeId
-              ],
-              canonicalBook:
-                canonicalBooks[
-                  singleVolumeId
-                ] ??
-                null,
-            },
+            data: details[
+              singleVolumeId
+            ],
           }
         );
       }
@@ -667,7 +581,6 @@ Deno.serve(
           data: {
             covers,
             details,
-            canonicalBooks,
           },
         }
       );
