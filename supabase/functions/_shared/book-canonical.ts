@@ -167,6 +167,40 @@ function cleanImageLinks(
     : null;
 }
 
+function highestQualityImageLink(
+  value: unknown
+) {
+  const links =
+    cleanImageLinks(
+      value
+    );
+
+  if (!links) {
+    return null;
+  }
+
+  return (
+    secureUrl(
+      links.extraLarge
+    ) ??
+    secureUrl(
+      links.large
+    ) ??
+    secureUrl(
+      links.medium
+    ) ??
+    secureUrl(
+      links.small
+    ) ??
+    secureUrl(
+      links.thumbnail
+    ) ??
+    secureUrl(
+      links.smallThumbnail
+    )
+  );
+}
+
 function localeScore(
   edition:
     EditionRow
@@ -545,6 +579,9 @@ export async function getCanonicalGoogleEditionsForWorkIds(
         saleCountry:
           selected.sale_country,
         coverUrl:
+          highestQualityImageLink(
+            selected.image_links
+          ) ??
           secureUrl(
             selected.cover_url
           ),
