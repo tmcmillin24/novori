@@ -591,6 +591,46 @@ async function resolveClickedDiscoverBook(
   return null;
 }
 
+function googleBooksCoverMatchesVolume(
+  coverUrl:
+    | string
+    | undefined,
+  googleBookId:
+    string
+) {
+  if (
+    !coverUrl ||
+    !googleBookId
+  ) {
+    return false;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        coverUrl
+      );
+
+    return (
+      parsed.searchParams.get(
+        'id'
+      ) ===
+        googleBookId &&
+      (
+        !parsed.searchParams.get(
+          'printsec'
+        ) ||
+        parsed.searchParams.get(
+          'printsec'
+        ) ===
+          'frontcover'
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 function getYear(date?: string | null) {
   if (!date) {
     return null;
@@ -1312,28 +1352,6 @@ export default function BookDetailsScreen() {
         if (!resolvedBook) {
           throw new Error(
             'Google Books returned conflicting metadata for this search result. Please choose another edition.'
-          );
-        }
-
-        if (__DEV__) {
-          console.log(
-            '[Novori cover debug]',
-            {
-              clickedId:
-                id,
-              resolvedId:
-                resolvedBook.id,
-              clickedTitle:
-                clickedTitle ??
-                null,
-              discoverCoverUrl:
-                discoverCoverUrl ??
-                null,
-              resolvedImageLinks:
-                resolvedBook.volumeInfo
-                  .imageLinks ??
-                null,
-            }
           );
         }
 
@@ -3066,12 +3084,20 @@ export default function BookDetailsScreen() {
     canonicalizeWork ===
       '1';
 
+  const exactRouteCoverUrl =
+    googleBooksCoverMatchesVolume(
+      discoverCoverUrl,
+      book.id
+    )
+      ? discoverCoverUrl
+      : null;
+
   const displayExistingCoverUrl =
     selectedWorkCoverUrl ??
     savedBook?.cover_url ??
     (
       isCanonicalWorkPage
-        ? null
+        ? exactRouteCoverUrl
         : discoverCoverUrl ??
           null
     );
@@ -3079,7 +3105,11 @@ export default function BookDetailsScreen() {
   const preferExistingCover =
     Boolean(
       selectedWorkCoverUrl ||
-      savedBook?.cover_url
+      savedBook?.cover_url ||
+      (
+        isCanonicalWorkPage &&
+        exactRouteCoverUrl
+      )
     );
 
   const coverPlan =
