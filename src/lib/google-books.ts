@@ -693,6 +693,154 @@ async function fetchSharedGoogleBooksSearch(
   }
 }
 
+export type GoogleBooksIdentityResult = {
+  ok: boolean;
+  status: number;
+  googleBookId: string | null;
+  fromCache: boolean;
+  googleRequestMade: boolean;
+  quota: {
+    upstreamRequestsToday?: number;
+    userWindowRequests?: number | null;
+    userDailyRequests?: number | null;
+  } | null;
+};
+
+export async function resolveGoogleBooksIdentity(
+  input: {
+    title: string;
+    author?: string;
+    isbn?: string;
+  }
+): Promise<GoogleBooksIdentityResult> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'google-books-resolve',
+        {
+          body: {
+            mode:
+              'identity',
+            title:
+              input.title,
+            author:
+              input.author,
+            isbn:
+              input.isbn,
+          },
+        }
+      );
+
+    if (error) {
+      console.warn(
+        'Shared Google Books identity resolver unavailable:',
+        error
+      );
+
+      return {
+        ok: false,
+        status: 503,
+        googleBookId: null,
+        fromCache: false,
+        googleRequestMade: false,
+        quota: null,
+      };
+    }
+
+    const response =
+      data as
+        SharedGoogleBooksDetailEnvelope & {
+          data?: {
+            kind?:
+              | 'identity'
+              | 'trending'
+              | 'isbn';
+            googleBookId?:
+              string | null;
+          } | null;
+        };
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (__DEV__) {
+        console.log(
+          '[Novori book identity cache]',
+          {
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            googleRequestMade:
+              response.cache
+                ?.googleRequestMade ??
+              false,
+            quota:
+              response.quota ??
+              null,
+          }
+        );
+      }
+
+      return {
+        ok: true,
+        status:
+          response.status ??
+          200,
+        googleBookId:
+          response.data
+            .googleBookId ??
+          null,
+        fromCache:
+          response.cache
+            ?.status !==
+          'miss',
+        googleRequestMade:
+          response.cache
+            ?.googleRequestMade ??
+          false,
+        quota:
+          response.quota ??
+          null,
+      };
+    }
+
+    return {
+      ok: false,
+      status:
+        response?.status ??
+        500,
+      googleBookId: null,
+      fromCache: false,
+      googleRequestMade: false,
+      quota:
+        response?.quota ??
+        null,
+    };
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Google Books identity resolver failed:',
+      error
+    );
+
+    return {
+      ok: false,
+      status: 503,
+      googleBookId: null,
+      fromCache: false,
+      googleRequestMade: false,
+      quota: null,
+    };
+  }
+}
+
 export async function fetchGoogleBooksJson<T>(
   url: string
 ): Promise<GoogleBooksJsonResult<T>> {
