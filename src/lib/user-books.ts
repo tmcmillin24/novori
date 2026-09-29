@@ -634,6 +634,39 @@ function normalizeBookText(
     .trim();
 }
 
+function normalizeWorkTitle(
+  value?: string | null
+) {
+  if (!value) {
+    return '';
+  }
+
+  let raw =
+    value
+      .normalize('NFKD')
+      .replace(
+        /[\u0300-\u036f]/g,
+        ''
+      )
+      .trim();
+
+  raw =
+    raw.replace(
+      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series|#\s*\d+|,\s*\d+)[^\])]*[\])]/gi,
+      ''
+    );
+
+  raw =
+    raw.replace(
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
+      ''
+    );
+
+  return normalizeBookText(
+    raw
+  );
+}
+
 function authorsMatch(
   expected:
     string[],
@@ -1068,6 +1101,37 @@ export async function getUserBook(
             targetCanonicalId
       ) ??
       null;
+
+    if (!book) {
+      const targetCanonical =
+        canonicalCandidates.get(
+          googleBookId
+        );
+
+      if (targetCanonical) {
+        const targetTitle =
+          normalizeWorkTitle(
+            targetCanonical.title
+          );
+
+        book =
+          candidates.find(
+            (
+              candidate
+            ) =>
+              normalizeWorkTitle(
+                candidate.title
+              ) ===
+                targetTitle &&
+              authorsMatch(
+                targetCanonical.authors,
+                candidate.authors ??
+                  []
+              )
+          ) ??
+          null;
+      }
+    }
 
     if (!book) {
       return null;
