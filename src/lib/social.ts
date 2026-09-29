@@ -5,6 +5,9 @@ import {
   FeedPost,
 } from './feed';
 import { supabase } from './supabase';
+import {
+  getCanonicalBookPresentations,
+} from './user-books';
 
 export type ReaderSocialProfile = {
   id: string;
@@ -81,6 +84,75 @@ export type IncomingFollowRequest = {
   avatar_url: string | null;
   created_at: string;
 };
+
+async function canonicalizePublicBookRows<
+  T extends {
+    google_book_id: string;
+    title: string;
+    authors: string[];
+    cover_url: string | null;
+    published_date: string | null;
+  }
+>(
+  rows: T[]
+): Promise<T[]> {
+  if (
+    rows.length ===
+      0
+  ) {
+    return rows;
+  }
+
+  const canonicalBooks =
+    await getCanonicalBookPresentations(
+      rows.map(
+        (
+          row
+        ) =>
+          row.google_book_id
+      )
+    );
+
+  if (
+    canonicalBooks.size ===
+      0
+  ) {
+    return rows;
+  }
+
+  return rows.map(
+    (
+      row
+    ) => {
+      const canonical =
+        canonicalBooks.get(
+          row.google_book_id
+        );
+
+      if (!canonical) {
+        return row;
+      }
+
+      return {
+        ...row,
+        title:
+          canonical.title ||
+          row.title,
+        authors:
+          canonical.authors.length >
+            0
+            ? canonical.authors
+            : row.authors,
+        cover_url:
+          canonical.coverUrl ??
+          row.cover_url,
+        published_date:
+          canonical.publishedDate ??
+          row.published_date,
+      };
+    }
+  );
+}
 
 export async function getReaderProfile(
   readerId: string
@@ -186,20 +258,25 @@ export async function getReaderPublicBooks(
     throw error;
   }
 
-  return (
-    data ??
-    []
-  ).map(
-    (row: any) => ({
-      ...row,
-      authors:
-        Array.isArray(
-          row.authors
-        )
-          ? row.authors
-          : [],
-    })
-  ) as PublicReaderBook[];
+  const rows =
+    (
+      data ??
+      []
+    ).map(
+      (row: any) => ({
+        ...row,
+        authors:
+          Array.isArray(
+            row.authors
+          )
+            ? row.authors
+            : [],
+      })
+    ) as PublicReaderBook[];
+
+  return canonicalizePublicBookRows(
+    rows
+  );
 }
 
 export async function getReaderPublicOwnedBooks(
@@ -224,24 +301,29 @@ export async function getReaderPublicOwnedBooks(
     throw error;
   }
 
-  return (
-    data ??
-    []
-  ).map(
-    (row: any) => ({
-      ...row,
-      owned:
-        Boolean(
-          row.owned
-        ),
-      authors:
-        Array.isArray(
-          row.authors
-        )
-          ? row.authors
-          : [],
-    })
-  ) as PublicReaderBook[];
+  const rows =
+    (
+      data ??
+      []
+    ).map(
+      (row: any) => ({
+        ...row,
+        owned:
+          Boolean(
+            row.owned
+          ),
+        authors:
+          Array.isArray(
+            row.authors
+          )
+            ? row.authors
+            : [],
+      })
+    ) as PublicReaderBook[];
+
+  return canonicalizePublicBookRows(
+    rows
+  );
 }
 
 export async function getReaderPublicReviews(
@@ -266,27 +348,32 @@ export async function getReaderPublicReviews(
     throw error;
   }
 
-  return (
-    data ??
-    []
-  ).map(
-    (row: any) => ({
-      ...row,
-      authors:
-        Array.isArray(
-          row.authors
-        )
-          ? row.authors
-          : [],
-      rating:
-        row.rating ===
-        null
-          ? null
-          : Number(
-              row.rating
-            ),
-    })
-  ) as PublicReaderReview[];
+  const rows =
+    (
+      data ??
+      []
+    ).map(
+      (row: any) => ({
+        ...row,
+        authors:
+          Array.isArray(
+            row.authors
+          )
+            ? row.authors
+            : [],
+        rating:
+          row.rating ===
+          null
+            ? null
+            : Number(
+                row.rating
+              ),
+      })
+    ) as PublicReaderReview[];
+
+  return canonicalizePublicBookRows(
+    rows
+  );
 }
 
 export async function getReaderConnections(
