@@ -6,13 +6,28 @@ import {
   UserBookStatus,
 } from './user-books';
 
+export type ReadingJourneyStatus =
+  | 'active'
+  | 'paused'
+  | 'finished'
+  | 'dnf';
+
+export type ReadingJourneyAction =
+  | 'start'
+  | 'pause'
+  | 'resume'
+  | 'finish'
+  | 'dnf';
+
 export type ReadingSession = {
   id: string;
   user_id: string;
   user_book_id: string;
   session_number: number;
   summary_text: string | null;
+  journey_status: ReadingJourneyStatus;
   started_at: string | null;
+  paused_at: string | null;
   finished_at: string | null;
   dnf_at: string | null;
   created_at: string;
@@ -184,6 +199,49 @@ export async function ensureReadingSession(
   if (!row) {
     throw new Error(
       'Could not create reading details.'
+    );
+  }
+
+  return row as ReadingSession;
+}
+
+export async function transitionReadingJourney(
+  googleBookId: string,
+  action: ReadingJourneyAction,
+  occurredAt?: string | null
+): Promise<ReadingSession> {
+  await requireUser();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      'transition_reading_journey',
+      {
+        target_google_book_id:
+          googleBookId,
+        target_action:
+          action,
+        target_occurred_at:
+          occurredAt ??
+          new Date()
+            .toISOString(),
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    throw new Error(
+      'Could not update this reading journey.'
     );
   }
 
