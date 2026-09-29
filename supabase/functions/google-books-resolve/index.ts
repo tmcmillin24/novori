@@ -1218,6 +1218,63 @@ Deno.serve(
           }
 
           if (
+            response.status ===
+              429
+          ) {
+            return jsonResponse(
+              {
+                ok: false,
+                status: 429,
+                error:
+                  'Google Books rate limit reached.',
+              }
+            );
+          }
+
+          if (
+            !response.data
+          ) {
+            if (
+              staleAvailable
+            ) {
+              await recordCacheHit(
+                supabaseAdmin,
+                requestKey,
+                true
+              );
+
+              return jsonResponse(
+                {
+                  ok: true,
+                  status: 200,
+                  data:
+                    cache
+                      ?.response_json,
+                  cache: {
+                    status:
+                      'stale',
+                    googleRequestMade:
+                      true,
+                    reason:
+                      'google_' +
+                      response.status,
+                  },
+                }
+              );
+            }
+
+            return jsonResponse(
+              {
+                ok: false,
+                status:
+                  response.status,
+                error:
+                  'Google Books Trending resolution is temporarily unavailable.',
+              }
+            );
+          }
+
+          if (
             response.data
           ) {
             const results =
