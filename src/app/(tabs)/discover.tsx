@@ -655,6 +655,9 @@ let discoverSessionCache = {
 const READER_SEARCH_DELAY_MS = 300;
 const MIN_READER_SEARCH_LENGTH = 2;
 
+let openLibraryPhase4DevProbeRan =
+  false;
+
 type DiscoverMode =
   | 'books'
   | 'readers';
@@ -1704,6 +1707,93 @@ export default function DiscoverScreen() {
   useEffect(() => () => {
     nativeScannerSubscription.current?.remove();
   }, []);
+
+  useEffect(
+    () => {
+      if (
+        !__DEV__ ||
+        openLibraryPhase4DevProbeRan
+      ) {
+        return;
+      }
+
+      openLibraryPhase4DevProbeRan =
+        true;
+
+      void (
+        async () => {
+          const body = {
+            title:
+              'The Hobbit: There and Back Again',
+            author:
+              'J.R.R. Tolkien',
+          };
+
+          const first =
+            await supabase.functions.invoke(
+              'open-library-work-cover',
+              {
+                body,
+              }
+            );
+
+          const second =
+            await supabase.functions.invoke(
+              'open-library-work-cover',
+              {
+                body,
+              }
+            );
+
+          console.log(
+            '[Phase 4 OL cache probe]',
+            {
+              first:
+                (
+                  first.data as
+                    | {
+                        cache?: {
+                          status?: string;
+                        };
+                      }
+                    | null
+                )?.cache
+                  ?.status ??
+                'error',
+              second:
+                (
+                  second.data as
+                    | {
+                        cache?: {
+                          status?: string;
+                        };
+                      }
+                    | null
+                )?.cache
+                  ?.status ??
+                'error',
+              firstError:
+                first.error ??
+                null,
+              secondError:
+                second.error ??
+                null,
+            }
+          );
+        }
+      )().catch(
+        (
+          error
+        ) => {
+          console.warn(
+            '[Phase 4 OL cache probe] failed',
+            error
+          );
+        }
+      );
+    },
+    []
+  );
 
   async function openBarcodeScanner() {
     if (scannerOpening.current) return;
