@@ -1765,82 +1765,6 @@ export default function BookDetailsScreen() {
     const author =
       seriesBook.authors?.[0];
 
-    const queries =
-      Array.from(
-        new Set([
-          ...(
-            seriesBook.isbns ??
-            []
-          )
-            .filter(Boolean)
-            .map(
-              (
-                isbn
-              ) =>
-                `isbn:${isbn}`
-            ),
-          author
-            ? `intitle:"${seriesBook.title}" inauthor:"${author}"`
-            : `intitle:"${seriesBook.title}"`,
-          `intitle:"${seriesBook.title}"`,
-          seriesBook.title,
-        ])
-      );
-
-    const resultMap =
-      new Map<
-        string,
-        GoogleBook
-      >();
-
-    for (
-      const query of
-        queries
-    ) {
-      try {
-        const response =
-          await fetchGoogleBooksJson<
-            GoogleSearchResponse
-          >(
-            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-              query
-            )}&maxResults=40&printType=books&projection=full`
-          );
-
-        if (
-          !response.ok ||
-          !response.data
-        ) {
-          continue;
-        }
-
-        for (
-          const result of
-            response.data.items ??
-            []
-        ) {
-          resultMap.set(
-            result.id,
-            result
-          );
-        }
-      } catch {
-        // Try the next increasingly broad query.
-      }
-    }
-
-    const results =
-      Array.from(
-        resultMap.values()
-      );
-
-    if (
-      results.length ===
-      0
-    ) {
-      return null;
-    }
-
     const wantedTitle =
       normalizeSeriesWorkTitle(
         seriesBook.title
@@ -1864,12 +1788,30 @@ export default function BookDetailsScreen() {
         )
         .filter(Boolean);
 
-    const candidates =
-      results
+    const normalizedAuthor =
+      normalizeAuthorName(
+        author
+      );
+
+    type RankedSeriesCandidate = {
+      result: GoogleBook;
+      exactTitle: boolean;
+      titleMatches: boolean;
+      authorMatches: boolean;
+      isbnMatches: boolean;
+      hasPages: boolean;
+      hasCover: boolean;
+      score: number;
+    };
+
+    function rankResults(
+      results: GoogleBook[]
+    ): RankedSeriesCandidate[] {
+      return results
         .map(
           (
             result
-          ) => {
+          ): RankedSeriesCandidate => {
             const resultTitle =
               normalizeSeriesWorkTitle(
                 result.volumeInfo
@@ -1899,27 +1841,23 @@ export default function BookDetailsScreen() {
               resultAuthors.some(
                 (
                   resultAuthor
-                ) =>
-                  normalizeAuthorName(
-                    resultAuthor
-                  ) ===
-                    normalizeAuthorName(
-                      author
-                    ) ||
-                  normalizeAuthorName(
-                    resultAuthor
-                  ).includes(
-                    normalizeAuthorName(
-                      author
-                    )
-                  ) ||
-                  normalizeAuthorName(
-                    author
-                  ).includes(
+                ) => {
+                  const normalizedResultAuthor =
                     normalizeAuthorName(
                       resultAuthor
+                    );
+
+                  return (
+                    normalizedResultAuthor ===
+                      normalizedAuthor ||
+                    normalizedResultAuthor.includes(
+                      normalizedAuthor
+                    ) ||
+                    normalizedAuthor.includes(
+                      normalizedResultAuthor
                     )
-                  )
+                  );
+                }
               );
 
             const resultIsbns =
@@ -2005,6 +1943,7 @@ export default function BookDetailsScreen() {
 
             return {
               result,
+              exactTitle,
               titleMatches,
               authorMatches,
               isbnMatches,
@@ -2056,9 +1995,148 @@ export default function BookDetailsScreen() {
                 a.isbnMatches
               )
         );
+    }
+
+    const queries =
+      [
+        ...wantedIsbns.map(
+          (
+            isbn
+          ) => ({
+            kind:
+              'isbn' as const,
+            query:
+              `isbn:${isbn}`,
+          })
+        ),
+        ...(author
+          ? [
+              {
+                kind:
+                  'titleAuthor' as const,
+                query:
+                  `intitle:"${seriesBook.title}" inauthor:"${author}"`,
+              },
+            ]
+          : []),
+        {
+          kind:
+            'title' as const,
+          query:
+            `intitle:"${seriesBook.title}"`,
+        },
+        {
+          kind:
+            'broad' as const,
+          query:
+            seriesBook.title,
+        },
+      ].filter(
+        (
+          entry,
+          index,
+          all
+        ) =>
+          all.findIndex(
+            (
+              candidate
+            ) =>
+              candidate.query ===
+              entry.query
+          ) === index
+      );
+
+    let bestFallback:
+      RankedSeriesCandidate | null =
+      null;
+
+    for (
+      const {
+        kind,
+        query,
+      } of queries
+    ) {
+      try {
+        const response =
+          await fetchGoogleBooksJson<
+            GoogleSearchResponse
+          >(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+              query
+            )}&maxResults=40&printType=books&projection=full`
+          );
+
+        if (
+          !response.ok ||
+          !response.data
+        ) {
+          continue;
+        }
+
+        const candidates =
+          rankResults(
+            response.data.items ??
+              []
+          );
+
+        const best =
+          candidates[0];
+
+        if (!best) {
+          continue;
+        }
+
+        if (
+          !bestFallback ||
+          best.score >
+            bestFallback.score
+        ) {
+          bestFallback =
+            best;
+        }
+
+        if (
+          kind ===
+            'isbn' &&
+          best.isbnMatches
+        ) {
+          return best.result;
+        }
+
+        if (
+          kind ===
+            'titleAuthor' &&
+          best.authorMatches &&
+          (
+            best.exactTitle ||
+            best.isbnMatches
+          )
+        ) {
+          return best.result;
+        }
+
+        if (
+          kind ===
+            'title' &&
+          best.exactTitle &&
+          best.authorMatches
+        ) {
+          return best.result;
+        }
+
+        if (
+          kind ===
+            'broad'
+        ) {
+          return best.result;
+        }
+      } catch {
+        // Try the next increasingly broad query.
+      }
+    }
 
     return (
-      candidates[0]
+      bestFallback
         ?.result ??
       null
     );
