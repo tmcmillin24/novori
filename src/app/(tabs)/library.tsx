@@ -60,6 +60,10 @@ import {
   getBookCart,
 } from '../../lib/book-cart';
 
+import {
+  transitionReadingJourney,
+} from '../../lib/reading-details';
+
 type LibraryFilter =
   | 'all'
   | UserBookStatus;
@@ -1108,6 +1112,95 @@ export default function LibraryScreen() {
       Alert.alert(
         'Could not update book',
         'Novori had trouble changing this book status. Please try again.'
+      );
+    } finally {
+      setUpdatingBookId(
+        null
+      );
+    }
+  }
+
+  async function startSelectedReadingJourney() {
+    if (
+      !selectedBook ||
+      selectedBook.status !==
+        'want_to_read' ||
+      updatingBookId
+    ) {
+      return;
+    }
+
+    const book =
+      selectedBook;
+
+    try {
+      setUpdatingBookId(
+        book.id
+      );
+
+      const session =
+        await transitionReadingJourney(
+          book.google_book_id,
+          'start'
+        );
+
+      const updatedBook:
+        UserBook = {
+          ...book,
+          status:
+            'reading',
+          started_at:
+            session.started_at,
+          finished_at:
+            null,
+          dnf_at:
+            null,
+          updated_at:
+            new Date()
+              .toISOString(),
+        };
+
+      setBooks(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              book.id
+                ? updatedBook
+                : item
+          )
+      );
+
+      setSelectedBook(
+        updatedBook
+      );
+
+      dismissBookSheet(
+        () => {
+          router.push({
+            pathname:
+              '/reading-details/[id]',
+            params: {
+              id:
+                book.google_book_id,
+            },
+          });
+        }
+      );
+    } catch (
+      startError
+    ) {
+      console.error(
+        'Could not start reading journey:',
+        startError
+      );
+
+      Alert.alert(
+        'Could not start reading',
+        startError instanceof
+          Error
+          ? startError.message
+          : 'Novori had trouble starting this reading journey. Please try again.'
       );
     } finally {
       setUpdatingBookId(
@@ -2578,9 +2671,79 @@ export default function LibraryScreen() {
                       />
                     </Pressable>
 
-                    {selectedBook.status &&
-                    selectedBook.status !==
-                      'want_to_read' ? (
+                    {selectedBook.status ===
+                    'want_to_read' ? (
+                      <Pressable
+                        onPress={() =>
+                          void startSelectedReadingJourney()
+                        }
+                        disabled={
+                          updatingBookId !==
+                          null
+                        }
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.sheetRow,
+                          pressed &&
+                            styles.sheetRowPressed,
+                        ]}
+                      >
+                        <View
+                          style={
+                            styles.sheetRowIcon
+                          }
+                        >
+                          {updatingBookId ===
+                          selectedBook.id ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={
+                                colors.gold
+                              }
+                            />
+                          ) : (
+                            <Ionicons
+                              name="play-outline"
+                              size={20}
+                              color={
+                                colors.gold
+                              }
+                            />
+                          )}
+                        </View>
+
+                        <View
+                          style={
+                            styles.sheetRowText
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.sheetRowTitle
+                            }
+                          >
+                            Start Reading
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.sheetRowSubtitle
+                            }
+                          >
+                            Begin a new reading journey
+                          </Text>
+                        </View>
+
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={
+                            colors.mutedText
+                          }
+                        />
+                      </Pressable>
+                    ) : selectedBook.status ? (
                       <Pressable
                         onPress={
                           openSelectedReadingDetails
@@ -2625,7 +2788,7 @@ export default function LibraryScreen() {
                               styles.sheetRowSubtitle
                             }
                           >
-                            Progress, summary, notes, and checkpoints
+                            Manage progress, dates, pause or resume, and history
                           </Text>
                         </View>
 
@@ -2637,68 +2800,66 @@ export default function LibraryScreen() {
                           }
                         />
                       </Pressable>
-                    ) : null}
-
-                    <Pressable
-                      onPress={() =>
-                        setActionSheetMode(
-                          'status'
-                        )
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.sheetRow,
-                        pressed &&
-                          styles.sheetRowPressed,
-                      ]}
-                    >
-                      <View
-                        style={
-                          styles.sheetRowIcon
+                    ) : (
+                      <Pressable
+                        onPress={() =>
+                          setActionSheetMode(
+                            'status'
+                          )
                         }
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.sheetRow,
+                          pressed &&
+                            styles.sheetRowPressed,
+                        ]}
                       >
+                        <View
+                          style={
+                            styles.sheetRowIcon
+                          }
+                        >
+                          <Ionicons
+                            name="bookmark-outline"
+                            size={20}
+                            color={
+                              colors.gold
+                            }
+                          />
+                        </View>
+
+                        <View
+                          style={
+                            styles.sheetRowText
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.sheetRowTitle
+                            }
+                          >
+                            Choose Reading Status
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.sheetRowSubtitle
+                            }
+                          >
+                            Set the initial place for this book
+                          </Text>
+                        </View>
+
                         <Ionicons
-                          name="swap-horizontal-outline"
-                          size={20}
+                          name="chevron-forward"
+                          size={18}
                           color={
-                            colors.gold
+                            colors.mutedText
                           }
                         />
-                      </View>
-
-                      <View
-                        style={
-                          styles.sheetRowText
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.sheetRowTitle
-                          }
-                        >
-                          Change Status
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.sheetRowSubtitle
-                          }
-                        >
-                          {selectedBook.status
-                            ? `Currently ${STATUS_LABELS[selectedBook.status]}`
-                            : 'Choose a reading status'}
-                        </Text>
-                      </View>
-
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={
-                          colors.mutedText
-                        }
-                      />
-                    </Pressable>
+                      </Pressable>
+                    )}
 
                     <Pressable
                       onPress={() =>
