@@ -2458,11 +2458,9 @@ export default function ReadingDetailsScreen() {
                       styles.timelineHeaderPrompt
                     }
                   >
-                    Add a {
-                      isFinished
-                        ? 'finish'
-                        : 'stopped'
-                    } date to place this book in your reading history.
+                    {isFinished
+                      ? 'Add a finish date to place this book in your reading history.'
+                      : 'Add the date you stopped to place this book in your reading history.'}
                   </Text>
                 ) : null}
               </View>
@@ -2493,7 +2491,9 @@ export default function ReadingDetailsScreen() {
                     styles.timelineEditText
                   }
                 >
-                  Edit
+                  {needsHistoryDate
+                    ? 'Add dates'
+                    : 'Edit'}
                 </Text>
               </Pressable>
             </View>
