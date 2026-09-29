@@ -59,6 +59,7 @@ import {
 import {
   getBookCart,
   getBookCartMutationVersion,
+  subscribeBookCartChanges,
 } from '../../lib/book-cart';
 
 import {
@@ -661,6 +662,68 @@ export default function LibraryScreen() {
           false;
       };
     }, [])
+  );
+
+  useEffect(
+    () => {
+      let active =
+        true;
+
+      const unsubscribe =
+        subscribeBookCartChanges(
+          () => {
+            void getBookCart()
+              .then(
+                (
+                  cartItems
+                ) => {
+                  if (!active) {
+                    return;
+                  }
+
+                  const nextCount =
+                    cartItems.length;
+
+                  setCartCount(
+                    nextCount
+                  );
+
+                  lastSeenCartMutationRef.current =
+                    getBookCartMutationVersion();
+
+                  if (
+                    librarySessionCache
+                  ) {
+                    librarySessionCache = {
+                      ...librarySessionCache,
+                      cartCount:
+                        nextCount,
+                      cartMutationVersion:
+                        lastSeenCartMutationRef.current,
+                    };
+                  }
+                }
+              )
+              .catch(
+                (
+                  cartError
+                ) => {
+                  console.warn(
+                    'Could not refresh Book Cart badge:',
+                    cartError
+                  );
+                }
+              );
+          }
+        );
+
+      return () => {
+        active =
+          false;
+        unsubscribe();
+      };
+    },
+    []
   );
 
   useEffect(
