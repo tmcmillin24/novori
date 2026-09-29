@@ -8,6 +8,9 @@ import {
   jitteredDurationMs,
   waitForApiCacheFill,
 } from '../_shared/api-cache-guard.ts';
+import {
+  recordOpenLibraryWorkCoverCandidates,
+} from '../_shared/book-catalog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':
@@ -496,12 +499,80 @@ function findCandidate(
   );
 }
 
-function staleResponse(
+async function recordCoverCandidatesFromPayload(
+  supabaseAdmin:
+    ReturnType<
+      typeof createClient
+    >,
+  title: string,
+  author: string,
+  payload: unknown,
+  discoverySource:
+    string
+) {
+  if (
+    !payload ||
+    typeof payload !==
+      'object'
+  ) {
+    return;
+  }
+
+  const resolver =
+    payload as
+      Partial<
+        ResolverPayload
+      >;
+
+  if (
+    resolver.kind !==
+      'work-cover' ||
+    resolver.matchFound !==
+      true ||
+    !Array.isArray(
+      resolver.coverIds
+    )
+  ) {
+    return;
+  }
+
+  await recordOpenLibraryWorkCoverCandidates(
+    supabaseAdmin,
+    {
+      title,
+      author,
+      openLibraryWorkKey:
+        typeof resolver.workKey ===
+          'string'
+          ? resolver.workKey
+          : null,
+      coverIds:
+        resolver.coverIds,
+      discoverySource,
+    }
+  );
+}
+
+async function staleResponse(
+  supabaseAdmin:
+    ReturnType<
+      typeof createClient
+    >,
+  title: string,
+  author: string,
   cache:
     CacheRow,
   reason:
     string
 ) {
+  await recordCoverCandidatesFromPayload(
+    supabaseAdmin,
+    title,
+    author,
+    cache.response_json,
+    'open_library_cache'
+  );
+
   return jsonResponse(
     {
       ok: true,
@@ -705,6 +776,14 @@ Deno.serve(
           'open-library-work-cover cache=hit'
         );
 
+        await recordCoverCandidatesFromPayload(
+          supabaseAdmin,
+          title,
+          author,
+          cache.response_json,
+          'open_library_cache'
+        );
+
         return jsonResponse(
           {
             ok: true,
@@ -757,6 +836,9 @@ Deno.serve(
           );
 
           return staleResponse(
+            supabaseAdmin,
+            title,
+            author,
             cache,
             'refresh_in_progress'
           );
@@ -781,6 +863,14 @@ Deno.serve(
             supabaseAdmin,
             requestKey,
             !filledIsFresh
+          );
+
+          await recordCoverCandidatesFromPayload(
+            supabaseAdmin,
+            title,
+            author,
+            filledCache.response_json,
+            'open_library_cache'
           );
 
           return jsonResponse(
@@ -839,6 +929,9 @@ Deno.serve(
           );
 
           return staleResponse(
+            supabaseAdmin,
+            title,
+            author,
             cache,
             searchClaim
               ?.reason ??
@@ -915,6 +1008,9 @@ Deno.serve(
           );
 
           return staleResponse(
+            supabaseAdmin,
+            title,
+            author,
             cache,
             'open_library_network_error'
           );
@@ -944,6 +1040,9 @@ Deno.serve(
           );
 
           return staleResponse(
+            supabaseAdmin,
+            title,
+            author,
             cache,
             `open_library_${searchResponse.status}`
           );
@@ -1076,6 +1175,14 @@ Deno.serve(
             'open-library-work-cover bypass-cache reason=work-quota-guard'
           );
 
+          await recordCoverCandidatesFromPayload(
+            supabaseAdmin,
+            title,
+            author,
+            payload,
+            'open_library_work'
+          );
+
           return jsonResponse(
             {
               ok: true,
@@ -1131,6 +1238,14 @@ Deno.serve(
                 ),
             };
 
+          await recordCoverCandidatesFromPayload(
+            supabaseAdmin,
+            title,
+            author,
+            payload,
+            'open_library_work'
+          );
+
           return jsonResponse(
             {
               ok: true,
@@ -1164,6 +1279,14 @@ Deno.serve(
                   coverIds
                 ),
             };
+
+          await recordCoverCandidatesFromPayload(
+            supabaseAdmin,
+            title,
+            author,
+            payload,
+            'open_library_work'
+          );
 
           return jsonResponse(
             {
@@ -1221,6 +1344,14 @@ Deno.serve(
               coverIds
             ),
         };
+
+      await recordCoverCandidatesFromPayload(
+        supabaseAdmin,
+        title,
+        author,
+        payload,
+        'open_library_work'
+      );
 
       const {
         expiresAt,
