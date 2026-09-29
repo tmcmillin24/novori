@@ -26,9 +26,6 @@ const SEARCH_CACHE_MS =
 const DETAIL_CACHE_MS =
   30 * 24 * 60 * 60 * 1000;
 
-const RATE_LIMIT_COOLDOWN_MS =
-  60 * 1000;
-
 const MAX_PERSISTED_BOOKS =
   150;
 
@@ -52,9 +49,6 @@ const inFlight =
     string,
     Promise<GoogleBooksJsonResult<unknown>>
   >();
-
-let rateLimitedUntil =
-  0;
 
 function isVolumeDetailUrl(
   url: string
@@ -82,6 +76,36 @@ function getVolumeId(
         match[1]
       )
     : null;
+}
+
+function getSearchQuery(
+  url: string
+) {
+  try {
+    const requestUrl =
+      new URL(
+        url
+      );
+
+    if (
+      requestUrl.pathname !==
+        '/books/v1/volumes' ||
+      !requestUrl.searchParams.has(
+        'q'
+      )
+    ) {
+      return null;
+    }
+
+    return requestUrl.searchParams
+      .get(
+        'q'
+      )
+      ?.trim() ||
+      null;
+  } catch {
+    return null;
+  }
 }
 
 function detailKey(
@@ -440,7 +464,7 @@ type SharedGoogleBooksDetailEnvelope = {
 async function fetchSharedGoogleBooksDetail(
   volumeId: string
 ): Promise<
-  GoogleBooksJsonResult<unknown> | null
+  GoogleBooksJsonResult<unknown>
 > {
   try {
     const {
@@ -458,10 +482,16 @@ async function fetchSharedGoogleBooksDetail(
 
     if (error) {
       console.warn(
-        'Shared Google Books detail unavailable; using direct fallback:',
+        'Shared Google Books detail unavailable:',
         error
       );
-      return null;
+
+      return {
+        ok: false,
+        status: 503,
+        data: null,
+        fromCache: false,
+      };
     }
 
     const response =
@@ -510,42 +540,156 @@ async function fetchSharedGoogleBooksDetail(
       response?.ok ===
         false
     ) {
-      const status =
-        response.status ??
-        500;
-
-      if (
-        status >=
-          500
-      ) {
-        console.warn(
-          'Shared Google Books detail backend failed; using direct fallback:',
-          response.error ??
-            status
-        );
-        return null;
-      }
-
       return {
         ok: false,
-        status,
+        status:
+          response.status ??
+          500,
         data: null,
         fromCache: false,
       };
     }
 
     console.warn(
-      'Shared Google Books detail returned an unexpected payload; using direct fallback.'
+      'Shared Google Books detail returned an unexpected payload.'
     );
-    return null;
+
+    return {
+      ok: false,
+      status: 502,
+      data: null,
+      fromCache: false,
+    };
   } catch (
     error
   ) {
     console.warn(
-      'Shared Google Books detail failed; using direct fallback:',
+      'Shared Google Books detail failed:',
       error
     );
-    return null;
+
+    return {
+      ok: false,
+      status: 503,
+      data: null,
+      fromCache: false,
+    };
+  }
+}
+
+async function fetchSharedGoogleBooksSearch(
+  query: string
+): Promise<
+  GoogleBooksJsonResult<unknown>
+> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'google-books-search',
+        {
+          body: {
+            query,
+          },
+        }
+      );
+
+    if (error) {
+      console.warn(
+        'Shared Google Books search unavailable:',
+        error
+      );
+
+      return {
+        ok: false,
+        status: 503,
+        data: null,
+        fromCache: false,
+      };
+    }
+
+    const response =
+      data as
+        SharedGoogleBooksDetailEnvelope;
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (__DEV__) {
+        console.log(
+          '[Novori book search cache]',
+          {
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            googleRequestMade:
+              response.cache
+                ?.googleRequestMade ??
+              false,
+            quota:
+              response.quota ??
+              null,
+          }
+        );
+      }
+
+      return {
+        ok: true,
+        status:
+          response.status ??
+          200,
+        data:
+          response.data,
+        fromCache:
+          response.cache
+            ?.status !==
+          'miss',
+      };
+    }
+
+    if (
+      response?.ok ===
+        false
+    ) {
+      return {
+        ok: false,
+        status:
+          response.status ??
+          500,
+        data: null,
+        fromCache: false,
+      };
+    }
+
+    console.warn(
+      'Shared Google Books search returned an unexpected payload.'
+    );
+
+    return {
+      ok: false,
+      status: 502,
+      data: null,
+      fromCache: false,
+    };
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Google Books search failed:',
+      error
+    );
+
+    return {
+      ok: false,
+      status: 503,
+      data: null,
+      fromCache: false,
+    };
   }
 }
 
@@ -588,6 +732,13 @@ export async function fetchGoogleBooksJson<T>(
           url
         )
       : null;
+
+  const searchQuery =
+    detailId
+      ? null
+      : getSearchQuery(
+          url
+        );
 
   if (detailId) {
     const primedVolume =
@@ -647,19 +798,6 @@ export async function fetchGoogleBooksJson<T>(
 
   }
 
-  if (
-    rateLimitedUntil >
-    now
-  ) {
-    return {
-      ok: false,
-      status: 429,
-      data: null,
-      fromCache:
-        false,
-    };
-  }
-
   const existing =
     inFlight.get(
       url
@@ -689,92 +827,51 @@ export async function fetchGoogleBooksJson<T>(
           );
 
         if (
-          sharedDetail
+          !sharedDetail.ok ||
+          !sharedDetail.data
         ) {
-          if (
-            !sharedDetail.ok ||
-            !sharedDetail.data
-          ) {
-            return sharedDetail;
-          }
-
-          data =
-            sharedDetail.data;
-          responseStatus =
-            sharedDetail.status;
-          responseFromCache =
-            sharedDetail.fromCache;
+          return sharedDetail;
         }
-      }
 
-      if (
-        !data
+        data =
+          sharedDetail.data;
+        responseStatus =
+          sharedDetail.status;
+        responseFromCache =
+          sharedDetail.fromCache;
+      } else if (
+        searchQuery
       ) {
-        const apiKey =
-          process.env
-            .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-        if (
-          !apiKey
-        ) {
-          return {
-            ok: false,
-            status: 500,
-            data: null,
-            fromCache:
-              false,
-          } satisfies GoogleBooksJsonResult<unknown>;
-        }
-
-        const requestUrl =
-          new URL(
-            url
+        const sharedSearch =
+          await fetchSharedGoogleBooksSearch(
+            searchQuery
           );
 
-        requestUrl.searchParams.set(
-          'key',
-          apiKey
+        if (
+          !sharedSearch.ok ||
+          !sharedSearch.data
+        ) {
+          return sharedSearch;
+        }
+
+        data =
+          sharedSearch.data;
+        responseStatus =
+          sharedSearch.status;
+        responseFromCache =
+          sharedSearch.fromCache;
+      } else {
+        console.warn(
+          'Blocked unsupported Google Books client request:',
+          url
         );
 
-        const response =
-          await fetch(
-            requestUrl.toString()
-          );
-
-        if (
-          response.status ===
-          429
-        ) {
-          rateLimitedUntil =
-            Date.now() +
-            RATE_LIMIT_COOLDOWN_MS;
-
-          return {
-            ok: false,
-            status: 429,
-            data: null,
-            fromCache:
-              false,
-          } satisfies GoogleBooksJsonResult<unknown>;
-        }
-
-        if (
-          !response.ok
-        ) {
-          return {
-            ok: false,
-            status:
-              response.status,
-            data: null,
-            fromCache:
-              false,
-          } satisfies GoogleBooksJsonResult<unknown>;
-        }
-
-        responseStatus =
-          response.status;
-        data =
-          await response.json();
+        return {
+          ok: false,
+          status: 400,
+          data: null,
+          fromCache: false,
+        } satisfies GoogleBooksJsonResult<unknown>;
       }
 
       const catalogBooks =
