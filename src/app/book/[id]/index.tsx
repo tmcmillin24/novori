@@ -1078,33 +1078,31 @@ export default function BookDetailsScreen() {
           source ===
             'discover'
         ) {
-          void supabase.functions.invoke(
-            'book-cover-selection',
-            {
-              body: {
-                volumeId:
-                  resolvedBook.id,
-              },
-            }
-          ).then(
-            (
-              {
-                data:
-                  coverSelectionData,
-                error:
-                  coverSelectionError,
-              }
-            ) => {
-              if (
-                coverSelectionError
-              ) {
-                console.warn(
-                  'Could not load verified Novori work cover:',
-                  coverSelectionError
-                );
-                return;
-              }
+          try {
+            const {
+              data:
+                coverSelectionData,
+              error:
+                coverSelectionError,
+            } =
+              await supabase.functions.invoke(
+                'book-cover-selection',
+                {
+                  body: {
+                    volumeId:
+                      resolvedBook.id,
+                  },
+                }
+              );
 
+            if (
+              coverSelectionError
+            ) {
+              console.warn(
+                'Could not load verified Novori work cover:',
+                coverSelectionError
+              );
+            } else {
               const selection =
                 coverSelectionData as
                   | {
@@ -1147,21 +1145,19 @@ export default function BookDetailsScreen() {
                 );
               }
             }
-          ).catch(
-            (
+          } catch (
+            coverSelectionError
+          ) {
+            console.warn(
+              'Could not load verified Novori work cover:',
               coverSelectionError
-            ) => {
-              console.warn(
-                'Could not load verified Novori work cover:',
-                coverSelectionError
-              );
-            }
-          );
+            );
+          }
         }
 
-        // The core book is ready. Render the page now instead of
-        // blocking on cart status, ratings, reviews, library state,
-        // and series metadata below.
+        // For Discover, wait for the verified work-cover decision before
+        // revealing the page so the low-resolution search cover never flashes
+        // before an authoritative locked cover.
         setLoading(
           false
         );
