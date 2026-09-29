@@ -1,8 +1,5 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
-import {
-  getCanonicalBookPresentations,
-} from './canonical-books';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -1444,121 +1441,6 @@ export function getBestSearchCover(
   );
 }
 
-async function applyCanonicalGoogleBookPresentations(
-  books:
-    GoogleBookSearchItem[]
-) {
-  const canonicalPresentations =
-    await getCanonicalBookPresentations(
-      books.map(
-        (
-          book
-        ) =>
-          book.id
-      )
-    );
-
-  if (
-    canonicalPresentations.size ===
-      0
-  ) {
-    return books;
-  }
-
-  return books.map(
-    (
-      book
-    ) => {
-      const canonical =
-        canonicalPresentations.get(
-          book.id
-        );
-
-      if (!canonical) {
-        return book;
-      }
-
-      const work =
-        book.novoriWork;
-
-      const canonicalIsbn =
-        canonical.isbn;
-
-      return {
-        ...book,
-        id:
-          canonical.googleBookId,
-        volumeInfo: {
-          ...book.volumeInfo,
-          title:
-            canonical.title ||
-            book.volumeInfo
-              .title,
-          authors:
-            canonical.authors.length >
-              0
-              ? canonical.authors
-              : book.volumeInfo
-                  .authors,
-          publishedDate:
-            canonical.publishedDate ??
-            book.volumeInfo
-              .publishedDate,
-          pageCount:
-            canonical.pageCount ??
-            book.volumeInfo
-              .pageCount,
-          imageLinks:
-            canonical.imageLinks ??
-            book.volumeInfo
-              .imageLinks,
-          industryIdentifiers:
-            canonicalIsbn
-              ? [
-                  {
-                    type:
-                      canonicalIsbn.length ===
-                        13
-                        ? 'ISBN_13'
-                        : 'ISBN_10',
-                    identifier:
-                      canonicalIsbn,
-                  },
-                ]
-              : book.volumeInfo
-                  .industryIdentifiers,
-        },
-        novoriWork:
-          work
-            ? {
-                ...work,
-                googleBookIds:
-                  Array.from(
-                    new Set([
-                      ...work.googleBookIds,
-                      canonical.googleBookId,
-                    ])
-                  ),
-                isbns:
-                  canonicalIsbn
-                    ? Array.from(
-                        new Set([
-                          ...work.isbns,
-                          canonicalIsbn,
-                        ])
-                      )
-                    : work.isbns,
-                canonicalCoverUrl:
-                  canonical.coverUrl ??
-                  work.canonicalCoverUrl ??
-                  null,
-              }
-            : work,
-      };
-    }
-  );
-}
-
 export async function searchNovoriBooks(
   searchTerm: string
 ) {
@@ -1688,9 +1570,7 @@ export async function searchNovoriBooks(
     )
   );
 
-  return applyCanonicalGoogleBookPresentations(
-    collapsed
-  );
+  return collapsed;
 }
 
 export type AuthorBookResult = {
@@ -1859,20 +1739,15 @@ export async function searchAuthorBooks(
       }
     );
 
-  const canonicalFiltered =
-    await applyCanonicalGoogleBookPresentations(
-      filtered
-    );
-
   const fastPopularity =
     await getHardcoverPopularity(
-      canonicalFiltered,
+      filtered,
       false
     );
 
   const initialBooks:
     AuthorBookResult[] =
-    canonicalFiltered.map(
+    filtered.map(
       (
         book
       ) => {
