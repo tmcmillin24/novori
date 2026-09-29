@@ -43,6 +43,19 @@ type GoogleBookItem = {
       type: string;
       identifier: string;
     }[];
+    ratingsCount?: number;
+    language?: string;
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
+    };
+  };
+  saleInfo?: {
+    country?: string;
   };
 };
 
@@ -115,6 +128,299 @@ function normalizeTitle(
       ' '
     )
     .trim();
+}
+
+function canonicalWorkTitle(
+  value?: string | null
+) {
+  if (!value) {
+    return '';
+  }
+
+  let raw =
+    value
+      .normalize('NFKD')
+      .replace(
+        /[\u0300-\u036f]/g,
+        ''
+      )
+      .trim();
+
+  raw =
+    raw.replace(
+      /\s*[\[(][^\])]*(?:edition|collector|deluxe|special|exclusive|anniversary|movie tie|tv tie|paperback|hardcover|mass market|large print|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series|#\s*\d+|,\s*\d+)[^\])]*[\])]/gi,
+      ''
+    );
+
+  raw =
+    raw.replace(
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
+      ''
+    );
+
+  let title =
+    normalizeTitle(
+      raw
+    );
+
+  const removableSuffixes = [
+    ' limited edition',
+    ' deluxe edition',
+    ' special edition',
+    ' collectors edition',
+    ' collector s edition',
+    ' exclusive edition',
+    ' anniversary edition',
+    ' hardcover edition',
+    ' paperback edition',
+    ' international edition',
+    ' movie tie in edition',
+    ' tv tie in edition',
+    ' mass market paperback',
+    ' large print edition',
+    ' uncut edition',
+    ' illustrated edition',
+    ' gift edition',
+    ' ebook edition',
+    ' kindle edition',
+    ' trade paperback',
+    ' a novel',
+  ];
+
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (
+      const suffix of
+        removableSuffixes
+    ) {
+      if (
+        title.endsWith(
+          suffix
+        )
+      ) {
+        title =
+          title
+            .slice(
+              0,
+              -suffix.length
+            )
+            .trim();
+
+        changed = true;
+      }
+    }
+  }
+
+  return title;
+}
+
+function authorMatchesWork(
+  expectedAuthor: string,
+  candidateAuthors:
+    string[]
+) {
+  const wanted =
+    normalizeTitle(
+      expectedAuthor
+    );
+
+  if (!wanted) {
+    return true;
+  }
+
+  return candidateAuthors.some(
+    (
+      candidateAuthor
+    ) => {
+      const actual =
+        normalizeTitle(
+          candidateAuthor
+        );
+
+      return (
+        actual === wanted ||
+        actual.includes(
+          wanted
+        ) ||
+        wanted.includes(
+          actual
+        )
+      );
+    }
+  );
+}
+
+function editionLocaleScore(
+  book: GoogleBookItem
+) {
+  const language =
+    (
+      book.volumeInfo
+        .language ??
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+  const country =
+    (
+      book.saleInfo
+        ?.country ??
+      ''
+    )
+      .trim()
+      .toUpperCase();
+
+  const isEnglish =
+    language ===
+      'en' ||
+    language ===
+      'eng' ||
+    language.startsWith(
+      'en-'
+    );
+
+  if (
+    language &&
+    !isEnglish
+  ) {
+    return null;
+  }
+
+  if (
+    isEnglish &&
+    country ===
+      'US'
+  ) {
+    return 150;
+  }
+
+  if (isEnglish) {
+    return 100;
+  }
+
+  if (
+    !language &&
+    country ===
+      'US'
+  ) {
+    return 50;
+  }
+
+  return null;
+}
+
+function canonicalIdentityBook(
+  books: GoogleBookItem[],
+  title: string,
+  author: string
+) {
+  const wantedWorkTitle =
+    canonicalWorkTitle(
+      title
+    );
+
+  const wantedExactTitle =
+    normalizeTitle(
+      title
+    );
+
+  return (
+    books
+      .map(
+        (
+          book
+        ) => {
+          const localeScore =
+            editionLocaleScore(
+              book
+            );
+
+          if (
+            localeScore ===
+              null ||
+            canonicalWorkTitle(
+              book.volumeInfo
+                .title
+            ) !==
+              wantedWorkTitle ||
+            !authorMatchesWork(
+              author,
+              book.volumeInfo
+                .authors ??
+                []
+            )
+          ) {
+            return null;
+          }
+
+          const exactTitle =
+            normalizeTitle(
+              book.volumeInfo
+                .title
+            ) ===
+              wantedExactTitle;
+
+          const hasCover =
+            Boolean(
+              book.volumeInfo
+                .imageLinks
+                ?.thumbnail ||
+              book.volumeInfo
+                .imageLinks
+                ?.smallThumbnail
+            );
+
+          return {
+            book,
+            localeScore,
+            ratingsCount:
+              book.volumeInfo
+                .ratingsCount ??
+              0,
+            exactTitle,
+            hasCover,
+          };
+        }
+      )
+      .filter(
+        (
+          candidate
+        ): candidate is NonNullable<
+          typeof candidate
+        > =>
+          Boolean(
+            candidate
+          )
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.localeScore -
+            a.localeScore ||
+          b.ratingsCount -
+            a.ratingsCount ||
+          Number(
+            b.exactTitle
+          ) -
+            Number(
+              a.exactTitle
+            ) ||
+          Number(
+            b.hasCover
+          ) -
+            Number(
+              a.hasCover
+            )
+      )[0]
+      ?.book ??
+    null
+  );
 }
 
 function isbn13ToIsbn10(
@@ -262,21 +568,11 @@ function trendingCacheKey(
 
 function identityCacheKey(
   title: string,
-  author: string,
-  isbn: string
+  author: string
 ) {
-  if (isbn) {
-    return (
-      'identity:v1:isbn:' +
-      normalizeIsbn(
-        isbn
-      )
-    );
-  }
-
   return (
-    'identity:v1:' +
-    normalizeTitle(
+    'identity:v2:' +
+    canonicalWorkTitle(
       title
     ) +
     '::' +
@@ -842,8 +1138,7 @@ Deno.serve(
           requestKey =
             identityCacheKey(
               title,
-              author,
-              isbn
+              author
             );
           freshMs =
             IDENTITY_CACHE_TTL_MS;
@@ -1297,7 +1592,106 @@ Deno.serve(
           string | null =
           null;
 
-        if (isbn) {
+        if (
+          mode ===
+            'identity'
+        ) {
+          const response =
+            await googleSearch(
+              googleApiKey,
+              supabaseAdmin,
+              user.id,
+              title,
+              40,
+              true
+            );
+
+          lastClaim =
+            response.claim ??
+            lastClaim;
+
+          if (
+            response.blocked
+          ) {
+            if (
+              staleAvailable
+            ) {
+              await recordCacheHit(
+                supabaseAdmin,
+                requestKey,
+                true
+              );
+
+              return jsonResponse(
+                {
+                  ok: true,
+                  status: 200,
+                  data:
+                    cache
+                      ?.response_json,
+                  cache: {
+                    status:
+                      'stale',
+                    googleRequestMade:
+                      false,
+                    reason:
+                      response.claim
+                        ?.reason ??
+                      'rate_limited',
+                  },
+                }
+              );
+            }
+
+            return jsonResponse(
+              {
+                ok: false,
+                status: 429,
+                error:
+                  'Too many uncached Google Books requests. Please try again later.',
+                reason:
+                  response.claim
+                    ?.reason ??
+                  'rate_limited',
+              }
+            );
+          }
+
+          if (
+            response.status ===
+              429
+          ) {
+            return jsonResponse(
+              {
+                ok: false,
+                status: 429,
+                error:
+                  'Google Books rate limit reached.',
+              }
+            );
+          }
+
+          if (
+            response.data
+          ) {
+            googleBookId =
+              canonicalIdentityBook(
+                response.data
+                  .items ??
+                  [],
+                title,
+                author
+              )
+                ?.id ??
+              null;
+          }
+        }
+
+        if (
+          mode !==
+            'identity' &&
+          isbn
+        ) {
           const response =
             await googleSearch(
               googleApiKey,
@@ -1390,7 +1784,11 @@ Deno.serve(
           }
         }
 
-        if (!googleBookId) {
+        if (
+          !googleBookId &&
+          mode !==
+            'identity'
+        ) {
           const queryParts = [
             'intitle:"' +
               title +
