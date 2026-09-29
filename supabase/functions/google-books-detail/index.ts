@@ -357,6 +357,12 @@ Deno.serve(
           'google-books-detail cache=hit'
         );
 
+        await recordGoogleBooksInCatalog(
+          supabaseAdmin,
+          cache.response_json,
+          true
+        );
+
         return jsonResponse(
           {
             ok: true,
@@ -443,6 +449,12 @@ Deno.serve(
           'google-books-detail cache=stale reason=soft-quota-guard'
         );
 
+        await recordGoogleBooksInCatalog(
+          supabaseAdmin,
+          cache?.response_json,
+          true
+        );
+
         return jsonResponse(
           {
             ok: true,
@@ -493,6 +505,12 @@ Deno.serve(
             'google-books-detail cache=stale reason=refresh-in-progress'
           );
 
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            true
+          );
+
           return jsonResponse(
             {
               ok: true,
@@ -535,6 +553,12 @@ Deno.serve(
 
           console.info(
             `google-books-detail cache=${filledIsFresh ? 'hit' : 'stale'} reason=waited-for-refresh`
+          );
+
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            filledCache.response_json,
+            true
           );
 
           return jsonResponse(
@@ -613,6 +637,12 @@ Deno.serve(
 
           console.info(
             `google-books-detail cache=stale reason=${claim?.reason ?? 'rate-limited'}`
+          );
+
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            true
           );
 
           return jsonResponse(
@@ -696,6 +726,12 @@ Deno.serve(
 
           console.warn(
             `google-books-detail cache=stale google-status=${googleResponse.status}`
+          );
+
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            true
           );
 
           return jsonResponse(
