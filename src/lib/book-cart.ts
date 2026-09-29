@@ -1,49 +1,4 @@
 import { supabase } from './supabase';
-import {
-  getCanonicalBookPresentations,
-} from './canonical-books';
-import type {
-  CanonicalBookPresentation,
-} from './canonical-books';
-
-let bookCartMutationVersion =
-  0;
-
-const bookCartListeners =
-  new Set<
-    () => void
-  >();
-
-export function subscribeBookCartChanges(
-  listener: () => void
-) {
-  bookCartListeners.add(
-    listener
-  );
-
-  return () => {
-    bookCartListeners.delete(
-      listener
-    );
-  };
-}
-
-
-function markBookCartChanged() {
-  bookCartMutationVersion +=
-    1;
-
-  for (
-    const listener of
-      bookCartListeners
-  ) {
-    listener();
-  }
-}
-
-export function getBookCartMutationVersion() {
-  return bookCartMutationVersion;
-}
 
 export type BookCartItem = {
   id: string;
@@ -55,35 +10,6 @@ export type BookCartItem = {
   isbn: string | null;
   created_at: string;
 };
-
-function applyCanonicalCartPresentation(
-  item: BookCartItem,
-  canonical:
-    CanonicalBookPresentation
-    | undefined
-) {
-  if (!canonical) {
-    return item;
-  }
-
-  return {
-    ...item,
-    title:
-      canonical.title ||
-      item.title,
-    authors:
-      canonical.authors.length >
-        0
-        ? canonical.authors
-        : item.authors,
-    cover_url:
-      canonical.coverUrl ??
-      item.cover_url,
-    isbn:
-      canonical.isbn ??
-      item.isbn,
-  };
-}
 
 type AddBookToCartInput = {
   googleBookId: string;
@@ -138,33 +64,9 @@ export async function getBookCart(): Promise<
     throw error;
   }
 
-  const items =
-    (
-      data ??
-      []
-    ) as
-      BookCartItem[];
-
-  const canonicalBooks =
-    await getCanonicalBookPresentations(
-      items.map(
-        (
-          item
-        ) =>
-          item.google_book_id
-      )
-    );
-
-  return items.map(
-    (
-      item
-    ) =>
-      applyCanonicalCartPresentation(
-        item,
-        canonicalBooks.get(
-          item.google_book_id
-        )
-      )
+  return (
+    (data ?? []) as
+      BookCartItem[]
   );
 }
 
@@ -195,91 +97,9 @@ export async function getBookCartItem(
     throw error;
   }
 
-  let item =
+  return (
     data as
-      BookCartItem | null;
-
-  if (!item) {
-    const {
-      data:
-        candidateRows,
-      error:
-        candidateError,
-    } =
-      await supabase
-        .from(
-          'book_cart_items'
-        )
-        .select('*')
-        .eq(
-          'user_id',
-          userId
-        );
-
-    if (candidateError) {
-      throw candidateError;
-    }
-
-    const candidates =
-      (
-        candidateRows ??
-        []
-      ) as BookCartItem[];
-
-    const canonicalBooks =
-      await getCanonicalBookPresentations([
-        googleBookId,
-        ...candidates.map(
-          (
-            candidate
-          ) =>
-            candidate.google_book_id
-        ),
-      ]);
-
-    const targetCanonicalId =
-      canonicalBooks.get(
-        googleBookId
-      )?.googleBookId ??
-      googleBookId;
-
-    item =
-      candidates.find(
-        (
-          candidate
-        ) =>
-          (
-            canonicalBooks.get(
-              candidate.google_book_id
-            )?.googleBookId ??
-            candidate.google_book_id
-          ) ===
-            targetCanonicalId
-      ) ??
-      null;
-
-    if (!item) {
-      return null;
-    }
-
-    return applyCanonicalCartPresentation(
-      item,
-      canonicalBooks.get(
-        item.google_book_id
-      )
-    );
-  }
-
-  const canonicalBooks =
-    await getCanonicalBookPresentations([
-      item.google_book_id,
-    ]);
-
-  return applyCanonicalCartPresentation(
-    item,
-    canonicalBooks.get(
-      item.google_book_id
-    )
+      BookCartItem | null
   );
 }
 
@@ -288,54 +108,6 @@ export async function addBookToCart(
 ): Promise<BookCartItem> {
   const userId =
     await getCurrentUserId();
-
-  const existing =
-    await getBookCartItem(
-      input.googleBookId
-    );
-
-  if (existing) {
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from(
-          'book_cart_items'
-        )
-        .update({
-          title:
-            input.title,
-          authors:
-            input.authors ??
-            [],
-          cover_url:
-            input.coverUrl ??
-            existing.cover_url,
-          isbn:
-            input.isbn ??
-            existing.isbn,
-        })
-        .eq(
-          'id',
-          existing.id
-        )
-        .eq(
-          'user_id',
-          userId
-        )
-        .select('*')
-        .single();
-
-    if (error) {
-      throw error;
-    }
-
-    markBookCartChanged();
-
-    return data as
-      BookCartItem;
-  }
 
   const {
     data,
@@ -373,8 +145,6 @@ export async function addBookToCart(
     throw error;
   }
 
-  markBookCartChanged();
-
   return data as
     BookCartItem;
 }
@@ -385,35 +155,22 @@ export async function removeBookFromCart(
   const userId =
     await getCurrentUserId();
 
-  const item =
-    await getBookCartItem(
-      googleBookId
-    );
-
-  if (!item) {
-    return;
-  }
-
   const {
     error,
   } =
     await supabase
-      .from(
-        'book_cart_items'
-      )
+      .from('book_cart_items')
       .delete()
       .eq(
         'user_id',
         userId
       )
       .eq(
-        'id',
-        item.id
+        'google_book_id',
+        googleBookId
       );
 
   if (error) {
     throw error;
   }
-
-  markBookCartChanged();
 }
