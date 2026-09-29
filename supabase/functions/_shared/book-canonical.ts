@@ -53,6 +53,24 @@ type EditionRow = {
     boolean | null;
 };
 
+function isRecord(
+  value: unknown
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    Boolean(
+      value
+    ) &&
+    typeof value ===
+      'object' &&
+    !Array.isArray(
+      value
+    )
+  );
+}
+
 function normalizeText(
   value?: string | null
 ) {
@@ -683,6 +701,12 @@ export async function getCanonicalGoogleEditionsForWorkIds(
     );
   }
 
+  const selectedByWork =
+    new Map<
+      string,
+      EditionRow
+    >();
+
   for (
     const workId of
       uniqueWorkIds
@@ -747,11 +771,140 @@ export async function getCanonicalGoogleEditionsForWorkIds(
         ?.edition;
 
     if (
-      !selected ||
-      !selected.title
+      selected &&
+      selected.title
     ) {
-      continue;
+      selectedByWork.set(
+        workId,
+        selected
+      );
     }
+  }
+
+  const detailCacheKeys =
+    Array.from(
+      selectedByWork.values()
+    ).map(
+      (
+        edition
+      ) =>
+        `detail:v1:${edition.provider_book_id}`
+    );
+
+  const cachedDetailByGoogleId =
+    new Map<
+      string,
+      {
+        imageLinks:
+          Record<
+            string,
+            string
+          > | null;
+        coverUrl:
+          string | null;
+      }
+    >();
+
+  if (
+    detailCacheKeys.length >
+      0
+  ) {
+    const {
+      data:
+        cacheRows,
+      error:
+        cacheError,
+    } =
+      await supabaseAdmin
+        .from(
+          'book_api_cache'
+        )
+        .select(
+          'request_key, response_json'
+        )
+        .eq(
+          'provider',
+          GOOGLE_PROVIDER
+        )
+        .in(
+          'request_key',
+          detailCacheKeys
+        );
+
+    if (!cacheError) {
+      for (
+        const row of
+          cacheRows ??
+          []
+      ) {
+        const response =
+          row.response_json;
+
+        if (
+          !isRecord(
+            response
+          )
+        ) {
+          continue;
+        }
+
+        const googleBookId =
+          typeof response.id ===
+            'string'
+            ? response.id
+            : '';
+
+        const volumeInfo =
+          isRecord(
+            response.volumeInfo
+          )
+            ? response.volumeInfo
+            : null;
+
+        const imageLinks =
+          volumeInfo
+            ? cleanImageLinks(
+                volumeInfo.imageLinks
+              )
+            : null;
+
+        if (
+          !googleBookId
+        ) {
+          continue;
+        }
+
+        cachedDetailByGoogleId.set(
+          googleBookId,
+          {
+            imageLinks,
+            coverUrl:
+              highestQualityImageLink(
+                imageLinks
+              ),
+          }
+        );
+      }
+    }
+  }
+
+  for (
+    const [
+      workId,
+      selected,
+    ] of selectedByWork
+  ) {
+    const cachedDetail =
+      cachedDetailByGoogleId.get(
+        selected.provider_book_id
+      );
+
+    const selectedImageLinks =
+      cachedDetail
+        ?.imageLinks ??
+      cleanImageLinks(
+        selected.image_links
+      );
 
     result.set(
       workId,
@@ -762,7 +915,7 @@ export async function getCanonicalGoogleEditionsForWorkIds(
         googleBookId:
           selected.provider_book_id,
         title:
-          selected.title,
+          selected.title!,
         subtitle:
           selected.subtitle,
         authors:
@@ -782,6 +935,8 @@ export async function getCanonicalGoogleEditionsForWorkIds(
         saleCountry:
           selected.sale_country,
         coverUrl:
+          cachedDetail
+            ?.coverUrl ??
           highestQualityImageLink(
             selected.image_links
           ) ??
@@ -789,189 +944,13 @@ export async function getCanonicalGoogleEditionsForWorkIds(
             selected.cover_url
           ),
         imageLinks:
-          cleanImageLinks(
-            selected.image_links
-          ),
+          selectedImageLinks,
         detailComplete:
           Boolean(
             selected.detail_complete
           ),
       }
     );
-  }
-
-  const canonicalValues =
-    Array.from(
-      result.values()
-    );
-
-  if (
-    canonicalValues.length >
-      0
-  ) {
-    const requestKeys =
-      canonicalValues.map(
-        (
-          canonical
-        ) =>
-          `detail:v1:${canonical.googleBookId}`
-      );
-
-    const {
-      data:
-        detailCacheRows,
-      error:
-        detailCacheError,
-    } =
-      await supabaseAdmin
-        .from(
-          'book_api_cache'
-        )
-        .select(
-          'request_key, response_json, stale_until'
-        )
-        .eq(
-          'provider',
-          GOOGLE_PROVIDER
-        )
-        .in(
-          'request_key',
-          requestKeys
-        );
-
-    if (detailCacheError) {
-      console.warn(
-        'Could not read exact Google detail cache for canonical books:',
-        detailCacheError.message
-      );
-    } else {
-      const now =
-        Date.now();
-
-      const cachedByGoogleBookId =
-        new Map<
-          string,
-          ReturnType<
-            typeof readDetailCachePresentation
-          >
-        >();
-
-      for (
-        const row of
-          detailCacheRows ??
-          []
-      ) {
-        const staleUntil =
-          typeof row.stale_until ===
-            'string'
-            ? Date.parse(
-                row.stale_until
-              )
-            : NaN;
-
-        if (
-          !Number.isFinite(
-            staleUntil
-          ) ||
-          staleUntil <=
-            now
-        ) {
-          continue;
-        }
-
-        const requestKey =
-          typeof row.request_key ===
-            'string'
-            ? row.request_key
-            : '';
-
-        const googleBookId =
-          requestKey.startsWith(
-            'detail:v1:'
-          )
-            ? requestKey.slice(
-                'detail:v1:'
-                  .length
-              )
-            : '';
-
-        if (!googleBookId) {
-          continue;
-        }
-
-        const cachedPresentation =
-          readDetailCachePresentation(
-            row.response_json
-          );
-
-        if (
-          cachedPresentation
-        ) {
-          cachedByGoogleBookId.set(
-            googleBookId,
-            cachedPresentation
-          );
-        }
-      }
-
-      for (
-        const [
-          workId,
-          canonical,
-        ] of result
-      ) {
-        const cached =
-          cachedByGoogleBookId.get(
-            canonical.googleBookId
-          );
-
-        if (!cached) {
-          continue;
-        }
-
-        result.set(
-          workId,
-          {
-            ...canonical,
-            title:
-              cached.title,
-            subtitle:
-              cached.subtitle,
-            authors:
-              cached.authors.length >
-                0
-                ? cached.authors
-                : canonical.authors,
-            isbn10:
-              cached.isbn10 ??
-              canonical.isbn10,
-            isbn13:
-              cached.isbn13 ??
-              canonical.isbn13,
-            publishedDate:
-              cached.publishedDate ??
-              canonical.publishedDate,
-            pageCount:
-              cached.pageCount ??
-              canonical.pageCount,
-            language:
-              cached.language ??
-              canonical.language,
-            saleCountry:
-              cached.saleCountry ??
-              canonical.saleCountry,
-            coverUrl:
-              cached.coverUrl ??
-              canonical.coverUrl,
-            imageLinks:
-              cached.imageLinks ??
-              canonical.imageLinks,
-            detailComplete:
-              true,
-          }
-        );
-      }
-    }
   }
 
   return result;
