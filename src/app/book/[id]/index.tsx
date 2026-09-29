@@ -987,6 +987,7 @@ export default function BookDetailsScreen() {
     clickedAuthors,
     clickedIsbn,
     canonicalizeWork,
+    exactEdition,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -995,6 +996,7 @@ export default function BookDetailsScreen() {
     clickedAuthors?: string;
     clickedIsbn?: string;
     canonicalizeWork?: string;
+    exactEdition?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -1286,25 +1288,44 @@ export default function BookDetailsScreen() {
           response.data;
 
         const shouldCanonicalizeWork =
-          canonicalizeWork ===
+          exactEdition !==
             '1';
+
+        const identityTitle =
+          clickedTitle ??
+          data.volumeInfo
+            .title;
+
+        const identityAuthors =
+          discoverClickedAuthors.length >
+            0
+            ? discoverClickedAuthors
+            : data.volumeInfo
+                .authors ??
+              [];
+
+        const identityIsbn =
+          clickedIsbn ??
+          getBookISBN(
+            data
+          );
 
         const resolvedBook =
           shouldCanonicalizeWork
             ? await resolveClickedDiscoverBook(
                 data,
-                clickedTitle,
-                discoverClickedAuthors,
-                clickedIsbn,
+                identityTitle,
+                identityAuthors,
+                identityIsbn,
                 true
               )
             : source ===
                 'discover'
               ? await resolveClickedDiscoverBook(
                   data,
-                  clickedTitle,
-                  discoverClickedAuthors,
-                  clickedIsbn,
+                  identityTitle,
+                  identityAuthors,
+                  identityIsbn,
                   false
                 )
               : data;
@@ -1320,8 +1341,7 @@ export default function BookDetailsScreen() {
         );
 
         if (
-          source ===
-            'discover'
+          shouldCanonicalizeWork
         ) {
           try {
             const {
@@ -1584,6 +1604,7 @@ export default function BookDetailsScreen() {
     clickedAuthors,
     clickedIsbn,
     canonicalizeWork,
+    exactEdition,
   ]);
 
   useFocusEffect(
@@ -2454,6 +2475,15 @@ export default function BookDetailsScreen() {
     );
   }
 
+  function getSavedBookTargetGoogleId() {
+    return (
+      savedBook
+        ?.google_book_id ??
+      book?.id ??
+      null
+    );
+  }
+
   async function saveReadingStatus(
     status: UserBookStatus
   ) {
@@ -2487,7 +2517,9 @@ export default function BookDetailsScreen() {
 
       const updatedBook =
         await saveUserBook({
-          googleBookId: book.id,
+          googleBookId:
+            getSavedBookTargetGoogleId() ??
+            book.id,
           title: info.title ?? 'Untitled',
           authors: info.authors ?? [],
           coverUrl,
@@ -2506,7 +2538,8 @@ export default function BookDetailsScreen() {
         router.push({
           pathname: '/rate-review',
           params: {
-            googleBookId: book.id,
+            googleBookId:
+              updatedBook.google_book_id,
           },
         });
       }
@@ -2549,7 +2582,7 @@ export default function BookDetailsScreen() {
       ) {
         updatedBook =
           await updateUserBookOwned(
-            book.id,
+            savedBook.google_book_id,
             !savedBook.owned
           );
       } else {
@@ -2692,6 +2725,8 @@ export default function BookDetailsScreen() {
       setRemovingBook(true);
 
       await removeUserBook(
+        savedBook
+          ?.google_book_id ??
         book.id
       );
 
@@ -2863,6 +2898,8 @@ export default function BookDetailsScreen() {
       const updatedBook =
         await updateBookReadingDates({
           googleBookId:
+            savedBook
+              ?.google_book_id ??
             book.id,
           startedAt,
           finishedAt,
@@ -3041,23 +3078,26 @@ export default function BookDetailsScreen() {
   const info = book.volumeInfo;
 
   const isCanonicalWorkPage =
-    canonicalizeWork ===
+    exactEdition !==
       '1';
 
   const displayExistingCoverUrl =
     selectedWorkCoverUrl ??
-    savedBook?.cover_url ??
     (
       isCanonicalWorkPage
         ? null
         : discoverCoverUrl ??
+          savedBook?.cover_url ??
           null
     );
 
   const preferExistingCover =
     Boolean(
       selectedWorkCoverUrl ||
-      savedBook?.cover_url
+      (
+        !isCanonicalWorkPage &&
+        savedBook?.cover_url
+      )
     );
 
   const coverPlan =
