@@ -1700,62 +1700,6 @@ export default function DiscoverScreen() {
 
   const nativeScannerSubscription = useRef<{ remove: () => void } | null>(null);
   const scannerOpening = useRef(false);
-  const phase7TerminalListProbeRanRef =
-    useRef(false);
-
-  useEffect(() => {
-    if (
-      !__DEV__ ||
-      phase7TerminalListProbeRanRef.current
-    ) {
-      return;
-    }
-
-    phase7TerminalListProbeRanRef.current =
-      true;
-
-    void Promise.all(
-      [
-        '65XcDwAAQBAJ',
-        'c_j1DwAAQBAJ',
-      ].map(
-        (
-          volumeId
-        ) =>
-          supabase.functions.invoke(
-            'google-books-detail',
-            {
-              body: {
-                volumeId,
-              },
-            }
-          )
-      )
-    ).then(
-      (
-        results
-      ) => {
-        if (
-          results.some(
-            (
-              result
-            ) =>
-              result.error
-          )
-        ) {
-          console.warn(
-            '[Phase 7 Terminal List detail probe]',
-            results
-          );
-          return;
-        }
-
-        console.log(
-          '[Phase 7 Terminal List detail probe complete]'
-        );
-      }
-    );
-  }, []);
 
   useEffect(() => () => {
     nativeScannerSubscription.current?.remove();
