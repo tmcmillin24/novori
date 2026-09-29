@@ -106,7 +106,7 @@ function secureCoverUrl(
   );
 }
 
-type CanonicalBookPresentation = {
+export type CanonicalBookPresentation = {
   googleBookId: string;
   title: string;
   authors: string[];
@@ -116,7 +116,7 @@ type CanonicalBookPresentation = {
   coverUrl: string | null;
 };
 
-async function getCanonicalBookPresentations(
+export async function getCanonicalBookPresentations(
   googleBookIds:
     string[]
 ) {
