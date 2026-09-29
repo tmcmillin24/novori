@@ -2,6 +2,7 @@ import {
   ClubWithMembership,
 } from './clubs';
 import {
+  canonicalizeFeedPosts,
   FeedPost,
 } from './feed';
 import { supabase } from './supabase';
@@ -450,10 +451,12 @@ export async function getReaderProfilePosts(
     throw error;
   }
 
-  return (
-    data ??
-    []
-  ) as FeedPost[];
+  return canonicalizeFeedPosts(
+    (
+      data ??
+      []
+    ) as FeedPost[]
+  );
 }
 
 export async function getReaderPublicClubs(
