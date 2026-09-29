@@ -923,6 +923,12 @@ Deno.serve(
           GoogleBookItem | null =
           null;
 
+        let sawSuccessfulResponse =
+          false;
+
+        let lastGoogleStatus =
+          200;
+
         for (
           const query of
             queries
@@ -940,6 +946,9 @@ Deno.serve(
           lastClaim =
             response.claim ??
             lastClaim;
+
+          lastGoogleStatus =
+            response.status;
 
           if (
             response.blocked
@@ -1008,6 +1017,9 @@ Deno.serve(
             continue;
           }
 
+          sawSuccessfulResponse =
+            true;
+
           const matches =
             response.data
               .items ??
@@ -1037,6 +1049,50 @@ Deno.serve(
               matches[0];
             break;
           }
+        }
+
+        if (
+          !match &&
+          !sawSuccessfulResponse
+        ) {
+          if (
+            staleAvailable
+          ) {
+            await recordCacheHit(
+              supabaseAdmin,
+              requestKey,
+              true
+            );
+
+            return jsonResponse(
+              {
+                ok: true,
+                status: 200,
+                data:
+                  cache
+                    ?.response_json,
+                cache: {
+                  status:
+                    'stale',
+                  googleRequestMade:
+                    true,
+                  reason:
+                    'google_' +
+                    lastGoogleStatus,
+                },
+              }
+            );
+          }
+
+          return jsonResponse(
+            {
+              ok: false,
+              status:
+                lastGoogleStatus,
+              error:
+                'Google Books ISBN resolution is temporarily unavailable.',
+            }
+          );
         }
 
         resultPayload = {
