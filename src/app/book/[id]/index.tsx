@@ -3040,11 +3040,25 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
+  const isCanonicalWorkPage =
+    canonicalizeWork ===
+      '1';
+
   const displayExistingCoverUrl =
     selectedWorkCoverUrl ??
-    discoverCoverUrl ??
     savedBook?.cover_url ??
-    null;
+    (
+      isCanonicalWorkPage
+        ? null
+        : discoverCoverUrl ??
+          null
+    );
+
+  const preferExistingCover =
+    Boolean(
+      selectedWorkCoverUrl ||
+      savedBook?.cover_url
+    );
 
   const coverPlan =
     getBookCoverPlan({
@@ -3222,9 +3236,7 @@ export default function BookDetailsScreen() {
                   displayExistingCoverUrl
                 }
                 preferExistingCover={
-                  Boolean(
-                    displayExistingCoverUrl
-                  )
+                  preferExistingCover
                 }
                 style={
                   styles.libraryBookCover
@@ -3524,9 +3536,7 @@ export default function BookDetailsScreen() {
                   displayExistingCoverUrl
                 }
                 preferExistingCover={
-                  Boolean(
-                    displayExistingCoverUrl
-                  )
+                  preferExistingCover
                 }
                 style={
                   styles.cover
