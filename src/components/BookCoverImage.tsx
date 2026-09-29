@@ -24,7 +24,6 @@ type Props = Omit<
   isbn?: string | null;
   existingCoverUrl?: string | null;
   preferExistingCover?: boolean;
-  allowExactIsbnFallback?: boolean;
 };
 
 export default function BookCoverImage({
@@ -32,7 +31,6 @@ export default function BookCoverImage({
   isbn,
   existingCoverUrl,
   preferExistingCover = false,
-  allowExactIsbnFallback = false,
   onError,
   resizeMode,
   ...imageProps
@@ -81,8 +79,7 @@ export default function BookCoverImage({
       );
 
       if (
-        preferredExistingUrl &&
-        !allowExactIsbnFallback
+        preferredExistingUrl
       ) {
         return () => {
           cancelled =
@@ -94,7 +91,6 @@ export default function BookCoverImage({
         imageLinks,
         isbn,
         existingCoverUrl,
-        allowExactIsbnFallback,
       }).then(
         (
           resolved
@@ -120,7 +116,6 @@ export default function BookCoverImage({
       isbn,
       existingCoverUrl,
       preferExistingCover,
-      allowExactIsbnFallback,
       preferredExistingUrl,
       plan.primaryUrl,
     ]
