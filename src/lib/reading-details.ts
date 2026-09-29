@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import {
   getUserBook,
+  notifyLibraryChanged,
   updateBookReadingDates,
   UserBook,
   UserBookStatus,
@@ -244,6 +245,8 @@ export async function transitionReadingJourney(
       'Could not update this reading journey.'
     );
   }
+
+  notifyLibraryChanged();
 
   return row as ReadingSession;
 }
