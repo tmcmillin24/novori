@@ -499,7 +499,7 @@ export default function BookCartScreen() {
         existing
       ) {
         await updateUserBookOwned(
-          existing.google_book_id,
+          item.google_book_id,
           true
         );
       } else {
