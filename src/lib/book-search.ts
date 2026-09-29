@@ -618,11 +618,12 @@ function getCanonicalWorkTitle(
       ''
     );
 
-  // Strip common edition suffixes after a colon/dash while preserving
-  // meaningful subtitles unless the suffix clearly looks like packaging.
+  // Strip common edition/marketing suffixes after a colon/dash while
+  // preserving meaningful subtitles. The sequel/prequel pattern is kept
+  // deliberately narrow so ordinary subtitles are not collapsed.
   raw =
     raw.replace(
-      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|(?:the\s+)?(?:gripping|thrilling|stunning|bestselling|best-selling|highly anticipated|must-read)\s+(?:sequel|prequel)\s+to\b.*|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
       ''
     );
 
