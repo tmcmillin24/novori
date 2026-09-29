@@ -20,6 +20,10 @@ export function getLibraryMutationVersion() {
   return libraryMutationVersion;
 }
 
+export function notifyLibraryChanged() {
+  markLibraryChanged();
+}
+
 export type UserBookStatus =
   | 'want_to_read'
   | 'reading'
