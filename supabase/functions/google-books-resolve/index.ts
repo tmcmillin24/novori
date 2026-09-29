@@ -8,6 +8,9 @@ import {
   jitteredDurationMs,
   waitForApiCacheFill,
 } from '../_shared/api-cache-guard.ts';
+import {
+  recordGoogleBooksInCatalog,
+} from '../_shared/book-catalog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -439,13 +442,21 @@ async function googleSearch(
     };
   }
 
+  const data =
+    await response.json() as
+      GoogleBooksResponse;
+
+  await recordGoogleBooksInCatalog(
+    supabaseAdmin,
+    data,
+    false
+  );
+
   return {
     blocked: false,
     claim,
     status: 200,
-    data:
-      await response.json() as
-        GoogleBooksResponse,
+    data,
   };
 }
 
