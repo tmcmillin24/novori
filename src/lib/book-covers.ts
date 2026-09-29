@@ -2,6 +2,10 @@ import {
   Image,
 } from 'react-native';
 
+import {
+  supabase,
+} from './supabase';
+
 export type BookImageLinks = {
   smallThumbnail?: string;
   thumbnail?: string;
@@ -165,6 +169,353 @@ type OpenLibraryWorkResponse = {
   covers?: number[];
 };
 
+
+type SharedOpenLibraryWorkCoverEnvelope = {
+  ok?: boolean;
+  status?: number;
+  data?: {
+    kind?: 'work-cover';
+    matchFound?: boolean;
+    workKey?: string | null;
+    coverIds?: number[];
+  } | null;
+  error?: string;
+  reason?: string;
+  cache?: {
+    status?:
+      | 'hit'
+      | 'miss'
+      | 'stale'
+      | 'bypass';
+    openLibraryRequestsMade?: number;
+    expiresAt?: string;
+    reason?: string;
+  };
+};
+
+async function fetchSharedOpenLibraryCoverIds({
+  title,
+  author,
+}: {
+  title: string;
+  author: string;
+}): Promise<
+  | {
+      handled: true;
+      coverIds: number[];
+    }
+  | {
+      handled: false;
+      coverIds: [];
+    }
+> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'open-library-work-cover',
+        {
+          body: {
+            title,
+            author,
+          },
+        }
+      );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Shared Open Library resolver unavailable; using direct fallback:',
+        error
+      );
+
+      return {
+        handled: false,
+        coverIds: [],
+      };
+    }
+
+    const response =
+      data as
+        SharedOpenLibraryWorkCoverEnvelope;
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (
+        __DEV__
+      ) {
+        console.log(
+          '[Novori Open Library cache]',
+          {
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            openLibraryRequestsMade:
+              response.cache
+                ?.openLibraryRequestsMade ??
+              0,
+          }
+        );
+      }
+
+      return {
+        handled: true,
+        coverIds:
+          (
+            response.data
+              .coverIds ??
+            []
+          ).filter(
+            (
+              coverId
+            ) =>
+              Number.isFinite(
+                coverId
+              ) &&
+              coverId >
+                0
+          ),
+      };
+    }
+
+    if (
+      response?.ok ===
+        false &&
+      (
+        response.status ??
+        500
+      ) <
+        500
+    ) {
+      return {
+        handled: true,
+        coverIds: [],
+      };
+    }
+
+    console.warn(
+      'Shared Open Library resolver failed; using direct fallback:',
+      response?.error ??
+        response?.status ??
+        'unexpected response'
+    );
+
+    return {
+      handled: false,
+      coverIds: [],
+    };
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Open Library resolver failed; using direct fallback:',
+      error
+    );
+
+    return {
+      handled: false,
+      coverIds: [],
+    };
+  }
+}
+
+async function fetchOpenLibraryCoverIdsDirect({
+  title,
+  author,
+}: {
+  title: string;
+  author: string;
+}) {
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    'title',
+    title
+  );
+
+  if (
+    author
+  ) {
+    params.set(
+      'author',
+      author
+    );
+  }
+
+  params.set(
+    'fields',
+    'key,title,author_name,cover_i,isbn'
+  );
+
+  params.set(
+    'limit',
+    '10'
+  );
+
+  const response =
+    await fetch(
+      `https://openlibrary.org/search.json?${params.toString()}`
+    );
+
+  if (
+    !response.ok
+  ) {
+    return [];
+  }
+
+  const payload =
+    await response.json() as
+      OpenLibrarySearchResponse;
+
+  const wantedTitle =
+    normalizeWorkLookupText(
+      title
+    );
+
+  const wantedAuthor =
+    normalizeWorkLookupText(
+      author
+    );
+
+  const candidate =
+    (
+      payload.docs ??
+      []
+    ).find(
+      (
+        doc
+      ) => {
+        const candidateTitle =
+          normalizeWorkLookupText(
+            doc.title
+          );
+
+        const titleMatches =
+          candidateTitle ===
+            wantedTitle ||
+          candidateTitle.startsWith(
+            `${wantedTitle} `
+          ) ||
+          wantedTitle.startsWith(
+            `${candidateTitle} `
+          );
+
+        const candidateAuthors =
+          (
+            doc.author_name ??
+            []
+          ).map(
+            normalizeWorkLookupText
+          );
+
+        const authorMatches =
+          !wantedAuthor ||
+          candidateAuthors.some(
+            (
+              candidateAuthor
+            ) =>
+              candidateAuthor ===
+                wantedAuthor ||
+              candidateAuthor.includes(
+                wantedAuthor
+              ) ||
+              wantedAuthor.includes(
+                candidateAuthor
+              )
+          );
+
+        return (
+          titleMatches &&
+          authorMatches &&
+          Boolean(
+            doc.cover_i
+          )
+        );
+      }
+    );
+
+  if (
+    !candidate
+  ) {
+    return [];
+  }
+
+  const workKey =
+    (
+      candidate.key ??
+      ''
+    )
+      .replace(
+        /^\/works\//,
+        ''
+      )
+      .trim();
+
+  const coverIds =
+    new Set<number>();
+
+  if (
+    candidate.cover_i
+  ) {
+    coverIds.add(
+      candidate.cover_i
+    );
+  }
+
+  if (
+    workKey
+  ) {
+    try {
+      const workResponse =
+        await fetch(
+          `https://openlibrary.org/works/${encodeURIComponent(
+            workKey
+          )}.json`
+        );
+
+      if (
+        workResponse.ok
+      ) {
+        const work =
+          await workResponse.json() as
+            OpenLibraryWorkResponse;
+
+        for (
+          const coverId of
+            work.covers ??
+            []
+        ) {
+          if (
+            Number.isFinite(
+              coverId
+            ) &&
+            coverId >
+              0
+          ) {
+            coverIds.add(
+              coverId
+            );
+          }
+        }
+      }
+    } catch {
+      // The search-result cover remains a valid fallback.
+    }
+  }
+
+  return Array.from(
+    coverIds
+  );
+}
+
 export async function resolveOpenLibraryWorkCover({
   title,
   authors,
@@ -196,201 +547,23 @@ export async function resolveOpenLibraryWorkCover({
   }
 
   try {
-    const params =
-      new URLSearchParams();
+    const shared =
+      await fetchSharedOpenLibraryCoverIds({
+        title:
+          cleanTitle,
+        author:
+          primaryAuthor,
+      });
 
-    params.set(
-      'title',
-      cleanTitle
-    );
-
-    if (
-      primaryAuthor
-    ) {
-      params.set(
-        'author',
-        primaryAuthor
-      );
-    }
-
-    params.set(
-      'fields',
-      'key,title,author_name,cover_i,isbn'
-    );
-
-    params.set(
-      'limit',
-      '10'
-    );
-
-    const response =
-      await fetch(
-        `https://openlibrary.org/search.json?${params.toString()}`
-      );
-
-    if (
-      !response.ok
-    ) {
-      return {
-        url:
-          null,
-        source:
-          'none',
-        width:
-          null,
-        height:
-          null,
-      };
-    }
-
-    const payload =
-      await response.json() as
-        OpenLibrarySearchResponse;
-
-    const wantedTitle =
-      normalizeWorkLookupText(
-        cleanTitle
-      );
-
-    const wantedAuthor =
-      normalizeWorkLookupText(
-        primaryAuthor
-      );
-
-    const candidate =
-      (
-        payload.docs ??
-        []
-      ).find(
-        (
-          doc
-        ) => {
-          const candidateTitle =
-            normalizeWorkLookupText(
-              doc.title
-            );
-
-          const titleMatches =
-            candidateTitle ===
-              wantedTitle ||
-            candidateTitle.startsWith(
-              `${wantedTitle} `
-            ) ||
-            wantedTitle.startsWith(
-              `${candidateTitle} `
-            );
-
-          const candidateAuthors =
-            (
-              doc.author_name ??
-              []
-            ).map(
-              normalizeWorkLookupText
-            );
-
-          const authorMatches =
-            !wantedAuthor ||
-            candidateAuthors.some(
-              (
-                candidateAuthor
-              ) =>
-                candidateAuthor ===
-                  wantedAuthor ||
-                candidateAuthor.includes(
-                  wantedAuthor
-                ) ||
-                wantedAuthor.includes(
-                  candidateAuthor
-                )
-            );
-
-          return (
-            titleMatches &&
-            authorMatches &&
-            Boolean(
-              doc.cover_i
-            )
-          );
-        }
-      );
-
-    if (
-      !candidate
-    ) {
-      return {
-        url:
-          null,
-        source:
-          'none',
-        width:
-          null,
-        height:
-          null,
-      };
-    }
-
-    const workKey =
-      (
-        candidate.key ??
-        ''
-      )
-        .replace(
-          /^\/works\//,
-          ''
-        )
-        .trim();
-
-    const coverIds =
-      new Set<number>();
-
-    if (
-      candidate.cover_i
-    ) {
-      coverIds.add(
-        candidate.cover_i
-      );
-    }
-
-    if (
-      workKey
-    ) {
-      try {
-        const workResponse =
-          await fetch(
-            `https://openlibrary.org/works/${encodeURIComponent(
-              workKey
-            )}.json`
-          );
-
-        if (
-          workResponse.ok
-        ) {
-          const work =
-            await workResponse.json() as
-              OpenLibraryWorkResponse;
-
-          for (
-            const coverId of
-              work.covers ??
-              []
-          ) {
-            if (
-              Number.isFinite(
-                coverId
-              ) &&
-              coverId >
-                0
-            ) {
-              coverIds.add(
-                coverId
-              );
-            }
-          }
-        }
-      } catch {
-        // The search result cover remains a valid fallback.
-      }
-    }
+    const resolvedCoverIds =
+      shared.handled
+        ? shared.coverIds
+        : await fetchOpenLibraryCoverIdsDirect({
+            title:
+              cleanTitle,
+            author:
+              primaryAuthor,
+          });
 
     let best:
       | {
@@ -403,7 +576,7 @@ export async function resolveOpenLibraryWorkCover({
 
     for (
       const coverId of
-        coverIds
+        resolvedCoverIds
     ) {
       const url =
         getOpenLibraryCoverIdUrl(
