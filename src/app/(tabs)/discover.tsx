@@ -1700,50 +1700,6 @@ export default function DiscoverScreen() {
 
   const nativeScannerSubscription = useRef<{ remove: () => void } | null>(null);
   const scannerOpening = useRef(false);
-  const phase6OpenLibraryProbeRanRef =
-    useRef(false);
-
-  useEffect(() => {
-    if (
-      !__DEV__ ||
-      phase6OpenLibraryProbeRanRef.current
-    ) {
-      return;
-    }
-
-    phase6OpenLibraryProbeRanRef.current =
-      true;
-
-    void supabase.functions.invoke(
-      'open-library-work-cover',
-      {
-        body: {
-          title:
-            'The Left Hand of Darkness',
-          author:
-            'Ursula K. Le Guin',
-        },
-      }
-    ).then(
-      ({
-        data,
-        error,
-      }) => {
-        if (error) {
-          console.warn(
-            '[Phase 6 Open Library probe failed]',
-            error
-          );
-          return;
-        }
-
-        console.log(
-          '[Phase 6 Open Library probe]',
-          data
-        );
-      }
-    );
-  }, []);
 
   useEffect(() => () => {
     nativeScannerSubscription.current?.remove();
