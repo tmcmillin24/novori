@@ -794,6 +794,13 @@ export default function BookDetailsScreen() {
     })();
 
   const [book, setBook] = useState<GoogleBook | null>(null);
+  const [
+    selectedWorkCoverUrl,
+    setSelectedWorkCoverUrl,
+  ] =
+    useState<string | null>(
+      null
+    );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [descriptionExpanded, setDescriptionExpanded] =
@@ -997,6 +1004,9 @@ export default function BookDetailsScreen() {
       try {
         setLoading(true);
         setError('');
+        setSelectedWorkCoverUrl(
+          null
+        );
         setSeries(null);
         setSeriesBooks([]);
         setSeriesExpanded(false);
@@ -1063,6 +1073,91 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
+
+        if (
+          source ===
+            'discover'
+        ) {
+          void supabase.functions.invoke(
+            'book-cover-selection',
+            {
+              body: {
+                volumeId:
+                  resolvedBook.id,
+              },
+            }
+          ).then(
+            (
+              {
+                data:
+                  coverSelectionData,
+                error:
+                  coverSelectionError,
+              }
+            ) => {
+              if (
+                coverSelectionError
+              ) {
+                console.warn(
+                  'Could not load verified Novori work cover:',
+                  coverSelectionError
+                );
+                return;
+              }
+
+              const selection =
+                coverSelectionData as
+                  | {
+                      ok?: boolean;
+                      data?: {
+                        locked?: boolean;
+                        authoritative?: boolean;
+                        url?:
+                          | string
+                          | null;
+                      };
+                    }
+                  | null;
+
+              const selectedUrl =
+                selection?.ok ===
+                  true &&
+                selection.data
+                  ?.locked ===
+                  true &&
+                selection.data
+                  ?.authoritative ===
+                  true &&
+                typeof selection.data
+                  ?.url ===
+                  'string'
+                  ? selection.data.url
+                      .trim()
+                  : '';
+
+              if (
+                selectedUrl
+              ) {
+                setSelectedWorkCoverUrl(
+                  selectedUrl
+                    .replace(
+                      'http://',
+                      'https://'
+                    )
+                );
+              }
+            }
+          ).catch(
+            (
+              coverSelectionError
+            ) => {
+              console.warn(
+                'Could not load verified Novori work cover:',
+                coverSelectionError
+              );
+            }
+          );
+        }
 
         // The core book is ready. Render the page now instead of
         // blocking on cart status, ratings, reviews, library state,
@@ -1419,7 +1514,8 @@ export default function BookDetailsScreen() {
       getValidatedHighResolutionCover(
         source ===
           'discover'
-          ? discoverCoverUrl
+          ? selectedWorkCoverUrl ??
+            discoverCoverUrl
           : savedBook
               ?.cover_url ??
             undefined,
@@ -1915,12 +2011,11 @@ export default function BookDetailsScreen() {
         existingCoverUrl:
           source ===
             'discover'
-            ? discoverCoverUrl
+            ? selectedWorkCoverUrl ??
+              discoverCoverUrl
             : savedBook
                 ?.cover_url ??
               null,
-        allowExactIsbnFallback:
-          true,
       });
 
     try {
@@ -2006,7 +2101,8 @@ export default function BookDetailsScreen() {
             existingCoverUrl:
               source ===
                 'discover'
-                ? discoverCoverUrl
+                ? selectedWorkCoverUrl ??
+                  discoverCoverUrl
                 : null,
           });
 
@@ -2476,6 +2572,12 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
+  const displayExistingCoverUrl =
+    selectedWorkCoverUrl ??
+    discoverCoverUrl ??
+    savedBook?.cover_url ??
+    null;
+
   const coverPlan =
     getBookCoverPlan({
       imageLinks:
@@ -2486,9 +2588,7 @@ export default function BookDetailsScreen() {
         ) ??
         null,
       existingCoverUrl:
-        discoverCoverUrl ??
-        savedBook?.cover_url ??
-        null,
+        displayExistingCoverUrl,
     });
 
   const cover =
@@ -2602,19 +2702,12 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  discoverCoverUrl ??
-                  savedBook?.cover_url ??
-                  null
+                  displayExistingCoverUrl
                 }
                 preferExistingCover={
                   Boolean(
-                    discoverCoverUrl ??
-                    savedBook?.cover_url
+                    displayExistingCoverUrl
                   )
-                }
-                allowExactIsbnFallback={
-                  source ===
-                    'discover'
                 }
                 style={
                   styles.libraryBookCover
@@ -2935,19 +3028,12 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  discoverCoverUrl ??
-                  savedBook?.cover_url ??
-                  null
+                  displayExistingCoverUrl
                 }
                 preferExistingCover={
                   Boolean(
-                    discoverCoverUrl ??
-                    savedBook?.cover_url
+                    displayExistingCoverUrl
                   )
-                }
-                allowExactIsbnFallback={
-                  source ===
-                    'discover'
                 }
                 style={
                   styles.cover
