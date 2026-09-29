@@ -609,7 +609,7 @@ function identityCacheKey(
   author: string
 ) {
   return (
-    'identity:v2:' +
+    'identity:v3:' +
     canonicalWorkTitle(
       title
     ) +
@@ -617,6 +617,316 @@ function identityCacheKey(
     normalizeTitle(
       author
     )
+  );
+}
+
+type CatalogEditionRow = {
+  provider_book_id: string;
+  title: string | null;
+  authors: string[] | null;
+  language: string | null;
+  sale_country: string | null;
+  detail_complete: boolean | null;
+  page_count: number | null;
+  cover_url: string | null;
+};
+
+function canonicalWorkTitleForInput(
+  title: string,
+  author: string
+) {
+  let normalizedTitle =
+    canonicalWorkTitle(
+      title
+    );
+
+  const normalizedAuthor =
+    normalizeTitle(
+      author
+    );
+
+  if (
+    normalizedTitle &&
+    normalizedAuthor
+  ) {
+    const authorPrefix =
+      `${normalizedAuthor} s `;
+
+    if (
+      normalizedTitle.startsWith(
+        authorPrefix
+      )
+    ) {
+      normalizedTitle =
+        normalizedTitle
+          .slice(
+            authorPrefix.length
+          )
+          .trim();
+    }
+  }
+
+  return normalizedTitle;
+}
+
+async function findCanonicalCatalogGoogleBookId(
+  supabaseAdmin:
+    ReturnType<
+      typeof createClient
+    >,
+  title: string,
+  author: string
+) {
+  const normalizedWorkTitle =
+    canonicalWorkTitleForInput(
+      title,
+      author
+    );
+
+  const normalizedAuthor =
+    normalizeTitle(
+      author
+    );
+
+  if (!normalizedWorkTitle) {
+    return null;
+  }
+
+  let workQuery =
+    supabaseAdmin
+      .from(
+        'book_works'
+      )
+      .select(
+        'id, normalized_title, normalized_primary_author'
+      )
+      .eq(
+        'normalized_title',
+        normalizedWorkTitle
+      );
+
+  if (normalizedAuthor) {
+    workQuery =
+      workQuery.eq(
+        'normalized_primary_author',
+        normalizedAuthor
+      );
+  }
+
+  const {
+    data:
+      workRows,
+    error:
+      workError,
+  } =
+    await workQuery
+      .limit(5);
+
+  if (workError) {
+    throw new Error(
+      'Could not read Novori book work identity: ' +
+      workError.message
+    );
+  }
+
+  const workId =
+    (
+      workRows ??
+      []
+    )[0]
+      ?.id as
+      | string
+      | undefined;
+
+  if (!workId) {
+    return null;
+  }
+
+  const {
+    data:
+      editionRows,
+    error:
+      editionError,
+  } =
+    await supabaseAdmin
+      .from(
+        'book_editions'
+      )
+      .select(
+        'provider_book_id, title, authors, language, sale_country, detail_complete, page_count, cover_url'
+      )
+      .eq(
+        'provider',
+        PROVIDER
+      )
+      .eq(
+        'work_id',
+        workId
+      );
+
+  if (editionError) {
+    throw new Error(
+      'Could not read Novori book editions for identity: ' +
+      editionError.message
+    );
+  }
+
+  const ranked =
+    (
+      editionRows ??
+      []
+    )
+      .map(
+        (
+          row
+        ) => {
+          const edition =
+            row as
+              CatalogEditionRow;
+
+          const language =
+            (
+              edition.language ??
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+          const country =
+            (
+              edition.sale_country ??
+              ''
+            )
+              .trim()
+              .toUpperCase();
+
+          const isEnglish =
+            language ===
+              'en' ||
+            language ===
+              'eng' ||
+            language.startsWith(
+              'en-'
+            );
+
+          if (
+            language &&
+            !isEnglish
+          ) {
+            return null;
+          }
+
+          const localeScore =
+            isEnglish &&
+            country ===
+              'US'
+              ? 300
+              : isEnglish
+                ? 250
+                : country ===
+                    'US'
+                  ? 200
+                  : 100;
+
+          const exactCleanTitle =
+            normalizeTitle(
+              edition.title
+            ) ===
+              normalizedWorkTitle;
+
+          const authors =
+            Array.isArray(
+              edition.authors
+            )
+              ? edition.authors
+              : [];
+
+          const authorMatches =
+            !normalizedAuthor ||
+            authors.some(
+              (
+                candidateAuthor
+              ) => {
+                const actual =
+                  normalizeTitle(
+                    candidateAuthor
+                  );
+
+                return (
+                  actual ===
+                    normalizedAuthor ||
+                  actual.includes(
+                    normalizedAuthor
+                  ) ||
+                  normalizedAuthor.includes(
+                    actual
+                  )
+                );
+              }
+            );
+
+          if (!authorMatches) {
+            return null;
+          }
+
+          return {
+            id:
+              edition.provider_book_id,
+            score:
+              (
+                exactCleanTitle
+                  ? 1000
+                  : 0
+              ) +
+              localeScore +
+              (
+                edition.detail_complete
+                  ? 100
+                  : 0
+              ) +
+              (
+                edition.cover_url
+                  ? 20
+                  : 0
+              ) +
+              (
+                (
+                  edition.page_count ??
+                  0
+                ) >
+                  0
+                  ? 10
+                  : 0
+              ),
+          };
+        }
+      )
+      .filter(
+        (
+          candidate
+        ): candidate is NonNullable<
+          typeof candidate
+        > =>
+          Boolean(
+            candidate
+          )
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.score -
+            a.score ||
+          a.id.localeCompare(
+            b.id
+          )
+      );
+
+  return (
+    ranked[0]
+      ?.id ??
+    null
   );
 }
 
@@ -1245,6 +1555,66 @@ Deno.serve(
           )
         );
 
+      if (
+        mode ===
+          'identity'
+      ) {
+        const catalogGoogleBookId =
+          await findCanonicalCatalogGoogleBookId(
+            supabaseAdmin,
+            title,
+            author
+          );
+
+        if (
+          catalogGoogleBookId
+        ) {
+          const resultPayload = {
+            kind:
+              'identity',
+            googleBookId:
+              catalogGoogleBookId,
+          };
+
+          const {
+            expiresAt,
+          } =
+            await writeCache(
+              supabaseAdmin,
+              requestKey,
+              resultPayload,
+              freshMs,
+              staleMs
+            );
+
+          return jsonResponse(
+            {
+              ok: true,
+              status: 200,
+              data:
+                resultPayload,
+              cache: {
+                status:
+                  'miss',
+                googleRequestMade:
+                  false,
+                reason:
+                  'catalog_identity',
+                expiresAt,
+              },
+              quota: {
+                upstreamRequestsToday:
+                  await getUpstreamToday(
+                    supabaseAdmin
+                  ),
+              },
+            }
+          );
+        }
+      }
+
+
+
       const upstreamToday =
         await getUpstreamToday(
           supabaseAdmin
@@ -1713,15 +2083,26 @@ Deno.serve(
             response.data
           ) {
             googleBookId =
-              canonicalIdentityBook(
-                response.data
-                  .items ??
-                  [],
+              await findCanonicalCatalogGoogleBookId(
+                supabaseAdmin,
                 title,
                 author
-              )
-                ?.id ??
-              null;
+              );
+
+            if (
+              !googleBookId
+            ) {
+              googleBookId =
+                canonicalIdentityBook(
+                  response.data
+                    .items ??
+                    [],
+                  title,
+                  author
+                )
+                  ?.id ??
+                null;
+            }
           }
         }
 
