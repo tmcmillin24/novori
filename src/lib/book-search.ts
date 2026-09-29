@@ -1690,7 +1690,8 @@ export async function searchNovoriBooks(
 
   return applyCanonicalGoogleBookPresentations(
     collapsed
-  );}
+  );
+}
 
 export type AuthorBookResult = {
   book: GoogleBookSearchItem;
