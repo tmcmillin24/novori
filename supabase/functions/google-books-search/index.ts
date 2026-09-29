@@ -383,6 +383,13 @@ Deno.serve(
           'google-books-search cache=hit'
         );
 
+        await recordGoogleBooksInCatalog(
+          supabaseAdmin,
+          cache.response_json,
+          false,
+          'google_search_cache'
+        );
+
         return jsonResponse(
           {
             ok: true,
@@ -471,6 +478,13 @@ Deno.serve(
           'google-books-search cache=stale reason=soft-quota-guard'
         );
 
+        await recordGoogleBooksInCatalog(
+          supabaseAdmin,
+          cache?.response_json,
+          false,
+          'google_search_cache'
+        );
+
         return jsonResponse(
           {
             ok: true,
@@ -521,6 +535,13 @@ Deno.serve(
             'google-books-search cache=stale reason=refresh-in-progress'
           );
 
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            false,
+            'google_search_cache'
+          );
+
           return jsonResponse(
             {
               ok: true,
@@ -563,6 +584,13 @@ Deno.serve(
 
           console.info(
             `google-books-search cache=${filledIsFresh ? 'hit' : 'stale'} reason=waited-for-refresh`
+          );
+
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            filledCache.response_json,
+            false,
+            'google_search_cache'
           );
 
           return jsonResponse(
@@ -647,6 +675,13 @@ Deno.serve(
 
           console.info(
             `google-books-search cache=stale reason=${claim?.reason ?? 'rate-limited'}`
+          );
+
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            false,
+            'google_search_cache'
           );
 
           return jsonResponse(
@@ -750,6 +785,13 @@ Deno.serve(
             `google-books-search cache=stale google-status=${googleResponse.status}`
           );
 
+          await recordGoogleBooksInCatalog(
+            supabaseAdmin,
+            cache?.response_json,
+            false,
+            'google_search_cache'
+          );
+
           return jsonResponse(
             {
               ok: true,
@@ -787,7 +829,8 @@ Deno.serve(
       await recordGoogleBooksInCatalog(
         supabaseAdmin,
         payload,
-        false
+        false,
+        'google_search'
       );
 
       const fetchedAt =
