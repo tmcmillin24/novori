@@ -37,7 +37,6 @@ import {
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
-  searchNovoriBooks,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -302,6 +301,76 @@ function bookMatchesClickedIdentity(
   );
 }
 
+function bookMatchesClickedWork(
+  candidate: GoogleBook,
+  clickedTitle:
+    string | undefined,
+  clickedAuthors:
+    string[]
+) {
+  if (!clickedTitle) {
+    return true;
+  }
+
+  const titleMatches =
+    normalizeSeriesWorkTitle(
+      candidate.volumeInfo
+        .title
+    ) ===
+    normalizeSeriesWorkTitle(
+      clickedTitle
+    );
+
+  if (!titleMatches) {
+    return false;
+  }
+
+  if (
+    clickedAuthors.length ===
+      0
+  ) {
+    return true;
+  }
+
+  const candidateAuthors =
+    candidate.volumeInfo
+      .authors ??
+    [];
+
+  return clickedAuthors.some(
+    (
+      clickedAuthor
+    ) => {
+      const wanted =
+        normalizeAuthorName(
+          clickedAuthor
+        );
+
+      return candidateAuthors.some(
+        (
+          candidateAuthor
+        ) => {
+          const actual =
+            normalizeAuthorName(
+              candidateAuthor
+            );
+
+          return (
+            actual === wanted ||
+            actual.includes(
+              wanted
+            ) ||
+            wanted.includes(
+              actual
+            )
+          );
+        }
+      );
+    }
+  );
+}
+
+
 async function resolveClickedDiscoverBook(
   initialBook: GoogleBook,
   clickedTitle:
@@ -309,8 +378,74 @@ async function resolveClickedDiscoverBook(
   clickedAuthors:
     string[],
   clickedIsbn:
-    string | undefined
+    string | undefined,
+  canonicalizeWork =
+    false
 ) {
+  if (
+    canonicalizeWork &&
+    clickedTitle
+  ) {
+    try {
+      const identity =
+        await resolveGoogleBooksIdentity({
+          title:
+            clickedTitle,
+          author:
+            clickedAuthors[0],
+          isbn:
+            clickedIsbn,
+        });
+
+      if (
+        identity.ok &&
+        identity.googleBookId
+      ) {
+        if (
+          identity.googleBookId ===
+            initialBook.id &&
+          bookMatchesClickedWork(
+            initialBook,
+            clickedTitle,
+            clickedAuthors
+          )
+        ) {
+          return initialBook;
+        }
+
+        const detail =
+          await fetchGoogleBooksJson<
+            GoogleBook
+          >(
+            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+              identity.googleBookId
+            )}`
+          );
+
+        if (
+          detail.ok &&
+          detail.data &&
+          bookMatchesClickedWork(
+            detail.data,
+            clickedTitle,
+            clickedAuthors
+          )
+        ) {
+          return detail.data;
+        }
+      }
+
+      if (
+        identity.status ===
+          429
+      ) {
+        return null;
+      }
+    } catch {
+      // Fall through to the clicked edition and targeted lookups.
+    }
+  }
+
   if (
     bookMatchesClickedIdentity(
       initialBook,
@@ -321,7 +456,10 @@ async function resolveClickedDiscoverBook(
     return initialBook;
   }
 
-  if (clickedTitle) {
+  if (
+    clickedTitle &&
+    !canonicalizeWork
+  ) {
     try {
       const identity =
         await resolveGoogleBooksIdentity({
@@ -349,7 +487,7 @@ async function resolveClickedDiscoverBook(
         if (
           detail.ok &&
           detail.data &&
-          bookMatchesClickedIdentity(
+          bookMatchesClickedWork(
             detail.data,
             clickedTitle,
             clickedAuthors
@@ -419,20 +557,25 @@ async function resolveClickedDiscoverBook(
         continue;
       }
 
-      const data =
-        response.data;
-
       const matchingBook =
         (
-          data.items ??
+          response.data.items ??
           []
         ).find(
-          (candidate) =>
-            bookMatchesClickedIdentity(
-              candidate,
-              clickedTitle,
-              clickedAuthors
-            )
+          (
+            candidate
+          ) =>
+            canonicalizeWork
+              ? bookMatchesClickedWork(
+                  candidate,
+                  clickedTitle,
+                  clickedAuthors
+                )
+              : bookMatchesClickedIdentity(
+                  candidate,
+                  clickedTitle,
+                  clickedAuthors
+                )
         );
 
       if (
@@ -843,6 +986,7 @@ export default function BookDetailsScreen() {
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
+    canonicalizeWork,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -850,6 +994,7 @@ export default function BookDetailsScreen() {
     clickedTitle?: string;
     clickedAuthors?: string;
     clickedIsbn?: string;
+    canonicalizeWork?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -1140,16 +1285,29 @@ export default function BookDetailsScreen() {
         const data =
           response.data;
 
+        const shouldCanonicalizeWork =
+          canonicalizeWork ===
+            '1';
+
         const resolvedBook =
-          source ===
-            'discover'
+          shouldCanonicalizeWork
             ? await resolveClickedDiscoverBook(
                 data,
                 clickedTitle,
                 discoverClickedAuthors,
-                clickedIsbn
+                clickedIsbn,
+                true
               )
-            : data;
+            : source ===
+                'discover'
+              ? await resolveClickedDiscoverBook(
+                  data,
+                  clickedTitle,
+                  discoverClickedAuthors,
+                  clickedIsbn,
+                  false
+                )
+              : data;
 
         if (!resolvedBook) {
           throw new Error(
@@ -1877,76 +2035,6 @@ export default function BookDetailsScreen() {
         author
       );
 
-    try {
-      const discoverSearchTitle =
-        getSeriesWorkSearchTitle(
-          seriesBook.title
-        ) ||
-        seriesBook.title;
-
-      const discoverResults =
-        await searchNovoriBooks(
-          discoverSearchTitle
-        );
-
-      const discoverMatch =
-        discoverResults.find(
-          (
-            candidate
-          ) => {
-            const candidateTitle =
-              normalizeSeriesWorkTitle(
-                candidate.volumeInfo
-                  .title
-              );
-
-            if (
-              candidateTitle !==
-                wantedTitle
-            ) {
-              return false;
-            }
-
-            if (!author) {
-              return true;
-            }
-
-            return (
-              candidate.volumeInfo
-                .authors ??
-              []
-            ).some(
-              (
-                candidateAuthor
-              ) => {
-                const normalizedCandidateAuthor =
-                  normalizeAuthorName(
-                    candidateAuthor
-                  );
-
-                return (
-                  normalizedCandidateAuthor ===
-                    normalizedAuthor ||
-                  normalizedCandidateAuthor.includes(
-                    normalizedAuthor
-                  ) ||
-                  normalizedAuthor.includes(
-                    normalizedCandidateAuthor
-                  )
-                );
-              }
-            );
-          }
-        );
-
-      if (
-        discoverMatch
-      ) {
-        return discoverMatch;
-      }
-    } catch {
-      // Fall through to the shared identity resolver and targeted searches.
-    }
 
     type RankedSeriesCandidate = {
       result: GoogleBook;
@@ -2874,6 +2962,8 @@ export default function BookDetailsScreen() {
                   resolvedCover,
               }
             : {}),
+          canonicalizeWork:
+            '1',
           clickedTitle:
             resolved.volumeInfo
               .title ??
