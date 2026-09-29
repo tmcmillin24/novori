@@ -60,134 +60,151 @@ export async function getCanonicalBookPresentations(
     return books;
   }
 
-  try {
-    const {
-      data,
-      error,
-    } =
-      await supabase.functions.invoke(
-        'book-cover-selection',
-        {
-          body: {
-            volumeIds:
-              ids,
-          },
-        }
+  const BATCH_SIZE =
+    200;
+
+  for (
+    let index = 0;
+    index < ids.length;
+    index +=
+      BATCH_SIZE
+  ) {
+    const batch =
+      ids.slice(
+        index,
+        index +
+          BATCH_SIZE
       );
 
-    if (error) {
-      console.warn(
-        'Could not load canonical Novori book presentations:',
-        error
-      );
-      return books;
-    }
-
-    const response =
-      data as
-        | {
-            ok?: boolean;
-            data?: {
-              canonicalBooks?: Record<
-                string,
-                {
-                  googleBookId?: string;
-                  title?: string;
-                  authors?: string[];
-                  isbn?: string | null;
-                  publishedDate?: string | null;
-                  pageCount?: number | null;
-                  coverUrl?: string | null;
-                  imageLinks?: {
-                    smallThumbnail?: string;
-                    thumbnail?: string;
-                    small?: string;
-                    medium?: string;
-                    large?: string;
-                    extraLarge?: string;
-                  } | null;
-                } | null
-              >;
-            };
+    try {
+      const {
+        data,
+        error,
+      } =
+        await supabase.functions.invoke(
+          'book-cover-selection',
+          {
+            body: {
+              volumeIds:
+                batch,
+            },
           }
-        | null;
+        );
 
-    if (
-      response?.ok !==
-        true ||
-      !response.data
-        ?.canonicalBooks
-    ) {
-      return books;
-    }
+      if (error) {
+        console.warn(
+          'Could not load canonical Novori book presentations:',
+          error
+        );
+        continue;
+      }
 
-    for (
-      const [
-        sourceGoogleBookId,
-        canonical,
-      ] of Object.entries(
-        response.data
-          .canonicalBooks
-      )
-    ) {
+      const response =
+        data as
+          | {
+              ok?: boolean;
+              data?: {
+                canonicalBooks?: Record<
+                  string,
+                  {
+                    googleBookId?: string;
+                    title?: string;
+                    authors?: string[];
+                    isbn?: string | null;
+                    publishedDate?: string | null;
+                    pageCount?: number | null;
+                    coverUrl?: string | null;
+                    imageLinks?: {
+                      smallThumbnail?: string;
+                      thumbnail?: string;
+                      small?: string;
+                      medium?: string;
+                      large?: string;
+                      extraLarge?: string;
+                    } | null;
+                  } | null
+                >;
+              };
+            }
+          | null;
+
       if (
-        !canonical ||
-        typeof canonical.googleBookId !==
-          'string' ||
-        typeof canonical.title !==
-          'string'
+        response?.ok !==
+          true ||
+        !response.data
+          ?.canonicalBooks
       ) {
         continue;
       }
 
-      books.set(
-        sourceGoogleBookId,
-        {
-          googleBookId:
-            canonical.googleBookId,
-          title:
-            canonical.title,
-          authors:
-            Array.isArray(
-              canonical.authors
-            )
-              ? canonical.authors
-              : [],
-          isbn:
-            typeof canonical.isbn ===
-              'string'
-              ? canonical.isbn
-              : null,
-          publishedDate:
-            typeof canonical.publishedDate ===
-              'string'
-              ? canonical.publishedDate
-              : null,
-          pageCount:
-            typeof canonical.pageCount ===
-              'number'
-              ? canonical.pageCount
-              : null,
-          coverUrl:
-            secureCoverUrl(
-              canonical.coverUrl
-            ),
-          imageLinks:
-            canonical.imageLinks &&
-            typeof canonical.imageLinks ===
-              'object'
-              ? canonical.imageLinks
-              : null,
+      for (
+        const [
+          sourceGoogleBookId,
+          canonical,
+        ] of Object.entries(
+          response.data
+            .canonicalBooks
+        )
+      ) {
+        if (
+          !canonical ||
+          typeof canonical.googleBookId !==
+            'string' ||
+          typeof canonical.title !==
+            'string'
+        ) {
+          continue;
         }
+
+        books.set(
+          sourceGoogleBookId,
+          {
+            googleBookId:
+              canonical.googleBookId,
+            title:
+              canonical.title,
+            authors:
+              Array.isArray(
+                canonical.authors
+              )
+                ? canonical.authors
+                : [],
+            isbn:
+              typeof canonical.isbn ===
+                'string'
+                ? canonical.isbn
+                : null,
+            publishedDate:
+              typeof canonical.publishedDate ===
+                'string'
+                ? canonical.publishedDate
+                : null,
+            pageCount:
+              typeof canonical.pageCount ===
+                'number'
+                ? canonical.pageCount
+                : null,
+            coverUrl:
+              secureCoverUrl(
+                canonical.coverUrl
+              ),
+            imageLinks:
+              canonical.imageLinks &&
+              typeof canonical.imageLinks ===
+                'object'
+                ? canonical.imageLinks
+                : null,
+          }
+        );
+      }
+    } catch (
+      canonicalError
+    ) {
+      console.warn(
+        'Could not load canonical Novori book presentations:',
+        canonicalError
       );
     }
-  } catch (
-    canonicalError
-  ) {
-    console.warn(
-      'Could not load canonical Novori book presentations:',
-      canonicalError
-    );
   }
 
   return books;
