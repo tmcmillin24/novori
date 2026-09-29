@@ -2975,36 +2975,12 @@ export default function BookDetailsScreen() {
                 ) : null}
               </View>
 
-              <View
-                style={
-                  styles.libraryHeroMetaRow
-                }
-              >
-                {readingStatus ? (
-                  <View
-                    style={
-                      styles.libraryStatusPill
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.libraryStatusPillText
-                      }
-                    >
-                      {
-                        statuses.find(
-                          (
-                            status
-                          ) =>
-                            status.value ===
-                            readingStatus
-                        )?.label
-                      }
-                    </Text>
-                  </View>
-                ) : null}
-
-                {series ? (
+              {series ? (
+                <View
+                  style={
+                    styles.libraryHeroMetaRow
+                  }
+                >
                   <Text
                     style={
                       styles.librarySeriesMeta
@@ -3014,8 +2990,8 @@ export default function BookDetailsScreen() {
                       ? `Book ${series.currentPosition}`
                       : series.name}
                   </Text>
-                ) : null}
-              </View>
+                </View>
+              ) : null}
 
 
             </View>
@@ -5636,27 +5612,6 @@ function createStyles(
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 14,
-  },
-
-  libraryStatusPill: {
-    minHeight: 27,
-    justifyContent: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    backgroundColor:
-      colors.surface,
-    borderWidth: 1,
-    borderColor:
-      colors.gold,
-  },
-
-  libraryStatusPillText: {
-    color:
-      colors.gold,
-    fontFamily:
-      'Inter_700Bold',
-    fontSize: 10.5,
-    letterSpacing: 0.2,
   },
 
   librarySeriesMeta: {
