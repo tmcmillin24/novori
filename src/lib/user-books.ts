@@ -102,6 +102,115 @@ function secureCoverUrl(
   );
 }
 
+async function getLockedVerifiedCoverUrls(
+  googleBookIds:
+    string[]
+) {
+  const ids =
+    Array.from(
+      new Set(
+        googleBookIds.filter(
+          Boolean
+        )
+      )
+    );
+
+  const covers =
+    new Map<
+      string,
+      string
+    >();
+
+  if (
+    ids.length ===
+    0
+  ) {
+    return covers;
+  }
+
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'book-cover-selection',
+        {
+          body: {
+            volumeIds:
+              ids,
+          },
+        }
+      );
+
+    if (
+      error
+    ) {
+      console.warn(
+        'Could not load verified Novori library covers:',
+        error
+      );
+      return covers;
+    }
+
+    const response =
+      data as
+        | {
+            ok?: boolean;
+            data?: {
+              covers?: Record<
+                string,
+                string | null
+              >;
+            };
+          }
+        | null;
+
+    if (
+      response?.ok !==
+        true ||
+      !response.data
+        ?.covers
+    ) {
+      return covers;
+    }
+
+    for (
+      const [
+        googleBookId,
+        url,
+      ] of
+        Object.entries(
+          response.data
+            .covers
+        )
+    ) {
+      const secured =
+        secureCoverUrl(
+          url
+        );
+
+      if (
+        secured
+      ) {
+        covers.set(
+          googleBookId,
+          secured
+        );
+      }
+    }
+  } catch (
+    coverError
+  ) {
+    console.warn(
+      'Could not load verified Novori library covers:',
+      coverError
+    );
+  }
+
+  return covers;
+}
+
 async function remoteCoverExists(
   url?: string | null
 ) {
@@ -990,6 +1099,26 @@ export async function getUserBook(
     return null;
   }
 
+  const verifiedCovers =
+    await getLockedVerifiedCoverUrls([
+      book.google_book_id,
+    ]);
+
+  const verifiedCover =
+    verifiedCovers.get(
+      book.google_book_id
+    );
+
+  if (
+    verifiedCover
+  ) {
+    return {
+      ...book,
+      cover_url:
+        verifiedCover,
+    };
+  }
+
   return repairSavedCover(
     book
   );
@@ -1030,13 +1159,49 @@ export async function getUserBooks(
     throw error;
   }
 
-  // List reads must stay fast. Cover repair can involve remote image
-  // and Google/Open Library checks, so never block Library, Discover, or
-  // Profile hydration on repairing every saved book.
-  return (
-    data ??
-    []
-  ) as UserBook[];
+  // List reads must stay fast. Do one server-side batch lookup for
+  // locked/verified work covers, but never run per-book remote cover repair.
+  const books =
+    (
+      data ??
+      []
+    ) as UserBook[];
+
+  const verifiedCovers =
+    await getLockedVerifiedCoverUrls(
+      books.map(
+        (
+          book
+        ) =>
+          book.google_book_id
+      )
+    );
+
+  if (
+    verifiedCovers.size ===
+    0
+  ) {
+    return books;
+  }
+
+  return books.map(
+    (
+      book
+    ) => {
+      const verifiedCover =
+        verifiedCovers.get(
+          book.google_book_id
+        );
+
+      return verifiedCover
+        ? {
+            ...book,
+            cover_url:
+              verifiedCover,
+          }
+        : book;
+    }
+  );
 }
 
 export async function saveUserBook(
