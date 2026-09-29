@@ -794,13 +794,6 @@ export default function BookDetailsScreen() {
     })();
 
   const [book, setBook] = useState<GoogleBook | null>(null);
-  const [
-    selectedWorkCoverUrl,
-    setSelectedWorkCoverUrl,
-  ] =
-    useState<string | null>(
-      null
-    );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [descriptionExpanded, setDescriptionExpanded] =
@@ -1004,9 +997,6 @@ export default function BookDetailsScreen() {
       try {
         setLoading(true);
         setError('');
-        setSelectedWorkCoverUrl(
-          null
-        );
         setSeries(null);
         setSeriesBooks([]);
         setSeriesExpanded(false);
@@ -1073,87 +1063,6 @@ export default function BookDetailsScreen() {
         setBook(
           resolvedBook
         );
-
-        if (
-          source ===
-            'discover'
-        ) {
-          void supabase.functions.invoke(
-            'book-cover-selection',
-            {
-              body: {
-                volumeId:
-                  resolvedBook.id,
-              },
-            }
-          ).then(
-            (
-              {
-                data:
-                  coverSelectionData,
-                error:
-                  coverSelectionError,
-              }
-            ) => {
-              if (
-                coverSelectionError
-              ) {
-                console.warn(
-                  'Could not load Novori selected work cover:',
-                  coverSelectionError
-                );
-                return;
-              }
-
-              const selection =
-                coverSelectionData as
-                  | {
-                      ok?: boolean;
-                      data?: {
-                        selectionStatus?: string;
-                        url?:
-                          | string
-                          | null;
-                      };
-                    }
-                  | null;
-
-              const selectedUrl =
-                selection?.ok ===
-                  true &&
-                selection.data
-                  ?.selectionStatus ===
-                  'selected' &&
-                typeof selection.data
-                  ?.url ===
-                  'string'
-                  ? selection.data.url
-                      .trim()
-                  : '';
-
-              if (
-                selectedUrl
-              ) {
-                setSelectedWorkCoverUrl(
-                  selectedUrl
-                    .replace(
-                      'http://',
-                      'https://'
-                    )
-                );
-              }
-            }
-          ).catch(
-            (
-              coverSelectionError
-            ) => {
-              console.warn(
-                'Could not load Novori selected work cover:',
-                coverSelectionError
-              );
-            }
-          );
-        }
 
         // The core book is ready. Render the page now instead of
         // blocking on cart status, ratings, reviews, library state,
@@ -2565,17 +2474,6 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
-  const displayExistingCoverUrl =
-    source ===
-      'discover'
-      ? selectedWorkCoverUrl ??
-        discoverCoverUrl ??
-        savedBook?.cover_url ??
-        null
-      : discoverCoverUrl ??
-        savedBook?.cover_url ??
-        null;
-
   const coverPlan =
     getBookCoverPlan({
       imageLinks:
@@ -2586,7 +2484,9 @@ export default function BookDetailsScreen() {
         ) ??
         null,
       existingCoverUrl:
-        displayExistingCoverUrl,
+        discoverCoverUrl ??
+        savedBook?.cover_url ??
+        null,
     });
 
   const cover =
@@ -2700,11 +2600,14 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  displayExistingCoverUrl
+                  discoverCoverUrl ??
+                  savedBook?.cover_url ??
+                  null
                 }
                 preferExistingCover={
                   Boolean(
-                    displayExistingCoverUrl
+                    discoverCoverUrl ??
+                    savedBook?.cover_url
                   )
                 }
                 style={
@@ -3026,11 +2929,14 @@ export default function BookDetailsScreen() {
                   null
                 }
                 existingCoverUrl={
-                  displayExistingCoverUrl
+                  discoverCoverUrl ??
+                  savedBook?.cover_url ??
+                  null
                 }
                 preferExistingCover={
                   Boolean(
-                    displayExistingCoverUrl
+                    discoverCoverUrl ??
+                    savedBook?.cover_url
                   )
                 }
                 style={
