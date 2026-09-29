@@ -1577,7 +1577,14 @@ export default function BookDetailsScreen() {
     }
 
     loadBook();
-  }, [id]);
+  }, [
+    id,
+    source,
+    clickedTitle,
+    clickedAuthors,
+    clickedIsbn,
+    canonicalizeWork,
+  ]);
 
   useFocusEffect(
     useCallback(
