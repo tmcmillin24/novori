@@ -27,7 +27,12 @@ const TRENDING_CACHE_TTL_MS =
   90 * 24 * 60 * 60 * 1000;
 const TRENDING_STALE_TTL_MS =
   180 * 24 * 60 * 60 * 1000;
+const IDENTITY_CACHE_TTL_MS =
+  365 * 24 * 60 * 60 * 1000;
+const IDENTITY_STALE_TTL_MS =
+  730 * 24 * 60 * 60 * 1000;
 const SOFT_DAILY_GUARD = 650;
+const EMERGENCY_DAILY_GUARD = 900;
 
 type GoogleBookItem = {
   id: string;
@@ -245,6 +250,32 @@ function trendingCacheKey(
 
   return (
     'trending:v1:' +
+    normalizeTitle(
+      title
+    ) +
+    '::' +
+    normalizeTitle(
+      author
+    )
+  );
+}
+
+function identityCacheKey(
+  title: string,
+  author: string,
+  isbn: string
+) {
+  if (isbn) {
+    return (
+      'identity:v1:isbn:' +
+      normalizeIsbn(
+        isbn
+      )
+    );
+  }
+
+  return (
+    'identity:v1:' +
     normalizeTitle(
       title
     ) +
@@ -719,7 +750,9 @@ Deno.serve(
         body?.mode ===
           'isbn' ||
         body?.mode ===
-          'trending'
+          'trending' ||
+        body?.mode ===
+          'identity'
           ? body.mode
           : null;
 
@@ -797,21 +830,37 @@ Deno.serve(
               ok: false,
               status: 400,
               error:
-                'Invalid Trending book title.',
+                'Invalid book title.',
             }
           );
         }
 
-        requestKey =
-          trendingCacheKey(
-            title,
-            author,
-            isbn
-          );
-        freshMs =
-          TRENDING_CACHE_TTL_MS;
-        staleMs =
-          TRENDING_STALE_TTL_MS;
+        if (
+          mode ===
+            'identity'
+        ) {
+          requestKey =
+            identityCacheKey(
+              title,
+              author,
+              isbn
+            );
+          freshMs =
+            IDENTITY_CACHE_TTL_MS;
+          staleMs =
+            IDENTITY_STALE_TTL_MS;
+        } else {
+          requestKey =
+            trendingCacheKey(
+              title,
+              author,
+              isbn
+            );
+          freshMs =
+            TRENDING_CACHE_TTL_MS;
+          staleMs =
+            TRENDING_STALE_TTL_MS;
+        }
       }
 
       const now =
@@ -893,6 +942,26 @@ Deno.serve(
                 false,
               reason:
                 'soft_quota_guard',
+            },
+          }
+        );
+      }
+
+      if (
+        upstreamToday >=
+          EMERGENCY_DAILY_GUARD
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            error:
+              'Google Books daily safety reserve is active. Please try again later.',
+            reason:
+              'emergency_quota_guard',
+            quota: {
+              upstreamRequestsToday:
+                upstreamToday,
             },
           }
         );
@@ -1447,7 +1516,7 @@ Deno.serve(
                 status:
                   response.status,
                 error:
-                  'Google Books Trending resolution is temporarily unavailable.',
+                  'Google Books identity resolution is temporarily unavailable.',
               }
             );
           }
@@ -1542,7 +1611,7 @@ Deno.serve(
 
         resultPayload = {
           kind:
-            'trending',
+            mode,
           googleBookId,
         };
       }
