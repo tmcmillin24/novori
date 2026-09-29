@@ -2705,6 +2705,7 @@ export default function DiscoverScreen() {
       title?: string;
       authors?: string[];
       isbn?: string;
+      canonicalizeWork?: boolean;
     }
   ) {
     router.push({
@@ -2737,6 +2738,12 @@ export default function DiscoverScreen() {
           ? {
               clickedIsbn:
                 options.isbn,
+            }
+          : {}),
+        ...(options?.canonicalizeWork
+          ? {
+              canonicalizeWork:
+                '1',
             }
           : {}),
       },
@@ -2971,6 +2978,8 @@ export default function DiscoverScreen() {
             trendingBook.authors,
           isbn:
             trendingBook.isbns[0],
+          canonicalizeWork:
+            true,
         }
       );
     } catch (err) {
@@ -3108,6 +3117,8 @@ export default function DiscoverScreen() {
               authors:
                 info.authors,
               isbn,
+              canonicalizeWork:
+                true,
             }
           )
         }
