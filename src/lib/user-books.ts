@@ -1172,13 +1172,80 @@ export async function getUserBook(
     throw error;
   }
 
-  const book =
+  let book =
     data as UserBook | null;
 
   if (
     !book
   ) {
-    return null;
+    const {
+      data:
+        candidateRows,
+      error:
+        candidateError,
+    } =
+      await supabase
+        .from(
+          'user_books'
+        )
+        .select('*')
+        .eq(
+          'user_id',
+          userId
+        );
+
+    if (candidateError) {
+      throw candidateError;
+    }
+
+    const candidates =
+      (
+        candidateRows ??
+        []
+      ) as UserBook[];
+
+    if (
+      candidates.length ===
+        0
+    ) {
+      return null;
+    }
+
+    const canonicalCandidates =
+      await getCanonicalBookPresentations([
+        googleBookId,
+        ...candidates.map(
+          (
+            candidate
+          ) =>
+            candidate.google_book_id
+        ),
+      ]);
+
+    const targetCanonicalId =
+      canonicalCandidates.get(
+        googleBookId
+      )?.googleBookId ??
+      googleBookId;
+
+    book =
+      candidates.find(
+        (
+          candidate
+        ) =>
+          (
+            canonicalCandidates.get(
+              candidate.google_book_id
+            )?.googleBookId ??
+            candidate.google_book_id
+          ) ===
+            targetCanonicalId
+      ) ??
+      null;
+
+    if (!book) {
+      return null;
+    }
   }
 
   const canonicalBooks =
