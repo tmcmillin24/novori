@@ -1048,6 +1048,32 @@ function collapseDuplicateEditions(
                 return localeDifference;
               }
 
+              const aExact =
+                normalizeTitle(
+                  a.volumeInfo.title
+                ) ===
+                normalizedQuery
+                  ? 1
+                  : 0;
+
+              const bExact =
+                normalizeTitle(
+                  b.volumeInfo.title
+                ) ===
+                normalizedQuery
+                  ? 1
+                  : 0;
+
+              if (
+                bExact !==
+                aExact
+              ) {
+                return (
+                  bExact -
+                  aExact
+                );
+              }
+
               const aHardcover =
                 hardcoverPopularity[
                   a.id
@@ -1092,32 +1118,6 @@ function collapseDuplicateEditions(
                 return (
                   bGoogle.ratingsCount -
                   aGoogle.ratingsCount
-                );
-              }
-
-              const aExact =
-                normalizeTitle(
-                  a.volumeInfo.title
-                ) ===
-                normalizedQuery
-                  ? 1
-                  : 0;
-
-              const bExact =
-                normalizeTitle(
-                  b.volumeInfo.title
-                ) ===
-                normalizedQuery
-                  ? 1
-                  : 0;
-
-              if (
-                bExact !==
-                aExact
-              ) {
-                return (
-                  bExact -
-                  aExact
                 );
               }
 
