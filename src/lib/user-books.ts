@@ -1252,19 +1252,15 @@ export async function saveUserBook(
     input.status ===
     'read'
   ) {
-    startedAt =
-      startedAt ?? now;
-
-    if (
-      existing?.status !==
-      'read'
-    ) {
-      finishedAt =
-        now;
-    } else {
-      finishedAt =
-        finishedAt ?? now;
-    }
+    // Selecting Read while adding/classifying a book describes
+    // its state; it does not mean the user finished it today.
+    // Actual journey completion is handled by the Reading Journey
+    // lifecycle, which records the real completion date.
+    finishedAt =
+      existing?.status ===
+        'read'
+        ? existing.finished_at
+        : null;
 
     dnfAt =
       null;
@@ -1274,16 +1270,13 @@ export async function saveUserBook(
     input.status ===
     'dnf'
   ) {
-    if (
-      existing?.status !==
-      'dnf'
-    ) {
-      dnfAt =
-        now;
-    } else {
-      dnfAt =
-        dnfAt ?? now;
-    }
+    // Initial DNF classification also carries no implied date.
+    // A dated DNF journey is recorded through Reading Details.
+    dnfAt =
+      existing?.status ===
+        'dnf'
+        ? existing.dnf_at
+        : null;
 
     finishedAt =
       null;
