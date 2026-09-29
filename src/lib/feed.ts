@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import {
   getCanonicalBookPresentations,
-} from './user-books';
+} from './canonical-books';
 
 export type FeedPostType =
   | 'post'
