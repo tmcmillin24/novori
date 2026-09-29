@@ -37,6 +37,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
+  searchNovoriBooks,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -65,6 +66,14 @@ import {
 
 type GoogleBook = {
   id: string;
+  novoriWork?: {
+    key: string;
+    canonicalTitle: string;
+    primaryAuthor: string;
+    googleBookIds: string[];
+    isbns: string[];
+    canonicalCoverUrl?: string | null;
+  };
   volumeInfo: {
     title?: string;
     subtitle?: string;
@@ -1845,6 +1854,71 @@ export default function BookDetailsScreen() {
         author
       );
 
+    try {
+      const discoverResults =
+        await searchNovoriBooks(
+          seriesBook.title
+        );
+
+      const discoverMatch =
+        discoverResults.find(
+          (
+            candidate
+          ) => {
+            const candidateTitle =
+              normalizeSeriesWorkTitle(
+                candidate.volumeInfo
+                  .title
+              );
+
+            if (
+              candidateTitle !==
+                wantedTitle
+            ) {
+              return false;
+            }
+
+            if (!author) {
+              return true;
+            }
+
+            return (
+              candidate.volumeInfo
+                .authors ??
+              []
+            ).some(
+              (
+                candidateAuthor
+              ) => {
+                const normalizedCandidateAuthor =
+                  normalizeAuthorName(
+                    candidateAuthor
+                  );
+
+                return (
+                  normalizedCandidateAuthor ===
+                    normalizedAuthor ||
+                  normalizedCandidateAuthor.includes(
+                    normalizedAuthor
+                  ) ||
+                  normalizedAuthor.includes(
+                    normalizedCandidateAuthor
+                  )
+                );
+              }
+            );
+          }
+        );
+
+      if (
+        discoverMatch
+      ) {
+        return discoverMatch;
+      }
+    } catch {
+      // Fall through to the shared identity resolver and targeted searches.
+    }
+
     type RankedSeriesCandidate = {
       result: GoogleBook;
       exactTitle: boolean;
@@ -2742,6 +2816,8 @@ export default function BookDetailsScreen() {
       }
 
       const resolvedCover =
+        resolved.novoriWork
+          ?.canonicalCoverUrl ??
         getValidatedHighResolutionCover(
           undefined,
           resolved.volumeInfo
