@@ -11,9 +11,6 @@ import {
 import {
   recordGoogleBooksInCatalog,
 } from '../_shared/book-catalog.ts';
-import {
-  getCanonicalGoogleEditionsForWorkIds,
-} from '../_shared/book-canonical.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -612,7 +609,7 @@ function identityCacheKey(
   author: string
 ) {
   return (
-    'identity:v4:' +
+    'identity:v3:' +
     canonicalWorkTitle(
       title
     ) +
@@ -622,6 +619,17 @@ function identityCacheKey(
     )
   );
 }
+
+type CatalogEditionRow = {
+  provider_book_id: string;
+  title: string | null;
+  authors: string[] | null;
+  language: string | null;
+  sale_country: string | null;
+  detail_complete: boolean | null;
+  page_count: number | null;
+  cover_url: string | null;
+};
 
 function canonicalWorkTitleForInput(
   title: string,
@@ -726,18 +734,190 @@ async function findCanonicalCatalogGoogleBookId(
     return null;
   }
 
-  const canonical =
-    await getCanonicalGoogleEditionsForWorkIds(
-      supabaseAdmin,
-      [
-        workId,
-      ]
+  const {
+    data:
+      editionRows,
+    error:
+      editionError,
+  } =
+    await supabaseAdmin
+      .from(
+        'book_editions'
+      )
+      .select(
+        'provider_book_id, title, authors, language, sale_country, detail_complete, page_count, cover_url'
+      )
+      .eq(
+        'provider',
+        PROVIDER
+      )
+      .eq(
+        'work_id',
+        workId
+      );
+
+  if (editionError) {
+    throw new Error(
+      'Could not read Novori book editions for identity: ' +
+      editionError.message
     );
+  }
+
+  const ranked =
+    (
+      editionRows ??
+      []
+    )
+      .map(
+        (
+          row
+        ) => {
+          const edition =
+            row as
+              CatalogEditionRow;
+
+          const language =
+            (
+              edition.language ??
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+          const country =
+            (
+              edition.sale_country ??
+              ''
+            )
+              .trim()
+              .toUpperCase();
+
+          const isEnglish =
+            language ===
+              'en' ||
+            language ===
+              'eng' ||
+            language.startsWith(
+              'en-'
+            );
+
+          if (
+            language &&
+            !isEnglish
+          ) {
+            return null;
+          }
+
+          const localeScore =
+            isEnglish &&
+            country ===
+              'US'
+              ? 300
+              : isEnglish
+                ? 250
+                : country ===
+                    'US'
+                  ? 200
+                  : 100;
+
+          const exactCleanTitle =
+            normalizeTitle(
+              edition.title
+            ) ===
+              normalizedWorkTitle;
+
+          const authors =
+            Array.isArray(
+              edition.authors
+            )
+              ? edition.authors
+              : [];
+
+          const authorMatches =
+            !normalizedAuthor ||
+            authors.some(
+              (
+                candidateAuthor
+              ) => {
+                const actual =
+                  normalizeTitle(
+                    candidateAuthor
+                  );
+
+                return (
+                  actual ===
+                    normalizedAuthor ||
+                  actual.includes(
+                    normalizedAuthor
+                  ) ||
+                  normalizedAuthor.includes(
+                    actual
+                  )
+                );
+              }
+            );
+
+          if (!authorMatches) {
+            return null;
+          }
+
+          return {
+            id:
+              edition.provider_book_id,
+            score:
+              (
+                exactCleanTitle
+                  ? 1000
+                  : 0
+              ) +
+              localeScore +
+              (
+                edition.detail_complete
+                  ? 100
+                  : 0
+              ) +
+              (
+                edition.cover_url
+                  ? 20
+                  : 0
+              ) +
+              (
+                (
+                  edition.page_count ??
+                  0
+                ) >
+                  0
+                  ? 10
+                  : 0
+              ),
+          };
+        }
+      )
+      .filter(
+        (
+          candidate
+        ): candidate is NonNullable<
+          typeof candidate
+        > =>
+          Boolean(
+            candidate
+          )
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.score -
+            a.score ||
+          a.id.localeCompare(
+            b.id
+          )
+      );
 
   return (
-    canonical.get(
-      workId
-    )?.googleBookId ??
+    ranked[0]
+      ?.id ??
     null
   );
 }
