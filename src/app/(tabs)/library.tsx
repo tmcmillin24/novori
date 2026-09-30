@@ -8,6 +8,7 @@ import {
   useRouter,
 } from 'expo-router';
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -163,6 +164,235 @@ function normalizeLibrarySearch(
     );
 }
 
+type LibraryStyles =
+  ReturnType<
+    typeof createStyles
+  >;
+
+const LibraryBookCard = memo(
+  function LibraryBookCard({
+    item,
+    updating,
+    styles,
+    goldColor,
+    mutedTextColor,
+    onOpenBook,
+    onShowBookActions,
+  }: {
+    item: UserBook;
+    updating: boolean;
+    styles: LibraryStyles;
+    goldColor: string;
+    mutedTextColor: string;
+    onOpenBook: (
+      googleBookId: string
+    ) => void;
+    onShowBookActions: (
+      book: UserBook
+    ) => void;
+  }) {
+    const author =
+      item.authors?.length
+        ? item.authors.join(
+            ', '
+          )
+        : 'Unknown author';
+
+    return (
+      <Pressable
+        onPress={() =>
+          onOpenBook(
+            item.google_book_id
+          )
+        }
+        style={({ pressed }) => [
+          styles.bookCard,
+          pressed &&
+            styles.pressed,
+        ]}
+      >
+        <View
+          style={
+            styles.coverWrap
+          }
+        >
+          {item.cover_url ? (
+            <ExpoImage
+              source={
+                item.cover_url
+              }
+              style={
+                styles.cover
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.cover_url
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.coverPlaceholder
+              }
+            >
+              <Ionicons
+                name="book-outline"
+                size={32}
+                color={
+                  mutedTextColor
+                }
+              />
+            </View>
+          )}
+
+          {item.status ? (
+            <View
+              style={
+                styles.statusBadge
+              }
+            >
+              <Text
+                style={
+                  styles.statusBadgeText
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {
+                  STATUS_LABELS[
+                    item.status
+                  ]
+                }
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={
+            styles.titleRow
+          }
+        >
+          <Text
+            style={
+              styles.bookTitle
+            }
+            numberOfLines={
+              2
+            }
+          >
+            {item.title}
+          </Text>
+
+          <Pressable
+            accessibilityLabel={
+              `Manage ${item.title}`
+            }
+            hitSlop={8}
+            disabled={
+              updating
+            }
+            onPress={(
+              event
+            ) => {
+              event.stopPropagation();
+
+              onShowBookActions(
+                item
+              );
+            }}
+            style={({ pressed }) => [
+              styles.inlineManageButton,
+              pressed &&
+                styles.inlineManageButtonPressed,
+            ]}
+          >
+            {updating ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  goldColor
+                }
+              />
+            ) : (
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={18}
+                color={
+                  goldColor
+                }
+              />
+            )}
+          </Pressable>
+        </View>
+
+        <View
+          style={
+            styles.authorRow
+          }
+        >
+          <Text
+            style={
+              styles.bookAuthor
+            }
+            numberOfLines={
+              1
+            }
+          >
+            {author}
+          </Text>
+
+          {item.owned ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={15}
+              color={
+                goldColor
+              }
+            />
+          ) : null}
+        </View>
+
+        {item.rating !==
+        null ? (
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <Ionicons
+              name="star"
+              size={13}
+              color={
+                goldColor
+              }
+            />
+
+            <Text
+              style={
+                styles.ratingText
+              }
+            >
+              {
+                item.rating
+              }
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={
+              styles.ratingSpacer
+            }
+          />
+        )}
+      </Pressable>
+    );
+  }
+);
+
 export default function LibraryScreen() {
   const router = useRouter();
   const navigation =
@@ -184,7 +414,15 @@ export default function LibraryScreen() {
     useNovoriTheme();
 
   const styles =
-    createStyles(colors);
+    useMemo(
+      () =>
+        createStyles(
+          colors
+        ),
+      [
+        colors,
+      ]
+    );
 
   const [
     books,
@@ -872,20 +1110,26 @@ export default function LibraryScreen() {
       ? 'Author'
       : 'Recently Updated';
 
-  function openBook(
-    googleBookId: string
-  ) {
-    router.push({
-      pathname:
-        '/book/[id]',
-      params: {
-        id:
-          googleBookId,
-        source:
-          'library',
+  const openBook =
+    useCallback(
+      (
+        googleBookId: string
+      ) => {
+        router.push({
+          pathname:
+            '/book/[id]',
+          params: {
+            id:
+              googleBookId,
+            source:
+              'library',
+          },
+        });
       },
-    });
-  }
+      [
+        router,
+      ]
+    );
 
   function openSortMenu() {
     Alert.alert(
@@ -922,27 +1166,45 @@ export default function LibraryScreen() {
     );
   }
 
-  function showBookActions(
-    book: UserBook
-  ) {
-    if (selectedBook || sheetClosing.current) return;
-    sheetShown.current = false;
-    sheetStarted.current = false;
-    sheetHeight.current = 0;
-    sheetTranslateY.stopAnimation();
-    sheetOpacity.stopAnimation();
-    backdropOpacity.stopAnimation();
-    sheetTranslateY.setValue(12);
-    sheetOpacity.setValue(0);
-    backdropOpacity.setValue(0);
-    setSelectedBook(
-      book
-    );
+  const showBookActions =
+    useCallback(
+      (
+        book: UserBook
+      ) => {
+        if (
+          selectedBook ||
+          sheetClosing.current
+        ) {
+          return;
+        }
 
-    setActionSheetMode(
-      'actions'
+        sheetShown.current = false;
+        sheetStarted.current = false;
+        sheetHeight.current = 0;
+        sheetTranslateY.stopAnimation();
+        sheetOpacity.stopAnimation();
+        backdropOpacity.stopAnimation();
+        sheetTranslateY.setValue(
+          12
+        );
+        sheetOpacity.setValue(
+          0
+        );
+        backdropOpacity.setValue(
+          0
+        );
+        setSelectedBook(
+          book
+        );
+
+        setActionSheetMode(
+          'actions'
+        );
+      },
+      [
+        selectedBook,
+      ]
     );
-  }
 
   function closeBookActions() {
     if (updatingBookId) {
@@ -1713,216 +1975,47 @@ export default function LibraryScreen() {
     );
   }
 
-  function renderBook({
-    item,
-  }: {
-    item: UserBook;
-  }) {
-    const updating =
-      updatingBookId ===
-      item.id;
-
-    const author =
-      item.authors?.length
-        ? item.authors.join(
-            ', '
-          )
-        : 'Unknown author';
-
-    return (
-      <Pressable
-        onPress={() =>
-          openBook(
-            item.google_book_id
-          )
-        }
-        style={({ pressed }) => [
-          styles.bookCard,
-          pressed &&
-            styles.pressed,
-        ]}
-      >
-        <View
-          style={
-            styles.coverWrap
+  const renderBook =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: UserBook;
+      }) => (
+        <LibraryBookCard
+          item={
+            item
           }
-        >
-          {item.cover_url ? (
-            <ExpoImage
-              source={
-                item.cover_url
-              }
-              style={
-                styles.cover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                item.cover_url
-              }
-            />
-          ) : (
-            <View
-              style={
-                styles.coverPlaceholder
-              }
-            >
-              <Ionicons
-                name="book-outline"
-                size={32}
-                color={
-                  colors.mutedText
-                }
-              />
-            </View>
-          )}
-
-          {item.status ? (
-            <View
-              style={
-                styles.statusBadge
-              }
-            >
-              <Text
-                style={
-                  styles.statusBadgeText
-                }
-                numberOfLines={
-                  1
-                }
-              >
-                {
-                  STATUS_LABELS[
-                    item.status
-                  ]
-                }
-              </Text>
-            </View>
-          ) : null}
-
-        </View>
-
-        <View
-          style={
-            styles.titleRow
+          updating={
+            updatingBookId ===
+            item.id
           }
-        >
-          <Text
-            style={
-              styles.bookTitle
-            }
-            numberOfLines={
-              2
-            }
-          >
-            {item.title}
-          </Text>
-
-          <Pressable
-            accessibilityLabel={
-              `Manage ${item.title}`
-            }
-            hitSlop={8}
-            disabled={
-              updating
-            }
-            onPress={(
-              event
-            ) => {
-              event.stopPropagation();
-
-              showBookActions(
-                item
-              );
-            }}
-            style={({ pressed }) => [
-              styles.inlineManageButton,
-              pressed &&
-                styles.inlineManageButtonPressed,
-            ]}
-          >
-            {updating ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.gold
-                }
-              />
-            ) : (
-              <Ionicons
-                name="ellipsis-horizontal"
-                size={18}
-                color={
-                  colors.gold
-                }
-              />
-            )}
-          </Pressable>
-        </View>
-
-        <View
-          style={
-            styles.authorRow
+          styles={
+            styles
           }
-        >
-          <Text
-            style={
-              styles.bookAuthor
-            }
-            numberOfLines={
-              1
-            }
-          >
-            {author}
-          </Text>
-
-          {item.owned ? (
-            <Ionicons
-              name="checkmark-circle"
-              size={15}
-              color={
-                colors.gold
-              }
-            />
-          ) : null}
-        </View>
-
-        {item.rating !==
-        null ? (
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <Ionicons
-              name="star"
-              size={13}
-              color={
-                colors.gold
-              }
-            />
-
-            <Text
-              style={
-                styles.ratingText
-              }
-            >
-              {
-                item.rating
-              }
-            </Text>
-          </View>
-        ) : (
-          <View
-            style={
-              styles.ratingSpacer
-            }
-          />
-        )}
-      </Pressable>
+          goldColor={
+            colors.gold
+          }
+          mutedTextColor={
+            colors.mutedText
+          }
+          onOpenBook={
+            openBook
+          }
+          onShowBookActions={
+            showBookActions
+          }
+        />
+      ),
+      [
+        colors.gold,
+        colors.mutedText,
+        openBook,
+        showBookActions,
+        styles,
+        updatingBookId,
+      ]
     );
-  }
 
   if (loading) {
     return (
