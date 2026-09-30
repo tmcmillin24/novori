@@ -1145,7 +1145,7 @@ export default function ProfileScreen() {
               styles.emptyActivityTitle
             }
           >
-            Your reading history will show up here.
+            Your public library preview will show up here.
           </Text>
 
           <Text
@@ -1153,7 +1153,7 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Reading, TBR, Read, and DNF books will appear here in that order.
+            Only book categories enabled in Privacy appear here, exactly as other readers will see them.
           </Text>
         </View>
       );
@@ -1315,7 +1315,7 @@ export default function ProfileScreen() {
               styles.emptyActivityTitle
             }
           >
-            Your reviews will show up here.
+            Your public reviews preview will show up here.
           </Text>
 
           <Text
@@ -1323,7 +1323,7 @@ export default function ProfileScreen() {
               styles.emptyActivityText
             }
           >
-            Ratings and reviews you publish on Novori will appear on your profile.
+            Reviews appear here only when Show Reviews Publicly is enabled in Privacy.
           </Text>
         </View>
       );
