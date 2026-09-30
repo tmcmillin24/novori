@@ -1371,6 +1371,10 @@ export default function BookDetailsScreen() {
           resolvedBook
         );
 
+        let verifiedWorkCoverUrl:
+          string | null =
+          null;
+
         if (
           source ===
             'discover'
@@ -1433,12 +1437,15 @@ export default function BookDetailsScreen() {
               if (
                 selectedUrl
               ) {
-                setSelectedWorkCoverUrl(
+                verifiedWorkCoverUrl =
                   selectedUrl
                     .replace(
                       'http://',
                       'https://'
-                    )
+                    );
+
+                setSelectedWorkCoverUrl(
+                  verifiedWorkCoverUrl
                 );
               }
             }
@@ -1452,9 +1459,63 @@ export default function BookDetailsScreen() {
           }
         }
 
-        // For Discover, wait for the verified work-cover decision before
-        // revealing the page so the low-resolution search cover never flashes
-        // before an authoritative locked cover.
+        // Resolve series identity before revealing Discover details.
+        // This does not add another Hardcover request; it moves the existing
+        // series lookup earlier so a verified series cover can participate in
+        // the first visible paint.
+        const discoveredSeriesCoverUrl =
+          await loadSeries(
+            resolvedBook
+          );
+
+        if (
+          source ===
+            'discover'
+        ) {
+          const trustedIncomingCover =
+            trustedCover ===
+              '1'
+              ? discoverCoverUrl ??
+                null
+              : null;
+
+          let finalDiscoverCover =
+            verifiedWorkCoverUrl ??
+            trustedIncomingCover ??
+            discoveredSeriesCoverUrl ??
+            null;
+
+          if (
+            !finalDiscoverCover
+          ) {
+            finalDiscoverCover =
+              await resolveBookCoverUrl({
+                imageLinks:
+                  resolvedBook
+                    .volumeInfo
+                    .imageLinks,
+                isbn:
+                  getBookISBN(
+                    resolvedBook
+                  ) ??
+                  null,
+                existingCoverUrl:
+                  discoverCoverUrl ??
+                  null,
+              });
+          }
+
+          if (
+            finalDiscoverCover
+          ) {
+            setSelectedWorkCoverUrl(
+              finalDiscoverCover
+            );
+          }
+        }
+
+        // The first visible Discover paint now uses the already-resolved cover
+        // instead of showing one image and swapping it after mount.
         setLoading(
           false
         );
@@ -1594,9 +1655,6 @@ export default function BookDetailsScreen() {
           setReadingStatus(null);
         }
 
-        await loadSeries(
-          resolvedBook
-        );
       } catch (err) {
         const message =
           err instanceof Error
@@ -1636,6 +1694,7 @@ export default function BookDetailsScreen() {
     clickedAuthors,
     clickedIsbn,
     canonicalizeWork,
+    trustedCover,
   ]);
 
   useFocusEffect(
@@ -1996,7 +2055,7 @@ export default function BookDetailsScreen() {
         0 &&
       !title
     ) {
-      return;
+      return null;
     }
 
     try {
@@ -2029,7 +2088,7 @@ export default function BookDetailsScreen() {
       ) {
         setSeries(null);
         setSeriesBooks([]);
-        return;
+        return null;
       }
 
       const response =
@@ -2041,7 +2100,7 @@ export default function BookDetailsScreen() {
       ) {
         setSeries(null);
         setSeriesBooks([]);
-        return;
+        return null;
       }
 
       const resolvedSeries =
@@ -2091,9 +2150,12 @@ export default function BookDetailsScreen() {
           seriesCoverUrl
         );
       }
+
+      return seriesCoverUrl;
     } catch {
       setSeries(null);
       setSeriesBooks([]);
+      return null;
     } finally {
       setSeriesLoading(false);
     }
