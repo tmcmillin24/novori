@@ -82,6 +82,121 @@ function normalizeTitle(value?: string) {
     .trim();
 }
 
+const DERIVATIVE_TITLE_PREFIXES = [
+  'summary of ',
+  'summary for ',
+  'summary ',
+  'book summary ',
+  'workbook for ',
+  'workbook ',
+  'study guide for ',
+  'study guide ',
+  'analysis of ',
+  'analysis for ',
+  'review and analysis of ',
+  'review and analysis ',
+  'key takeaways from ',
+  'key takeaways ',
+  'companion to ',
+  'unofficial guide to ',
+  'unofficial summary ',
+];
+
+function hasDerivativeSearchIntent(
+  normalizedQuery: string
+) {
+  return DERIVATIVE_TITLE_PREFIXES.some(
+    (
+      prefix
+    ) =>
+      normalizedQuery.startsWith(
+        prefix.trim()
+      )
+  );
+}
+
+function isLikelyDerivativeTitle(
+  book: GoogleBookSearchItem
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  if (
+    DERIVATIVE_TITLE_PREFIXES.some(
+      (
+        prefix
+      ) =>
+        title.startsWith(
+          prefix
+        )
+    )
+  ) {
+    return true;
+  }
+
+  const categories =
+    (
+      book.volumeInfo
+        .categories ??
+      []
+    )
+      .map(
+        normalizeTitle
+      )
+      .join(' ');
+
+  return (
+    categories.includes(
+      'study aids book notes'
+    ) ||
+    categories.includes(
+      'study aids'
+    ) &&
+    (
+      title.includes(
+        'summary'
+      ) ||
+      title.includes(
+        'workbook'
+      ) ||
+      title.includes(
+        'study guide'
+      )
+    )
+  );
+}
+
+function filterDerivativeSearchResults(
+  books:
+    GoogleBookSearchItem[],
+  normalizedQuery: string
+) {
+  if (
+    hasDerivativeSearchIntent(
+      normalizedQuery
+    )
+  ) {
+    return books;
+  }
+
+  const primaryResults =
+    books.filter(
+      (
+        book
+      ) =>
+        !isLikelyDerivativeTitle(
+          book
+        )
+    );
+
+  return primaryResults.length >
+    0
+    ? primaryResults
+    : books;
+}
+
 function getGoogleBookPopularity(
   book: GoogleBookSearchItem
 ) {
@@ -954,6 +1069,72 @@ function getBestEligibleGoogleWorkCover(
   );
 }
 
+function getSearchWorkIdentityTitle(
+  book: GoogleBookSearchItem
+) {
+  let title =
+    getCanonicalWorkTitleForBook(
+      book
+    );
+
+  // Google Books sometimes publishes censored storefront variants of
+  // the same work as separate titles (for example F*ck vs Bleep).
+  // Normalize only the common censorship tokens used as substitutions,
+  // then still require the same primary author before editions collapse.
+  title =
+    title
+      .replace(
+        /\bf\s+(?:ck|k)\b/g,
+        'fuck'
+      )
+      .replace(
+        /\bbleep\b/g,
+        'fuck'
+      );
+
+  const removableSearchSuffixes = [
+    ' revised and updated',
+    ' revised updated',
+    ' revised edition',
+    ' updated edition',
+    ' revised and updated edition',
+  ];
+
+  let changed =
+    true;
+
+  while (
+    changed
+  ) {
+    changed =
+      false;
+
+    for (
+      const suffix of
+        removableSearchSuffixes
+    ) {
+      if (
+        title.endsWith(
+          suffix
+        )
+      ) {
+        title =
+          title
+            .slice(
+              0,
+              -suffix.length
+            )
+            .trim();
+
+        changed =
+          true;
+      }
+    }
+  }
+
+  return title;
+}
+
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -994,7 +1175,7 @@ function collapseDuplicateEditions(
       candidates
   ) {
     const canonicalTitle =
-      getCanonicalWorkTitleForBook(
+      getSearchWorkIdentityTitle(
         book
       );
 
@@ -1151,7 +1332,7 @@ function collapseDuplicateEditions(
           sorted[0];
 
         const canonicalTitle =
-          getCanonicalWorkTitleForBook(
+          getSearchWorkIdentityTitle(
             representative
           );
 
@@ -1616,15 +1797,24 @@ export async function searchNovoriBooks(
             0
         );
 
+  const qualityFilteredResults =
+    looksLikeAuthorSearch ||
+    looksLikeIsbnSearch
+      ? relevantResults
+      : filterDerivativeSearchResults(
+          relevantResults,
+          normalizedQuery
+        );
+
   const sorted =
     looksLikeAuthorSearch
       ? sortAuthorSearchResults(
-          relevantResults,
+          qualityFilteredResults,
           searchTerm,
           {}
         )
       : sortTitleSearchResults(
-          relevantResults,
+          qualityFilteredResults,
           searchTerm,
           {}
         );
