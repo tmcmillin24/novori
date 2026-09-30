@@ -1290,6 +1290,35 @@ function filterNearCopySearchResults(
         candidateTitle ===
         baseTitle
       ) {
+        const candidateAuthor =
+          normalizeTitle(
+            book.volumeInfo
+              .authors?.[0]
+          );
+
+        const primaryAuthor =
+          normalizeTitle(
+            bestPrimary.volumeInfo
+              .authors?.[0]
+          );
+
+        const specificTitleSearch =
+          normalizedQuery
+            .split(' ')
+            .filter(Boolean)
+            .length >=
+          4;
+
+        if (
+          specificTitleSearch &&
+          candidateAuthor &&
+          primaryAuthor &&
+          candidateAuthor !==
+            primaryAuthor
+        ) {
+          return false;
+        }
+
         return true;
       }
 
