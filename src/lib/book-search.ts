@@ -623,7 +623,7 @@ function getCanonicalWorkTitle(
   // deliberately narrow so ordinary subtitles are not collapsed.
   raw =
     raw.replace(
-      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|(?:the\s+)?(?:gripping|thrilling|stunning|bestselling|best-selling|highly anticipated|must-read)\s+(?:sequel|prequel)\s+to\b.*|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
+      /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|(?:an?\s+|the\s+)?(?:(?:gma|good morning america|reese'?s|oprah'?s|read with jenna)\s+)?book club (?:pick|selection)|(?:the\s+)?(?:gripping|thrilling|stunning|bestselling|best-selling|highly anticipated|must-read)\s+(?:sequel|prequel)\s+to\b.*|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
       ''
     );
 
