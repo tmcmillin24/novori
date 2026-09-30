@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 Deno.serve(async (req) => {
 
   const corsHeaders = {
@@ -158,6 +160,268 @@ Deno.serve(async (req) => {
 
 
 
+    const supabaseUrl =
+
+      Deno.env.get(
+
+        "SUPABASE_URL"
+
+      ) ?? "";
+
+
+
+    const serviceRoleKey =
+
+      Deno.env.get(
+
+        "SUPABASE_SERVICE_ROLE_KEY"
+
+      ) ?? "";
+
+
+
+    const userAccessToken =
+
+      (req.headers.get(
+
+        "Authorization"
+
+      ) ?? "")
+
+        .replace(
+
+          /^Bearer\\s+/i,
+
+          ""
+
+        )
+
+        .trim();
+
+
+
+    const supabaseAdmin =
+
+      supabaseUrl &&
+
+      serviceRoleKey
+
+        ? createClient(
+
+            supabaseUrl,
+
+            serviceRoleKey,
+
+            {
+
+              auth: {
+
+                autoRefreshToken:
+
+                  false,
+
+                persistSession:
+
+                  false,
+
+              },
+
+            }
+
+          )
+
+        : null;
+
+
+
+    let quotaUserId:
+
+      string | null | undefined =
+
+      undefined;
+
+
+
+    async function claimGoogleBooksRequest() {
+
+      if (
+
+        !supabaseAdmin ||
+
+        !userAccessToken
+
+      ) {
+
+        console.warn(
+
+          "hardcover-series blocked Google fallback: quota context unavailable"
+
+        );
+
+        return false;
+
+      }
+
+
+
+      if (
+
+        quotaUserId ===
+
+        undefined
+
+      ) {
+
+        const {
+
+          data: authData,
+
+          error: authError,
+
+        } =
+
+          await supabaseAdmin.auth.getUser(
+
+            userAccessToken
+
+          );
+
+
+
+        quotaUserId =
+
+          authError
+
+            ? null
+
+            : authData?.user?.id ??
+
+              null;
+
+      }
+
+
+
+      if (!quotaUserId) {
+
+        console.warn(
+
+          "hardcover-series blocked Google fallback: invalid user session"
+
+        );
+
+        return false;
+
+      }
+
+
+
+      const {
+
+        data: claimData,
+
+        error: claimError,
+
+      } =
+
+        await supabaseAdmin.rpc(
+
+          "novori_claim_google_books_search",
+
+          {
+
+            p_user_id:
+
+              quotaUserId,
+
+          }
+
+        );
+
+
+
+      if (claimError) {
+
+        console.warn(
+
+          "hardcover-series blocked Google fallback: quota claim failed",
+
+          claimError.message
+
+        );
+
+        return false;
+
+      }
+
+
+
+      const claim =
+
+        Array.isArray(
+
+          claimData
+
+        )
+
+          ? claimData[0]
+
+          : claimData;
+
+
+
+      if (
+
+        claim?.allowed !==
+
+        true
+
+      ) {
+
+        console.info(
+
+          `hardcover-series blocked Google fallback: ${claim?.reason ?? "rate_limited"}`
+
+        );
+
+        return false;
+
+      }
+
+
+
+      return true;
+
+    }
+
+
+
+    async function fetchGoogleBooksGuarded(
+
+      url: string
+
+    ) {
+
+      const allowed =
+
+        await claimGoogleBooksRequest();
+
+
+
+      if (!allowed) {
+
+        return null;
+
+      }
+
+
+
+      return fetch(url);
+
+    }
+
+
+
     // Normalize common 2-letter, 3-letter, and name
 
     // variants so language comparisons work whether
@@ -314,15 +578,23 @@ Deno.serve(async (req) => {
 
 
 
-        const response = await fetch(
+        const response =
 
-          `https://www.googleapis.com/books/v1/volumes?${params.toString()}`
+          await fetchGoogleBooksGuarded(
 
-        );
+            `https://www.googleapis.com/books/v1/volumes?${params.toString()}`
+
+          );
 
 
 
-        if (!response.ok) {
+        if (
+
+          !response ||
+
+          !response.ok
+
+        ) {
 
           return [];
 
@@ -2076,7 +2348,7 @@ Deno.serve(async (req) => {
 
         const response =
 
-          await fetch(
+          await fetchGoogleBooksGuarded(
 
             `https://www.googleapis.com/books/v1/volumes?${params.toString()}`
 
@@ -2084,7 +2356,13 @@ Deno.serve(async (req) => {
 
 
 
-        if (!response.ok) {
+        if (
+
+          !response ||
+
+          !response.ok
+
+        ) {
 
           googleLanguageCache.set(
 
