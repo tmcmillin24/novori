@@ -569,14 +569,14 @@ export default function ReaderProfileScreen() {
               )
             );
 
-          const applyVerifiedCover = <
+          function applyVerifiedCover<
             T extends {
               google_book_id: string;
               cover_url: string | null;
             }
           >(
             item: T
-          ): T => {
+          ): T {
             const verifiedCover =
               verifiedCovers.get(
                 item.google_book_id
@@ -589,7 +589,7 @@ export default function ReaderProfileScreen() {
                     verifiedCover,
                 }
               : item;
-          };
+          }
 
           const mergedBookData =
             Array.from(
