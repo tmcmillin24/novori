@@ -1005,7 +1005,15 @@ function getCanonicalWorkTitle(
     ' exclusive edition',
     ' anniversary edition',
     ' hardcover edition',
+    ' hardback edition',
     ' paperback edition',
+    ' ebook edition',
+    ' kindle edition',
+    ' hardcover version',
+    ' hardback version',
+    ' paperback version',
+    ' ebook version',
+    ' kindle version',
     ' international edition',
     ' movie tie in edition',
     ' tv tie in edition',
@@ -1014,8 +1022,6 @@ function getCanonicalWorkTitle(
     ' uncut edition',
     ' illustrated edition',
     ' gift edition',
-    ' ebook edition',
-    ' kindle edition',
     ' trade paperback',
     ' revised and updated',
     ' revised updated',
@@ -1408,9 +1414,7 @@ function getSearchWorkIdentityTitle(
     }
   }
 
-  return stripLeadingTitleArticle(
-    title
-  );
+  return title;
 }
 
 function getSearchTitleStem(
@@ -1451,12 +1455,17 @@ function authorsMatchOrCandidateMissing(
         .authors?.[0]
     );
 
-  return (
-    !candidateAuthor ||
-    !referenceAuthor ||
-    candidateAuthor ===
-      referenceAuthor
-  );
+  if (
+    referenceAuthor
+  ) {
+    return (
+      !candidateAuthor ||
+      candidateAuthor ===
+        referenceAuthor
+    );
+  }
+
+  return !candidateAuthor;
 }
 
 function isLikelySameSearchWork(
@@ -1480,9 +1489,19 @@ function isLikelySameSearchWork(
     return false;
   }
 
-  if (
-    referenceTitle ===
+  const comparableReferenceTitle =
+    stripLeadingTitleArticle(
+      referenceTitle
+    );
+
+  const comparableCandidateTitle =
+    stripLeadingTitleArticle(
       candidateTitle
+    );
+
+  if (
+    comparableReferenceTitle ===
+      comparableCandidateTitle
   ) {
     return authorsMatchOrCandidateMissing(
       reference,
@@ -1512,9 +1531,9 @@ function isLikelySameSearchWork(
   // Google sometimes returns both a short title and the same title with
   // its subtitle/alternate rendering appended after a colon, dash, or slash.
   return (
-    referenceTitle ===
+    comparableReferenceTitle ===
       candidateStem ||
-    candidateTitle ===
+    comparableCandidateTitle ===
       referenceStem
   );
 }
@@ -1781,18 +1800,8 @@ function filterNearCopySearchResults(
 function getSearchEditionVariantPenalty(
   book: GoogleBookSearchItem
 ) {
-  const title =
-    normalizeTitle(
-      book.volumeInfo.title
-    );
-
-  return (
-    /\b(?:anniversary|revised|updated|collector|collectors|deluxe|special|exclusive)\b/.test(
-      title
-    ) ||
-    /\b(?:edition|version)\b/.test(
-      title
-    )
+  return isLikelyEditionVariant(
+    book
   )
     ? 1
     : 0;
@@ -1938,6 +1947,40 @@ function collapseDuplicateEditions(
                 return editionVariantDifference;
               }
 
+              const aExact =
+                stripLeadingTitleArticle(
+                  normalizeTitle(
+                    a.volumeInfo.title
+                  )
+                ) ===
+                stripLeadingTitleArticle(
+                  normalizedQuery
+                )
+                  ? 1
+                  : 0;
+
+              const bExact =
+                stripLeadingTitleArticle(
+                  normalizeTitle(
+                    b.volumeInfo.title
+                  )
+                ) ===
+                stripLeadingTitleArticle(
+                  normalizedQuery
+                )
+                  ? 1
+                  : 0;
+
+              if (
+                bExact !==
+                aExact
+              ) {
+                return (
+                  bExact -
+                  aExact
+                );
+              }
+
               const localeDifference =
                 getEditionLocaleScore(
                   b
@@ -1951,32 +1994,6 @@ function collapseDuplicateEditions(
                   0
               ) {
                 return localeDifference;
-              }
-
-              const aExact =
-                normalizeTitle(
-                  a.volumeInfo.title
-                ) ===
-                normalizedQuery
-                  ? 1
-                  : 0;
-
-              const bExact =
-                normalizeTitle(
-                  b.volumeInfo.title
-                ) ===
-                normalizedQuery
-                  ? 1
-                  : 0;
-
-              if (
-                bExact !==
-                aExact
-              ) {
-                return (
-                  bExact -
-                  aExact
-                );
               }
 
               const aHardcover =
