@@ -65,6 +65,9 @@ import {
   sharePostLink,
 } from '../../lib/share-links';
 import {
+  getLockedVerifiedCoverUrls,
+} from '../../lib/user-books';
+import {
   PROFILE_BOOK_STATUS_LABELS,
   sortProfileBooks,
 } from '../../lib/profile-book-order';
@@ -552,12 +555,52 @@ export default function ReaderProfileScreen() {
               ),
             ]);
 
+          const verifiedCovers =
+            await getLockedVerifiedCoverUrls(
+              [
+                ...bookData,
+                ...ownedBookData,
+                ...reviewData,
+              ].map(
+                (
+                  item
+                ) =>
+                  item.google_book_id
+              )
+            );
+
+          const applyVerifiedCover = <
+            T extends {
+              google_book_id: string;
+              cover_url: string | null;
+            }
+          >(
+            item: T
+          ): T => {
+            const verifiedCover =
+              verifiedCovers.get(
+                item.google_book_id
+              );
+
+            return verifiedCover
+              ? {
+                  ...item,
+                  cover_url:
+                    verifiedCover,
+                }
+              : item;
+          };
+
           const mergedBookData =
             Array.from(
               new Map(
                 [
-                  ...bookData,
-                  ...ownedBookData,
+                  ...bookData.map(
+                    applyVerifiedCover
+                  ),
+                  ...ownedBookData.map(
+                    applyVerifiedCover
+                  ),
                 ].map(
                   (
                     item
@@ -575,7 +618,9 @@ export default function ReaderProfileScreen() {
             )
           );
           setReviews(
-            reviewData
+            reviewData.map(
+              applyVerifiedCover
+            )
           );
           const visibleProfilePosts =
             postData.filter(
