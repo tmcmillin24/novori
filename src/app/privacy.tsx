@@ -26,7 +26,9 @@ import {
     useNovoriTheme,
 } from '../context/theme-context';
 import {
+    DEFAULT_PROFILE_PRIVACY,
     getProfilePrivacy,
+    ProfilePrivacyPreferences,
     updateProfilePrivacy,
 } from '../lib/profile-privacy';
 
@@ -45,28 +47,12 @@ export default function PrivacyScreen() {
     );
 
   const [
-    isPrivate,
-    setIsPrivate,
+    preferences,
+    setPreferences,
   ] =
-    useState(false);
-
-  const [
-    showBooks,
-    setShowBooks,
-  ] =
-    useState(true);
-
-  const [
-    showReviews,
-    setShowReviews,
-  ] =
-    useState(true);
-
-  const [
-    showOwnedBooks,
-    setShowOwnedBooks,
-  ] =
-    useState(false);
+    useState<ProfilePrivacyPreferences>(
+      DEFAULT_PROFILE_PRIVACY
+    );
 
   const [
     loading,
@@ -79,34 +65,37 @@ export default function PrivacyScreen() {
     setSavingKey,
   ] =
     useState<
-      'private' |
-      'books' |
-      'reviews' |
-      'owned' |
+      keyof ProfilePrivacyPreferences |
       null
     >(null);
+
+  const {
+    is_private:
+      isPrivate,
+    show_reviews:
+      showReviews,
+    show_tbr_books:
+      showTbrBooks,
+    show_reading_books:
+      showReadingBooks,
+    show_read_books:
+      showReadBooks,
+    show_dnf_books:
+      showDnfBooks,
+    show_owned_books:
+      showOwnedBooks,
+  } =
+    preferences;
 
   const load =
     useCallback(
       async () => {
         try {
-          const preferences =
+          const nextPreferences =
             await getProfilePrivacy();
 
-          setIsPrivate(
-            preferences.is_private
-          );
-
-          setShowBooks(
-            preferences.show_books
-          );
-
-          setShowReviews(
-            preferences.show_reviews
-          );
-
-          setShowOwnedBooks(
-            preferences.show_owned_books
+          setPreferences(
+            nextPreferences
           );
         } catch (
           error
@@ -142,78 +131,37 @@ export default function PrivacyScreen() {
 
   async function update(
     key:
-      | 'private'
-      | 'books'
-      | 'reviews'
-      | 'owned',
+      keyof ProfilePrivacyPreferences,
     value: boolean
   ) {
-    const nextPrivate =
-      key ===
-      'private'
-        ? value
-        : isPrivate;
+    const previous =
+      preferences;
 
-    const nextBooks =
-      key ===
-      'books'
-        ? value
-        : showBooks;
+    const nextPreferences = {
+      ...preferences,
+      [key]:
+        value,
+    };
 
-    const nextReviews =
-      key ===
-      'reviews'
-        ? value
-        : showReviews;
+    nextPreferences.show_books =
+      nextPreferences.show_tbr_books ||
+      nextPreferences.show_reading_books ||
+      nextPreferences.show_read_books ||
+      nextPreferences.show_dnf_books ||
+      nextPreferences.show_owned_books;
 
-    const nextOwnedBooks =
-      key ===
-      'owned'
-        ? value
-        : showOwnedBooks;
-
-    if (
-      key ===
-      'private'
-    ) {
-      setIsPrivate(
-        value
-      );
-    } else if (
-      key ===
-      'books'
-    ) {
-      setShowBooks(
-        value
-      );
-    } else if (
-      key ===
-      'reviews'
-    ) {
-      setShowReviews(
-        value
-      );
-    } else {
-      setShowOwnedBooks(
-        value
-      );
-    }
+    setPreferences(
+      nextPreferences
+    );
 
     try {
       setSavingKey(
         key
       );
 
-      await updateProfilePrivacy({
-        is_private:
-          nextPrivate,
-        show_books:
-          nextBooks,
-        show_reviews:
-          nextReviews,
-        show_owned_books:
-          nextOwnedBooks,
-      });
+      await updateProfilePrivacy(
+        nextPreferences
+      );
     } catch (
       error
     ) {
@@ -222,32 +170,9 @@ export default function PrivacyScreen() {
         error
       );
 
-      if (
-        key ===
-        'private'
-      ) {
-        setIsPrivate(
-          !value
-        );
-      } else if (
-        key ===
-        'books'
-      ) {
-        setShowBooks(
-          !value
-        );
-      } else if (
-        key ===
-        'reviews'
-      ) {
-        setShowReviews(
-          !value
-        );
-      } else {
-        setShowOwnedBooks(
-          !value
-        );
-      }
+      setPreferences(
+        previous
+      );
 
       Alert.alert(
         'Could not save privacy setting',
@@ -258,6 +183,101 @@ export default function PrivacyScreen() {
         null
       );
     }
+  }
+
+  function renderBookVisibilityRow({
+    keyName,
+    title,
+    description,
+    icon,
+    value,
+  }: {
+    keyName:
+      | 'show_tbr_books'
+      | 'show_reading_books'
+      | 'show_read_books'
+      | 'show_dnf_books'
+      | 'show_owned_books';
+    title: string;
+    description: string;
+    icon:
+      keyof typeof Ionicons.glyphMap;
+    value: boolean;
+  }) {
+    return (
+      <View
+        style={
+          styles.row
+        }
+      >
+        <View
+          style={
+            styles.iconWrap
+          }
+        >
+          <Ionicons
+            name={
+              icon
+            }
+            size={
+              19
+            }
+            color={
+              colors.gold
+            }
+          />
+        </View>
+
+        <View
+          style={
+            styles.rowCopy
+          }
+        >
+          <Text
+            style={
+              styles.rowTitle
+            }
+          >
+            {title}
+          </Text>
+
+          <Text
+            style={
+              styles.rowText
+            }
+          >
+            {description}
+          </Text>
+        </View>
+
+        <Switch
+          value={
+            value
+          }
+          disabled={
+            savingKey !==
+            null
+          }
+          onValueChange={(
+            nextValue
+          ) =>
+            update(
+              keyName,
+              nextValue
+            )
+          }
+          trackColor={{
+            false:
+              colors.elevated,
+            true:
+              colors.gold,
+          }}
+          thumbColor={
+            colors.text
+          }
+        />
+      </View>
+    );
   }
 
   return (
