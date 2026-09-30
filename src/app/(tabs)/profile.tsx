@@ -401,6 +401,51 @@ export default function ProfileScreen() {
   ] =
     useState(false);
 
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
+
+  const [
+    refreshRequest,
+    setRefreshRequest,
+  ] =
+    useState(0);
+
+  const refreshProfile =
+    useCallback(
+      () => {
+        if (
+          refreshing
+        ) {
+          return;
+        }
+
+        setRefreshing(
+          true
+        );
+
+        hasLoadedProfileRef.current =
+          false;
+        lastProfileRefreshRef.current =
+          0;
+        profileSessionCache =
+          null;
+
+        setRefreshRequest(
+          (
+            current
+          ) =>
+            current +
+            1
+        );
+      },
+      [
+        refreshing,
+      ]
+    );
+
   useFocusEffect(
     useCallback(() => {
       let active =
@@ -435,7 +480,9 @@ export default function ProfileScreen() {
         active =
           false;
       };
-    }, [])
+    }, [
+      refreshRequest,
+    ])
   );
 
   useFocusEffect(
@@ -917,7 +964,18 @@ export default function ProfileScreen() {
         }
       }
 
-      void loadProfileAndBooks();
+      void loadProfileAndBooks()
+        .finally(
+          () => {
+            if (
+              isMounted
+            ) {
+              setRefreshing(
+                false
+              );
+            }
+          }
+        );
 
       return () => {
         isMounted =
@@ -926,6 +984,7 @@ export default function ProfileScreen() {
           false;
       };
     }, [
+      refreshRequest,
       router,
     ])
   );
@@ -2500,6 +2559,15 @@ export default function ProfileScreen() {
           event.nativeEvent
             .contentOffset.y;
       }}
+      refreshing={
+        refreshing
+      }
+      onRefresh={
+        refreshProfile
+      }
+      refreshTintColor={
+        colors.gold
+      }
     >
       <View
         style={
