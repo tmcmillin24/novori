@@ -106,7 +106,7 @@ function secureCoverUrl(
   );
 }
 
-async function getLockedVerifiedCoverUrls(
+export async function getLockedVerifiedCoverUrls(
   googleBookIds:
     string[]
 ) {
