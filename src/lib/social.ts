@@ -21,6 +21,10 @@ export type ReaderSocialProfile = {
   can_view_content: boolean;
   show_books: boolean;
   show_reviews: boolean;
+  show_tbr_books: boolean;
+  show_reading_books: boolean;
+  show_read_books: boolean;
+  show_dnf_books: boolean;
   show_owned_books: boolean;
   can_view_books: boolean;
   can_view_reviews: boolean;
@@ -150,9 +154,21 @@ export async function getReaderProfile(
     show_reviews:
       row.show_reviews ??
       true,
+    show_tbr_books:
+      row.show_tbr_books ??
+      true,
+    show_reading_books:
+      row.show_reading_books ??
+      true,
+    show_read_books:
+      row.show_read_books ??
+      true,
+    show_dnf_books:
+      row.show_dnf_books ??
+      true,
     show_owned_books:
       row.show_owned_books ??
-      false,
+      true,
     can_view_books:
       Boolean(
         row.can_view_books
