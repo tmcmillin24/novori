@@ -2762,6 +2762,7 @@ export default function DiscoverScreen() {
       authors?: string[];
       isbn?: string;
       canonicalizeWork?: boolean;
+      trustedCover?: boolean;
     }
   ) {
     router.push({
@@ -2799,6 +2800,12 @@ export default function DiscoverScreen() {
         ...(options?.canonicalizeWork
           ? {
               canonicalizeWork:
+                '1',
+            }
+          : {}),
+        ...(options?.trustedCover
+          ? {
+              trustedCover:
                 '1',
             }
           : {}),
@@ -3036,6 +3043,10 @@ export default function DiscoverScreen() {
             trendingBook.isbns[0],
           canonicalizeWork:
             true,
+          trustedCover:
+            Boolean(
+              trendingBook.coverUrl
+            ),
         }
       );
     } catch (err) {
