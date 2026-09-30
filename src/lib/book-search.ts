@@ -340,6 +340,11 @@ function getTitleSearchRelevance(
       book.volumeInfo.title
     );
 
+  const canonicalTitle =
+    getCanonicalWorkTitleForBook(
+      book
+    );
+
   if (
     !title ||
     !normalizedQuery
@@ -349,7 +354,9 @@ function getTitleSearchRelevance(
 
   if (
     title ===
-    normalizedQuery
+      normalizedQuery ||
+    canonicalTitle ===
+      normalizedQuery
   ) {
     return 400;
   }
