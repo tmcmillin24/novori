@@ -57,6 +57,11 @@ import {
   sortProfileBooks,
 } from '../../lib/profile-book-order';
 import {
+  DEFAULT_PROFILE_PRIVACY,
+  getProfilePrivacy,
+  ProfilePrivacyPreferences,
+} from '../../lib/profile-privacy';
+import {
   getReaderProfile,
   getReaderProfilePosts,
   getReaderPublicClubs,
@@ -309,6 +314,14 @@ export default function ProfileScreen() {
     );
 
   const [
+    profilePrivacy,
+    setProfilePrivacy,
+  ] =
+    useState<ProfilePrivacyPreferences>(
+      DEFAULT_PROFILE_PRIVACY
+    );
+
+  const [
     profileImageOpen,
     setProfileImageOpen,
   ] =
@@ -388,6 +401,43 @@ export default function ProfileScreen() {
     setProfileHydrated,
   ] =
     useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active =
+        true;
+
+      void getProfilePrivacy()
+        .then(
+          (
+            nextPrivacy
+          ) => {
+            if (
+              active
+            ) {
+              setProfilePrivacy(
+                nextPrivacy
+              );
+            }
+          }
+        )
+        .catch(
+          (
+            privacyError
+          ) => {
+            console.warn(
+              'Could not refresh Profile visibility preview:',
+              privacyError
+            );
+          }
+        );
+
+      return () => {
+        active =
+          false;
+      };
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -625,7 +675,7 @@ export default function ProfileScreen() {
               'profiles'
             )
             .select(
-              'id, username, display_name, bio, avatar_url, show_owned_books'
+              'id, username, display_name, bio, avatar_url'
             )
             .eq(
               'id',
@@ -946,26 +996,68 @@ export default function ProfileScreen() {
       books.filter(
         (
           book
-        ) =>
-          book.status !==
-            null ||
-          Boolean(
-            profile
-              ?.show_owned_books &&
-            book.owned
-          )
+        ) => {
+          if (
+            book.status ===
+              'want_to_read'
+          ) {
+            return (
+              profilePrivacy
+                .show_tbr_books
+            );
+          }
+
+          if (
+            book.status ===
+              'reading'
+          ) {
+            return (
+              profilePrivacy
+                .show_reading_books
+            );
+          }
+
+          if (
+            book.status ===
+              'read'
+          ) {
+            return (
+              profilePrivacy
+                .show_read_books
+            );
+          }
+
+          if (
+            book.status ===
+              'dnf'
+          ) {
+            return (
+              profilePrivacy
+                .show_dnf_books
+            );
+          }
+
+          return Boolean(
+            book.owned &&
+            profilePrivacy
+              .show_owned_books
+          );
+        }
       )
     );
 
   const reviewedBooks =
-    books.filter(
-      (book) =>
-        book.rating !==
-          null ||
-        Boolean(
-          book.review_text?.trim()
+    profilePrivacy
+      .show_reviews
+      ? books.filter(
+          (book) =>
+            book.rating !==
+              null ||
+            Boolean(
+              book.review_text?.trim()
+            )
         )
-    );
+      : [];
 
   const profileBookCount =
     publicBooks.length;
