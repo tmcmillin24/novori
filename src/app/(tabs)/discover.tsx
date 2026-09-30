@@ -632,6 +632,8 @@ function isDiscoverBookInLibrary(
 }
 
 const MIN_SEARCH_LENGTH = 2;
+const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
+const BOOK_SEARCH_DELAY_MS = 700;
 const DISCOVER_AUTO_REFRESH_MS =
   3 * 60 * 60 * 1000;
 const DISCOVER_LIBRARY_STALE_MS =
@@ -2121,6 +2123,60 @@ export default function DiscoverScreen() {
     return () =>
       cancelAnimationFrame(frame);
   }, [genrePath[0]?.key]);
+
+  useEffect(() => {
+    if (
+      debounceTimerRef.current
+    ) {
+      clearTimeout(
+        debounceTimerRef.current
+      );
+    }
+
+    if (
+      discoverMode !==
+        'books'
+    ) {
+      return;
+    }
+
+    const trimmedQuery =
+      query.trim();
+
+    if (
+      trimmedQuery.length <
+      AUTO_BOOK_SEARCH_MIN_LENGTH
+    ) {
+      latestRequestRef.current +=
+        1;
+      setLoading(false);
+      return;
+    }
+
+    const requestId =
+      ++latestRequestRef.current;
+
+    debounceTimerRef.current =
+      setTimeout(() => {
+        performSearch(
+          trimmedQuery,
+          requestId
+        );
+      }, BOOK_SEARCH_DELAY_MS);
+
+    return () => {
+      if (
+        debounceTimerRef.current
+      ) {
+        clearTimeout(
+          debounceTimerRef.current
+        );
+      }
+    };
+  }, [
+    query,
+    discoverMode,
+  ]);
 
   useEffect(() => {
     if (
