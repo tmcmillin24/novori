@@ -424,7 +424,7 @@ export default function PrivacyScreen() {
                   value
                 ) =>
                   update(
-                    'private',
+                    'is_private',
                     value
                   )
                 }
@@ -446,76 +446,18 @@ export default function PrivacyScreen() {
               }
             />
 
-            <View
-              style={
-                styles.row
-              }
-            >
-              <View
-                style={
-                  styles.iconWrap
-                }
-              >
-                <Ionicons
-                  name="library-outline"
-                  size={
-                    19
-                  }
-                  color={
-                    colors.gold
-                  }
-                />
-              </View>
-
-              <View
-                style={
-                  styles.rowCopy
-                }
-              >
-                <Text
-                  style={
-                    styles.rowTitle
-                  }
-                >
-                  Show Books Publicly
-                </Text>
-
-                <Text
-                  style={
-                    styles.rowText
-                  }
-                >
-                  On a public profile, let anyone see Reading, Read, and DNF. On a private profile, approved followers can still see them. TBR stays private.
-                </Text>
-              </View>
-
-              <Switch
-                value={
-                  showBooks
-                }
-                disabled={
-                  savingKey !==
-                  null
-                }
-                onValueChange={(
-                  value
-                ) =>
-                  update(
-                    'books',
-                    value
-                  )
-                }
-                trackColor={{
-                  false:
-                    colors.elevated,
-                  true:
-                    colors.gold,
-                }}
-                thumbColor={
-                  colors.text
-                }
-              />
-            </View>
+            {renderBookVisibilityRow({
+              keyName:
+                'show_tbr_books',
+              title:
+                'Show TBR',
+              description:
+                'Show books on your TBR shelf on your profile.',
+              icon:
+                'bookmark-outline',
+              value:
+                showTbrBooks,
+            })}
 
             <View
               style={
@@ -523,76 +465,75 @@ export default function PrivacyScreen() {
               }
             />
 
+            {renderBookVisibilityRow({
+              keyName:
+                'show_reading_books',
+              title:
+                'Show Reading',
+              description:
+                'Show books you are currently reading on your profile.',
+              icon:
+                'book-outline',
+              value:
+                showReadingBooks,
+            })}
+
             <View
               style={
-                styles.row
+                styles.divider
               }
-            >
-              <View
-                style={
-                  styles.iconWrap
-                }
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={
-                    19
-                  }
-                  color={
-                    colors.gold
-                  }
-                />
-              </View>
+            />
 
-              <View
-                style={
-                  styles.rowCopy
-                }
-              >
-                <Text
-                  style={
-                    styles.rowTitle
-                  }
-                >
-                  Show Owned Books
-                </Text>
+            {renderBookVisibilityRow({
+              keyName:
+                'show_read_books',
+              title:
+                'Show Read',
+              description:
+                'Show books you have finished on your profile.',
+              icon:
+                'checkmark-circle-outline',
+              value:
+                showReadBooks,
+            })}
 
-                <Text
-                  style={
-                    styles.rowText
-                  }
-                >
-                  Off by default. When enabled, books you mark as Owned without a reading status can appear on your profile.
-                </Text>
-              </View>
+            <View
+              style={
+                styles.divider
+              }
+            />
 
-              <Switch
-                value={
-                  showOwnedBooks
-                }
-                disabled={
-                  savingKey !==
-                  null
-                }
-                onValueChange={(
-                  value
-                ) =>
-                  update(
-                    'owned',
-                    value
-                  )
-                }
-                trackColor={{
-                  false:
-                    colors.elevated,
-                  true:
-                    colors.gold,
-                }}
-                thumbColor={
-                  colors.text
-                }
-              />
-            </View>
+            {renderBookVisibilityRow({
+              keyName:
+                'show_dnf_books',
+              title:
+                'Show DNF',
+              description:
+                'Show books you marked Did Not Finish on your profile.',
+              icon:
+                'close-circle-outline',
+              value:
+                showDnfBooks,
+            })}
+
+            <View
+              style={
+                styles.divider
+              }
+            />
+
+            {renderBookVisibilityRow({
+              keyName:
+                'show_owned_books',
+              title:
+                'Show Owned Only',
+              description:
+                'Show owned books that do not have a reading status.',
+              icon:
+                'albums-outline',
+              value:
+                showOwnedBooks,
+            })}
 
             <View
               style={
@@ -655,7 +596,7 @@ export default function PrivacyScreen() {
                   value
                 ) =>
                   update(
-                    'reviews',
+                    'show_reviews',
                     value
                   )
                 }
@@ -692,7 +633,7 @@ export default function PrivacyScreen() {
                 styles.infoText
               }
             >
-              Private Profile is off by default. Reading-status books and Reviews keep their existing visibility rules. Owned-only books stay hidden unless you turn on Show Owned Books. Your underlying library table stays protected; private-profile access is enforced server-side.
+              Your Profile tab mirrors these visibility choices, so it acts as a preview of what other readers can see. Private profiles still require an approved follow before profile content is visible.
             </Text>
           </View>
         </ScrollView>
