@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import {
     NativeScrollEvent,
     NativeSyntheticEvent,
+    RefreshControl,
     ScrollView,
     StyleProp,
     StyleSheet,
@@ -24,6 +25,9 @@ type TabScreenProps = PropsWithChildren<{
         NativeScrollEvent
       >
   ) => void;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  refreshTintColor?: string;
 }>;
 
 export function TabScreen({
@@ -32,6 +36,9 @@ export function TabScreen({
   contentStyle,
   scrollRef,
   onScroll,
+  refreshing = false,
+  onRefresh,
+  refreshTintColor,
 }: TabScreenProps) {
   const { colors } = useNovoriTheme();
   const styles = createStyles(colors);
@@ -48,6 +55,33 @@ export function TabScreen({
           style={styles.screen}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={
+            Boolean(
+              onRefresh
+            )
+          }
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={
+                  refreshing
+                }
+                onRefresh={
+                  onRefresh
+                }
+                tintColor={
+                  refreshTintColor
+                }
+                colors={
+                  refreshTintColor
+                    ? [
+                        refreshTintColor,
+                      ]
+                    : undefined
+                }
+              />
+            ) : undefined
+          }
           onScroll={
             onScroll
           }
