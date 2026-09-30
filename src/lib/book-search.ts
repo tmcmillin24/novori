@@ -100,6 +100,10 @@ const DERIVATIVE_TITLE_PREFIXES = [
   'companion to ',
   'unofficial guide to ',
   'unofficial summary ',
+  'journal for ',
+  'guided journal for ',
+  'companion journal for ',
+  'planner for ',
 ];
 
 function hasDerivativeSearchIntent(
@@ -136,6 +140,32 @@ function isLikelyDerivativeTitle(
     return true;
   }
 
+  const derivativeSuffixes = [
+    ' summary',
+    ' workbook',
+    ' study guide',
+    ' journal',
+    ' guided journal',
+    ' companion journal',
+    ' companion',
+    ' planner',
+    ' key takeaways',
+    ' review and analysis',
+  ];
+
+  if (
+    derivativeSuffixes.some(
+      (
+        suffix
+      ) =>
+        title.endsWith(
+          suffix
+        )
+    )
+  ) {
+    return true;
+  }
+
   const categories =
     (
       book.volumeInfo
@@ -163,6 +193,9 @@ function isLikelyDerivativeTitle(
       ) ||
       title.includes(
         'study guide'
+      ) ||
+      title.includes(
+        'journal'
       )
     )
   );
@@ -754,6 +787,18 @@ function getCanonicalWorkTitle(
       raw
     );
 
+  title =
+    title
+      .replace(
+        /\s+(?:revised(?:\s+and)?\s+updated)(?:\s+edition)?$/i,
+        ''
+      )
+      .replace(
+        /\s+(?:(?:\d+)(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+anniversary(?:\s+edition)?$/i,
+        ''
+      )
+      .trim();
+
   const removableSuffixes = [
     ' limited edition',
     ' deluxe edition',
@@ -775,6 +820,10 @@ function getCanonicalWorkTitle(
     ' ebook edition',
     ' kindle edition',
     ' trade paperback',
+    ' revised and updated',
+    ' revised updated',
+    ' updated edition',
+    ' revised edition',
     ' a novel',
   ];
 
@@ -1133,6 +1182,172 @@ function getSearchWorkIdentityTitle(
   }
 
   return title;
+}
+
+function filterNearCopySearchResults(
+  books:
+    GoogleBookSearchItem[],
+  normalizedQuery: string
+) {
+  if (
+    !normalizedQuery ||
+    hasDerivativeSearchIntent(
+      normalizedQuery
+    )
+  ) {
+    return books;
+  }
+
+  const primaryCandidates =
+    books.filter(
+      (
+        book
+      ) =>
+        !isLikelyDerivativeTitle(
+          book
+        ) &&
+        getTitleSearchRelevance(
+          book,
+          normalizedQuery
+        ) >= 200
+    );
+
+  if (
+    primaryCandidates.length ===
+      0
+  ) {
+    return books;
+  }
+
+  const bestPrimary =
+    [...primaryCandidates]
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          getTitleSearchRelevance(
+            b,
+            normalizedQuery
+          ) -
+          getTitleSearchRelevance(
+            a,
+            normalizedQuery
+          ) ||
+          (
+            getGoogleBookPopularity(
+              b
+            ).ratingsCount -
+            getGoogleBookPopularity(
+              a
+            ).ratingsCount
+          )
+      )[0];
+
+  const baseTitle =
+    getSearchWorkIdentityTitle(
+      bestPrimary
+    );
+
+  if (
+    !baseTitle
+  ) {
+    return books;
+  }
+
+  const baseWords =
+    new Set(
+      baseTitle
+        .split(' ')
+        .filter(Boolean)
+    );
+
+  return books.filter(
+    (
+      book
+    ) => {
+      if (
+        book.id ===
+        bestPrimary.id
+      ) {
+        return true;
+      }
+
+      if (
+        isLikelyDerivativeTitle(
+          book
+        )
+      ) {
+        return false;
+      }
+
+      const candidateTitle =
+        getSearchWorkIdentityTitle(
+          book
+        );
+
+      if (
+        candidateTitle ===
+        baseTitle
+      ) {
+        return true;
+      }
+
+      const candidateWords =
+        candidateTitle
+          .split(' ')
+          .filter(Boolean);
+
+      const sharedWords =
+        candidateWords.filter(
+          (
+            word
+          ) =>
+            baseWords.has(
+              word
+            )
+        ).length;
+
+      const overlap =
+        baseWords.size >
+          0
+          ? sharedWords /
+            baseWords.size
+          : 0;
+
+      // Once the actual book is present, suppress third-party near-copies
+      // that mostly repeat its title but add companion/edition material.
+      if (
+        overlap >= 0.85 &&
+        candidateTitle.startsWith(
+          normalizedQuery
+        )
+      ) {
+        const candidateAuthor =
+          normalizeTitle(
+            book.volumeInfo
+              .authors?.[0]
+          );
+
+        const primaryAuthor =
+          normalizeTitle(
+            bestPrimary.volumeInfo
+              .authors?.[0]
+          );
+
+        if (
+          candidateAuthor &&
+          primaryAuthor &&
+          candidateAuthor !==
+            primaryAuthor
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+  );
 }
 
 function collapseDuplicateEditions(
@@ -1801,8 +2016,11 @@ export async function searchNovoriBooks(
     looksLikeAuthorSearch ||
     looksLikeIsbnSearch
       ? relevantResults
-      : filterDerivativeSearchResults(
-          relevantResults,
+      : filterNearCopySearchResults(
+          filterDerivativeSearchResults(
+            relevantResults,
+            normalizedQuery
+          ),
           normalizedQuery
         );
 
