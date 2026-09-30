@@ -1,3 +1,5 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -623,6 +625,210 @@ Deno.serve(
         );
       }
 
+      const supabaseUrl =
+        Deno.env.get(
+          'SUPABASE_URL'
+        ) ?? '';
+
+      const serviceRoleKey =
+        Deno.env.get(
+          'SUPABASE_SERVICE_ROLE_KEY'
+        ) ?? '';
+
+      const supabaseAdmin =
+        supabaseUrl &&
+        serviceRoleKey
+          ? createClient(
+              supabaseUrl,
+              serviceRoleKey,
+              {
+                auth: {
+                  autoRefreshToken:
+                    false,
+                  persistSession:
+                    false,
+                },
+              }
+            )
+          : null;
+
+      const cacheSignature =
+        JSON.stringify({
+          allowTitleFallback,
+          books:
+            normalizedBooks,
+        });
+
+      const cacheDigest =
+        await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(
+            cacheSignature
+          )
+        );
+
+      const cacheHash =
+        Array.from(
+          new Uint8Array(
+            cacheDigest
+          )
+        )
+          .map(
+            (
+              value
+            ) =>
+              value
+                .toString(16)
+                .padStart(
+                  2,
+                  '0'
+                )
+          )
+          .join('');
+
+      const cacheProvider =
+        'hardcover_popularity';
+
+      const cacheKey =
+        `popularity:v1:${cacheHash}`;
+
+      const cacheTtlMs =
+        12 * 60 * 60 * 1000;
+
+      const cacheStaleTtlMs =
+        3 * 24 * 60 * 60 * 1000;
+
+      if (
+        supabaseAdmin
+      ) {
+        const {
+          data:
+            cachedData,
+          error:
+            cacheError,
+        } =
+          await supabaseAdmin
+            .from(
+              'book_api_cache'
+            )
+            .select(
+              'response_json, expires_at'
+            )
+            .eq(
+              'provider',
+              cacheProvider
+            )
+            .eq(
+              'request_key',
+              cacheKey
+            )
+            .maybeSingle();
+
+        if (
+          cacheError
+        ) {
+          console.warn(
+            'Could not read Hardcover popularity cache:',
+            cacheError.message
+          );
+        } else if (
+          cachedData &&
+          cachedData.expires_at &&
+          Date.parse(
+            cachedData.expires_at
+          ) > Date.now() &&
+          cachedData.response_json
+        ) {
+          console.info(
+            'hardcover-search-popularity cache=hit'
+          );
+
+          return new Response(
+            JSON.stringify(
+              cachedData.response_json
+            ),
+            {
+              status: 200,
+              headers: {
+                ...corsHeaders,
+                'Content-Type':
+                  'application/json',
+              },
+            }
+          );
+        }
+      }
+
+      async function writePopularityCache(
+        payload: unknown
+      ) {
+        if (
+          !supabaseAdmin
+        ) {
+          return;
+        }
+
+        const fetchedAt =
+          new Date();
+
+        const expiresAt =
+          new Date(
+            fetchedAt.getTime() +
+              cacheTtlMs
+          );
+
+        const staleUntil =
+          new Date(
+            fetchedAt.getTime() +
+              cacheStaleTtlMs
+          );
+
+        const {
+          error,
+        } =
+          await supabaseAdmin
+            .from(
+              'book_api_cache'
+            )
+            .upsert(
+              {
+                provider:
+                  cacheProvider,
+                request_key:
+                  cacheKey,
+                response_json:
+                  payload,
+                status_code:
+                  200,
+                fetched_at:
+                  fetchedAt.toISOString(),
+                expires_at:
+                  expiresAt.toISOString(),
+                stale_until:
+                  staleUntil.toISOString(),
+                schema_version:
+                  1,
+                hit_count:
+                  0,
+                last_hit_at:
+                  null,
+              },
+              {
+                onConflict:
+                  'provider,request_key',
+              }
+            );
+
+        if (
+          error
+        ) {
+          console.warn(
+            'Could not write Hardcover popularity cache:',
+            error.message
+          );
+        }
+      }
+
       const allIsbns =
         Array.from(
           new Set(
@@ -996,10 +1202,18 @@ Deno.serve(
         };
       }
 
+      const responsePayload = {
+        popularity,
+      };
+
+      await writePopularityCache(
+        responsePayload
+      );
+
       return new Response(
-        JSON.stringify({
-          popularity,
-        }),
+        JSON.stringify(
+          responsePayload
+        ),
         {
           status: 200,
           headers: {
