@@ -623,7 +623,7 @@ function getCanonicalWorkTitle(
   // deliberately narrow so ordinary subtitles are not collapsed.
   raw =
     raw.replace(
-      /\s*[:\-–—]\s*(?:(?:limited\s+)?(?:special|deluxe|collector'?s|collectors|anniversary|exclusive)\s+edition(?:\s+(?:hardcover|paperback))?(?:\s*[:\-–—]\s*(?:a novel|the novel))?|a novel|the novel|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|(?:an?\s+|the\s+)?(?:(?:gma|good morning america|reese'?s|oprah'?s|read with jenna)\s+)?book club (?:pick|selection)|(?:the\s+)?(?:gripping|thrilling|stunning|bestselling|best-selling|highly anticipated|must-read)\s+(?:sequel|prequel)\s+to\b.*|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
+      /\s*[:\-–—]\s*(?:(?:limited\s+)?(?:special|deluxe|collector'?s|collectors|anniversary|exclusive)\s+edition(?:\s+(?:hardcover|hardback|paperback))?(?:\s*[:\-–—]\s*(?:a novel|the novel|(?:the\s+)?(?:sunday times|new york times) bestseller))?|a novel|the novel|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|hardback edition|paperback edition|mass market paperback|large print edition|(?:an?\s+|the\s+)?(?:(?:gma|good morning america|reese'?s|oprah'?s|read with jenna)\s+)?book club (?:pick|selection)|(?:the\s+)?(?:gripping|thrilling|stunning|bestselling|best-selling|highly anticipated|must-read)\s+(?:sequel|prequel)\s+to\b.*|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
       ''
     );
 
