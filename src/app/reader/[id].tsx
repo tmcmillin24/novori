@@ -1,5 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  Image as ExpoImage,
+} from 'expo-image';
+import {
   useFocusEffect,
   useLocalSearchParams,
   useRouter,
@@ -19,6 +22,7 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -268,6 +272,12 @@ export default function ReaderProfileScreen() {
     setLoading,
   ] =
     useState(true);
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
 
   const [
     followLoading,
@@ -698,6 +708,33 @@ export default function ReaderProfileScreen() {
       },
       [
         readerId,
+      ]
+    );
+
+  const refreshReader =
+    useCallback(
+      async () => {
+        if (
+          refreshing
+        ) {
+          return;
+        }
+
+        setRefreshing(
+          true
+        );
+
+        try {
+          await loadReader();
+        } finally {
+          setRefreshing(
+            false
+          );
+        }
+      },
+      [
+        loadReader,
+        refreshing,
       ]
     );
 
@@ -2029,13 +2066,18 @@ export default function ReaderProfileScreen() {
           }
         >
           {book.cover_url ? (
-            <Image
-              source={{
-                uri:
-                  book.cover_url,
-              }}
+            <ExpoImage
+              source={
+                book.cover_url
+              }
               style={
                 styles.publicBookCover
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                book.cover_url
               }
             />
           ) : (
@@ -2123,13 +2165,18 @@ export default function ReaderProfileScreen() {
           }
         >
           {review.cover_url ? (
-            <Image
-              source={{
-                uri:
-                  review.cover_url,
-              }}
+            <ExpoImage
+              source={
+                review.cover_url
+              }
               style={
                 styles.reviewCover
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                review.cover_url
               }
             />
           ) : (
@@ -2554,6 +2601,22 @@ export default function ReaderProfileScreen() {
         }
         showsVerticalScrollIndicator={
           false
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={
+              refreshing
+            }
+            onRefresh={
+              refreshReader
+            }
+            tintColor={
+              colors.gold
+            }
+            colors={[
+              colors.gold,
+            ]}
+          />
         }
       >
         <View
