@@ -130,4 +130,40 @@ export async function updateProfilePrivacy(
   if (error) {
     throw error;
   }
+
+  // Keep the legacy profile column synchronized for any older
+  // app/session code that still reads Owned visibility there.
+  const {
+    data: {
+      user,
+    },
+  } =
+    await supabase.auth.getUser();
+
+  if (
+    user
+  ) {
+    const {
+      error:
+        ownedVisibilityError,
+    } =
+      await supabase
+        .from(
+          'profiles'
+        )
+        .update({
+          show_owned_books:
+            preferences.show_owned_books,
+        })
+        .eq(
+          'id',
+          user.id
+        );
+
+    if (
+      ownedVisibilityError
+    ) {
+      throw ownedVisibilityError;
+    }
+  }
 }
