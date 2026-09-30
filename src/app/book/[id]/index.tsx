@@ -1464,9 +1464,12 @@ export default function BookDetailsScreen() {
         // series lookup earlier so a verified series cover can participate in
         // the first visible paint.
         const discoveredSeriesCoverUrl =
-          await loadSeries(
-            resolvedBook
-          );
+          source ===
+            'discover'
+            ? await loadSeries(
+                resolvedBook
+              )
+            : null;
 
         if (
           source ===
@@ -1653,6 +1656,15 @@ export default function BookDetailsScreen() {
           );
           setSavedBook(null);
           setReadingStatus(null);
+        }
+
+        if (
+          source !==
+            'discover'
+        ) {
+          await loadSeries(
+            resolvedBook
+          );
         }
 
       } catch (err) {
