@@ -1900,6 +1900,203 @@ const DiscoverBookCard = memo(
   }
 );
 
+const DiscoverReaderCard = memo(
+  function DiscoverReaderCard({
+    item,
+    isBusy,
+    styles,
+    textColor,
+    backgroundColor,
+    onOpenReader,
+    onToggleReaderFollow,
+  }: {
+    item: ReaderConnection;
+    isBusy: boolean;
+    styles: DiscoverStyles;
+    textColor: string;
+    backgroundColor: string;
+    onOpenReader: (
+      readerId: string
+    ) => void;
+    onToggleReaderFollow: (
+      reader: ReaderConnection
+    ) => void;
+  }) {
+    const displayName =
+      item.display_name
+        ?.trim() ||
+      item.username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      item.username
+        ?.trim()
+        ? `@${item.username.trim()}`
+        : '';
+
+    const initial =
+      displayName
+        .charAt(0)
+        .toUpperCase();
+
+    return (
+      <View
+        style={
+          styles.readerCard
+        }
+      >
+        <Pressable
+          onPress={() =>
+            onOpenReader(
+              item.id
+            )
+          }
+          style={({ pressed }) => [
+            styles.readerMain,
+            pressed &&
+              styles.readerPressed,
+          ]}
+        >
+          {item.avatar_url ? (
+            <ExpoImage
+              source={
+                item.avatar_url
+              }
+              style={
+                styles.readerAvatar
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.avatar_url
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.readerAvatarFallback
+              }
+            >
+              <Text
+                style={
+                  styles.readerAvatarText
+                }
+              >
+                {initial}
+              </Text>
+            </View>
+          )}
+
+          <View
+            style={
+              styles.readerCopy
+            }
+          >
+            <Text
+              style={
+                styles.readerName
+              }
+              numberOfLines={
+                1
+              }
+            >
+              {displayName}
+            </Text>
+
+            {username ? (
+              <Text
+                style={
+                  styles.readerUsername
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {username}
+              </Text>
+            ) : null}
+
+            <Text
+              style={
+                styles.readerViewProfile
+              }
+            >
+              View profile
+            </Text>
+          </View>
+        </Pressable>
+
+        {item.is_self ? (
+          <View
+            style={
+              styles.readerYouBadge
+            }
+          >
+            <Text
+              style={
+                styles.readerYouBadgeText
+              }
+            >
+              You
+            </Text>
+          </View>
+        ) : (
+          <Pressable
+            disabled={
+              isBusy
+            }
+            onPress={() =>
+              onToggleReaderFollow(
+                item
+              )
+            }
+            style={({ pressed }) => [
+              item.is_following ||
+              item.follow_request_pending
+                ? styles.readerFollowingButton
+                : styles.readerFollowButton,
+              pressed &&
+                !isBusy &&
+                styles.readerPressed,
+            ]}
+          >
+            {isBusy ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  item.is_following ||
+                  item.follow_request_pending
+                    ? textColor
+                    : backgroundColor
+                }
+              />
+            ) : (
+              <Text
+                style={
+                  item.is_following ||
+                  item.follow_request_pending
+                    ? styles.readerFollowingButtonText
+                    : styles.readerFollowButtonText
+                }
+              >
+                {item.is_following
+                  ? 'Following'
+                  : item.follow_request_pending
+                  ? 'Requested'
+                  : item.is_private
+                  ? 'Request'
+                  : 'Follow'}
+              </Text>
+            )}
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+);
+
 export default function DiscoverScreen() {
   const {
     colors,
@@ -2193,6 +2390,24 @@ export default function DiscoverScreen() {
   const latestReaderRequestRef =
     useRef(0);
 
+  const readerQueryRef =
+    useRef(
+      readerQuery
+    );
+
+  readerQueryRef.current =
+    readerQuery;
+
+  const performReaderSearchRef =
+    useRef<
+      (
+        searchTerm: string,
+        requestId: number
+      ) => Promise<void>
+    >(
+      async () => {}
+    );
+
   const trendingListRef =
     useRef<ScrollView | null>(null);
 
@@ -2476,6 +2691,9 @@ export default function DiscoverScreen() {
   }, [
     readerQuery,
   ]);
+
+  performReaderSearchRef.current =
+    performReaderSearch;
 
   async function loadTrendingBooks(
     silent = false,
@@ -2918,86 +3136,96 @@ export default function DiscoverScreen() {
     setReaderLoading(false);
   }
 
-  function openReader(
-    readerId: string
-  ) {
-    router.push({
-      pathname:
-        '/reader/[id]',
-      params: {
-        id:
-          readerId,
+  const openReader =
+    useCallback(
+      (
+        readerId: string
+      ) => {
+        router.push({
+          pathname:
+            '/reader/[id]',
+          params: {
+            id:
+              readerId,
+          },
+        });
       },
-    });
-  }
+      [
+        router,
+      ]
+    );
 
-  async function toggleReaderFollow(
-    reader:
-      ReaderConnection
-  ) {
-    if (
-      reader.is_self
-    ) {
-      return;
-    }
+  const toggleReaderFollow =
+    useCallback(
+      async (
+        reader:
+          ReaderConnection
+      ) => {
+        if (
+          reader.is_self
+        ) {
+          return;
+        }
 
-    try {
-      setReaderFollowBusyId(
-        reader.id
-      );
+        try {
+          setReaderFollowBusyId(
+            reader.id
+          );
 
-      if (
-        reader.is_following
-      ) {
-        await unfollowReader(
-          reader.id
-        );
-      } else if (
-        reader.follow_request_pending
-      ) {
-        await cancelFollowRequest(
-          reader.id
-        );
-      } else {
-        await followReader(
-          reader.id
-        );
-      }
+          if (
+            reader.is_following
+          ) {
+            await unfollowReader(
+              reader.id
+            );
+          } else if (
+            reader.follow_request_pending
+          ) {
+            await cancelFollowRequest(
+              reader.id
+            );
+          } else {
+            await followReader(
+              reader.id
+            );
+          }
 
-      const searchTerm =
-        readerQuery
-          .trim();
+          const searchTerm =
+            readerQueryRef.current
+              .trim();
 
-      if (
-        searchTerm.length >=
-        MIN_READER_SEARCH_LENGTH
-      ) {
-        const requestId =
-          ++latestReaderRequestRef.current;
+          if (
+            searchTerm.length >=
+            MIN_READER_SEARCH_LENGTH
+          ) {
+            const requestId =
+              ++latestReaderRequestRef.current;
 
-        await performReaderSearch(
-          searchTerm,
-          requestId
-        );
-      }
-    } catch (
-      followError
-    ) {
-      console.error(
-        'Could not update follow from Discover:',
-        followError
-      );
+            await performReaderSearchRef.current(
+              searchTerm,
+              requestId
+            );
+          }
+        } catch (
+          followError
+        ) {
+          console.error(
+            'Could not update follow from Discover:',
+            followError
+          );
 
-      Alert.alert(
-        'Could not update follow',
-        'Please try again.'
-      );
-    } finally {
-      setReaderFollowBusyId(
-        null
-      );
-    }
-  }
+          Alert.alert(
+            'Could not update follow',
+            'Please try again.'
+          );
+        } finally {
+          setReaderFollowBusyId(
+            null
+          );
+        }
+      },
+      []
+    );
 
   const openBook =
     useCallback(
@@ -3394,189 +3622,48 @@ export default function DiscoverScreen() {
       ]
     );
 
-  function renderReader({
-    item,
-  }: {
-    item:
-      ReaderConnection;
-  }) {
-    const displayName =
-      item.display_name
-        ?.trim() ||
-      item.username
-        ?.trim() ||
-      'Novori Reader';
-
-    const username =
-      item.username
-        ?.trim()
-        ? `@${item.username.trim()}`
-        : '';
-
-    const initial =
-      displayName
-        .charAt(0)
-        .toUpperCase();
-
-    const isBusy =
-      readerFollowBusyId ===
-      item.id;
-
-    return (
-      <View
-        style={
-          styles.readerCard
-        }
-      >
-        <Pressable
-          onPress={() =>
-            openReader(
-              item.id
-            )
+  const renderReader =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ReaderConnection;
+      }) => (
+        <DiscoverReaderCard
+          item={
+            item
           }
-          style={({ pressed }) => [
-            styles.readerMain,
-            pressed &&
-              styles.readerPressed,
-          ]}
-        >
-          {item.avatar_url ? (
-            <ExpoImage
-              source={
-                item.avatar_url
-              }
-              style={
-                styles.readerAvatar
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                item.avatar_url
-              }
-            />
-          ) : (
-            <View
-              style={
-                styles.readerAvatarFallback
-              }
-            >
-              <Text
-                style={
-                  styles.readerAvatarText
-                }
-              >
-                {initial}
-              </Text>
-            </View>
-          )}
-
-          <View
-            style={
-              styles.readerCopy
-            }
-          >
-            <Text
-              style={
-                styles.readerName
-              }
-              numberOfLines={
-                1
-              }
-            >
-              {displayName}
-            </Text>
-
-            {username ? (
-              <Text
-                style={
-                  styles.readerUsername
-                }
-                numberOfLines={
-                  1
-                }
-              >
-                {username}
-              </Text>
-            ) : null}
-
-            <Text
-              style={
-                styles.readerViewProfile
-              }
-            >
-              View profile
-            </Text>
-          </View>
-        </Pressable>
-
-        {item.is_self ? (
-          <View
-            style={
-              styles.readerYouBadge
-            }
-          >
-            <Text
-              style={
-                styles.readerYouBadgeText
-              }
-            >
-              You
-            </Text>
-          </View>
-        ) : (
-          <Pressable
-            disabled={
-              isBusy
-            }
-            onPress={() =>
-              toggleReaderFollow(
-                item
-              )
-            }
-            style={({ pressed }) => [
-              item.is_following ||
-              item.follow_request_pending
-                ? styles.readerFollowingButton
-                : styles.readerFollowButton,
-              pressed &&
-                !isBusy &&
-                styles.readerPressed,
-            ]}
-          >
-            {isBusy ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  item.is_following ||
-                  item.follow_request_pending
-                    ? colors.text
-                    : colors.background
-                }
-              />
-            ) : (
-              <Text
-                style={
-                  item.is_following ||
-                  item.follow_request_pending
-                    ? styles.readerFollowingButtonText
-                    : styles.readerFollowButtonText
-                }
-              >
-                {item.is_following
-                  ? 'Following'
-                  : item.follow_request_pending
-                  ? 'Requested'
-                  : item.is_private
-                  ? 'Request'
-                  : 'Follow'}
-              </Text>
-            )}
-          </Pressable>
-        )}
-      </View>
+          isBusy={
+            readerFollowBusyId ===
+            item.id
+          }
+          styles={
+            styles
+          }
+          textColor={
+            colors.text
+          }
+          backgroundColor={
+            colors.background
+          }
+          onOpenReader={
+            openReader
+          }
+          onToggleReaderFollow={
+            toggleReaderFollow
+          }
+        />
+      ),
+      [
+        colors.background,
+        colors.text,
+        openReader,
+        readerFollowBusyId,
+        styles,
+        toggleReaderFollow,
+      ]
     );
-  }
 
   function renderTrendingBook({
     item,
