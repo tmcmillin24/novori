@@ -38,6 +38,14 @@ const ratingCache =
     RatingValue | null
   >();
 
+const ratingInFlight =
+  new Map<
+    string,
+    Promise<
+      RatingValue | null
+    >
+  >();
+
 function getCacheKey(
   googleBookId:
     string | null | undefined,
@@ -138,55 +146,78 @@ export default function CanonicalBookRating({
       true
     );
 
-    void resolveHardcoverRating({
-      googleBookId:
-        googleBookId ??
-        undefined,
-      title,
-      authors:
-        authors ??
-        [],
-    })
-      .then(
-        (
-          resolved
-        ) => {
-          const next =
-            resolved
-              ? {
-                  rating:
-                    resolved.rating,
-                  ratingsCount:
-                    resolved.ratingsCount,
-                }
-              : null;
+    let pending =
+      ratingInFlight.get(
+        cacheKey
+      );
 
-          ratingCache.set(
-            cacheKey,
-            next
+    if (
+      !pending
+    ) {
+      pending =
+        resolveHardcoverRating({
+          googleBookId:
+            googleBookId ??
+            undefined,
+          title,
+          authors:
+            authors ??
+            [],
+        })
+          .then(
+            (
+              resolved
+            ) =>
+              resolved
+                ? {
+                    rating:
+                      resolved.rating,
+                    ratingsCount:
+                      resolved.ratingsCount ??
+                      0,
+                  }
+                : null
+          )
+          .catch(
+            () =>
+              null
+          )
+          .then(
+            (
+              next
+            ) => {
+              ratingCache.set(
+                cacheKey,
+                next
+              );
+
+              return next;
+            }
+          )
+          .finally(
+            () => {
+              ratingInFlight.delete(
+                cacheKey
+              );
+            }
           );
 
+      ratingInFlight.set(
+        cacheKey,
+        pending
+      );
+    }
+
+    void pending
+      .then(
+        (
+          next
+        ) => {
           if (
             active
           ) {
             setValue(
               next
-            );
-          }
-        }
-      )
-      .catch(
-        () => {
-          ratingCache.set(
-            cacheKey,
-            null
-          );
-
-          if (
-            active
-          ) {
-            setValue(
-              null
             );
           }
         }
