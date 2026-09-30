@@ -656,7 +656,41 @@ Deno.serve(
         JSON.stringify({
           allowTitleFallback,
           books:
-            normalizedBooks,
+            normalizedBooks
+              .map(
+                (
+                  book
+                ) => ({
+                  googleBookId:
+                    book.googleBookId,
+                  title:
+                    book.title,
+                  authors:
+                    book.authors
+                      .map(
+                        (
+                          author
+                        ) =>
+                          normalizeText(
+                            author
+                          )
+                      )
+                      .sort(),
+                  isbns:
+                    book.isbns
+                      .slice()
+                      .sort(),
+                })
+              )
+              .sort(
+                (
+                  a,
+                  b
+                ) =>
+                  a.googleBookId.localeCompare(
+                    b.googleBookId
+                  )
+              ),
         });
 
       const cacheDigest =
@@ -693,7 +727,7 @@ Deno.serve(
         `popularity:v1:${cacheHash}`;
 
       const cacheTtlMs =
-        12 * 60 * 60 * 1000;
+        24 * 60 * 60 * 1000;
 
       const cacheStaleTtlMs =
         3 * 24 * 60 * 60 * 1000;
