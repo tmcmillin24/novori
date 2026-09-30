@@ -2602,6 +2602,7 @@ export default function ReaderProfileScreen() {
         showsVerticalScrollIndicator={
           false
         }
+        alwaysBounceVertical
         refreshControl={
           <RefreshControl
             refreshing={
