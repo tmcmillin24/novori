@@ -1150,7 +1150,7 @@ function normalizeSearchCensorshipTokens(
   // punctuation normalization erases the symbols. This stays generic:
   // F*ck, S#it, #@%!, etc. become the same search-only placeholder.
   return value.replace(
-    /(?:[A-Za-z0-9]*[*#@%]+[A-Za-z0-9*#@%!]*|(?:[*#@%!]{2,}))/g,
+    /(?:[A-Za-z]+[*#@%]+[A-Za-z]+|[A-Za-z]+[*#@%]{2,}|[*#@%]{2,}[A-Za-z]+|[*#@%!]{2,})/g,
     ' censoredtoken '
   );
 }
@@ -1457,6 +1457,26 @@ function filterNearCopySearchResults(
   );
 }
 
+function getSearchEditionVariantPenalty(
+  book: GoogleBookSearchItem
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  return (
+    /\b(?:anniversary|revised|updated|collector|collectors|deluxe|special|exclusive)\b/.test(
+      title
+    ) ||
+    /\b(?:edition|version)\b/.test(
+      title
+    )
+  )
+    ? 1
+    : 0;
+}
+
 function collapseDuplicateEditions(
   books:
     GoogleBookSearchItem[],
@@ -1543,6 +1563,21 @@ function collapseDuplicateEditions(
               a,
               b
             ) => {
+              const editionVariantDifference =
+                getSearchEditionVariantPenalty(
+                  a
+                ) -
+                getSearchEditionVariantPenalty(
+                  b
+                );
+
+              if (
+                editionVariantDifference !==
+                  0
+              ) {
+                return editionVariantDifference;
+              }
+
               const localeDifference =
                 getEditionLocaleScore(
                   b
