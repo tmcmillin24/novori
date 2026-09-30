@@ -1507,22 +1507,33 @@ export async function searchNovoriBooks(
     strongestAuthorMatch >
     strongestTitleMatch;
 
+  const normalizedSearchIsbn =
+    searchTerm
+      .replace(
+        /[^0-9Xx]/g,
+        ''
+      )
+      .toUpperCase();
+
+  const looksLikeIsbnSearch =
+    /^(?:[0-9]{9}[0-9X]|[0-9]{13})$/.test(
+      normalizedSearchIsbn
+    );
+
   const relevantResults =
-    looksLikeAuthorSearch
+    looksLikeAuthorSearch ||
+    looksLikeIsbnSearch
       ? initialResults
-      : strongestTitleMatch >
-          0
-        ? initialResults.filter(
-            (
-              book
-            ) =>
-              getTitleSearchRelevance(
-                book,
-                normalizedQuery
-              ) >
-              0
-          )
-        : initialResults;
+      : initialResults.filter(
+          (
+            book
+          ) =>
+            getTitleSearchRelevance(
+              book,
+              normalizedQuery
+            ) >
+            0
+        );
 
   const sorted =
     looksLikeAuthorSearch
