@@ -1507,15 +1507,32 @@ export async function searchNovoriBooks(
     strongestAuthorMatch >
     strongestTitleMatch;
 
+  const relevantResults =
+    looksLikeAuthorSearch
+      ? initialResults
+      : strongestTitleMatch >
+          0
+        ? initialResults.filter(
+            (
+              book
+            ) =>
+              getTitleSearchRelevance(
+                book,
+                normalizedQuery
+              ) >
+              0
+          )
+        : initialResults;
+
   const sorted =
     looksLikeAuthorSearch
       ? sortAuthorSearchResults(
-          initialResults,
+          relevantResults,
           searchTerm,
           {}
         )
       : sortTitleSearchResults(
-          initialResults,
+          relevantResults,
           searchTerm,
           {}
         );
