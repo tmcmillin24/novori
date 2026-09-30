@@ -234,6 +234,368 @@ Deno.serve(async (req) => {
 
 
 
+    const HARDCOVER_SERIES_CACHE_PROVIDER =
+
+      "hardcover_series";
+
+
+
+    const HARDCOVER_SERIES_CACHE_TTL_MS =
+
+      14 * 24 * 60 * 60 * 1000;
+
+
+
+    const HARDCOVER_SERIES_STALE_TTL_MS =
+
+      90 * 24 * 60 * 60 * 1000;
+
+
+
+    function normalizeSeriesCacheText(
+
+      value: string
+
+    ) {
+
+      return value
+
+        .toLowerCase()
+
+        .normalize("NFKD")
+
+        .replace(
+
+          /[\\u0300-\\u036f]/g,
+
+          ""
+
+        )
+
+        .replace(
+
+          /[^a-z0-9]+/g,
+
+          " "
+
+        )
+
+        .trim();
+
+    }
+
+
+
+    const hardcoverSeriesCacheKey =
+
+      [
+
+        "series:v1",
+
+        requestedIsbns
+
+          .slice()
+
+          .sort()
+
+          .join(","),
+
+        normalizeSeriesCacheText(
+
+          requestedTitle
+
+        ),
+
+        requestedAuthors
+
+          .map(
+
+            normalizeSeriesCacheText
+
+          )
+
+          .join("|"),
+
+      ].join("::");
+
+
+
+    async function readHardcoverSeriesCache() {
+
+      if (!supabaseAdmin) {
+
+        return null;
+
+      }
+
+
+
+      const {
+
+        data,
+
+        error,
+
+      } =
+
+        await supabaseAdmin
+
+          .from(
+
+            "book_api_cache"
+
+          )
+
+          .select(
+
+            "response_json, expires_at"
+
+          )
+
+          .eq(
+
+            "provider",
+
+            HARDCOVER_SERIES_CACHE_PROVIDER
+
+          )
+
+          .eq(
+
+            "request_key",
+
+            hardcoverSeriesCacheKey
+
+          )
+
+          .maybeSingle();
+
+
+
+      if (error) {
+
+        console.warn(
+
+          "Could not read Hardcover series cache:",
+
+          error.message
+
+        );
+
+        return null;
+
+      }
+
+
+
+      if (
+
+        !data ||
+
+        !data.expires_at ||
+
+        Date.parse(
+
+          data.expires_at
+
+        ) <= Date.now()
+
+      ) {
+
+        return null;
+
+      }
+
+
+
+      return data.response_json ?? null;
+
+    }
+
+
+
+    async function writeHardcoverSeriesCache(
+
+      payload: unknown
+
+    ) {
+
+      if (!supabaseAdmin) {
+
+        return;
+
+      }
+
+
+
+      const fetchedAt =
+
+        new Date();
+
+
+
+      const expiresAt =
+
+        new Date(
+
+          fetchedAt.getTime() +
+
+            HARDCOVER_SERIES_CACHE_TTL_MS
+
+        );
+
+
+
+      const staleUntil =
+
+        new Date(
+
+          fetchedAt.getTime() +
+
+            HARDCOVER_SERIES_STALE_TTL_MS
+
+        );
+
+
+
+      const {
+
+        error,
+
+      } =
+
+        await supabaseAdmin
+
+          .from(
+
+            "book_api_cache"
+
+          )
+
+          .upsert(
+
+            {
+
+              provider:
+
+                HARDCOVER_SERIES_CACHE_PROVIDER,
+
+              request_key:
+
+                hardcoverSeriesCacheKey,
+
+              response_json:
+
+                payload,
+
+              status_code:
+
+                200,
+
+              fetched_at:
+
+                fetchedAt.toISOString(),
+
+              expires_at:
+
+                expiresAt.toISOString(),
+
+              stale_until:
+
+                staleUntil.toISOString(),
+
+              schema_version:
+
+                1,
+
+              hit_count:
+
+                0,
+
+              last_hit_at:
+
+                null,
+
+            },
+
+            {
+
+              onConflict:
+
+                "provider,request_key",
+
+            }
+
+          );
+
+
+
+      if (error) {
+
+        console.warn(
+
+          "Could not write Hardcover series cache:",
+
+          error.message
+
+        );
+
+      }
+
+    }
+
+
+
+    const cachedHardcoverSeries =
+
+      await readHardcoverSeriesCache();
+
+
+
+    if (
+
+      cachedHardcoverSeries
+
+    ) {
+
+      console.info(
+
+        "hardcover-series cache=hit"
+
+      );
+
+
+
+      return new Response(
+
+        JSON.stringify(
+
+          cachedHardcoverSeries
+
+        ),
+
+        {
+
+          status: 200,
+
+          headers: {
+
+            ...corsHeaders,
+
+            "Content-Type":
+
+              "application/json",
+
+          },
+
+        }
+
+      );
+
+    }
+
+
+
     let quotaUserId:
 
       string | null | undefined =
@@ -1239,15 +1601,31 @@ Deno.serve(async (req) => {
 
     if (!series) {
 
+      const emptySeriesPayload = {
+
+        series: null,
+
+        books: [],
+
+      };
+
+
+
+      await writeHardcoverSeriesCache(
+
+        emptySeriesPayload
+
+      );
+
+
+
       return new Response(
 
-        JSON.stringify({
+        JSON.stringify(
 
-          series: null,
+          emptySeriesPayload
 
-          books: [],
-
-        }),
+        ),
 
         {
 
@@ -2993,45 +3371,61 @@ Deno.serve(async (req) => {
 
 
 
+    const seriesPayload = {
+
+      series: {
+
+        id:
+
+          fullSeries?.id ??
+
+          series.id,
+
+
+
+        name:
+
+          fullSeries?.name ??
+
+          series.name,
+
+
+
+        slug:
+
+          fullSeries?.slug ??
+
+          series.slug,
+
+
+
+        currentPosition,
+
+      },
+
+
+
+      books: responseBooks,
+
+    };
+
+
+
+    await writeHardcoverSeriesCache(
+
+      seriesPayload
+
+    );
+
+
+
     return new Response(
 
-      JSON.stringify({
+      JSON.stringify(
 
-        series: {
+        seriesPayload
 
-          id:
-
-            fullSeries?.id ??
-
-            series.id,
-
-
-
-          name:
-
-            fullSeries?.name ??
-
-            series.name,
-
-
-
-          slug:
-
-            fullSeries?.slug ??
-
-            series.slug,
-
-
-
-          currentPosition,
-
-        },
-
-
-
-        books: responseBooks,
-
-      }),
+      ),
 
       {
 
