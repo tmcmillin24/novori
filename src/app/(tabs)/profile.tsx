@@ -168,7 +168,6 @@ type Profile = {
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
-  show_owned_books?: boolean | null;
 };
 
 type ProfileCacheSnapshot = {
