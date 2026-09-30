@@ -9,8 +9,10 @@ import {
   useRouter,
 } from 'expo-router';
 import {
+  memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -1661,6 +1663,243 @@ function isSameGoogleBooksCover(
   );
 }
 
+type DiscoverStyles =
+  ReturnType<
+    typeof createStyles
+  >;
+
+const DiscoverBookCard = memo(
+  function DiscoverBookCard({
+    item,
+    styles,
+    goldColor,
+    onOpenBook,
+  }: {
+    item: GoogleBookItem;
+    styles: DiscoverStyles;
+    goldColor: string;
+    onOpenBook: (
+      bookId: string,
+      options?: {
+        coverUrl?: string;
+        title?: string;
+        authors?: string[];
+        isbn?: string;
+        canonicalizeWork?: boolean;
+        trustedCover?: boolean;
+      }
+    ) => void;
+  }) {
+    const info =
+      item.volumeInfo;
+
+    const isbn =
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_13'
+        )
+        ?.identifier ??
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_10'
+        )
+        ?.identifier;
+
+    const canonicalCover =
+      item.novoriWork
+        ?.canonicalCoverUrl ??
+      null;
+
+    const coverPlan =
+      getBookCoverPlan({
+        imageLinks:
+          info.imageLinks,
+        isbn,
+        existingCoverUrl:
+          canonicalCover,
+      });
+
+    const cover =
+      canonicalCover ??
+      coverPlan.primaryUrl ??
+      coverPlan.fallbackUrl ??
+      undefined;
+
+    return (
+      <Pressable
+        style={({
+          pressed,
+        }) => [
+          styles.bookCard,
+          pressed &&
+            styles.bookCardPressed,
+        ]}
+        onPress={() =>
+          onOpenBook(
+            item.id,
+            {
+              coverUrl:
+                cover,
+              title:
+                info.title,
+              authors:
+                info.authors,
+              isbn,
+              canonicalizeWork:
+                true,
+            }
+          )
+        }
+      >
+        {cover ? (
+          <BookCoverImage
+            imageLinks={
+              info.imageLinks
+            }
+            isbn={
+              isbn
+            }
+            existingCoverUrl={
+              canonicalCover
+            }
+            style={
+              styles.cover
+            }
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={
+              styles.coverPlaceholder
+            }
+          >
+            <Text
+              style={
+                styles.coverPlaceholderText
+              }
+            >
+              No Cover
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={
+            styles.bookInfo
+          }
+        >
+          <Text
+            style={
+              styles.bookTitle
+            }
+            numberOfLines={2}
+          >
+            {info.title ??
+              'Untitled'}
+          </Text>
+
+          <Text
+            style={
+              styles.author
+            }
+            numberOfLines={1}
+          >
+            {info.authors
+              ?.join(', ') ??
+              'Unknown author'}
+          </Text>
+
+          {typeof item.novoriWork
+            ?.hardcoverRating ===
+          'number' ? (
+            <View
+              style={
+                styles.searchRatingStars
+              }
+            >
+              {[1,2,3,4,5].map(
+                (
+                  star
+                ) => {
+                  const rating =
+                    item.novoriWork
+                      ?.hardcoverRating ??
+                    0;
+
+                  return (
+                    <Ionicons
+                      key={
+                        star
+                      }
+                      name={
+                        rating >=
+                        star
+                          ? 'star'
+                          : rating >=
+                            star -
+                              0.5
+                            ? 'star-half'
+                            : 'star-outline'
+                      }
+                      size={14}
+                      color={
+                        goldColor
+                      }
+                    />
+                  );
+                }
+              )}
+            </View>
+          ) : null}
+
+          {info.publishedDate ? (
+            <Text
+              style={
+                styles.meta
+              }
+            >
+              {
+                info.publishedDate
+              }
+            </Text>
+          ) : null}
+
+          {info.pageCount ? (
+            <Text
+              style={
+                styles.meta
+              }
+            >
+              {
+                info.pageCount
+              }{' '}
+              pages
+            </Text>
+          ) : null}
+
+          <Text
+            style={
+              styles.viewDetails
+            }
+          >
+            View details →
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+);
+
 export default function DiscoverScreen() {
   const {
     colors,
@@ -1668,8 +1907,14 @@ export default function DiscoverScreen() {
     useNovoriTheme();
 
   const styles =
-    createStyles(
-      colors
+    useMemo(
+      () =>
+        createStyles(
+          colors
+        ),
+      [
+        colors,
+      ]
     );
 
   const router = useRouter();
@@ -2754,64 +2999,70 @@ export default function DiscoverScreen() {
     }
   }
 
-  function openBook(
-    bookId: string,
-    options?: {
-      coverUrl?: string;
-      title?: string;
-      authors?: string[];
-      isbn?: string;
-      canonicalizeWork?: boolean;
-      trustedCover?: boolean;
-    }
-  ) {
-    router.push({
-      pathname:
-        '/book/[id]',
-      params: {
-        id: bookId,
-        source: 'discover',
-        ...(options?.coverUrl
-          ? {
-              coverUrl:
-                options.coverUrl,
-            }
-          : {}),
-        ...(options?.title
-          ? {
-              clickedTitle:
-                options.title,
-            }
-          : {}),
-        ...(options?.authors?.length
-          ? {
-              clickedAuthors:
-                JSON.stringify(
-                  options.authors
-                ),
-            }
-          : {}),
-        ...(options?.isbn
-          ? {
-              clickedIsbn:
-                options.isbn,
-            }
-          : {}),
-        ...(options?.canonicalizeWork
-          ? {
-              canonicalizeWork:
-                '1',
-            }
-          : {}),
-        ...(options?.trustedCover
-          ? {
-              trustedCover:
-                '1',
-            }
-          : {}),
+  const openBook =
+    useCallback(
+      (
+        bookId: string,
+        options?: {
+          coverUrl?: string;
+          title?: string;
+          authors?: string[];
+          isbn?: string;
+          canonicalizeWork?: boolean;
+          trustedCover?: boolean;
+        }
+      ) => {
+        router.push({
+          pathname:
+            '/book/[id]',
+          params: {
+            id: bookId,
+            source: 'discover',
+            ...(options?.coverUrl
+              ? {
+                  coverUrl:
+                    options.coverUrl,
+                }
+              : {}),
+            ...(options?.title
+              ? {
+                  clickedTitle:
+                    options.title,
+                }
+              : {}),
+            ...(options?.authors?.length
+              ? {
+                  clickedAuthors:
+                    JSON.stringify(
+                      options.authors
+                    ),
+                }
+              : {}),
+            ...(options?.isbn
+              ? {
+                  clickedIsbn:
+                    options.isbn,
+                }
+              : {}),
+            ...(options?.canonicalizeWork
+              ? {
+                  canonicalizeWork:
+                    '1',
+                }
+              : {}),
+            ...(options?.trustedCover
+              ? {
+                  trustedCover:
+                    '1',
+                }
+              : {}),
+          },
+        });
       },
-    });
-  }
+      [
+        router,
+      ]
+    );
 
   async function findGoogleBookIdForTrending(
     trendingBook: TrendingBook
@@ -3114,219 +3365,34 @@ export default function DiscoverScreen() {
     selectBroadGenre(null);
   }
 
-  function renderBook({
-    item,
-  }: {
-    item: GoogleBookItem;
-  }) {
-    const info =
-      item.volumeInfo;
-
-    const isbn =
-      info
-        .industryIdentifiers
-        ?.find(
-          (
-            identifier
-          ) =>
-            identifier.type ===
-              'ISBN_13'
-        )
-        ?.identifier ??
-      info
-        .industryIdentifiers
-        ?.find(
-          (
-            identifier
-          ) =>
-            identifier.type ===
-              'ISBN_10'
-        )
-        ?.identifier;
-
-    const canonicalCover =
-      item.novoriWork
-        ?.canonicalCoverUrl ??
-      null;
-
-    const coverPlan =
-      getBookCoverPlan({
-        imageLinks:
-          info.imageLinks,
-        isbn,
-        existingCoverUrl:
-          canonicalCover,
-      });
-
-    const cover =
-      canonicalCover ??
-      coverPlan.primaryUrl ??
-      coverPlan.fallbackUrl ??
-      undefined;
-
-    return (
-      <Pressable
-        style={({
-          pressed,
-        }) => [
-          styles.bookCard,
-          pressed &&
-            styles.bookCardPressed,
-        ]}
-        onPress={() =>
-          openBook(
-            item.id,
-            {
-              coverUrl:
-                cover,
-              title:
-                info.title,
-              authors:
-                info.authors,
-              isbn,
-              canonicalizeWork:
-                true,
-            }
-          )
-        }
-      >
-        {cover ? (
-          <BookCoverImage
-            imageLinks={
-              info.imageLinks
-            }
-            isbn={
-              isbn
-            }
-            existingCoverUrl={
-              canonicalCover
-            }
-            style={
-              styles.cover
-            }
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={
-              styles.coverPlaceholder
-            }
-          >
-            <Text
-              style={
-                styles.coverPlaceholderText
-              }
-            >
-              No Cover
-            </Text>
-          </View>
-        )}
-
-        <View
-          style={
-            styles.bookInfo
+  const renderBook =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: GoogleBookItem;
+      }) => (
+        <DiscoverBookCard
+          item={
+            item
           }
-        >
-          <Text
-            style={
-              styles.bookTitle
-            }
-            numberOfLines={2}
-          >
-            {info.title ??
-              'Untitled'}
-          </Text>
-
-          <Text
-            style={
-              styles.author
-            }
-            numberOfLines={1}
-          >
-            {info.authors
-              ?.join(', ') ??
-              'Unknown author'}
-          </Text>
-
-          {typeof item.novoriWork
-            ?.hardcoverRating ===
-          'number' ? (
-            <View
-              style={
-                styles.searchRatingStars
-              }
-            >
-              {[1,2,3,4,5].map(
-                (
-                  star
-                ) => {
-                  const rating =
-                    item.novoriWork
-                      ?.hardcoverRating ??
-                    0;
-
-                  return (
-                    <Ionicons
-                      key={
-                        star
-                      }
-                      name={
-                        rating >=
-                        star
-                          ? 'star'
-                          : rating >=
-                            star -
-                              0.5
-                            ? 'star-half'
-                            : 'star-outline'
-                      }
-                      size={14}
-                      color={
-                        colors.gold
-                      }
-                    />
-                  );
-                }
-              )}
-            </View>
-          ) : null}
-
-          {info.publishedDate ? (
-            <Text
-              style={
-                styles.meta
-              }
-            >
-              {
-                info.publishedDate
-              }
-            </Text>
-          ) : null}
-
-          {info.pageCount ? (
-            <Text
-              style={
-                styles.meta
-              }
-            >
-              {
-                info.pageCount
-              }{' '}
-              pages
-            </Text>
-          ) : null}
-
-          <Text
-            style={
-              styles.viewDetails
-            }
-          >
-            View details →
-          </Text>
-        </View>
-      </Pressable>
+          styles={
+            styles
+          }
+          goldColor={
+            colors.gold
+          }
+          onOpenBook={
+            openBook
+          }
+        />
+      ),
+      [
+        colors.gold,
+        openBook,
+        styles,
+      ]
     );
-  }
 
   function renderReader({
     item,
