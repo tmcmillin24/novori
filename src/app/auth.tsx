@@ -3,9 +3,9 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -312,15 +312,27 @@ export default function AuthScreen() {
         'bottom',
       ]}
     >
-      <KeyboardAvoidingView
+      <ScrollView
         style={
           styles.keyboardView
         }
-        behavior={
+        contentContainerStyle={
+          styles.scrollContent
+        }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={
           Platform.OS ===
           'ios'
-            ? 'padding'
-            : undefined
+            ? 'interactive'
+            : 'on-drag'
+        }
+        automaticallyAdjustKeyboardInsets={
+          Platform.OS ===
+          'ios'
+        }
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={
+          false
         }
       >
         <View
@@ -643,7 +655,7 @@ export default function AuthScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -659,15 +671,20 @@ const createStyles = (colors: NovoriColors) => StyleSheet.create({
       flex: 1,
     },
 
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent:
+        'center',
+    },
+
     content: {
-      flex: 1,
       width: '100%',
       maxWidth: 520,
       alignSelf:
         'center',
-      justifyContent:
-        'center',
       paddingHorizontal:
+        24,
+      paddingTop:
         24,
       paddingBottom:
         40,
