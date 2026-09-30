@@ -1459,53 +1459,14 @@ export async function searchNovoriBooks(
     );
   }
 
-  const initialResults =
+  let initialResults =
     response.data.items ??
     [];
-
-  if (
-    initialResults.length ===
-    0
-  ) {
-    return [];
-  }
 
   const normalizedQuery =
     normalizeTitle(
       searchTerm
     );
-
-  const strongestTitleMatch =
-    Math.max(
-      0,
-      ...initialResults.map(
-        (
-          book
-        ) =>
-          getTitleSearchRelevance(
-            book,
-            normalizedQuery
-          )
-      )
-    );
-
-  const strongestAuthorMatch =
-    Math.max(
-      0,
-      ...initialResults.map(
-        (
-          book
-        ) =>
-          getAuthorSearchRelevance(
-            book,
-            normalizedQuery
-          )
-      )
-    );
-
-  const looksLikeAuthorSearch =
-    strongestAuthorMatch >
-    strongestTitleMatch;
 
   const normalizedSearchIsbn =
     searchTerm
@@ -1519,6 +1480,119 @@ export async function searchNovoriBooks(
     /^(?:[0-9]{9}[0-9X]|[0-9]{13})$/.test(
       normalizedSearchIsbn
     );
+
+  let strongestTitleMatch =
+    Math.max(
+      0,
+      ...initialResults.map(
+        (
+          book
+        ) =>
+          getTitleSearchRelevance(
+            book,
+            normalizedQuery
+          )
+      )
+    );
+
+  let strongestAuthorMatch =
+    Math.max(
+      0,
+      ...initialResults.map(
+        (
+          book
+        ) =>
+          getAuthorSearchRelevance(
+            book,
+            normalizedQuery
+          )
+      )
+    );
+
+  let looksLikeAuthorSearch =
+    strongestAuthorMatch >
+    strongestTitleMatch;
+
+  if (
+    !looksLikeIsbnSearch &&
+    !looksLikeAuthorSearch &&
+    strongestTitleMatch ===
+      0
+  ) {
+    const targetedResponse =
+      await fetchSharedGoogleBooksSearch(
+        `intitle:"${searchTerm.trim()}"`
+      );
+
+    if (
+      targetedResponse.ok &&
+      targetedResponse.data
+    ) {
+      const targetedResults =
+        targetedResponse.data
+          .items ??
+        [];
+
+      const targetedRelevant =
+        targetedResults.filter(
+          (
+            book
+          ) =>
+            getTitleSearchRelevance(
+              book,
+              normalizedQuery
+            ) >
+            0
+        );
+
+      if (
+        targetedRelevant.length >
+        0
+      ) {
+        initialResults =
+          targetedRelevant;
+
+        strongestTitleMatch =
+          Math.max(
+            0,
+            ...initialResults.map(
+              (
+                book
+              ) =>
+                getTitleSearchRelevance(
+                  book,
+                  normalizedQuery
+                )
+            )
+          );
+
+        strongestAuthorMatch =
+          Math.max(
+            0,
+            ...initialResults.map(
+              (
+                book
+              ) =>
+                getAuthorSearchRelevance(
+                  book,
+                  normalizedQuery
+                )
+            )
+          );
+
+        looksLikeAuthorSearch =
+          strongestAuthorMatch >
+          strongestTitleMatch;
+      }
+    }
+  }
+
+  if (
+    initialResults.length ===
+    0
+  ) {
+    return [];
+  }
 
   const relevantResults =
     looksLikeAuthorSearch ||
