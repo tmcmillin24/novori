@@ -1075,6 +1075,13 @@ export default function BookDetailsScreen() {
     useState<string | null>(
       null
     );
+  const [
+    seriesWorkCoverUrl,
+    setSeriesWorkCoverUrl,
+  ] =
+    useState<string | null>(
+      null
+    );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [descriptionExpanded, setDescriptionExpanded] =
@@ -1279,6 +1286,9 @@ export default function BookDetailsScreen() {
         setLoading(true);
         setError('');
         setSelectedWorkCoverUrl(
+          null
+        );
+        setSeriesWorkCoverUrl(
           null
         );
         setSeries(null);
@@ -2034,14 +2044,53 @@ export default function BookDetailsScreen() {
         return;
       }
 
-      setSeries(
+      const resolvedSeries =
         response.series ??
-          null
+          null;
+
+      const resolvedSeriesBooks =
+        response.books ??
+          [];
+
+      setSeries(
+        resolvedSeries
       );
       setSeriesBooks(
-        response.books ??
-          []
+        resolvedSeriesBooks
       );
+
+      const currentSeriesBook =
+        resolvedSeries
+          ?.currentPosition !==
+            null &&
+        resolvedSeries
+          ?.currentPosition !==
+            undefined
+          ? resolvedSeriesBooks.find(
+              (
+                seriesBook
+              ) =>
+                seriesBook.position ===
+                resolvedSeries
+                  .currentPosition
+            )
+          : null;
+
+      const seriesCoverUrl =
+        secureGoogleBooksImageUrl(
+          currentSeriesBook
+            ?.imageUrl ??
+            undefined
+        ) ??
+        null;
+
+      if (
+        seriesCoverUrl
+      ) {
+        setSeriesWorkCoverUrl(
+          seriesCoverUrl
+        );
+      }
     } catch {
       setSeries(null);
       setSeriesBooks([]);
@@ -3105,11 +3154,15 @@ export default function BookDetailsScreen() {
 
   const canonicalRouteCoverUrl =
     trustedRouteCoverUrl ??
-    exactRouteCoverUrl;
+    exactRouteCoverUrl ??
+    discoverCoverUrl ??
+    null;
 
   const displayExistingCoverUrl =
     selectedWorkCoverUrl ??
     savedBook?.cover_url ??
+    trustedRouteCoverUrl ??
+    seriesWorkCoverUrl ??
     (
       isCanonicalWorkPage
         ? canonicalRouteCoverUrl
@@ -3121,10 +3174,7 @@ export default function BookDetailsScreen() {
     Boolean(
       selectedWorkCoverUrl ||
       savedBook?.cover_url ||
-      (
-        isCanonicalWorkPage &&
-        canonicalRouteCoverUrl
-      )
+      trustedRouteCoverUrl
     );
 
   const coverPlan =
