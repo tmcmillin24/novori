@@ -1102,6 +1102,28 @@ export async function resolveBestBookCover({
     | null =
     null;
 
+  // A verified same-work cover that is already large enough should
+  // stay stable instead of being replaced only because another provider
+  // reports a larger rendition of different artwork.
+  if (
+    existing &&
+    existingSize &&
+    isSatisfactory(
+      existingSize
+    )
+  ) {
+    return {
+      url:
+        existing,
+      source:
+        'existing',
+      width:
+        existingSize.width,
+      height:
+        existingSize.height,
+    };
+  }
+
   if (
     google
   ) {
@@ -1137,10 +1159,14 @@ export async function resolveBestBookCover({
     };
   }
 
-  // Google/existing is the normal path. Do not contact Open Library
-  // unless there is no usable cover at all.
+  // If Google/existing is genuinely detail-page quality, keep it.
+  // Otherwise try the exact ISBN cover from Open Library and only
+  // replace the current candidate when the fetched image is larger.
   if (
-    currentBest
+    currentBest &&
+    isSatisfactory(
+      currentBest
+    )
   ) {
     return {
       url:
@@ -1168,7 +1194,16 @@ export async function resolveBestBookCover({
 
   if (
     openLibraryUrl &&
-    openLibrarySize
+    openLibrarySize &&
+    (
+      !currentBest ||
+      area(
+        openLibrarySize
+      ) >
+        area(
+          currentBest
+        )
+    )
   ) {
     return {
       url:
@@ -1179,6 +1214,21 @@ export async function resolveBestBookCover({
         openLibrarySize.width,
       height:
         openLibrarySize.height,
+    };
+  }
+
+  if (
+    currentBest
+  ) {
+    return {
+      url:
+        currentBest.url,
+      source:
+        currentBest.source,
+      width:
+        currentBest.width,
+      height:
+        currentBest.height,
     };
   }
 
