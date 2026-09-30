@@ -78,6 +78,7 @@ function normalizeTitle(value?: string) {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’']/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
@@ -246,6 +247,183 @@ function filterDerivativeSearchResults(
   return primaryResults.length >
     0
     ? primaryResults
+    : books;
+}
+
+function getSearchClassificationText(
+  book: GoogleBookSearchItem
+) {
+  return normalizeTitle(
+    [
+      book.volumeInfo.title,
+      book.volumeInfo.subtitle,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+}
+
+function hasCollectionSearchIntent(
+  normalizedQuery: string
+) {
+  return (
+    /\b(?:box set|boxed set|boxset|trilogy|omnibus|collection|bundle)\b/.test(
+      normalizedQuery
+    ) ||
+    /\bcomplete\s+(?:series|trilogy|collection)\b/.test(
+      normalizedQuery
+    ) ||
+    /\b(?:books?|volumes?)\s+\d+\s+(?:to|through|and)\s+\d+\b/.test(
+      normalizedQuery
+    )
+  );
+}
+
+function isLikelyCollectionTitle(
+  book: GoogleBookSearchItem
+) {
+  const text =
+    getSearchClassificationText(
+      book
+    );
+
+  return (
+    /\b(?:box set|boxed set|boxset|trilogy|omnibus|collection set|book bundle|series bundle)\b/.test(
+      text
+    ) ||
+    /\bcomplete\s+(?:series|trilogy|collection)\b/.test(
+      text
+    ) ||
+    /\b\d+\s+book\s+(?:set|collection|series)\b/.test(
+      text
+    ) ||
+    /\b(?:books?|volumes?)\s+\d+\s+(?:to|through|and)\s+\d+\b/.test(
+      text
+    ) ||
+    /\b(?:books?|volumes?)\s+\d+\s*[-–—]\s*\d+\b/.test(
+      text
+    )
+  );
+}
+
+function hasEditionSearchIntent(
+  normalizedQuery: string
+) {
+  return (
+    /\b(?:edition|version)\b/.test(
+      normalizedQuery
+    ) ||
+    /\b(?:anniversary|revised|updated|collector|collectors|deluxe|special|exclusive|hardcover|hardback|paperback|ebook|kindle|large print|mass market)\b/.test(
+      normalizedQuery
+    )
+  );
+}
+
+function isLikelyEditionVariant(
+  book: GoogleBookSearchItem
+) {
+  const text =
+    getSearchClassificationText(
+      book
+    );
+
+  const rawTitle =
+    book.volumeInfo.title ??
+    '';
+
+  return (
+    /\b(?:anniversary|revised|updated|collector|collectors|deluxe|special|exclusive)\b/.test(
+      text
+    ) ||
+    /\b(?:hardcover|hardback|paperback|ebook|kindle|large print|mass market)\s+(?:edition|version)\b/.test(
+      text
+    ) ||
+    /\b(?:edition|version)\b/.test(
+      text
+    ) &&
+    /\b(?:special|collector|collectors|deluxe|anniversary|revised|updated|exclusive|hardcover|hardback|paperback|ebook|kindle|large print|mass market)\b/.test(
+      text
+    ) ||
+    /\([A-Z0-9]+(?:-[A-Z0-9]+)+\)\s*$/.test(
+      rawTitle
+    )
+  );
+}
+
+function hasObviousNonLatinMetadata(
+  book: GoogleBookSearchItem
+) {
+  const metadata =
+    [
+      book.volumeInfo.title,
+      ...(book.volumeInfo.authors ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+  return /[\u0370-\u03FF\u0400-\u052F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/.test(
+    metadata
+  );
+}
+
+function filterCollectionSearchResults(
+  books:
+    GoogleBookSearchItem[],
+  normalizedQuery: string
+) {
+  if (
+    hasCollectionSearchIntent(
+      normalizedQuery
+    )
+  ) {
+    return books;
+  }
+
+  const singleBookResults =
+    books.filter(
+      (
+        book
+      ) =>
+        !isLikelyCollectionTitle(
+          book
+        )
+    );
+
+  return singleBookResults.length >
+    0
+    ? singleBookResults
+    : books;
+}
+
+function filterLocaleNoise(
+  books:
+    GoogleBookSearchItem[],
+  searchTerm: string
+) {
+  const queryHasNonLatin =
+    /[\u0370-\u03FF\u0400-\u052F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/.test(
+      searchTerm
+    );
+
+  if (
+    queryHasNonLatin
+  ) {
+    return books;
+  }
+
+  const latinResults =
+    books.filter(
+      (
+        book
+      ) =>
+        !hasObviousNonLatinMetadata(
+          book
+        )
+    );
+
+  return latinResults.length >
+    0
+    ? latinResults
     : books;
 }
 
@@ -1161,7 +1339,11 @@ function getSearchWorkIdentityTitle(
   const titleForIdentity =
     normalizeSearchCensorshipTokens(
       book.volumeInfo.title
-    );
+    )
+      ?.replace(
+        /\s*\([A-Z0-9]+(?:-[A-Z0-9]+)+\)\s*$/,
+        ''
+      );
 
   const identityBook:
     GoogleBookSearchItem = {
@@ -1226,7 +1408,181 @@ function getSearchWorkIdentityTitle(
     }
   }
 
-  return title;
+  return stripLeadingTitleArticle(
+    title
+  );
+}
+
+function getSearchTitleStem(
+  book: GoogleBookSearchItem
+) {
+  const rawTitle =
+    normalizeSearchCensorshipTokens(
+      book.volumeInfo.title
+    ) ??
+    '';
+
+  const stem =
+    rawTitle
+      .split(
+        /\s*(?::|\/|\s[-–—]\s)\s*/
+      )[0];
+
+  return stripLeadingTitleArticle(
+    normalizeTitle(
+      stem
+    )
+  );
+}
+
+function authorsMatchOrCandidateMissing(
+  reference: GoogleBookSearchItem,
+  candidate: GoogleBookSearchItem
+) {
+  const referenceAuthor =
+    normalizeTitle(
+      reference.volumeInfo
+        .authors?.[0]
+    );
+
+  const candidateAuthor =
+    normalizeTitle(
+      candidate.volumeInfo
+        .authors?.[0]
+    );
+
+  return (
+    !candidateAuthor ||
+    !referenceAuthor ||
+    candidateAuthor ===
+      referenceAuthor
+  );
+}
+
+function isLikelySameSearchWork(
+  reference: GoogleBookSearchItem,
+  candidate: GoogleBookSearchItem
+) {
+  const referenceTitle =
+    getSearchWorkIdentityTitle(
+      reference
+    );
+
+  const candidateTitle =
+    getSearchWorkIdentityTitle(
+      candidate
+    );
+
+  if (
+    !referenceTitle ||
+    !candidateTitle
+  ) {
+    return false;
+  }
+
+  if (
+    referenceTitle ===
+      candidateTitle
+  ) {
+    return authorsMatchOrCandidateMissing(
+      reference,
+      candidate
+    );
+  }
+
+  if (
+    !authorsMatchOrCandidateMissing(
+      reference,
+      candidate
+    )
+  ) {
+    return false;
+  }
+
+  const referenceStem =
+    getSearchTitleStem(
+      reference
+    );
+
+  const candidateStem =
+    getSearchTitleStem(
+      candidate
+    );
+
+  // Google sometimes returns both a short title and the same title with
+  // its subtitle/alternate rendering appended after a colon, dash, or slash.
+  return (
+    referenceTitle ===
+      candidateStem ||
+    candidateTitle ===
+      referenceStem
+  );
+}
+
+function filterEditionSearchResults(
+  books:
+    GoogleBookSearchItem[],
+  normalizedQuery: string
+) {
+  if (
+    hasEditionSearchIntent(
+      normalizedQuery
+    )
+  ) {
+    return books;
+  }
+
+  const primaryCandidates =
+    books
+      .filter(
+        (
+          book
+        ) =>
+          !isLikelyDerivativeTitle(
+            book
+          ) &&
+          !isLikelyCollectionTitle(
+            book
+          ) &&
+          !isLikelyEditionVariant(
+            book
+          ) &&
+          getTitleSearchRelevance(
+            book,
+            normalizedQuery
+          ) >= 200
+      );
+
+  if (
+    primaryCandidates.length ===
+      0
+  ) {
+    return books;
+  }
+
+  return books.filter(
+    (
+      book
+    ) => {
+      if (
+        !isLikelyEditionVariant(
+          book
+        )
+      ) {
+        return true;
+      }
+
+      return !primaryCandidates.some(
+        (
+          primary
+        ) =>
+          isLikelySameSearchWork(
+            primary,
+            book
+          )
+      );
+    }
+  );
 }
 
 function filterNearCopySearchResults(
@@ -1378,21 +1734,11 @@ function filterNearCopySearchResults(
               .authors?.[0]
           );
 
-        const specificTitleSearch =
-          normalizedQuery
-            .split(' ')
-            .filter(Boolean)
-            .length >=
-          4;
-
+        // When Google returns the exact same work twice, prefer the
+        // complete record over an otherwise identical unknown-author row.
         if (
-          specificTitleSearch &&
           primaryAuthor &&
-          (
-            !candidateAuthor ||
-            candidateAuthor !==
-              primaryAuthor
-          )
+          !candidateAuthor
         ) {
           return false;
         }
@@ -1422,35 +1768,10 @@ function filterNearCopySearchResults(
             baseWords.size
           : 0;
 
-      // Once the actual book is present, suppress third-party near-copies
-      // that mostly repeat its title but add companion/edition material.
-      if (
-        overlap >= 0.85 &&
-        candidateTitle.startsWith(
-          normalizedQuery
-        )
-      ) {
-        const candidateAuthor =
-          normalizeTitle(
-            book.volumeInfo
-              .authors?.[0]
-          );
-
-        const primaryAuthor =
-          normalizeTitle(
-            bestPrimary.volumeInfo
-              .authors?.[0]
-          );
-
-        if (
-          candidateAuthor &&
-          primaryAuthor &&
-          candidateAuthor !==
-            primaryAuthor
-        ) {
-          return false;
-        }
-      }
+      // Keep legitimate same/similar titles by different known authors.
+      // Derivatives, collections, and edition variants are classified
+      // separately before this stage.
+      void overlap;
 
       return true;
     }
@@ -1506,6 +1827,28 @@ function collapseDuplicateEditions(
   const candidates =
     preferredLocaleResults;
 
+  const exactIdentityKeys =
+    new Set(
+      candidates.map(
+        (
+          book
+        ) => {
+          const title =
+            getSearchWorkIdentityTitle(
+              book
+            );
+
+          const author =
+            normalizeTitle(
+              book.volumeInfo
+                .authors?.[0]
+            );
+
+          return `${title}::${author}`;
+        }
+      )
+    );
+
   const groups =
     new Map<
       string,
@@ -1516,7 +1859,7 @@ function collapseDuplicateEditions(
     const book of
       candidates
   ) {
-    const canonicalTitle =
+    let canonicalTitle =
       getSearchWorkIdentityTitle(
         book
       );
@@ -1530,6 +1873,23 @@ function collapseDuplicateEditions(
       !canonicalTitle
     ) {
       continue;
+    }
+
+    const titleStem =
+      getSearchTitleStem(
+        book
+      );
+
+    if (
+      titleStem &&
+      titleStem !==
+        canonicalTitle &&
+      exactIdentityKeys.has(
+        `${titleStem}::${primaryAuthor}`
+      )
+    ) {
+      canonicalTitle =
+        titleStem;
     }
 
     const identity =
@@ -2159,8 +2519,17 @@ export async function searchNovoriBooks(
     looksLikeIsbnSearch
       ? relevantResults
       : filterNearCopySearchResults(
-          filterDerivativeSearchResults(
-            relevantResults,
+          filterEditionSearchResults(
+            filterCollectionSearchResults(
+              filterDerivativeSearchResults(
+                filterLocaleNoise(
+                  relevantResults,
+                  searchTerm
+                ),
+                normalizedQuery
+              ),
+              normalizedQuery
+            ),
             normalizedQuery
           ),
           normalizedQuery
