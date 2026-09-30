@@ -106,14 +106,28 @@ const DERIVATIVE_TITLE_PREFIXES = [
   'planner for ',
 ];
 
+function stripLeadingTitleArticle(
+  value: string
+) {
+  return value.replace(
+    /^(?:the|a|an)\s+/,
+    ''
+  );
+}
+
 function hasDerivativeSearchIntent(
   normalizedQuery: string
 ) {
+  const queryWithoutArticle =
+    stripLeadingTitleArticle(
+      normalizedQuery
+    );
+
   return DERIVATIVE_TITLE_PREFIXES.some(
     (
       prefix
     ) =>
-      normalizedQuery.startsWith(
+      queryWithoutArticle.startsWith(
         prefix.trim()
       )
   );
@@ -127,12 +141,17 @@ function isLikelyDerivativeTitle(
       book.volumeInfo.title
     );
 
+  const titleWithoutArticle =
+    stripLeadingTitleArticle(
+      title
+    );
+
   if (
     DERIVATIVE_TITLE_PREFIXES.some(
       (
         prefix
       ) =>
-        title.startsWith(
+        titleWithoutArticle.startsWith(
           prefix
         )
     )
@@ -794,7 +813,7 @@ function getCanonicalWorkTitle(
         ''
       )
       .replace(
-        /\s+(?:(?:\d+)(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+anniversary(?:\s+(?:edition|version))?$/i,
+        /\s+(?:(?:\d+)(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+anniversary\b.*$/i,
         ''
       )
       .trim();
