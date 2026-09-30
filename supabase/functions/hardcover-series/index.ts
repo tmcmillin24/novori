@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
 
         .replace(
 
-          /[\\u0300-\\u036f]/g,
+          /[\u0300-\u036f]/g,
 
           ""
 
