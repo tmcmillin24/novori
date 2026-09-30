@@ -794,7 +794,7 @@ function getCanonicalWorkTitle(
         ''
       )
       .replace(
-        /\s+(?:(?:\d+)(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+anniversary(?:\s+edition)?$/i,
+        /\s+(?:(?:\d+)(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+anniversary(?:\s+(?:edition|version))?$/i,
         ''
       )
       .trim();
@@ -1225,23 +1225,54 @@ function filterNearCopySearchResults(
         (
           a,
           b
-        ) =>
-          getTitleSearchRelevance(
-            b,
-            normalizedQuery
-          ) -
-          getTitleSearchRelevance(
-            a,
-            normalizedQuery
-          ) ||
-          (
+        ) => {
+          const relevanceDifference =
+            getTitleSearchRelevance(
+              b,
+              normalizedQuery
+            ) -
+            getTitleSearchRelevance(
+              a,
+              normalizedQuery
+            );
+
+          if (
+            relevanceDifference !==
+              0
+          ) {
+            return relevanceDifference;
+          }
+
+          const authorDifference =
+            Number(
+              Boolean(
+                b.volumeInfo
+                  .authors?.[0]
+              )
+            ) -
+            Number(
+              Boolean(
+                a.volumeInfo
+                  .authors?.[0]
+              )
+            );
+
+          if (
+            authorDifference !==
+              0
+          ) {
+            return authorDifference;
+          }
+
+          return (
             getGoogleBookPopularity(
               b
             ).ratingsCount -
             getGoogleBookPopularity(
               a
             ).ratingsCount
-          )
+          );
+        }
       )[0];
 
   const baseTitle =
@@ -1311,10 +1342,12 @@ function filterNearCopySearchResults(
 
         if (
           specificTitleSearch &&
-          candidateAuthor &&
           primaryAuthor &&
-          candidateAuthor !==
-            primaryAuthor
+          (
+            !candidateAuthor ||
+            candidateAuthor !==
+              primaryAuthor
+          )
         ) {
           return false;
         }
