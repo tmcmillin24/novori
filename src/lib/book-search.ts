@@ -1137,28 +1137,54 @@ function getBestEligibleGoogleWorkCover(
   );
 }
 
+function normalizeSearchCensorshipTokens(
+  value?: string
+) {
+  if (
+    !value
+  ) {
+    return value;
+  }
+
+  // Preserve the fact that a word was intentionally censored before
+  // punctuation normalization erases the symbols. This stays generic:
+  // F*ck, S#it, #@%!, etc. become the same search-only placeholder.
+  return value.replace(
+    /(?:[A-Za-z0-9]*[*#@%]+[A-Za-z0-9*#@%!]*|(?:[*#@%!]{2,}))/g,
+    ' censoredtoken '
+  );
+}
+
 function getSearchWorkIdentityTitle(
   book: GoogleBookSearchItem
 ) {
-  let title =
-    getCanonicalWorkTitleForBook(
-      book
+  const titleForIdentity =
+    normalizeSearchCensorshipTokens(
+      book.volumeInfo.title
     );
 
-  // Google Books sometimes publishes censored storefront variants of
-  // the same work as separate titles (for example F*ck vs Bleep).
-  // Normalize only the common censorship tokens used as substitutions,
-  // then still require the same primary author before editions collapse.
+  const identityBook:
+    GoogleBookSearchItem = {
+      ...book,
+      volumeInfo: {
+        ...book.volumeInfo,
+        title:
+          titleForIdentity,
+      },
+    };
+
+  let title =
+    getCanonicalWorkTitleForBook(
+      identityBook
+    );
+
+  // "Bleep" is another storefront-safe substitute used in otherwise
+  // identical titles. Treat it as the same search-only censored token.
   title =
-    title
-      .replace(
-        /\bf\s+(?:ck|k)\b/g,
-        'fuck'
-      )
-      .replace(
-        /\bbleep\b/g,
-        'fuck'
-      );
+    title.replace(
+      /\bbleep\b/g,
+      'censoredtoken'
+    );
 
   const removableSearchSuffixes = [
     ' revised and updated',
