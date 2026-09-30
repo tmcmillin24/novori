@@ -1027,6 +1027,7 @@ export default function BookDetailsScreen() {
     clickedAuthors,
     clickedIsbn,
     canonicalizeWork,
+    trustedCover,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -1035,6 +1036,7 @@ export default function BookDetailsScreen() {
     clickedAuthors?: string;
     clickedIsbn?: string;
     canonicalizeWork?: string;
+    trustedCover?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -2982,13 +2984,13 @@ export default function BookDetailsScreen() {
       const resolvedCover =
         resolved.novoriWork
           ?.canonicalCoverUrl ??
+        secureGoogleBooksImageUrl(
+          seriesBook.imageUrl
+        ) ??
         getValidatedHighResolutionCover(
           undefined,
           resolved.volumeInfo
             .imageLinks
-        ) ??
-        secureGoogleBooksImageUrl(
-          seriesBook.imageUrl
         ) ??
         undefined;
 
@@ -3007,6 +3009,8 @@ export default function BookDetailsScreen() {
             ? {
                 coverUrl:
                   resolvedCover,
+                trustedCover:
+                  '1',
               }
             : {}),
           canonicalizeWork:
@@ -3092,12 +3096,23 @@ export default function BookDetailsScreen() {
       ? discoverCoverUrl
       : null;
 
+  const trustedRouteCoverUrl =
+    trustedCover ===
+      '1'
+      ? discoverCoverUrl ??
+        null
+      : null;
+
+  const canonicalRouteCoverUrl =
+    trustedRouteCoverUrl ??
+    exactRouteCoverUrl;
+
   const displayExistingCoverUrl =
     selectedWorkCoverUrl ??
     savedBook?.cover_url ??
     (
       isCanonicalWorkPage
-        ? exactRouteCoverUrl
+        ? canonicalRouteCoverUrl
         : discoverCoverUrl ??
           null
     );
@@ -3108,7 +3123,7 @@ export default function BookDetailsScreen() {
       savedBook?.cover_url ||
       (
         isCanonicalWorkPage &&
-        exactRouteCoverUrl
+        canonicalRouteCoverUrl
       )
     );
 
