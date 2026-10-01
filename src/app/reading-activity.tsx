@@ -11,6 +11,7 @@ import {
 import {
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -172,8 +173,25 @@ export default function ReadingActivityScreen() {
   const {
     width:
       windowWidth,
+    height:
+      windowHeight,
   } =
     useWindowDimensions();
+
+  const scrollViewRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
+  const dayDetailsYRef =
+    useRef<number | null>(
+      null
+    );
+
+  const shouldAutoScrollRef =
+    useRef(
+      false
+    );
 
   const {
     colors,
@@ -366,6 +384,9 @@ export default function ReadingActivityScreen() {
           setSelectedDateKey(
             null
           );
+
+          dayDetailsYRef.current =
+            null;
         } catch (
           loadError
         ) {
@@ -549,6 +570,9 @@ export default function ReadingActivityScreen() {
       null
     );
 
+    dayDetailsYRef.current =
+      null;
+
     setDisplayedMonth({
       year:
         next.getFullYear(),
@@ -595,6 +619,75 @@ export default function ReadingActivityScreen() {
     );
   }
 
+  function scrollToDayDetails(
+    y:
+      number
+  ) {
+    const revealOffset =
+      Math.min(
+        310,
+        Math.max(
+          215,
+          windowHeight *
+            0.42
+        )
+      );
+
+    requestAnimationFrame(
+      () => {
+        scrollViewRef.current?.scrollTo({
+          y:
+            Math.max(
+              0,
+              y -
+                revealOffset
+            ),
+          animated:
+            true,
+        });
+      }
+    );
+  }
+
+  function handleOrbitDayPress(
+    dateKey:
+      string
+  ) {
+    if (
+      selectedDateKey ===
+      dateKey
+    ) {
+      shouldAutoScrollRef.current =
+        false;
+      dayDetailsYRef.current =
+        null;
+
+      setSelectedDateKey(
+        null
+      );
+      return;
+    }
+
+    shouldAutoScrollRef.current =
+      true;
+
+    setSelectedDateKey(
+      dateKey
+    );
+
+    if (
+      dayDetailsYRef.current !==
+      null
+    ) {
+      shouldAutoScrollRef.current =
+        false;
+
+      scrollToDayDetails(
+        dayDetailsYRef.current
+      );
+    }
+  }
+
   const hasSelectedActivity =
     Boolean(
       selectedDay &&
@@ -620,6 +713,9 @@ export default function ReadingActivityScreen() {
       ]}
     >
       <ScrollView
+        ref={
+          scrollViewRef
+        }
         showsVerticalScrollIndicator={
           false
         }
@@ -1067,14 +1163,8 @@ export default function ReadingActivityScreen() {
                           dot.dateKey
                         }
                         onPress={() =>
-                          setSelectedDateKey(
-                            (
-                              current
-                            ) =>
-                              current ===
-                              dot.dateKey
-                                ? null
-                                : dot.dateKey
+                          handleOrbitDayPress(
+                            dot.dateKey
                           )
                         }
                         hitSlop={
@@ -1266,7 +1356,31 @@ export default function ReadingActivityScreen() {
 
             {selectedDateKey &&
             selectedDay ? (
-              <>
+              <View
+                onLayout={(
+                  event
+                ) => {
+                  const y =
+                    event.nativeEvent.layout.y;
+
+                  dayDetailsYRef.current =
+                    y;
+
+                  if (
+                    shouldAutoScrollRef.current
+                  ) {
+                    shouldAutoScrollRef.current =
+                      false;
+
+                    requestAnimationFrame(
+                      () =>
+                        scrollToDayDetails(
+                          y
+                        )
+                    );
+                  }
+                }}
+              >
             <View
               style={[
                 styles.sectionIntro,
@@ -1554,7 +1668,7 @@ export default function ReadingActivityScreen() {
               )}
             </View>
 
-              </>
+              </View>
             ) : null}
           </>
         ) : null}
