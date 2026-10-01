@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import {
   ensureDailyReadingCheckin,
-  getLocalDateKey,
 } from './reading-checkins';
 
 type PublishReadingUpdateInput = {
@@ -194,9 +193,6 @@ function buildPostBody(
 export async function publishReadingUpdate(
   input: PublishReadingUpdateInput
 ): Promise<string> {
-  const checkinLocalDate =
-    getLocalDateKey();
-
   const parsed =
     parseProgress(
       input.progress ??
@@ -320,8 +316,7 @@ export async function publishReadingUpdate(
       [
         input.googleBookId,
       ],
-      'reading_update',
-      checkinLocalDate
+      'reading_update'
     );
   } catch (
     checkinError
