@@ -21,6 +21,8 @@ import {
   Alert,
   AppState,
   FlatList,
+  type GestureResponderEvent,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -2312,6 +2314,13 @@ export default function DiscoverScreen() {
     useState<ReaderConnection[]>(
       []
     );
+
+  const [
+    discoverSearchFocused,
+    setDiscoverSearchFocused,
+  ] =
+    useState(false);
+
   const [
     readerLoading,
     setReaderLoading,
@@ -2375,6 +2384,26 @@ export default function DiscoverScreen() {
     useState(0);
   const [genreDropdownViewportHeight, setGenreDropdownViewportHeight] =
     useState(0);
+
+  const discoverSearchInputRef =
+    useRef<TextInput | null>(
+      null
+    );
+
+  const discoverSearchWrapRef =
+    useRef<View | null>(
+      null
+    );
+
+  const discoverSearchBoundsRef =
+    useRef<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null>(
+      null
+    );
 
   const debounceTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3096,6 +3125,77 @@ export default function DiscoverScreen() {
       trimmedQuery,
       requestId
     );
+  }
+
+  function measureDiscoverSearchBounds() {
+    requestAnimationFrame(
+      () => {
+        discoverSearchWrapRef.current?.measureInWindow(
+          (
+            x,
+            y,
+            width,
+            height
+          ) => {
+            discoverSearchBoundsRef.current = {
+              x,
+              y,
+              width,
+              height,
+            };
+          }
+        );
+      }
+    );
+  }
+
+  function dismissDiscoverSearchFocus() {
+    discoverSearchInputRef.current?.blur();
+    Keyboard.dismiss();
+
+    setDiscoverSearchFocused(
+      false
+    );
+  }
+
+  function captureDiscoverSearchDismiss(
+    event:
+      GestureResponderEvent
+  ) {
+    if (
+      !discoverSearchFocused
+    ) {
+      return false;
+    }
+
+    const bounds =
+      discoverSearchBoundsRef.current;
+
+    const {
+      pageX,
+      pageY,
+    } =
+      event.nativeEvent;
+
+    if (
+      bounds &&
+      pageX >=
+        bounds.x &&
+      pageX <=
+        bounds.x +
+          bounds.width &&
+      pageY >=
+        bounds.y &&
+      pageY <=
+        bounds.y +
+          bounds.height
+    ) {
+      return false;
+    }
+
+    dismissDiscoverSearchFocus();
+
+    return true;
   }
 
   function clearActiveSearch() {
@@ -4177,6 +4277,9 @@ export default function DiscoverScreen() {
         style={
           styles.screen
         }
+        onStartShouldSetResponderCapture={
+          captureDiscoverSearchDismiss
+        }
         onTouchStart={() => {
           if (genreMenuVisible) {
             setGenreMenuVisible(false);
@@ -4201,13 +4304,6 @@ export default function DiscoverScreen() {
               Discover
             </Text>
 
-            <Text
-              style={
-                styles.subheading
-              }
-            >
-              Find your next read.
-            </Text>
           </View>
 
           <View
@@ -4299,11 +4395,31 @@ export default function DiscoverScreen() {
           </View>
 
           <View
+            ref={
+              discoverSearchWrapRef
+            }
+            onLayout={
+              measureDiscoverSearchBounds
+            }
             style={
               styles.searchContainer
             }
           >
             <TextInput
+              ref={
+                discoverSearchInputRef
+              }
+              onFocus={() => {
+                setDiscoverSearchFocused(
+                  true
+                );
+                measureDiscoverSearchBounds();
+              }}
+              onBlur={() =>
+                setDiscoverSearchFocused(
+                  false
+                )
+              }
               style={[
                 styles.input,
                 discoverMode ===
@@ -5330,9 +5446,10 @@ function createStyles(
     },
 
     header: {
-      paddingTop: 22,
+      paddingTop:
+        22,
       paddingBottom:
-        18,
+        12,
     },
 
     heading: {
@@ -5342,16 +5459,6 @@ function createStyles(
       fontFamily:
         'PlayfairDisplay_700Bold',
       letterSpacing: 0.2,
-    },
-
-    subheading: {
-      color:
-        colors.secondaryText,
-      fontSize: 15,
-      fontFamily:
-        'Inter_500Medium',
-      marginTop: 5,
-      letterSpacing: 0.15,
     },
 
     discoverModeRow: {
