@@ -459,8 +459,8 @@ export default function ReadingActivityScreen() {
 
           const verticalNudge =
             top
-              ? -18
-              : 18;
+              ? -26
+              : 26;
 
           return {
             charm,
