@@ -1,18 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  ReadingMonthCharm,
+  VALID_READING_MONTH_CHARMS,
+} from './reading-month-charms';
+import {
   supabase,
 } from './supabase';
 
-export type ReadingMonthCharm =
-  | 'plant'
-  | 'sun'
-  | 'mug'
-  | 'moon'
-  | 'headphones'
-  | 'flower'
-  | 'cat'
-  | 'globe';
+export type {
+  ReadingMonthCharm,
+} from './reading-month-charms';
 
 export type ReadingMonthPersonalization = {
   charms:
@@ -34,7 +32,7 @@ const LEGACY_VALUE_MAP: Record<
   mug:
     'mug',
   candle:
-    'sun',
+    'candle',
   moon:
     'moon',
   headphones:
@@ -56,24 +54,12 @@ const LEGACY_VALUE_MAP: Record<
   'leaf-outline':
     'plant',
   'sparkles-outline':
-    'flower',
+    'star',
   'planet-outline':
     'globe',
   'flame-outline':
-    'sun',
+    'fire',
 };
-
-const VALID_CHARMS =
-  new Set<ReadingMonthCharm>([
-    'plant',
-    'sun',
-    'mug',
-    'moon',
-    'headphones',
-    'flower',
-    'cat',
-    'globe',
-  ]);
 
 async function getStorageKey(
   year:
@@ -171,7 +157,7 @@ export async function getReadingMonthPersonalization(
               ): value is ReadingMonthCharm =>
                 typeof value ===
                   'string' &&
-                VALID_CHARMS.has(
+                VALID_READING_MONTH_CHARMS.has(
                   value as ReadingMonthCharm
                 )
             )
@@ -224,7 +210,7 @@ export async function saveReadingMonthPersonalization(
             (
               item
             ) =>
-              VALID_CHARMS.has(
+              VALID_READING_MONTH_CHARMS.has(
                 item
               )
           )
