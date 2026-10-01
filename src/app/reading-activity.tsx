@@ -20,6 +20,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -49,15 +50,25 @@ import {
   saveReadingMonthPersonalization,
 } from '../lib/reading-month-personalization';
 
-const ORBIT_SIZE =
-  304;
+const ORBIT_EDGE_GUTTER =
+  14;
 
-const ORBIT_CENTER =
-  ORBIT_SIZE /
-  2;
+const MAX_ORBIT_SIZE =
+  460;
 
-const ORBIT_RADIUS =
-  137;
+const COMPACT_ORBIT_MAX =
+  276;
+
+const CHARM_LAYOUTS = [
+  { x: 0.88, y: 0.17, rotate: '5deg' },
+  { x: 0.12, y: 0.25, rotate: '-7deg' },
+  { x: 0.93, y: 0.49, rotate: '4deg' },
+  { x: 0.09, y: 0.67, rotate: '-4deg' },
+  { x: 0.83, y: 0.82, rotate: '7deg' },
+  { x: 0.29, y: 0.93, rotate: '-5deg' },
+  { x: 0.70, y: 0.07, rotate: '3deg' },
+  { x: 0.35, y: 0.07, rotate: '-3deg' },
+] as const;
 
 function getMonthLabel(
   year:
@@ -162,6 +173,12 @@ export default function ReadingActivityScreen() {
     useRouter();
 
   const {
+    width:
+      windowWidth,
+  } =
+    useWindowDimensions();
+
+  const {
     colors,
   } =
     useNovoriTheme();
@@ -205,6 +222,53 @@ export default function ReadingActivityScreen() {
     >(
       null
     );
+
+  const fullOrbitSize =
+    Math.min(
+      Math.max(
+        windowWidth -
+          ORBIT_EDGE_GUTTER *
+            2,
+        260
+      ),
+      MAX_ORBIT_SIZE
+    );
+
+  const compactOrbitSize =
+    Math.min(
+      fullOrbitSize *
+        0.74,
+      COMPACT_ORBIT_MAX
+    );
+
+  const activeOrbitSize =
+    selectedDateKey
+      ? compactOrbitSize
+      : fullOrbitSize;
+
+  const orbitCenter =
+    activeOrbitSize /
+    2;
+
+  const orbitRadius =
+    activeOrbitSize /
+      2 -
+    16;
+
+  const outerHaloInset =
+    Math.max(
+      14,
+      activeOrbitSize *
+        0.045
+    );
+
+  const innerHaloInset =
+    activeOrbitSize *
+    0.17;
+
+  const centerInset =
+    activeOrbitSize *
+    0.29;
 
   const [
     monthData,
@@ -417,17 +481,17 @@ export default function ReadingActivityScreen() {
                 dateKey ===
                 todayKey,
               left:
-                ORBIT_CENTER +
+                orbitCenter +
                 Math.cos(
                   angle
                 ) *
-                  ORBIT_RADIUS,
+                  orbitRadius,
               top:
-                ORBIT_CENTER +
+                orbitCenter +
                 Math.sin(
                   angle
                 ) *
-                  ORBIT_RADIUS,
+                  orbitRadius,
             };
           }
         );
@@ -436,6 +500,8 @@ export default function ReadingActivityScreen() {
         displayedMonth.monthIndex,
         displayedMonth.year,
         monthData,
+        orbitCenter,
+        orbitRadius,
         todayKey,
       ]
     );
@@ -858,20 +924,68 @@ export default function ReadingActivityScreen() {
               </View>
 
               <View
-                style={
-                  styles.orbitStage
-                }
+                style={[
+                  styles.orbitStage,
+                  {
+                    width:
+                      activeOrbitSize,
+                    height:
+                      activeOrbitSize,
+                  },
+                ]}
               >
                 <View
-                  style={
-                    styles.orbitHaloOuter
-                  }
+                  style={[
+                    styles.orbitHaloOuter,
+                    {
+                      left:
+                        outerHaloInset,
+                      top:
+                        outerHaloInset,
+                      width:
+                        activeOrbitSize -
+                        outerHaloInset *
+                          2,
+                      height:
+                        activeOrbitSize -
+                        outerHaloInset *
+                          2,
+                      borderRadius:
+                        (
+                          activeOrbitSize -
+                          outerHaloInset *
+                            2
+                        ) /
+                        2,
+                    },
+                  ]}
                 />
 
                 <View
-                  style={
-                    styles.orbitHaloInner
-                  }
+                  style={[
+                    styles.orbitHaloInner,
+                    {
+                      left:
+                        innerHaloInset,
+                      top:
+                        innerHaloInset,
+                      width:
+                        activeOrbitSize -
+                        innerHaloInset *
+                          2,
+                      height:
+                        activeOrbitSize -
+                        innerHaloInset *
+                          2,
+                      borderRadius:
+                        (
+                          activeOrbitSize -
+                          innerHaloInset *
+                            2
+                        ) /
+                        2,
+                    },
+                  ]}
                 />
 
                 {monthOrbitDots.map(
@@ -889,7 +1003,13 @@ export default function ReadingActivityScreen() {
                         }
                         onPress={() =>
                           setSelectedDateKey(
-                            dot.dateKey
+                            (
+                              current
+                            ) =>
+                              current ===
+                              dot.dateKey
+                                ? null
+                                : dot.dateKey
                           )
                         }
                         hitSlop={
@@ -936,9 +1056,30 @@ export default function ReadingActivityScreen() {
 
                 <View
                   pointerEvents="none"
-                  style={
-                    styles.orbitCenter
-                  }
+                  style={[
+                    styles.orbitCenter,
+                    {
+                      left:
+                        centerInset,
+                      top:
+                        centerInset,
+                      width:
+                        activeOrbitSize -
+                        centerInset *
+                          2,
+                      height:
+                        activeOrbitSize -
+                        centerInset *
+                          2,
+                      borderRadius:
+                        (
+                          activeOrbitSize -
+                          centerInset *
+                            2
+                        ) /
+                        2,
+                    },
+                  ]}
                 >
                   <Ionicons
                     name="book-outline"
@@ -963,33 +1104,70 @@ export default function ReadingActivityScreen() {
                   (
                     charm,
                     index
-                  ) => (
-                    <View
-                      key={
-                        charm
-                      }
-                      pointerEvents="none"
-                      style={[
-                        styles.orbitCharm,
-                        styles[
-                          `orbitCharm${index +
-                            1}` as keyof typeof styles
-                        ] as any,
-                      ]}
-                    >
-                      <ReadingMonthCharmArtwork
-                        charm={
+                  ) => {
+                    const layout =
+                      CHARM_LAYOUTS[
+                        index
+                      ];
+
+                    const artworkSize =
+                      selectedDateKey
+                        ? index % 3 ===
+                          0
+                          ? 30
+                          : 27
+                        : index % 3 ===
+                          0
+                        ? 38
+                        : 34;
+
+                    const wrapperSize =
+                      artworkSize +
+                      8;
+
+                    return (
+                      <View
+                        key={
                           charm
                         }
-                        size={
-                          index % 3 ===
-                          0
-                            ? 38
-                            : 34
-                        }
-                      />
-                    </View>
-                  )
+                        pointerEvents="none"
+                        style={[
+                          styles.orbitCharm,
+                          {
+                            width:
+                              wrapperSize,
+                            height:
+                              wrapperSize,
+                            left:
+                              activeOrbitSize *
+                                layout.x -
+                              wrapperSize /
+                                2,
+                            top:
+                              activeOrbitSize *
+                                layout.y -
+                              wrapperSize /
+                                2,
+                            transform: [
+                              {
+                                rotate:
+                                  layout.rotate,
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        <ReadingMonthCharmArtwork
+                          charm={
+                            charm
+                          }
+                          size={
+                            artworkSize
+                          }
+                        />
+                      </View>
+                    );
+                  }
                 )}
 
               </View>
@@ -1629,10 +1807,6 @@ function createStyles(
         9.5,
     },
     orbitStage: {
-      width:
-        ORBIT_SIZE,
-      height:
-        ORBIT_SIZE,
       alignSelf:
         'center',
       position:
@@ -1645,22 +1819,6 @@ function createStyles(
     orbitHaloOuter: {
       position:
         'absolute',
-      left:
-        15,
-      top:
-        15,
-      width:
-        ORBIT_SIZE -
-        30,
-      height:
-        ORBIT_SIZE -
-        30,
-      borderRadius:
-        (
-          ORBIT_SIZE -
-          30
-        ) /
-        2,
       borderWidth:
         1,
       borderColor:
@@ -1669,22 +1827,6 @@ function createStyles(
     orbitHaloInner: {
       position:
         'absolute',
-      left:
-        51,
-      top:
-        51,
-      width:
-        ORBIT_SIZE -
-        102,
-      height:
-        ORBIT_SIZE -
-        102,
-      borderRadius:
-        (
-          ORBIT_SIZE -
-          102
-        ) /
-        2,
       backgroundColor:
         colors.surface,
       borderWidth:
@@ -1759,22 +1901,6 @@ function createStyles(
     orbitCenter: {
       position:
         'absolute',
-      left:
-        78,
-      top:
-        78,
-      width:
-        ORBIT_SIZE -
-        156,
-      height:
-        ORBIT_SIZE -
-        156,
-      borderRadius:
-        (
-          ORBIT_SIZE -
-          156
-        ) /
-        2,
       alignItems:
         'center',
       justifyContent:
@@ -1807,102 +1933,6 @@ function createStyles(
         'center',
       zIndex:
         9,
-    },
-    orbitCharm1: {
-      right:
-        -2,
-      top:
-        40,
-      transform: [
-        {
-          rotate:
-            '5deg',
-        },
-      ],
-    },
-    orbitCharm2: {
-      left:
-        -2,
-      top:
-        72,
-      transform: [
-        {
-          rotate:
-            '-7deg',
-        },
-      ],
-    },
-    orbitCharm3: {
-      right:
-        -10,
-      top:
-        138,
-      transform: [
-        {
-          rotate:
-            '4deg',
-        },
-      ],
-    },
-    orbitCharm4: {
-      left:
-        -10,
-      bottom:
-        76,
-      transform: [
-        {
-          rotate:
-            '-4deg',
-        },
-      ],
-    },
-    orbitCharm5: {
-      right:
-        8,
-      bottom:
-        42,
-      transform: [
-        {
-          rotate:
-            '7deg',
-        },
-      ],
-    },
-    orbitCharm6: {
-      left:
-        42,
-      bottom:
-        -3,
-      transform: [
-        {
-          rotate:
-            '-5deg',
-        },
-      ],
-    },
-    orbitCharm7: {
-      right:
-        58,
-      top:
-        -5,
-      transform: [
-        {
-          rotate:
-            '3deg',
-        },
-      ],
-    },
-    orbitCharm8: {
-      left:
-        72,
-      top:
-        -5,
-      transform: [
-        {
-          rotate:
-            '-3deg',
-        },
-      ],
     },
     sectionIntro: {
       flexDirection:
