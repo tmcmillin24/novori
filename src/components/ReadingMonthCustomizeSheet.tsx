@@ -13,8 +13,10 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -29,7 +31,13 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
+  getDefaultReadingMonthCharmCategory,
   ReadingMonthCharm,
+  ReadingMonthCharmCategory,
+  READING_MONTH_CHARM_CATEGORIES,
+  READING_MONTH_CHARM_OPTIONS,
+} from '../lib/reading-month-charms';
+import {
   ReadingMonthPersonalization,
 } from '../lib/reading-month-personalization';
 
@@ -39,6 +47,8 @@ type Props = {
     ReadingMonthPersonalization;
   monthLabel:
     string;
+  monthIndex:
+    number;
   onDismiss:
     () => void;
   onSave:
@@ -48,66 +58,11 @@ type Props = {
     ) => Promise<void> | void;
 };
 
-const CHARM_OPTIONS: Array<{
-  value:
-    ReadingMonthCharm;
-  label:
-    string;
-}> = [
-  {
-    value:
-      'plant',
-    label:
-      'Plant',
-  },
-  {
-    value:
-      'sun',
-    label:
-      'Sun',
-  },
-  {
-    value:
-      'mug',
-    label:
-      'Mug',
-  },
-  {
-    value:
-      'moon',
-    label:
-      'Moon',
-  },
-  {
-    value:
-      'headphones',
-    label:
-      'Audio',
-  },
-  {
-    value:
-      'flower',
-    label:
-      'Flower',
-  },
-  {
-    value:
-      'cat',
-    label:
-      'Cat',
-  },
-  {
-    value:
-      'globe',
-    label:
-      'Globe',
-  },
-];
-
 export default function ReadingMonthCustomizeSheet({
   visible,
   value,
   monthLabel,
+  monthIndex,
   onDismiss,
   onSave,
 }: Props) {
@@ -115,6 +70,12 @@ export default function ReadingMonthCustomizeSheet({
     colors,
   } =
     useNovoriTheme();
+
+  const {
+    width:
+      windowWidth,
+  } =
+    useWindowDimensions();
 
   const styles =
     useMemo(
@@ -130,6 +91,13 @@ export default function ReadingMonthCustomizeSheet({
   const insets =
     useSafeAreaInsets();
 
+  const pageWidth =
+    Math.min(
+      windowWidth -
+        36,
+      560
+    );
+
   const [
     charms,
     setCharms,
@@ -138,6 +106,16 @@ export default function ReadingMonthCustomizeSheet({
       ReadingMonthCharm[]
     >(
       value.charms
+    );
+
+  const [
+    activeCategory,
+    setActiveCategory,
+  ] =
+    useState<ReadingMonthCharmCategory>(
+      getDefaultReadingMonthCharmCategory(
+        monthIndex
+      )
     );
 
   const [
@@ -179,6 +157,11 @@ export default function ReadingMonthCustomizeSheet({
       false
     );
 
+  const pagerRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
   useEffect(
     () => {
       if (
@@ -187,9 +170,44 @@ export default function ReadingMonthCustomizeSheet({
         setCharms(
           value.charms
         );
+
+        const nextCategory =
+          getDefaultReadingMonthCharmCategory(
+            monthIndex
+          );
+
+        setActiveCategory(
+          nextCategory
+        );
+
+        const index =
+          READING_MONTH_CHARM_CATEGORIES.findIndex(
+            (
+              category
+            ) =>
+              category.id ===
+              nextCategory
+          );
+
+        requestAnimationFrame(
+          () => {
+            pagerRef.current?.scrollTo({
+              x:
+                Math.max(
+                  0,
+                  index
+                ) *
+                pageWidth,
+              animated:
+                false,
+            });
+          }
+        );
       }
     },
     [
+      monthIndex,
+      pageWidth,
       value.charms,
       visible,
     ]
@@ -216,7 +234,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             0,
           duration:
-            160,
+            180,
           easing:
             Easing.out(
               Easing.cubic
@@ -231,7 +249,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             1,
           duration:
-            130,
+            145,
           useNativeDriver:
             true,
         }
@@ -242,7 +260,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             1,
           duration:
-            145,
+            155,
           useNativeDriver:
             true,
         }
@@ -268,7 +286,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             18,
           duration:
-            120,
+            130,
           easing:
             Easing.in(
               Easing.cubic
@@ -283,7 +301,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             0,
           duration:
-            100,
+            105,
           useNativeDriver:
             true,
         }
@@ -294,7 +312,7 @@ export default function ReadingMonthCustomizeSheet({
           toValue:
             0,
           duration:
-            115,
+            120,
           useNativeDriver:
             true,
         }
@@ -333,7 +351,7 @@ export default function ReadingMonthCustomizeSheet({
               value
             ) =>
               value !==
-                item
+              item
           );
         }
 
@@ -364,6 +382,35 @@ export default function ReadingMonthCustomizeSheet({
     setCharms(
       []
     );
+  }
+
+  function chooseCategory(
+    category:
+      ReadingMonthCharmCategory
+  ) {
+    const index =
+      READING_MONTH_CHARM_CATEGORIES.findIndex(
+        (
+          item
+        ) =>
+          item.id ===
+          category
+      );
+
+    setActiveCategory(
+      category
+    );
+
+    pagerRef.current?.scrollTo({
+      x:
+        Math.max(
+          0,
+          index
+        ) *
+        pageWidth,
+      animated:
+        true,
+    });
   }
 
   async function save() {
@@ -402,13 +449,14 @@ export default function ReadingMonthCustomizeSheet({
             !saving &&
             !closing.current &&
             gesture.dy >
-              6 &&
+              8 &&
             Math.abs(
               gesture.dy
             ) >
               Math.abs(
                 gesture.dx
-              ),
+              ) *
+                1.25,
 
           onPanResponderMove: (
             _event,
@@ -429,9 +477,9 @@ export default function ReadingMonthCustomizeSheet({
             if (
               gesture.dy >
                 Math.max(
-                  80,
+                  90,
                   sheetHeight.current *
-                    0.18
+                    0.2
                 ) ||
               gesture.vy >
                 1.05
@@ -549,7 +597,7 @@ export default function ReadingMonthCustomizeSheet({
                 }
               >
                 <Ionicons
-                  name="color-palette-outline"
+                  name="sparkles-outline"
                   size={
                     21
                   }
@@ -577,27 +625,37 @@ export default function ReadingMonthCustomizeSheet({
                     styles.subtitle
                   }
                 >
-                  Pick up to eight colorful charms for this month.
+                  Build your month with up to eight stickers.
                 </Text>
               </View>
             </View>
 
             <View
               style={
-                styles.sectionHeader
+                styles.selectedHeader
               }
             >
-              <Text
-                style={
-                  styles.sectionLabel
-                }
-              >
-                MONTH CHARMS
-              </Text>
+              <View>
+                <Text
+                  style={
+                    styles.sectionLabel
+                  }
+                >
+                  YOUR CHARMS
+                </Text>
+
+                <Text
+                  style={
+                    styles.selectedHint
+                  }
+                >
+                  Tap a selected sticker to remove it.
+                </Text>
+              </View>
 
               <View
                 style={
-                  styles.sectionHeaderActions
+                  styles.selectedHeaderActions
                 }
               >
                 <Pressable
@@ -618,7 +676,7 @@ export default function ReadingMonthCustomizeSheet({
                     styles.clearAllButton,
                     (
                       charms.length ===
-                      0 ||
+                        0 ||
                       saving
                     ) &&
                       styles.clearAllButtonDisabled,
@@ -650,78 +708,356 @@ export default function ReadingMonthCustomizeSheet({
 
             <View
               style={
-                styles.charmGrid
+                styles.selectedTray
               }
             >
-              {CHARM_OPTIONS.map(
-                (
-                  option
-                ) => {
-                  const selected =
-                    charms.includes(
-                      option.value
-                    );
+              {charms.length >
+              0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={
+                    styles.selectedTrayContent
+                  }
+                >
+                  {charms.map(
+                    (
+                      charm
+                    ) => (
+                      <Pressable
+                        key={
+                          charm
+                        }
+                        onPress={() =>
+                          toggleCharm(
+                            charm
+                          )
+                        }
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.selectedCharm,
+                          pressed &&
+                            styles.pressed,
+                        ]}
+                      >
+                        <ReadingMonthCharmArtwork
+                          charm={
+                            charm
+                          }
+                          size={
+                            48
+                          }
+                        />
 
-                  const disabled =
-                    !selected &&
-                    charms.length >=
-                      8;
+                        <View
+                          style={
+                            styles.removeBadge
+                          }
+                        >
+                          <Ionicons
+                            name="close"
+                            size={
+                              10
+                            }
+                            color={
+                              colors.background
+                            }
+                          />
+                        </View>
+                      </Pressable>
+                    )
+                  )}
+                </ScrollView>
+              ) : (
+                <View
+                  style={
+                    styles.emptySelected
+                  }
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={
+                      17
+                    }
+                    color={
+                      colors.mutedText
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptySelectedText
+                    }
+                  >
+                    Pick stickers below to decorate this month.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.categoryTabs
+              }
+            >
+              {READING_MONTH_CHARM_CATEGORIES.map(
+                (
+                  category
+                ) => {
+                  const active =
+                    category.id ===
+                    activeCategory;
 
                   return (
                     <Pressable
                       key={
-                        option.value
-                      }
-                      disabled={
-                        disabled
+                        category.id
                       }
                       onPress={() =>
-                        toggleCharm(
-                          option.value
+                        chooseCategory(
+                          category.id
                         )
                       }
                       style={({
                         pressed,
                       }) => [
-                        styles.charmChoice,
-                        selected &&
-                          styles.charmChoiceSelected,
-                        disabled &&
-                          styles.charmChoiceDisabled,
+                        styles.categoryTab,
+                        active &&
+                          styles.categoryTabActive,
                         pressed &&
-                          !disabled &&
                           styles.pressed,
                       ]}
                     >
-                      <View
+                      <Text
                         style={
-                          styles.charmArtworkWrap
+                          styles.categoryEmoji
                         }
                       >
-                        <ReadingMonthCharmArtwork
-                          charm={
-                            option.value
-                          }
-                          size={
-                            46
-                          }
-                        />
-                      </View>
+                        {
+                          category.emoji
+                        }
+                      </Text>
 
                       <Text
                         style={[
-                          styles.charmLabel,
-                          selected &&
-                            styles.charmLabelSelected,
+                          styles.categoryLabel,
+                          active &&
+                            styles.categoryLabelActive,
                         ]}
                       >
                         {
-                          option.label
+                          category.label
                         }
                       </Text>
                     </Pressable>
                   );
                 }
+              )}
+            </ScrollView>
+
+            <View
+              style={[
+                styles.pagerFrame,
+                {
+                  width:
+                    pageWidth,
+                },
+              ]}
+            >
+              <ScrollView
+                ref={
+                  pagerRef
+                }
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={
+                  false
+                }
+                decelerationRate="fast"
+                scrollEventThrottle={
+                  16
+                }
+                onMomentumScrollEnd={(
+                  event
+                ) => {
+                  const page =
+                    Math.round(
+                      event.nativeEvent.contentOffset.x /
+                        pageWidth
+                    );
+
+                  const category =
+                    READING_MONTH_CHARM_CATEGORIES[
+                      page
+                    ];
+
+                  if (
+                    category
+                  ) {
+                    setActiveCategory(
+                      category.id
+                    );
+                  }
+                }}
+              >
+                {READING_MONTH_CHARM_CATEGORIES.map(
+                  (
+                    category
+                  ) => {
+                    const options =
+                      READING_MONTH_CHARM_OPTIONS.filter(
+                        (
+                          option
+                        ) =>
+                          option.category ===
+                          category.id
+                      );
+
+                    return (
+                      <View
+                        key={
+                          category.id
+                        }
+                        style={[
+                          styles.stickerPage,
+                          {
+                            width:
+                              pageWidth,
+                          },
+                        ]}
+                      >
+                        {options.map(
+                          (
+                            option
+                          ) => {
+                            const selected =
+                              charms.includes(
+                                option.id
+                              );
+
+                            const disabled =
+                              !selected &&
+                              charms.length >=
+                                8;
+
+                            return (
+                              <Pressable
+                                key={
+                                  option.id
+                                }
+                                disabled={
+                                  disabled
+                                }
+                                onPress={() =>
+                                  toggleCharm(
+                                    option.id
+                                  )
+                                }
+                                accessibilityRole="button"
+                                accessibilityLabel={
+                                  option.label
+                                }
+                                accessibilityState={{
+                                  selected,
+                                  disabled,
+                                }}
+                                style={({
+                                  pressed,
+                                }) => [
+                                  styles.stickerChoice,
+                                  disabled &&
+                                    styles.stickerChoiceDisabled,
+                                  pressed &&
+                                    !disabled &&
+                                    styles.stickerChoicePressed,
+                                ]}
+                              >
+                                <View
+                                  style={
+                                    styles.stickerArtwork
+                                  }
+                                >
+                                  <ReadingMonthCharmArtwork
+                                    charm={
+                                      option.id
+                                    }
+                                    size={
+                                      52
+                                    }
+                                  />
+
+                                  {selected ? (
+                                    <View
+                                      style={
+                                        styles.selectedBadge
+                                      }
+                                    >
+                                      <Ionicons
+                                        name="checkmark"
+                                        size={
+                                          11
+                                        }
+                                        color={
+                                          colors.background
+                                        }
+                                      />
+                                    </View>
+                                  ) : null}
+                                </View>
+
+                                <Text
+                                  numberOfLines={
+                                    1
+                                  }
+                                  style={[
+                                    styles.stickerLabel,
+                                    selected &&
+                                      styles.stickerLabelSelected,
+                                  ]}
+                                >
+                                  {
+                                    option.label
+                                  }
+                                </Text>
+                              </Pressable>
+                            );
+                          }
+                        )}
+                      </View>
+                    );
+                  }
+                )}
+              </ScrollView>
+            </View>
+
+            <View
+              style={
+                styles.pagerDots
+              }
+            >
+              {READING_MONTH_CHARM_CATEGORIES.map(
+                (
+                  category
+                ) => (
+                  <View
+                    key={
+                      category.id
+                    }
+                    style={[
+                      styles.pagerDot,
+                      category.id ===
+                        activeCategory &&
+                        styles.pagerDotActive,
+                    ]}
+                  />
+                )
               )}
             </View>
 
@@ -730,7 +1066,7 @@ export default function ReadingMonthCustomizeSheet({
                 styles.helperText
               }
             >
-              Charms decorate the page around your Reading in Motion view and can change every month.
+              Swipe left and right through sticker packs. October opens Halloween, December opens Christmas, and July opens celebrations.
             </Text>
 
             <View
@@ -816,12 +1152,14 @@ function createStyles(
     sheet: {
       width:
         '100%',
+      maxHeight:
+        '91%',
       backgroundColor:
         colors.surface,
       borderTopLeftRadius:
-        24,
+        26,
       borderTopRightRadius:
-        24,
+        26,
       paddingHorizontal:
         18,
       paddingTop:
@@ -839,7 +1177,7 @@ function createStyles(
       alignSelf:
         'center',
       marginBottom:
-        15,
+        14,
     },
     header: {
       flexDirection:
@@ -849,7 +1187,7 @@ function createStyles(
       gap:
         11,
       marginBottom:
-        19,
+        16,
     },
     headerIcon: {
       width:
@@ -889,17 +1227,37 @@ function createStyles(
       marginTop:
         2,
     },
-    sectionHeader: {
+    selectedHeader: {
       flexDirection:
         'row',
+      alignItems:
+        'flex-end',
       justifyContent:
         'space-between',
-      alignItems:
-        'center',
-      marginBottom:
-        9,
+      gap:
+        12,
     },
-    sectionHeaderActions: {
+    sectionLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9,
+      letterSpacing:
+        1,
+    },
+    selectedHint: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        9,
+      marginTop:
+        2,
+    },
+    selectedHeaderActions: {
       flexDirection:
         'row',
       alignItems:
@@ -925,16 +1283,6 @@ function createStyles(
       fontSize:
         9.5,
     },
-    sectionLabel: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        9,
-      letterSpacing:
-        1,
-    },
     counter: {
       color:
         colors.gold,
@@ -943,70 +1291,254 @@ function createStyles(
       fontSize:
         10,
     },
-    charmGrid: {
+    selectedTray: {
+      height:
+        66,
+      justifyContent:
+        'center',
+      marginTop:
+        7,
+      marginBottom:
+        10,
+    },
+    selectedTrayContent: {
+      alignItems:
+        'center',
+      gap:
+        8,
+      paddingHorizontal:
+        2,
+    },
+    selectedCharm: {
+      width:
+        56,
+      height:
+        58,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    removeBadge: {
+      position:
+        'absolute',
+      right:
+        1,
+      top:
+        1,
+      width:
+        17,
+      height:
+        17,
+      borderRadius:
+        9,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    emptySelected: {
+      minHeight:
+        54,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        7,
+      borderTopWidth:
+        1,
+      borderBottomWidth:
+        1,
+      borderColor:
+        colors.border,
+    },
+    emptySelectedText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10,
+    },
+    categoryTabs: {
+      alignItems:
+        'center',
+      gap:
+        7,
+      paddingRight:
+        8,
+      paddingBottom:
+        8,
+    },
+    categoryTab: {
+      minHeight:
+        34,
+      borderRadius:
+        17,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      paddingHorizontal:
+        10,
+      backgroundColor:
+        colors.background,
+    },
+    categoryTabActive: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
+    categoryEmoji: {
+      fontSize:
+        15,
+    },
+    categoryLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+    },
+    categoryLabelActive: {
+      color:
+        colors.gold,
+    },
+    pagerFrame: {
+      alignSelf:
+        'center',
+      overflow:
+        'hidden',
+    },
+    stickerPage: {
+      minHeight:
+        178,
       flexDirection:
         'row',
       flexWrap:
         'wrap',
-      gap:
-        8,
+      alignContent:
+        'center',
+      justifyContent:
+        'flex-start',
+      paddingVertical:
+        5,
     },
-    charmChoice: {
+    stickerChoice: {
       width:
-        '23%',
-      minHeight:
+        '25%',
+      height:
         86,
       alignItems:
         'center',
       justifyContent:
         'center',
-      paddingVertical:
-        7,
-      opacity:
-        0.86,
+      paddingHorizontal:
+        2,
     },
-    charmChoiceSelected: {
-      opacity:
-        1,
-    },
-    charmChoiceDisabled: {
+    stickerChoiceDisabled: {
       opacity:
         0.28,
     },
-    charmArtworkWrap: {
+    stickerChoicePressed: {
+      transform: [
+        {
+          scale:
+            0.93,
+        },
+      ],
+    },
+    stickerArtwork: {
       width:
-        54,
+        58,
       height:
-        54,
+        58,
       alignItems:
         'center',
       justifyContent:
         'center',
-      marginBottom:
-        6,
     },
-    charmLabel: {
+    selectedBadge: {
+      position:
+        'absolute',
+      right:
+        -1,
+      top:
+        1,
+      width:
+        18,
+      height:
+        18,
+      borderRadius:
+        9,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    stickerLabel: {
+      maxWidth:
+        76,
       color:
         colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize:
-        9.5,
+        9,
       textAlign:
         'center',
-      paddingBottom:
-        3,
-      borderBottomWidth:
+      marginTop:
         1,
-      borderBottomColor:
-        'transparent',
     },
-    charmLabelSelected: {
+    stickerLabelSelected: {
       color:
         colors.gold,
       fontFamily:
         'Inter_700Bold',
-      borderBottomColor:
+    },
+    pagerDots: {
+      height:
+        12,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        4,
+      marginTop:
+        1,
+    },
+    pagerDot: {
+      width:
+        4,
+      height:
+        4,
+      borderRadius:
+        2,
+      backgroundColor:
+        colors.border,
+    },
+    pagerDotActive: {
+      width:
+        12,
+      backgroundColor:
         colors.gold,
     },
     helperText: {
@@ -1015,11 +1547,13 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        10.5,
+        9.5,
       lineHeight:
-        15,
+        14,
+      textAlign:
+        'center',
       marginTop:
-        13,
+        5,
     },
     actions: {
       flexDirection:
@@ -1027,7 +1561,7 @@ function createStyles(
       gap:
         9,
       marginTop:
-        17,
+        13,
     },
     cancelButton: {
       flex:
