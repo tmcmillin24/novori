@@ -2423,24 +2423,15 @@ export default function LibraryScreen() {
                     styles.pressed,
                 ]}
               >
-                {savingCheckin ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.gold
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name="pencil-outline"
-                    size={
-                      14
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                )}
+                <Ionicons
+                  name="pencil-outline"
+                  size={
+                    14
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
 
                 <Text
                   style={
