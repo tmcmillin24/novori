@@ -56,9 +56,6 @@ const ORBIT_EDGE_GUTTER =
 const MAX_ORBIT_SIZE =
   460;
 
-const COMPACT_ORBIT_MAX =
-  276;
-
 const CHARM_ROTATIONS = [
   '-8deg',
   '5deg',
@@ -234,31 +231,18 @@ export default function ReadingActivityScreen() {
       MAX_ORBIT_SIZE
     );
 
-  const compactOrbitSize =
-    Math.min(
-      fullOrbitSize *
-        0.74,
-      COMPACT_ORBIT_MAX
-    );
-
   const activeOrbitSize =
-    selectedDateKey
-      ? compactOrbitSize
-      : fullOrbitSize;
+    fullOrbitSize;
 
   const orbitCenter =
     activeOrbitSize /
     2;
 
   const dayMarkerSize =
-    selectedDateKey
-      ? 20
-      : 24;
+    24;
 
   const dayTouchSize =
-    selectedDateKey
-      ? 28
-      : 32;
+    32;
 
   const orbitRadius =
     activeOrbitSize /
@@ -947,6 +931,8 @@ export default function ReadingActivityScreen() {
                 style={[
                   styles.charmScatter,
                   styles.charmScatterTop,
+                  selectedDateKey &&
+                    styles.charmScatterSelected,
                 ]}
               >
                 {personalization.charms
@@ -1003,6 +989,8 @@ export default function ReadingActivityScreen() {
               <View
                 style={[
                   styles.orbitStage,
+                  selectedDateKey &&
+                    styles.orbitStageSelected,
                   {
                     width:
                       activeOrbitSize,
@@ -1147,8 +1135,6 @@ export default function ReadingActivityScreen() {
                           <Text
                             style={[
                               styles.orbitDayNumber,
-                              selectedDateKey &&
-                                styles.orbitDayNumberCompact,
                               dot.checked &&
                                 styles.orbitDayNumberRead,
                               selected &&
@@ -1219,6 +1205,8 @@ export default function ReadingActivityScreen() {
                   style={[
                     styles.charmScatter,
                     styles.charmScatterBottom,
+                    selectedDateKey &&
+                      styles.charmScatterSelected,
                   ]}
                 >
                   {personalization.charms
@@ -1274,69 +1262,6 @@ export default function ReadingActivityScreen() {
                 </View>
               ) : null}
 
-              <Pressable
-                disabled
-                accessibilityRole="button"
-                accessibilityState={{
-                  disabled:
-                    true,
-                }}
-                style={
-                  styles.monthlyRecapButton
-                }
-              >
-                <View
-                  style={
-                    styles.monthlyRecapIcon
-                  }
-                >
-                  <Ionicons
-                    name="sparkles-outline"
-                    size={
-                      18
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.monthlyRecapCopy
-                  }
-                >
-                  <Text
-                    style={
-                      styles.monthlyRecapTitle
-                    }
-                  >
-                    View Monthly Recap
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.monthlyRecapSubtitle
-                    }
-                  >
-                    Your month, wrapped up in one place.
-                  </Text>
-                </View>
-
-                <View
-                  style={
-                    styles.monthlyRecapSoon
-                  }
-                >
-                  <Text
-                    style={
-                      styles.monthlyRecapSoonText
-                    }
-                  >
-                    Soon
-                  </Text>
-                </View>
-              </Pressable>
             </View>
 
             {selectedDateKey &&
@@ -1995,6 +1920,12 @@ function createStyles(
       marginBottom:
         6,
     },
+    orbitStageSelected: {
+      marginTop:
+        7,
+      marginBottom:
+        0,
+    },
     orbitHaloOuter: {
       position:
         'absolute',
@@ -2073,12 +2004,6 @@ function createStyles(
       lineHeight:
         10,
     },
-    orbitDayNumberCompact: {
-      fontSize:
-        7.5,
-      lineHeight:
-        9,
-    },
     orbitDayNumberRead: {
       color:
         colors.background,
@@ -2135,6 +2060,14 @@ function createStyles(
       marginBottom:
         5,
     },
+    charmScatterSelected: {
+      minHeight:
+        54,
+      marginTop:
+        0,
+      marginBottom:
+        0,
+    },
     charmScatterItem: {
       width:
         64,
@@ -2144,92 +2077,6 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-    },
-    monthlyRecapButton: {
-      minHeight:
-        62,
-      marginTop:
-        12,
-      borderRadius:
-        17,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        11,
-      paddingHorizontal:
-        13,
-      opacity:
-        0.88,
-    },
-    monthlyRecapIcon: {
-      width:
-        38,
-      height:
-        38,
-      borderRadius:
-        12,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-    monthlyRecapCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
-    },
-    monthlyRecapTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        11.5,
-    },
-    monthlyRecapSubtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        9.5,
-      marginTop:
-        2,
-    },
-    monthlyRecapSoon: {
-      borderRadius:
-        999,
-      borderWidth:
-        1,
-      borderColor:
-        colors.gold,
-      paddingHorizontal:
-        8,
-      paddingVertical:
-        4,
-    },
-    monthlyRecapSoonText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        8,
-      letterSpacing:
-        0.4,
-      textTransform:
-        'uppercase',
     },
     sectionIntro: {
       flexDirection:
@@ -2267,7 +2114,7 @@ function createStyles(
     },
     daySectionIntro: {
       marginTop:
-        30,
+        14,
     },
 
     dayDetailCard: {
