@@ -4,31 +4,47 @@ import {
   supabase,
 } from './supabase';
 
-export type ReadingShelfDecor =
+export type ReadingMonthCharm =
   | 'plant'
+  | 'sun'
   | 'mug'
-  | 'candle'
   | 'moon'
   | 'headphones'
-  | 'flowers'
+  | 'flower'
   | 'cat'
   | 'globe';
 
 export type ReadingMonthPersonalization = {
-  decor:
-    ReadingShelfDecor[];
+  charms:
+    ReadingMonthCharm[];
 };
 
 const DEFAULT_PERSONALIZATION:
   ReadingMonthPersonalization = {
-    decor:
+    charms:
       [],
   };
 
-const LEGACY_ICON_MAP: Record<
+const LEGACY_VALUE_MAP: Record<
   string,
-  ReadingShelfDecor
+  ReadingMonthCharm
 > = {
+  plant:
+    'plant',
+  mug:
+    'mug',
+  candle:
+    'sun',
+  moon:
+    'moon',
+  headphones:
+    'headphones',
+  flowers:
+    'flower',
+  cat:
+    'cat',
+  globe:
+    'globe',
   'coffee-outline':
     'mug',
   'moon-outline':
@@ -40,21 +56,21 @@ const LEGACY_ICON_MAP: Record<
   'leaf-outline':
     'plant',
   'sparkles-outline':
-    'flowers',
+    'flower',
   'planet-outline':
     'globe',
   'flame-outline':
-    'candle',
+    'sun',
 };
 
-const VALID_DECOR =
-  new Set<ReadingShelfDecor>([
+const VALID_CHARMS =
+  new Set<ReadingMonthCharm>([
     'plant',
+    'sun',
     'mug',
-    'candle',
     'moon',
     'headphones',
-    'flowers',
+    'flower',
     'cat',
     'globe',
   ]);
@@ -117,42 +133,48 @@ export async function getReadingMonthPersonalization(
         raw
       );
 
-    const savedDecor =
+    const savedValues =
       Array.isArray(
-        parsed?.decor
+        parsed?.charms
       )
+        ? parsed.charms
+        : Array.isArray(
+            parsed?.decor
+          )
         ? parsed.decor
         : Array.isArray(
             parsed?.icons
           )
-        ? parsed.icons.map(
-            (
-              value:
-                unknown
-            ) =>
-              typeof value ===
-                'string'
-                ? LEGACY_ICON_MAP[
-                    value
-                  ]
-                : null
-          )
+        ? parsed.icons
         : [];
 
-    const decor =
+    const charms =
       Array.from(
         new Set(
-          savedDecor.filter(
-            (
-              value:
-                unknown
-            ): value is ReadingShelfDecor =>
-              typeof value ===
-                'string' &&
-              VALID_DECOR.has(
-                value as ReadingShelfDecor
-              )
-          )
+          savedValues
+            .map(
+              (
+                value:
+                  unknown
+              ) =>
+                typeof value ===
+                  'string'
+                  ? LEGACY_VALUE_MAP[
+                      value
+                    ] ??
+                    value
+                  : null
+            )
+            .filter(
+              (
+                value
+              ): value is ReadingMonthCharm =>
+                typeof value ===
+                  'string' &&
+                VALID_CHARMS.has(
+                  value as ReadingMonthCharm
+                )
+            )
         )
       ).slice(
         0,
@@ -160,7 +182,7 @@ export async function getReadingMonthPersonalization(
       );
 
     return {
-      decor,
+      charms,
     };
   } catch (
     error
@@ -192,17 +214,17 @@ export async function saveReadingMonthPersonalization(
 
   const payload:
     ReadingMonthPersonalization = {
-      decor:
+      charms:
         Array.from(
           new Set(
-            value.decor
+            value.charms
           )
         )
           .filter(
             (
               item
             ) =>
-              VALID_DECOR.has(
+              VALID_CHARMS.has(
                 item
               )
           )
