@@ -37,7 +37,6 @@ import {
 } from '../context/theme-context';
 import {
   getReadingActivityMonth,
-  ReadingActivityBook,
   ReadingActivityDay,
   ReadingActivityMonth,
 } from '../lib/reading-activity';
@@ -850,28 +849,6 @@ export default function ReadingActivityScreen() {
     });
   }
 
-  function openBook(
-    book:
-      ReadingActivityBook
-  ) {
-    if (
-      !book.googleBookId
-    ) {
-      return;
-    }
-
-    router.push({
-      pathname:
-        '/book/[id]',
-      params: {
-        id:
-          book.googleBookId,
-        source:
-          'library',
-      },
-    });
-  }
-
   async function saveMonthPersonalization(
     value:
       ReadingMonthPersonalization
@@ -1453,60 +1430,91 @@ export default function ReadingActivityScreen() {
                 >
                   {selectedDateKey &&
                   selectedDay ? (
-                    <>
-                      <View
-                        style={
-                          styles.orbitCenterStatus
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.orbitCenterDate
-                        }
-                      >
-                        {getOrbitDayLabel(
-                          selectedDateKey
-                        )}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.orbitCenterTitle
-                        }
-                        numberOfLines={
-                          2
-                        }
-                      >
+                    selectedDayBooks[0] ? (
+                      <>
                         {selectedDayBooks[0]
-                          ?.title ??
-                          (selectedDay.checkedIn
-                            ? 'Reading day'
-                            : hasSelectedActivity
-                            ? 'Reading activity'
-                            : 'Quiet day')}
-                      </Text>
+                          .coverUrl ? (
+                          <ExpoImage
+                            source={
+                              selectedDayBooks[0]
+                                .coverUrl
+                            }
+                            style={
+                              styles.orbitCenterCover
+                            }
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            transition={
+                              0
+                            }
+                            recyclingKey={
+                              selectedDayBooks[0]
+                                .coverUrl
+                            }
+                          />
+                        ) : (
+                          <View
+                            style={
+                              styles.orbitCenterCoverPlaceholder
+                            }
+                          >
+                            <Ionicons
+                              name="book-outline"
+                              size={
+                                15
+                              }
+                              color={
+                                colors.gold
+                              }
+                            />
+                          </View>
+                        )}
 
-                      <Text
-                        style={
-                          styles.orbitCenterMeta
-                        }
-                      >
-                        {selectedDay.checkedIn
-                          ? 'Reading day'
-                          : hasSelectedActivity
-                          ? 'Activity logged'
-                          : 'No reading logged'}
-                      </Text>
+                        <Text
+                          style={
+                            styles.orbitCenterBookTitle
+                          }
+                          numberOfLines={
+                            2
+                          }
+                        >
+                          {
+                            selectedDayBooks[0]
+                              .title
+                          }
+                        </Text>
 
-                      <Text
-                        style={
-                          styles.orbitHint
-                        }
-                      >
-                        TAP CENTER TO CLOSE
-                      </Text>
-                    </>
+                        <Text
+                          style={
+                            styles.orbitCenterDate
+                          }
+                        >
+                          {getOrbitDayLabel(
+                            selectedDateKey
+                          )}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text
+                          style={
+                            styles.orbitCenterTitle
+                          }
+                        >
+                          No book logged
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.orbitCenterDate
+                          }
+                        >
+                          {getOrbitDayLabel(
+                            selectedDateKey
+                          )}
+                        </Text>
+                      </>
+                    )
                   ) : (
                     <>
                       <Text
@@ -1586,285 +1594,6 @@ export default function ReadingActivityScreen() {
 
             </View>
 
-            {selectedDateKey &&
-            selectedDay ? (
-              <View>
-            <View
-              style={
-                styles.dayMemorySection
-              }
-            >
-              <View
-                style={
-                  styles.dayMemoryEyebrowRow
-                }
-              >
-                <Text
-                  style={
-                    styles.sectionEyebrow
-                  }
-                >
-                  ON THIS DAY
-                </Text>
-
-                <View
-                  style={
-                    styles.dayMemoryEyebrowLine
-                  }
-                />
-              </View>
-
-              <View
-                style={
-                  styles.dayDetailHeader
-                }
-              >
-                <View
-                  style={
-                    styles.dayDetailCopy
-                  }
-                >
-                  <Text
-                    style={
-                      styles.dayDetailTitle
-                    }
-                  >
-                    {getDayTitle(
-                      selectedDateKey
-                    )}
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.dayDetailSubtitle
-                    }
-                  >
-                    {selectedDay.checkedIn
-                      ? 'A day you showed up for your reading.'
-                      : hasSelectedActivity
-                      ? 'A little piece of your reading history.'
-                      : 'A quiet day in your reading story.'}
-                  </Text>
-                </View>
-
-                {selectedDay.checkedIn ? (
-                  <View
-                    style={
-                      styles.readBadge
-                    }
-                  >
-                    <View
-                      style={
-                        styles.readBadgeDot
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.readBadgeText
-                      }
-                    >
-                      Reading day
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <View
-                style={
-                  styles.dayMemoryRule
-                }
-              />
-
-              {!hasSelectedActivity ? (
-                <View
-                  style={
-                    styles.emptyDay
-                  }
-                >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      20
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.emptyDayCopy
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.emptyDayTitle
-                      }
-                    >
-                      Nothing logged this day
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.emptyDayText
-                      }
-                    >
-                      Reading activity and journey moments will collect here over time.
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <>
-                  {selectedDayBooks.length >
-                  0 ? (
-                    <View
-                      style={
-                        styles.detailSection
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.detailLabel
-                        }
-                      >
-                        BOOKS
-                      </Text>
-
-                      <View
-                        style={
-                          styles.bookList
-                        }
-                      >
-                        {selectedDayBooks.map(
-                          (
-                            book,
-                            index
-                          ) => (
-                            <ActivityBookRow
-                              key={
-                                book.userBookId ??
-                                book.googleBookId ??
-                                `${book.title}-${index}`
-                              }
-                              book={
-                                book
-                              }
-                              colors={
-                                colors
-                              }
-                              styles={
-                                styles
-                              }
-                              onPress={() =>
-                                openBook(
-                                  book
-                                )
-                              }
-                            />
-                          )
-                        )}
-                      </View>
-                    </View>
-                  ) : null}
-
-                  {selectedDay.journeyEvents.length >
-                  0 ? (
-                    <View
-                      style={
-                        styles.detailSection
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.detailLabel
-                        }
-                      >
-                        JOURNEY MOMENTS
-                      </Text>
-
-                      <View
-                        style={
-                          styles.milestoneList
-                        }
-                      >
-                        {selectedDay.journeyEvents.map(
-                          (
-                            event
-                          ) => (
-                            <View
-                              key={
-                                event.id
-                              }
-                              style={
-                                styles.milestoneRow
-                              }
-                            >
-                              <View
-                                style={
-                                  styles.milestoneIcon
-                                }
-                              >
-                                <Ionicons
-                                  name={
-                                    event.type ===
-                                    'finished'
-                                      ? 'checkmark'
-                                      : 'flag-outline'
-                                  }
-                                  size={
-                                    15
-                                  }
-                                  color={
-                                    colors.gold
-                                  }
-                                />
-                              </View>
-
-                              <View
-                                style={
-                                  styles.milestoneCopy
-                                }
-                              >
-                                <Text
-                                  style={
-                                    styles.milestoneTitle
-                                  }
-                                >
-                                  {event.type ===
-                                  'finished'
-                                    ? 'Finished'
-                                    : 'Marked DNF'}
-                                </Text>
-
-                                {event.book ? (
-                                  <Text
-                                    style={
-                                      styles.milestoneBook
-                                    }
-                                    numberOfLines={
-                                      1
-                                    }
-                                  >
-                                    {
-                                      event.book
-                                        .title
-                                    }
-                                  </Text>
-                                ) : null}
-                              </View>
-                            </View>
-                          )
-                        )}
-                      </View>
-                    </View>
-                  ) : null}
-                </>
-              )}
-            </View>
-
-              </View>
-            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -1896,130 +1625,6 @@ export default function ReadingActivityScreen() {
         }
       />
     </>
-  );
-}
-
-function ActivityBookRow({
-  book,
-  colors,
-  styles,
-  onPress,
-}: {
-  book:
-    ReadingActivityBook;
-  colors:
-    NovoriColors;
-  styles:
-    ReturnType<
-      typeof createStyles
-    >;
-  onPress:
-    () => void;
-}) {
-  const canOpen =
-    Boolean(
-      book.googleBookId
-    );
-
-  return (
-    <Pressable
-      disabled={
-        !canOpen
-      }
-      onPress={
-        onPress
-      }
-      style={({
-        pressed,
-      }) => [
-        styles.bookRow,
-        pressed &&
-          canOpen &&
-          styles.pressed,
-      ]}
-    >
-      {book.coverUrl ? (
-        <ExpoImage
-          source={
-            book.coverUrl
-          }
-          style={
-            styles.bookCover
-          }
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={
-            0
-          }
-          recyclingKey={
-            book.coverUrl
-          }
-        />
-      ) : (
-        <View
-          style={
-            styles.bookCoverPlaceholder
-          }
-        >
-          <Ionicons
-            name="book-outline"
-            size={
-              18
-            }
-            color={
-              colors.gold
-            }
-          />
-        </View>
-      )}
-
-      <View
-        style={
-          styles.bookCopy
-        }
-      >
-        <Text
-          style={
-            styles.bookTitle
-          }
-          numberOfLines={
-            2
-          }
-        >
-          {
-            book.title
-          }
-        </Text>
-
-        {book.authors.length >
-        0 ? (
-          <Text
-            style={
-              styles.bookAuthor
-            }
-            numberOfLines={
-              1
-            }
-          >
-            {book.authors.join(
-              ', '
-            )}
-          </Text>
-        ) : null}
-      </View>
-
-      {canOpen ? (
-        <Ionicons
-          name="chevron-forward"
-          size={
-            16
-          }
-          color={
-            colors.mutedText
-          }
-        />
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -2318,31 +1923,61 @@ function createStyles(
       paddingHorizontal:
         10,
     },
-    orbitCenterStatus: {
+    orbitCenterCover: {
       width:
-        6,
+        32,
       height:
-        6,
+        48,
       borderRadius:
-        3,
+        5,
       backgroundColor:
-        colors.gold,
+        colors.elevated,
       marginBottom:
-        7,
+        5,
+    },
+    orbitCenterCoverPlaceholder: {
+      width:
+        32,
+      height:
+        48,
+      borderRadius:
+        5,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginBottom:
+        5,
+    },
+    orbitCenterBookTitle: {
+      maxWidth:
+        '94%',
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+      lineHeight:
+        12,
+      textAlign:
+        'center',
     },
     orbitCenterDate: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
       fontSize:
         8,
-      letterSpacing:
-        1,
-      marginBottom:
-        5,
-      textTransform:
-        'uppercase',
+      marginTop:
+        3,
       textAlign:
         'center',
     },
@@ -2401,330 +2036,6 @@ function createStyles(
         'center',
       zIndex:
         4,
-    },
-    sectionIntro: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'space-between',
-      gap:
-        12,
-      marginBottom:
-        9,
-      paddingHorizontal:
-        2,
-    },
-    sectionEyebrow: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        8.5,
-      letterSpacing:
-        1.2,
-    },
-    sectionIntroTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_600SemiBold',
-      fontSize:
-        17,
-      marginTop:
-        2,
-    },
-    dayMemorySection: {
-      marginTop:
-        20,
-      paddingHorizontal:
-        2,
-      paddingBottom:
-        6,
-    },
-    dayMemoryEyebrowRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        9,
-      marginBottom:
-        7,
-    },
-    dayMemoryEyebrowLine: {
-      flex:
-        1,
-      height:
-        1,
-      backgroundColor:
-        colors.gold,
-      opacity:
-        0.3,
-    },
-    dayDetailHeader: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-start',
-      justifyContent:
-        'space-between',
-      gap:
-        12,
-    },
-    dayDetailCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
-    },
-    dayDetailTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        23,
-      lineHeight:
-        29,
-    },
-    dayDetailSubtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        11,
-      lineHeight:
-        16,
-      marginTop:
-        3,
-    },
-    readBadge: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        6,
-      paddingHorizontal:
-        9,
-      paddingVertical:
-        6,
-      borderRadius:
-        999,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      marginTop:
-        2,
-    },
-    readBadgeDot: {
-      width:
-        6,
-      height:
-        6,
-      borderRadius:
-        3,
-      backgroundColor:
-        colors.gold,
-    },
-    readBadgeText: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        9.5,
-    },
-    dayMemoryRule: {
-      height:
-        1,
-      backgroundColor:
-        colors.border,
-      marginTop:
-        14,
-    },
-    detailSection: {
-      marginTop:
-        18,
-    },
-    detailLabel: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        8.5,
-      letterSpacing:
-        1.15,
-      marginBottom:
-        7,
-    },
-    bookList: {
-      gap:
-        0,
-    },
-    bookRow: {
-      minHeight:
-        76,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        11,
-      paddingVertical:
-        8,
-      borderBottomWidth:
-        1,
-      borderBottomColor:
-        colors.border,
-    },
-    bookCover: {
-      width:
-        36,
-      height:
-        54,
-      borderRadius:
-        6,
-      backgroundColor:
-        colors.elevated,
-    },
-    bookCoverPlaceholder: {
-      width:
-        36,
-      height:
-        54,
-      borderRadius:
-        6,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-    bookCopy: {
-      flex:
-        1,
-      minWidth:
-        0,
-    },
-    bookTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12,
-      lineHeight:
-        16,
-    },
-    bookAuthor: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        10.5,
-      marginTop:
-        3,
-    },
-    milestoneList: {
-      gap:
-        0,
-    },
-    milestoneRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        10,
-      paddingVertical:
-        10,
-      borderBottomWidth:
-        1,
-      borderBottomColor:
-        colors.border,
-    },
-    milestoneIcon: {
-      width:
-        30,
-      height:
-        30,
-      borderRadius:
-        15,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-    milestoneCopy: {
-      flex:
-        1,
-    },
-    milestoneTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        11.5,
-    },
-    milestoneBook: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        10.5,
-      marginTop:
-        2,
-    },
-    emptyDay: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-start',
-      gap:
-        11,
-      paddingVertical:
-        17,
-    },
-    emptyDayCopy: {
-      flex:
-        1,
-    },
-    emptyDayTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12,
-    },
-    emptyDayText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        10.5,
-      lineHeight:
-        15,
-      marginTop:
-        3,
-      maxWidth:
-        280,
     },
     loadingCard: {
       minHeight:
