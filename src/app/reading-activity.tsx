@@ -16,6 +16,8 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -191,6 +193,23 @@ export default function ReadingActivityScreen() {
   const shouldAutoScrollRef =
     useRef(
       false
+    );
+
+  const currentScrollYRef =
+    useRef(
+      0
+    );
+
+  const scrollAnimationValue =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const scrollAnimationListenerRef =
+    useRef<string | null>(
+      null
     );
 
   const {
@@ -619,6 +638,21 @@ export default function ReadingActivityScreen() {
     );
   }
 
+  function stopDayScrollAnimation() {
+    scrollAnimationValue.stopAnimation();
+
+    if (
+      scrollAnimationListenerRef.current
+    ) {
+      scrollAnimationValue.removeListener(
+        scrollAnimationListenerRef.current
+      );
+
+      scrollAnimationListenerRef.current =
+        null;
+    }
+  }
+
   function scrollToDayDetails(
     y:
       number
@@ -633,18 +667,68 @@ export default function ReadingActivityScreen() {
         )
       );
 
-    requestAnimationFrame(
-      () => {
-        scrollViewRef.current?.scrollTo({
-          y:
-            Math.max(
-              0,
-              y -
-                revealOffset
-            ),
-          animated:
-            true,
-        });
+    const targetY =
+      Math.max(
+        0,
+        y -
+          revealOffset
+      );
+
+    stopDayScrollAnimation();
+
+    scrollAnimationValue.setValue(
+      currentScrollYRef.current
+    );
+
+    scrollAnimationListenerRef.current =
+      scrollAnimationValue.addListener(
+        ({
+          value,
+        }) => {
+          scrollViewRef.current?.scrollTo({
+            y:
+              value,
+            animated:
+              false,
+          });
+        }
+      );
+
+    Animated.timing(
+      scrollAnimationValue,
+      {
+        toValue:
+          targetY,
+        duration:
+          440,
+        easing:
+          Easing.inOut(
+            Easing.cubic
+          ),
+        useNativeDriver:
+          false,
+      }
+    ).start(
+      ({
+        finished,
+      }) => {
+        if (
+          finished
+        ) {
+          currentScrollYRef.current =
+            targetY;
+        }
+
+        if (
+          scrollAnimationListenerRef.current
+        ) {
+          scrollAnimationValue.removeListener(
+            scrollAnimationListenerRef.current
+          );
+
+          scrollAnimationListenerRef.current =
+            null;
+        }
       }
     );
   }
@@ -661,6 +745,8 @@ export default function ReadingActivityScreen() {
         false;
       dayDetailsYRef.current =
         null;
+
+      stopDayScrollAnimation();
 
       setSelectedDateKey(
         null
@@ -718,6 +804,18 @@ export default function ReadingActivityScreen() {
         }
         showsVerticalScrollIndicator={
           false
+        }
+        scrollEventThrottle={
+          16
+        }
+        onScroll={(
+          event
+        ) => {
+          currentScrollYRef.current =
+            event.nativeEvent.contentOffset.y;
+        }}
+        onScrollBeginDrag={
+          stopDayScrollAnimation
         }
         contentContainerStyle={
           styles.content
@@ -1027,8 +1125,6 @@ export default function ReadingActivityScreen() {
                 style={[
                   styles.charmScatter,
                   styles.charmScatterTop,
-                  selectedDateKey &&
-                    styles.charmScatterSelected,
                 ]}
               >
                 {personalization.charms
@@ -1085,8 +1181,6 @@ export default function ReadingActivityScreen() {
               <View
                 style={[
                   styles.orbitStage,
-                  selectedDateKey &&
-                    styles.orbitStageSelected,
                   {
                     width:
                       activeOrbitSize,
@@ -1295,8 +1389,6 @@ export default function ReadingActivityScreen() {
                   style={[
                     styles.charmScatter,
                     styles.charmScatterBottom,
-                    selectedDateKey &&
-                      styles.charmScatterSelected,
                   ]}
                 >
                   {personalization.charms
@@ -1372,11 +1464,8 @@ export default function ReadingActivityScreen() {
                     shouldAutoScrollRef.current =
                       false;
 
-                    requestAnimationFrame(
-                      () =>
-                        scrollToDayDetails(
-                          y
-                        )
+                    scrollToDayDetails(
+                      y
                     );
                   }
                 }}
@@ -2034,12 +2123,6 @@ function createStyles(
       marginBottom:
         6,
     },
-    orbitStageSelected: {
-      marginTop:
-        7,
-      marginBottom:
-        0,
-    },
     orbitHaloOuter: {
       position:
         'absolute',
@@ -2174,14 +2257,6 @@ function createStyles(
       marginBottom:
         5,
     },
-    charmScatterSelected: {
-      minHeight:
-        54,
-      marginTop:
-        0,
-      marginBottom:
-        0,
-    },
     charmScatterItem: {
       width:
         64,
@@ -2228,7 +2303,7 @@ function createStyles(
     },
     daySectionIntro: {
       marginTop:
-        14,
+        18,
     },
 
     dayDetailCard: {
