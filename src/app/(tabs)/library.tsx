@@ -22,6 +22,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  GestureResponderEvent,
   Modal,
   Platform,
   Pressable,
@@ -47,6 +48,7 @@ import {
 
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 import DailyCheckinSheet from '../../components/DailyCheckinSheet';
+import LibrarySortFilterSheet from '../../components/LibrarySortFilterSheet';
 
 import {
   getUserBooks,
@@ -544,6 +546,12 @@ export default function LibraryScreen() {
     );
 
   const [
+    sortFilterSheetVisible,
+    setSortFilterSheetVisible,
+  ] =
+    useState(false);
+
+  const [
     updatingBookId,
     setUpdatingBookId,
   ] =
@@ -584,6 +592,21 @@ export default function LibraryScreen() {
   const sheetStarted = useRef(false);
   const sheetClosing = useRef(false);
   const afterSheetDismiss = useRef<(() => void) | null>(null);
+
+  const searchWrapRef =
+    useRef<View | null>(
+      null
+    );
+
+  const searchBoundsRef =
+    useRef<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null>(
+      null
+    );
 
   function animateBookSheetIn() {
     if (
@@ -1442,107 +1465,12 @@ export default function LibraryScreen() {
     );
   }
 
-  function openSortOptions() {
-    Alert.alert(
-      'Sort by',
-      undefined,
-      [
-        {
-          text:
-            'Recently Updated',
-          onPress: () =>
-            setSortMode(
-              'recent'
-            ),
-        },
-        {
-          text:
-            'Title',
-          onPress: () =>
-            setSortMode(
-              'title'
-            ),
-        },
-        {
-          text:
-            'Author',
-          onPress: () =>
-            setSortMode(
-              'author'
-            ),
-        },
-      ]
-    );
-  }
-
-  function openOwnershipOptions() {
-    Alert.alert(
-      'Ownership',
-      undefined,
-      [
-        {
-          text:
-            'All',
-          onPress: () =>
-            setOwnershipFilter(
-              'all'
-            ),
-        },
-        {
-          text:
-            'Owned',
-          onPress: () =>
-            setOwnershipFilter(
-              'owned'
-            ),
-        },
-        {
-          text:
-            'Not Owned',
-          onPress: () =>
-            setOwnershipFilter(
-              'not_owned'
-            ),
-        },
-      ]
-    );
-  }
-
   function openSortMenu() {
-    const ownershipLabel =
-      ownershipFilter ===
-        'owned'
-        ? 'Owned'
-        : ownershipFilter ===
-          'not_owned'
-        ? 'Not Owned'
-        : 'All';
-
-    Alert.alert(
-      'Sort & Filter Library',
-      undefined,
-      [
-        {
-          text:
-            `Sort: ${sortLabel}`,
-          onPress:
-            openSortOptions,
-        },
-        {
-          text:
-            `Ownership: ${ownershipLabel}`,
-          onPress:
-            openOwnershipOptions,
-        },
-        {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-      ]
+    setSortFilterSheetVisible(
+      true
     );
   }
+
 
   const showBookActions =
     useCallback(
@@ -1991,6 +1919,81 @@ export default function LibraryScreen() {
     ].toLowerCase()} books yet.`;
   }
 
+  function closeLibrarySearch() {
+    setSearchQuery(
+      ''
+    );
+
+    setSearchOpen(
+      false
+    );
+
+    searchBoundsRef.current =
+      null;
+  }
+
+  function measureSearchBounds() {
+    requestAnimationFrame(
+      () => {
+        searchWrapRef.current?.measureInWindow(
+          (
+            x,
+            y,
+            width,
+            height
+          ) => {
+            searchBoundsRef.current = {
+              x,
+              y,
+              width,
+              height,
+            };
+          }
+        );
+      }
+    );
+  }
+
+  function captureSearchDismiss(
+    event:
+      GestureResponderEvent
+  ) {
+    if (
+      !searchOpen
+    ) {
+      return false;
+    }
+
+    const bounds =
+      searchBoundsRef.current;
+
+    const {
+      pageX,
+      pageY,
+    } =
+      event.nativeEvent;
+
+    if (
+      bounds &&
+      pageX >=
+        bounds.x &&
+      pageX <=
+        bounds.x +
+          bounds.width &&
+      pageY >=
+        bounds.y &&
+      pageY <=
+        bounds.y +
+          bounds.height
+    ) {
+      return false;
+    }
+
+    closeLibrarySearch();
+
+    return true;
+  }
+
   function renderHeader() {
     return (
       <>
@@ -2022,16 +2025,12 @@ export default function LibraryScreen() {
                   if (
                     searchOpen
                   ) {
-                    setSearchQuery(
-                      ''
-                    );
+                    closeLibrarySearch();
+                    return;
                   }
 
                   setSearchOpen(
-                    (
-                      current
-                    ) =>
-                      !current
+                    true
                   );
                 }}
                 hitSlop={8}
@@ -2328,6 +2327,12 @@ export default function LibraryScreen() {
 
         {searchOpen ? (
           <View
+            ref={
+              searchWrapRef
+            }
+            onLayout={
+              measureSearchBounds
+            }
             style={
               styles.searchWrap
             }
@@ -2507,11 +2512,15 @@ export default function LibraryScreen() {
                 styles.sortText
               }
             >
-              {sortLabel}
+              Sort & Filter
             </Text>
 
-            {ownershipFilter !==
-            'all' ? (
+            {(
+              ownershipFilter !==
+                'all' ||
+              sortMode !==
+                'recent'
+            ) ? (
               <View
                 style={
                   styles.activeFilterDot
@@ -2689,6 +2698,9 @@ export default function LibraryScreen() {
         edges={[
           'top',
         ]}
+        onStartShouldSetResponderCapture={
+          captureSearchDismiss
+        }
       >
         <FlatList
           ref={
@@ -2778,6 +2790,29 @@ export default function LibraryScreen() {
           }
         />
       </SafeAreaView>
+
+      <LibrarySortFilterSheet
+        visible={
+          sortFilterSheetVisible
+        }
+        sortMode={
+          sortMode
+        }
+        ownershipFilter={
+          ownershipFilter
+        }
+        onChangeSort={
+          setSortMode
+        }
+        onChangeOwnership={
+          setOwnershipFilter
+        }
+        onDismiss={() =>
+          setSortFilterSheetVisible(
+            false
+          )
+        }
+      />
 
       <DailyCheckinSheet
         visible={
@@ -4244,34 +4279,45 @@ function createStyles(
       flexDirection:
         'row',
       justifyContent:
-        'flex-end',
+        'flex-start',
       alignItems:
         'center',
       marginTop:
-        9,
+        8,
       marginBottom:
         10,
     },
 
     sortButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      minHeight:
+        36,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
       backgroundColor:
         colors.surface,
-      borderWidth: 1,
+      borderWidth:
+        1,
       borderColor:
         colors.border,
-      borderRadius: 11,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      gap: 6,
+      borderRadius:
+        999,
+      paddingHorizontal:
+        12,
+      paddingVertical:
+        7,
+      gap:
+        7,
     },
 
     sortText: {
-      color: colors.text,
+      color:
+        colors.text,
       fontFamily:
-        'Inter_500Medium',
-      fontSize: 11,
+        'Inter_600SemiBold',
+      fontSize:
+        11,
     },
 
     sortButtonFiltered: {
