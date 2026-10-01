@@ -26,6 +26,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import ReadingMonthCustomizeSheet from '../components/ReadingMonthCustomizeSheet';
 import {
   NovoriColors,
 } from '../constants/novori-theme';
@@ -41,6 +42,11 @@ import {
 import {
   getLocalDateKey,
 } from '../lib/reading-checkins';
+import {
+  getReadingMonthPersonalization,
+  ReadingMonthPersonalization,
+  saveReadingMonthPersonalization,
+} from '../lib/reading-month-personalization';
 
 const WEEK_LABELS = [
   'M',
@@ -281,6 +287,25 @@ export default function ReadingActivityScreen() {
     );
 
   const [
+    personalization,
+    setPersonalization,
+  ] =
+    useState<ReadingMonthPersonalization>({
+      icons:
+        [],
+      note:
+        '',
+    });
+
+  const [
+    customizeVisible,
+    setCustomizeVisible,
+  ] =
+    useState(
+      false
+    );
+
+  const [
     loading,
     setLoading,
   ] =
@@ -325,14 +350,27 @@ export default function ReadingActivityScreen() {
             ''
           );
 
-          const next =
-            await getReadingActivityMonth(
-              displayedMonth.year,
-              displayedMonth.monthIndex
-            );
+          const [
+            next,
+            nextPersonalization,
+          ] =
+            await Promise.all([
+              getReadingActivityMonth(
+                displayedMonth.year,
+                displayedMonth.monthIndex
+              ),
+              getReadingMonthPersonalization(
+                displayedMonth.year,
+                displayedMonth.monthIndex
+              ),
+            ]);
 
           setMonthData(
             next
+          );
+
+          setPersonalization(
+            nextPersonalization
           );
 
           const isCurrentMonth =
@@ -418,62 +456,6 @@ export default function ReadingActivityScreen() {
       ]
     );
 
-  const monthlyBooks =
-    useMemo(
-      () => {
-        if (
-          !monthData
-        ) {
-          return [];
-        }
-
-        const seen =
-          new Set<string>();
-
-        const books:
-          ReadingActivityBook[] =
-          [];
-
-        for (
-          const day
-          of Object.values(
-            monthData.days
-          )
-        ) {
-          for (
-            const book
-            of day.books
-          ) {
-            const identity =
-              book.userBookId ??
-              book.googleBookId ??
-              book.title;
-
-            if (
-              seen.has(
-                identity
-              )
-            ) {
-              continue;
-            }
-
-            seen.add(
-              identity
-            );
-
-            books.push(
-              book
-            );
-          }
-        }
-
-        return books;
-      },
-      [
-        monthData,
-      ]
-    );
-
   const selectedDay =
     monthData
       ?.days[
@@ -554,6 +536,22 @@ export default function ReadingActivityScreen() {
     });
   }
 
+  async function saveMonthPersonalization(
+    value:
+      ReadingMonthPersonalization
+  ) {
+    const saved =
+      await saveReadingMonthPersonalization(
+        displayedMonth.year,
+        displayedMonth.monthIndex,
+        value
+      );
+
+    setPersonalization(
+      saved
+    );
+  }
+
   const hasSelectedActivity =
     selectedDay.checkedIn ||
     selectedDay.books.length >
@@ -564,7 +562,8 @@ export default function ReadingActivityScreen() {
       0;
 
   return (
-    <SafeAreaView
+    <>
+      <SafeAreaView
       style={
         styles.safeArea
       }
@@ -831,21 +830,35 @@ export default function ReadingActivityScreen() {
                   YOUR MONTH
                 </Text>
 
-                <View
-                  style={
-                    styles.monthStoryMark
+                <Pressable
+                  onPress={() =>
+                    setCustomizeVisible(
+                      true
+                    )
                   }
+                  hitSlop={
+                    8
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Customize this reading month"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.monthStoryMark,
+                    pressed &&
+                      styles.pressed,
+                  ]}
                 >
                   <Ionicons
-                    name="bookmark-outline"
+                    name="sparkles-outline"
                     size={
-                      16
+                      17
                     }
                     color={
                       colors.gold
                     }
                   />
-                </View>
+                </Pressable>
               </View>
 
               <View
@@ -882,119 +895,137 @@ export default function ReadingActivityScreen() {
 
                 <View
                   style={
-                    styles.monthBookStack
+                    styles.monthIconShowcase
                   }
                 >
-                  {monthlyBooks
-                    .slice(
-                      0,
-                      4
-                    )
-                    .map(
+                  {personalization.icons.length >
+                  0 ? (
+                    personalization.icons.map(
                       (
-                        book,
+                        icon,
                         index
-                      ) =>
-                        book.coverUrl ? (
-                          <ExpoImage
-                            key={
-                              book.userBookId ??
-                              book.googleBookId ??
-                              `${book.title}-${index}`
-                            }
-                            source={
-                              book.coverUrl
-                            }
-                            style={[
-                              styles.monthBookCover,
-                              {
-                                marginLeft:
-                                  index ===
-                                  0
-                                    ? 0
-                                    : -12,
-                                zIndex:
-                                  10 -
-                                  index,
-                              },
-                            ]}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={
+                      ) => (
+                        <View
+                          key={
+                            icon
+                          }
+                          style={[
+                            styles.monthIconStamp,
+                            index % 2 ===
                               0
+                              ? styles.monthIconStampHigh
+                              : styles.monthIconStampLow,
+                          ]}
+                        >
+                          <Ionicons
+                            name={
+                              icon
                             }
-                            recyclingKey={
-                              book.coverUrl
+                            size={
+                              20
+                            }
+                            color={
+                              colors.gold
                             }
                           />
-                        ) : (
-                          <View
-                            key={
-                              book.userBookId ??
-                              book.googleBookId ??
-                              `${book.title}-${index}`
-                            }
-                            style={[
-                              styles.monthBookCoverPlaceholder,
-                              {
-                                marginLeft:
-                                  index ===
-                                  0
-                                    ? 0
-                                    : -12,
-                                zIndex:
-                                  10 -
-                                  index,
-                              },
-                            ]}
-                          >
-                            <Ionicons
-                              name="book-outline"
-                              size={
-                                15
-                              }
-                              color={
-                                colors.gold
-                              }
-                            />
-                          </View>
+                        </View>
+                      )
+                    )
+                  ) : (
+                    <Pressable
+                      onPress={() =>
+                        setCustomizeVisible(
+                          true
                         )
-                    )}
-
-                  {monthlyBooks.length ===
-                  0 ? (
-                    <View
-                      style={
-                        styles.monthBookEmpty
                       }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.monthIconEmpty,
+                        pressed &&
+                          styles.pressed,
+                      ]}
                     >
                       <Ionicons
-                        name="book-outline"
+                        name="add"
                         size={
-                          22
+                          19
                         }
                         color={
                           colors.gold
                         }
                       />
-                    </View>
-                  ) : null}
+
+                      <Text
+                        style={
+                          styles.monthIconEmptyText
+                        }
+                      >
+                        Make it yours
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
 
-              <Text
-                style={
-                  styles.monthStoryCopy
-                }
-              >
-                {monthData.daysRead ===
-                0
-                  ? 'A fresh month. Your first reading day will light up here.'
-                  : monthData.daysRead ===
-                    1
-                  ? 'One reading day is already part of this month’s story.'
-                  : `${monthData.daysRead} reading days are already part of this month’s story.`}
-              </Text>
+              {personalization.note ? (
+                <View
+                  style={
+                    styles.monthNoteWrap
+                  }
+                >
+                  <Text
+                    style={
+                      styles.monthNoteMark
+                    }
+                  >
+                    “
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.monthStoryCopy
+                    }
+                  >
+                    {
+                      personalization.note
+                    }
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    setCustomizeVisible(
+                      true
+                    )
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.monthPrompt,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="pencil-outline"
+                    size={
+                      14
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.monthPromptText
+                    }
+                  >
+                    Add a tiny note so you remember what this month felt like.
+                  </Text>
+                </Pressable>
+              )}
 
               <View
                 style={
@@ -1035,25 +1066,6 @@ export default function ReadingActivityScreen() {
                   }
                 />
 
-                <View
-                  style={
-                    styles.monthStoryDivider
-                  }
-                />
-
-                <StoryStat
-                  icon="create-outline"
-                  value={
-                    monthData.readingUpdates
-                  }
-                  label="updates"
-                  colors={
-                    colors
-                  }
-                  styles={
-                    styles
-                  }
-                />
               </View>
             </View>
 
@@ -1670,6 +1682,30 @@ export default function ReadingActivityScreen() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+
+      <ReadingMonthCustomizeSheet
+        visible={
+          customizeVisible
+        }
+        value={
+          personalization
+        }
+        monthLabel={
+          getMonthLabel(
+            displayedMonth.year,
+            displayedMonth.monthIndex
+          )
+        }
+        onDismiss={() =>
+          setCustomizeVisible(
+            false
+          )
+        }
+        onSave={
+          saveMonthPersonalization
+        }
+      />
+    </>
   );
 }
 
@@ -2081,9 +2117,9 @@ function createStyles(
       marginTop:
         -2,
     },
-    monthBookStack: {
+    monthIconShowcase: {
       minWidth:
-        116,
+        132,
       minHeight:
         78,
       flexDirection:
@@ -2092,68 +2128,148 @@ function createStyles(
         'center',
       justifyContent:
         'flex-end',
-      paddingLeft:
+      gap:
+        7,
+      flexWrap:
+        'wrap',
+    },
+    monthIconStamp: {
+      width:
+        42,
+      height:
+        42,
+      borderRadius:
+        15,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    monthIconStampHigh: {
+      transform: [
+        {
+          translateY:
+            -4,
+        },
+        {
+          rotate:
+            '-3deg',
+        },
+      ],
+    },
+    monthIconStampLow: {
+      transform: [
+        {
+          translateY:
+            4,
+        },
+        {
+          rotate:
+            '3deg',
+        },
+      ],
+    },
+    monthIconEmpty: {
+      minWidth:
+        112,
+      minHeight:
+        66,
+      borderRadius:
+        18,
+      borderWidth:
+        1,
+      borderStyle:
+        'dashed',
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        4,
+      paddingHorizontal:
         12,
     },
-    monthBookCover: {
-      width:
-        48,
-      height:
-        72,
-      borderRadius:
-        7,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
+    monthIconEmptyText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
     },
-    monthBookCoverPlaceholder: {
-      width:
-        48,
-      height:
-        72,
-      borderRadius:
-        7,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
+    monthNoteWrap: {
+      flexDirection:
+        'row',
       alignItems:
-        'center',
-      justifyContent:
-        'center',
+        'flex-start',
+      marginTop:
+        12,
+      paddingRight:
+        8,
     },
-    monthBookEmpty: {
-      width:
-        72,
-      height:
-        72,
-      borderRadius:
-        22,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
+    monthNoteMark: {
+      color:
+        colors.gold,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        28,
+      lineHeight:
+        27,
+      marginRight:
+        6,
     },
     monthStoryCopy: {
+      flex:
+        1,
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize:
+        14.5,
+      lineHeight:
+        20,
+    },
+    monthPrompt: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+      marginTop:
+        12,
+      paddingVertical:
+        9,
+      paddingHorizontal:
+        10,
+      borderRadius:
+        12,
+      backgroundColor:
+        colors.elevated,
+    },
+    monthPromptText: {
+      flex:
+        1,
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_400Regular',
+        'Inter_500Medium',
       fontSize:
-        11.5,
+        10.5,
       lineHeight:
-        17,
-      marginTop:
-        10,
-      paddingRight:
-        10,
+        15,
     },
     monthStoryStats: {
       flexDirection:
@@ -2168,6 +2284,8 @@ function createStyles(
         1,
       borderTopColor:
         colors.border,
+      paddingHorizontal:
+        12,
     },
     storyStat: {
       flex:
