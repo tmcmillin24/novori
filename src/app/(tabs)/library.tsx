@@ -2344,6 +2344,88 @@ export default function LibraryScreen() {
 
           {checkinState
             ?.checkedIn ? (
+            <View
+              style={
+                styles.checkedInActionRow
+              }
+            >
+              <View
+                style={[
+                  styles.checkinButton,
+                  styles.checkedInButton,
+                ]}
+                accessibilityRole="text"
+                accessibilityLabel="Checked in for today’s reading"
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={
+                    18
+                  }
+                  color={
+                    colors.background
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.checkinButtonText
+                  }
+                >
+                  Checked in
+                </Text>
+              </View>
+
+              <Pressable
+                disabled={
+                  loadingCheckin ||
+                  savingCheckin ||
+                  Boolean(
+                    checkinError
+                  )
+                }
+                onPress={
+                  openEditDailyCheckin
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Edit book for today’s reading check-in"
+                style={({
+                  pressed,
+                }) => [
+                  styles.editCheckinButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                {savingCheckin ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      colors.gold
+                    }
+                  />
+                ) : (
+                  <Ionicons
+                    name="pencil-outline"
+                    size={
+                      14
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+                )}
+
+                <Text
+                  style={
+                    styles.editCheckinButtonText
+                  }
+                >
+                  Edit book
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
             <Pressable
               disabled={
                 loadingCheckin ||
@@ -2353,111 +2435,51 @@ export default function LibraryScreen() {
                 )
               }
               onPress={
-                openEditDailyCheckin
+                openDailyCheckin
               }
               accessibilityRole="button"
-              accessibilityLabel="Edit book for today’s reading check-in"
+              accessibilityLabel="Check in for today’s reading"
               style={({
                 pressed,
               }) => [
-                styles.editCheckinButton,
-                pressed &&
+                styles.checkinButton,
+                (
+                  pressed ||
+                  loadingCheckin ||
+                  savingCheckin
+                ) &&
                   styles.pressed,
               ]}
             >
-              <Ionicons
-                name="pencil-outline"
-                size={
-                  14
-                }
-                color={
-                  colors.gold
-                }
-              />
+              {loadingCheckin ||
+              savingCheckin ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    colors.background
+                  }
+                />
+              ) : (
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={
+                    18
+                  }
+                  color={
+                    colors.background
+                  }
+                />
+              )}
 
               <Text
                 style={
-                  styles.editCheckinButtonText
+                  styles.checkinButtonText
                 }
               >
-                Edit books
+                Check in
               </Text>
             </Pressable>
-          ) : null}
-
-          <Pressable
-            disabled={
-              loadingCheckin ||
-              savingCheckin ||
-              Boolean(
-                checkinState
-                  ?.checkedIn
-              ) ||
-              Boolean(
-                checkinError
-              )
-            }
-            onPress={
-              openDailyCheckin
-            }
-            accessibilityRole="button"
-            accessibilityLabel={
-              checkinState
-                ?.checkedIn
-                ? 'Checked in for today’s reading'
-                : 'Check in for today’s reading'
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.checkinButton,
-              checkinState
-                ?.checkedIn &&
-                styles.checkinButtonAfterEdit,
-              (
-                pressed ||
-                loadingCheckin ||
-                savingCheckin
-              ) &&
-                styles.pressed,
-            ]}
-          >
-            {loadingCheckin ||
-            savingCheckin ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.background
-                }
-              />
-            ) : (
-              <Ionicons
-                name={
-                  checkinState
-                    ?.checkedIn
-                    ? 'checkmark-circle'
-                    : 'checkmark-circle-outline'
-                }
-                size={
-                  18
-                }
-                color={
-                  colors.background
-                }
-              />
-            )}
-
-            <Text
-              style={
-                styles.checkinButtonText
-              }
-            >
-              {checkinState
-                ?.checkedIn
-                ? 'Checked in'
-                : 'Check in'}
-            </Text>
-          </Pressable>
+          )}
 
           <View
             style={
@@ -4300,19 +4322,33 @@ function createStyles(
       marginTop:
         13,
     },
+    checkedInActionRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'stretch',
+      gap:
+        8,
+      marginTop:
+        13,
+    },
+    checkedInButton: {
+      flex:
+        1,
+      marginTop:
+        0,
+    },
     editCheckinButton: {
       minHeight:
-        32,
+        44,
       borderRadius:
-        11,
+        13,
       borderWidth:
         1,
       borderColor:
         colors.border,
       backgroundColor:
         colors.elevated,
-      alignSelf:
-        'center',
       flexDirection:
         'row',
       alignItems:
@@ -4322,9 +4358,7 @@ function createStyles(
       gap:
         5,
       paddingHorizontal:
-        11,
-      marginTop:
-        13,
+        12,
     },
     editCheckinButtonText: {
       color:
@@ -4333,10 +4367,6 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize:
         10.5,
-    },
-    checkinButtonAfterEdit: {
-      marginTop:
-        8,
     },
     checkinButtonText: {
       color:
