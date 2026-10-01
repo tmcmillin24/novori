@@ -418,6 +418,62 @@ export default function ReadingActivityScreen() {
       ]
     );
 
+  const monthlyBooks =
+    useMemo(
+      () => {
+        if (
+          !monthData
+        ) {
+          return [];
+        }
+
+        const seen =
+          new Set<string>();
+
+        const books:
+          ReadingActivityBook[] =
+          [];
+
+        for (
+          const day
+          of Object.values(
+            monthData.days
+          )
+        ) {
+          for (
+            const book
+            of day.books
+          ) {
+            const identity =
+              book.userBookId ??
+              book.googleBookId ??
+              book.title;
+
+            if (
+              seen.has(
+                identity
+              )
+            ) {
+              continue;
+            }
+
+            seen.add(
+              identity
+            );
+
+            books.push(
+              book
+            );
+          }
+        }
+
+        return books;
+      },
+      [
+        monthData,
+      ]
+    );
+
   const selectedDay =
     monthData
       ?.days[
@@ -594,7 +650,7 @@ export default function ReadingActivityScreen() {
                 styles.subheading
               }
             >
-              Your month in reading.
+              A record of the reading life you’re building.
             </Text>
           </View>
         </View>
@@ -753,62 +809,284 @@ export default function ReadingActivityScreen() {
           <>
             <View
               style={
-                styles.statsGrid
+                styles.monthStory
               }
             >
-              <StatCard
-                icon="calendar-outline"
-                value={
-                  monthData.daysRead
-                }
-                label="Days read"
-                colors={
-                  colors
-                }
-                styles={
-                  styles
+              <View
+                style={
+                  styles.monthStoryAccent
                 }
               />
 
-              <StatCard
-                icon="flame-outline"
-                value={
-                  monthData.bestStreak
+              <View
+                style={
+                  styles.monthStoryHeader
                 }
-                label="Best streak"
-                colors={
-                  colors
-                }
-                styles={
-                  styles
-                }
-              />
+              >
+                <Text
+                  style={
+                    styles.monthStoryEyebrow
+                  }
+                >
+                  YOUR MONTH
+                </Text>
 
-              <StatCard
-                icon="checkmark-circle-outline"
-                value={
-                  monthData.booksFinished
-                }
-                label="Finished"
-                colors={
-                  colors
-                }
-                styles={
-                  styles
-                }
-              />
+                <View
+                  style={
+                    styles.monthStoryMark
+                  }
+                >
+                  <Ionicons
+                    name="bookmark-outline"
+                    size={
+                      16
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+              </View>
 
-              <StatCard
-                icon="create-outline"
-                value={
-                  monthData.readingUpdates
+              <View
+                style={
+                  styles.monthStoryMain
                 }
-                label="Updates"
-                colors={
-                  colors
+              >
+                <View
+                  style={
+                    styles.monthStoryNumberWrap
+                  }
+                >
+                  <Text
+                    style={
+                      styles.monthStoryNumber
+                    }
+                  >
+                    {
+                      monthData.daysRead
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.monthStoryLabel
+                    }
+                  >
+                    {monthData.daysRead ===
+                    1
+                      ? 'day with a book'
+                      : 'days with a book'}
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.monthBookStack
+                  }
+                >
+                  {monthlyBooks
+                    .slice(
+                      0,
+                      4
+                    )
+                    .map(
+                      (
+                        book,
+                        index
+                      ) =>
+                        book.coverUrl ? (
+                          <ExpoImage
+                            key={
+                              book.userBookId ??
+                              book.googleBookId ??
+                              `${book.title}-${index}`
+                            }
+                            source={
+                              book.coverUrl
+                            }
+                            style={[
+                              styles.monthBookCover,
+                              {
+                                marginLeft:
+                                  index ===
+                                  0
+                                    ? 0
+                                    : -12,
+                                zIndex:
+                                  10 -
+                                  index,
+                              },
+                            ]}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            transition={
+                              0
+                            }
+                            recyclingKey={
+                              book.coverUrl
+                            }
+                          />
+                        ) : (
+                          <View
+                            key={
+                              book.userBookId ??
+                              book.googleBookId ??
+                              `${book.title}-${index}`
+                            }
+                            style={[
+                              styles.monthBookCoverPlaceholder,
+                              {
+                                marginLeft:
+                                  index ===
+                                  0
+                                    ? 0
+                                    : -12,
+                                zIndex:
+                                  10 -
+                                  index,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="book-outline"
+                              size={
+                                15
+                              }
+                              color={
+                                colors.gold
+                              }
+                            />
+                          </View>
+                        )
+                    )}
+
+                  {monthlyBooks.length ===
+                  0 ? (
+                    <View
+                      style={
+                        styles.monthBookEmpty
+                      }
+                    >
+                      <Ionicons
+                        name="book-outline"
+                        size={
+                          22
+                        }
+                        color={
+                          colors.gold
+                        }
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              <Text
+                style={
+                  styles.monthStoryCopy
                 }
-                styles={
-                  styles
+              >
+                {monthData.daysRead ===
+                0
+                  ? 'A fresh month. Your first reading day will light up here.'
+                  : monthData.daysRead ===
+                    1
+                  ? 'One reading day is already part of this month’s story.'
+                  : `${monthData.daysRead} reading days are already part of this month’s story.`}
+              </Text>
+
+              <View
+                style={
+                  styles.monthStoryStats
+                }
+              >
+                <StoryStat
+                  icon="flame-outline"
+                  value={
+                    monthData.bestStreak
+                  }
+                  label="best streak"
+                  colors={
+                    colors
+                  }
+                  styles={
+                    styles
+                  }
+                />
+
+                <View
+                  style={
+                    styles.monthStoryDivider
+                  }
+                />
+
+                <StoryStat
+                  icon="checkmark-circle-outline"
+                  value={
+                    monthData.booksFinished
+                  }
+                  label="finished"
+                  colors={
+                    colors
+                  }
+                  styles={
+                    styles
+                  }
+                />
+
+                <View
+                  style={
+                    styles.monthStoryDivider
+                  }
+                />
+
+                <StoryStat
+                  icon="create-outline"
+                  value={
+                    monthData.readingUpdates
+                  }
+                  label="updates"
+                  colors={
+                    colors
+                  }
+                  styles={
+                    styles
+                  }
+                />
+              </View>
+            </View>
+
+            <View
+              style={
+                styles.sectionIntro
+              }
+            >
+              <View>
+                <Text
+                  style={
+                    styles.sectionEyebrow
+                  }
+                >
+                  YOUR READING RHYTHM
+                </Text>
+
+                <Text
+                  style={
+                    styles.sectionIntroTitle
+                  }
+                >
+                  Every day tells a little more.
+                </Text>
+              </View>
+
+              <Ionicons
+                name="calendar-outline"
+                size={
+                  18
+                }
+                color={
+                  colors.gold
                 }
               />
             </View>
@@ -1008,6 +1286,41 @@ export default function ReadingActivityScreen() {
                   </Text>
                 </View>
               </View>
+            </View>
+
+            <View
+              style={[
+                styles.sectionIntro,
+                styles.daySectionIntro,
+              ]}
+            >
+              <View>
+                <Text
+                  style={
+                    styles.sectionEyebrow
+                  }
+                >
+                  ON THIS DAY
+                </Text>
+
+                <Text
+                  style={
+                    styles.sectionIntroTitle
+                  }
+                >
+                  Your reading, remembered.
+                </Text>
+              </View>
+
+              <Ionicons
+                name="sparkles-outline"
+                size={
+                  18
+                }
+                color={
+                  colors.gold
+                }
+              />
             </View>
 
             <View
@@ -1360,7 +1673,7 @@ export default function ReadingActivityScreen() {
   );
 }
 
-function StatCard({
+function StoryStat({
   icon,
   value,
   label,
@@ -1383,12 +1696,12 @@ function StatCard({
   return (
     <View
       style={
-        styles.statCard
+        styles.storyStat
       }
     >
       <View
         style={
-          styles.statIcon
+          styles.storyStatTop
         }
       >
         <Ionicons
@@ -1396,25 +1709,25 @@ function StatCard({
             icon
           }
           size={
-            17
+            14
           }
           color={
             colors.gold
           }
         />
+
+        <Text
+          style={
+            styles.storyStatValue
+          }
+        >
+          {value}
+        </Text>
       </View>
 
       <Text
         style={
-          styles.statValue
-        }
-      >
-        {value}
-      </Text>
-
-      <Text
-        style={
-          styles.statLabel
+          styles.storyStatLabel
         }
       >
         {label}
@@ -1630,9 +1943,11 @@ function createStyles(
       justifyContent:
         'space-between',
       marginTop:
-        22,
+        24,
       marginBottom:
-        13,
+        14,
+      paddingHorizontal:
+        2,
     },
     monthButton: {
       width:
@@ -1664,39 +1979,63 @@ function createStyles(
       fontSize:
         21,
     },
-    statsGrid: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      justifyContent:
-        'space-between',
-      gap:
-        9,
-      marginBottom:
-        12,
-    },
-    statCard: {
-      width:
-        '48.5%',
-      minHeight:
-        88,
+    monthStory: {
+      position:
+        'relative',
+      overflow:
+        'hidden',
       backgroundColor:
         colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
       borderRadius:
+        22,
+      paddingHorizontal:
+        17,
+      paddingTop:
         16,
-      padding:
-        12,
+      paddingBottom:
+        15,
+      marginBottom:
+        20,
     },
-    statIcon: {
+    monthStoryAccent: {
+      position:
+        'absolute',
+      left:
+        0,
+      top:
+        16,
+      bottom:
+        16,
       width:
-        29,
+        3,
+      borderRadius:
+        2,
+      backgroundColor:
+        colors.gold,
+    },
+    monthStoryHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+    },
+    monthStoryEyebrow: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9,
+      letterSpacing:
+        1.35,
+    },
+    monthStoryMark: {
+      width:
+        30,
       height:
-        29,
+        30,
       borderRadius:
         10,
       backgroundColor:
@@ -1705,44 +2044,225 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-      marginBottom:
+    },
+    monthStoryMain: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      gap:
+        16,
+      marginTop:
         8,
     },
-    statValue: {
+    monthStoryNumberWrap: {
+      flex:
+        1,
+    },
+    monthStoryNumber: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        48,
+      lineHeight:
+        52,
+    },
+    monthStoryLabel: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12,
+      marginTop:
+        -2,
+    },
+    monthBookStack: {
+      minWidth:
+        116,
+      minHeight:
+        78,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'flex-end',
+      paddingLeft:
+        12,
+    },
+    monthBookCover: {
+      width:
+        48,
+      height:
+        72,
+      borderRadius:
+        7,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
+    },
+    monthBookCoverPlaceholder: {
+      width:
+        48,
+      height:
+        72,
+      borderRadius:
+        7,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    monthBookEmpty: {
+      width:
+        72,
+      height:
+        72,
+      borderRadius:
+        22,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    monthStoryCopy: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11.5,
+      lineHeight:
+        17,
+      marginTop:
+        10,
+      paddingRight:
+        10,
+    },
+    monthStoryStats: {
+      flexDirection:
+        'row',
+      alignItems:
+        'stretch',
+      marginTop:
+        15,
+      paddingTop:
+        13,
+      borderTopWidth:
+        1,
+      borderTopColor:
+        colors.border,
+    },
+    storyStat: {
+      flex:
+        1,
+      minWidth:
+        0,
+    },
+    storyStatTop: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+    },
+    storyStatValue: {
       color:
         colors.text,
       fontFamily:
         'Inter_700Bold',
       fontSize:
-        20,
-      lineHeight:
-        23,
+        14,
     },
-    statLabel: {
+    storyStatLabel: {
       color:
         colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize:
-        10.5,
+        9.5,
+      marginTop:
+        3,
+    },
+    monthStoryDivider: {
+      width:
+        1,
+      marginHorizontal:
+        12,
+      backgroundColor:
+        colors.border,
+    },
+    sectionIntro: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      gap:
+        12,
+      marginBottom:
+        9,
+      paddingHorizontal:
+        2,
+    },
+    sectionEyebrow: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        8.5,
+      letterSpacing:
+        1.2,
+    },
+    sectionIntroTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      fontSize:
+        17,
       marginTop:
         2,
     },
+    daySectionIntro: {
+      marginTop:
+        22,
+    },
+
     calendarCard: {
       backgroundColor:
         colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
       borderRadius:
-        18,
+        20,
       paddingHorizontal:
         12,
       paddingTop:
-        14,
+        16,
       paddingBottom:
-        12,
+        13,
+      borderTopWidth:
+        2,
+      borderTopColor:
+        colors.gold,
     },
     weekLabels: {
       flexDirection:
@@ -1893,16 +2413,14 @@ function createStyles(
     dayDetailCard: {
       backgroundColor:
         colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
       borderRadius:
-        18,
+        20,
       padding:
-        14,
-      marginTop:
-        12,
+        15,
+      borderLeftWidth:
+        2,
+      borderLeftColor:
+        colors.gold,
     },
     dayDetailHeader: {
       flexDirection:
