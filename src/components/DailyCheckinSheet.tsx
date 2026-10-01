@@ -435,7 +435,12 @@ export default function DailyCheckinSheet({
               }
             >
               <Ionicons
-                name="book-outline"
+                name={
+                  books.length >
+                    0
+                    ? 'book-outline'
+                    : 'alert-circle-outline'
+                }
                 size={23}
                 color={
                   colors.gold
@@ -448,7 +453,10 @@ export default function DailyCheckinSheet({
                 styles.title
               }
             >
-              What did you read today?
+              {books.length >
+                0
+                ? 'What did you read today?'
+                : 'Start a book first'}
             </Text>
 
             <Text
@@ -456,9 +464,14 @@ export default function DailyCheckinSheet({
                 styles.message
               }
             >
-              Select every book you read today. It still counts as one daily check-in.
+              {books.length >
+                0
+                ? 'Select every book you read today. It still counts as one daily check-in.'
+                : 'Add a book to your Library and mark it as Reading before checking in.'}
             </Text>
 
+            {books.length >
+            0 ? (
             <ScrollView
               style={
                 styles.bookScroll
@@ -588,7 +601,10 @@ export default function DailyCheckinSheet({
                 }
               )}
             </ScrollView>
+            ) : null}
 
+            {books.length >
+            0 ? (
             <View
               style={
                 styles.actions
@@ -668,6 +684,28 @@ export default function DailyCheckinSheet({
                 )}
               </Pressable>
             </View>
+            ) : (
+              <Pressable
+                onPress={
+                  closeSmoothly
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.singleCloseButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.singleCloseText
+                  }
+                >
+                  Got it
+                </Text>
+              </Pressable>
+            )}
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -925,6 +963,28 @@ function createStyles(
         7,
     },
     confirmText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        12.5,
+    },
+    singleCloseButton: {
+      minHeight:
+        46,
+      borderRadius:
+        14,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginTop:
+        2,
+    },
+    singleCloseText: {
       color:
         colors.background,
       fontFamily:
