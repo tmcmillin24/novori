@@ -514,6 +514,12 @@ export default function LibraryScreen() {
     useState('');
 
   const [
+    searchOpen,
+    setSearchOpen,
+  ] =
+    useState(false);
+
+  const [
     activeFilter,
     setActiveFilter,
   ] =
@@ -1436,9 +1442,9 @@ export default function LibraryScreen() {
     );
   }
 
-  function openSortMenu() {
+  function openSortOptions() {
     Alert.alert(
-      'Sort Library',
+      'Sort by',
       undefined,
       [
         {
@@ -1450,22 +1456,89 @@ export default function LibraryScreen() {
             ),
         },
         {
-          text: 'Title',
+          text:
+            'Title',
           onPress: () =>
             setSortMode(
               'title'
             ),
         },
         {
-          text: 'Author',
+          text:
+            'Author',
           onPress: () =>
             setSortMode(
               'author'
             ),
         },
+      ]
+    );
+  }
+
+  function openOwnershipOptions() {
+    Alert.alert(
+      'Ownership',
+      undefined,
+      [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text:
+            'All',
+          onPress: () =>
+            setOwnershipFilter(
+              'all'
+            ),
+        },
+        {
+          text:
+            'Owned',
+          onPress: () =>
+            setOwnershipFilter(
+              'owned'
+            ),
+        },
+        {
+          text:
+            'Not Owned',
+          onPress: () =>
+            setOwnershipFilter(
+              'not_owned'
+            ),
+        },
+      ]
+    );
+  }
+
+  function openSortMenu() {
+    const ownershipLabel =
+      ownershipFilter ===
+        'owned'
+        ? 'Owned'
+        : ownershipFilter ===
+          'not_owned'
+        ? 'Not Owned'
+        : 'All';
+
+    Alert.alert(
+      'Sort & Filter Library',
+      undefined,
+      [
+        {
+          text:
+            `Sort: ${sortLabel}`,
+          onPress:
+            openSortOptions,
+        },
+        {
+          text:
+            `Ownership: ${ownershipLabel}`,
+          onPress:
+            openOwnershipOptions,
+        },
+        {
+          text:
+            'Cancel',
+          style:
+            'cancel',
         },
       ]
     );
@@ -1939,56 +2012,92 @@ export default function LibraryScreen() {
               Library
             </Text>
 
-            <Pressable
-              onPress={() =>
-                router.push(
-                  '/book-cart'
-                )
+            <View
+              style={
+                styles.headerActions
               }
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.cartButton,
-                pressed &&
-                  styles.pressed,
-              ]}
             >
-              <Ionicons
-                name="cart-outline"
-                size={22}
-                color={
-                  colors.gold
-                }
-              />
-
-              {cartCount >
-              0 ? (
-                <View
-                  style={
-                    styles.cartBadge
+              <Pressable
+                onPress={() => {
+                  if (
+                    searchOpen
+                  ) {
+                    setSearchQuery(
+                      ''
+                    );
                   }
-                >
-                  <Text
+
+                  setSearchOpen(
+                    (
+                      current
+                    ) =>
+                      !current
+                  );
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.headerIconButton,
+                  searchOpen &&
+                    styles.headerIconButtonActive,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    searchOpen
+                      ? 'close'
+                      : 'search-outline'
+                  }
+                  size={21}
+                  color={
+                    colors.gold
+                  }
+                />
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
+                  router.push(
+                    '/book-cart'
+                  )
+                }
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.cartButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="cart-outline"
+                  size={22}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                {cartCount >
+                0 ? (
+                  <View
                     style={
-                      styles.cartBadgeText
+                      styles.cartBadge
                     }
                   >
-                    {
-                      cartCount
-                    }
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
+                    <Text
+                      style={
+                        styles.cartBadgeText
+                      }
+                    >
+                      {
+                        cartCount
+                      }
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
           </View>
-
-          <Text
-            style={
-              styles.subheading
-            }
-          >
-            Your books, shelves,
-            and reading history.
-          </Text>
         </View>
 
         <View
@@ -2217,63 +2326,66 @@ export default function LibraryScreen() {
           ) : null}
         </View>
 
-        <View
-          style={
-            styles.searchWrap
-          }
-        >
-          <Ionicons
-            name="search-outline"
-            size={19}
-            color={
-              colors.mutedText
-            }
-          />
-
-          <TextInput
-            value={
-              searchQuery
-            }
-            onChangeText={
-              setSearchQuery
-            }
-            placeholder="Search your library"
-            placeholderTextColor={
-              colors.mutedText
-            }
-            autoCorrect={false}
-            autoCapitalize="none"
-            returnKeyType="search"
-            clearButtonMode="never"
+        {searchOpen ? (
+          <View
             style={
-              styles.searchInput
+              styles.searchWrap
             }
-          />
-
-          {searchQuery ? (
-            <Pressable
-              onPress={() =>
-                setSearchQuery(
-                  ''
-                )
+          >
+            <Ionicons
+              name="search-outline"
+              size={19}
+              color={
+                colors.mutedText
               }
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.searchClear,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="close-circle"
-                size={19}
-                color={
-                  colors.mutedText
+            />
+
+            <TextInput
+              value={
+                searchQuery
+              }
+              onChangeText={
+                setSearchQuery
+              }
+              placeholder="Search your library"
+              placeholderTextColor={
+                colors.mutedText
+              }
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              clearButtonMode="never"
+              autoFocus
+              style={
+                styles.searchInput
+              }
+            />
+
+            {searchQuery ? (
+              <Pressable
+                onPress={() =>
+                  setSearchQuery(
+                    ''
+                  )
                 }
-              />
-            </Pressable>
-          ) : null}
-        </View>
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.searchClear,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={19}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <ScrollView
           ref={
@@ -2366,119 +2478,24 @@ export default function LibraryScreen() {
 
         <View
           style={
-            styles.ownershipFilterWrap
+            styles.libraryControls
           }
         >
-          <Text
-            style={
-              styles.ownershipFilterLabel
-            }
-          >
-            Ownership
-          </Text>
-
-          <View
-            style={
-              styles.ownershipSegment
-            }
-          >
-            {(
-              [
-                {
-                  value:
-                    'all',
-                  label:
-                    'All',
-                },
-                {
-                  value:
-                    'owned',
-                  label:
-                    'Owned',
-                },
-                {
-                  value:
-                    'not_owned',
-                  label:
-                    'Not Owned',
-                },
-              ] as Array<{
-                value:
-                  OwnershipFilter;
-                label:
-                  string;
-              }>
-            ).map(
-              (
-                option
-              ) => {
-                const selected =
-                  ownershipFilter ===
-                  option.value;
-
-                return (
-                  <Pressable
-                    key={
-                      option.value
-                    }
-                    onPress={() =>
-                      setOwnershipFilter(
-                        option.value
-                      )
-                    }
-                    style={[
-                      styles.ownershipSegmentButton,
-                      selected &&
-                        styles.ownershipSegmentButtonActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.ownershipSegmentText,
-                        selected &&
-                          styles.ownershipSegmentTextActive,
-                      ]}
-                    >
-                      {
-                        option.label
-                      }
-                    </Text>
-                  </Pressable>
-                );
-              }
-            )}
-          </View>
-        </View>
-
-        <View
-          style={
-            styles.toolbar
-          }
-        >
-          <Text
-            style={
-              styles.resultsText
-            }
-          >
-            {visibleBooks.length}{' '}
-            {visibleBooks.length ===
-            1
-              ? 'book'
-              : 'books'}
-          </Text>
-
           <Pressable
             onPress={
               openSortMenu
             }
             style={({ pressed }) => [
               styles.sortButton,
+              ownershipFilter !==
+                'all' &&
+                styles.sortButtonFiltered,
               pressed &&
                 styles.pressed,
             ]}
           >
             <Ionicons
-              name="swap-vertical-outline"
+              name="options-outline"
               size={16}
               color={
                 colors.gold
@@ -2492,6 +2509,15 @@ export default function LibraryScreen() {
             >
               {sortLabel}
             </Text>
+
+            {ownershipFilter !==
+            'all' ? (
+              <View
+                style={
+                  styles.activeFilterDot
+                }
+              />
+            ) : null}
 
             <Ionicons
               name="chevron-down"
@@ -3800,7 +3826,7 @@ function createStyles(
     },
 
     header: {
-      marginBottom: 22,
+      marginBottom: 0,
     },
 
     headerTopRow: {
@@ -3810,6 +3836,41 @@ function createStyles(
         'center',
       justifyContent:
         'space-between',
+    },
+
+    headerActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        8,
+    },
+
+    headerIconButton: {
+      width:
+        42,
+      height:
+        42,
+      borderRadius:
+        13,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+    },
+
+    headerIconButtonActive: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
     },
 
     cartButton: {
@@ -3887,9 +3948,9 @@ function createStyles(
       padding:
         14,
       marginTop:
-        16,
+        12,
       marginBottom:
-        14,
+        12,
     },
     checkinTopRow: {
       flexDirection:
@@ -4088,7 +4149,7 @@ function createStyles(
         colors.border,
       borderRadius: 14,
       paddingHorizontal: 13,
-      marginBottom: 14,
+      marginBottom: 12,
     },
 
     searchInput: {
@@ -4179,80 +4240,17 @@ function createStyles(
       color: colors.gold,
     },
 
-    ownershipFilterWrap: {
-      marginTop: 10,
-    },
-
-    ownershipFilterLabel: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 9,
-      letterSpacing: 1,
-      textTransform:
-        'uppercase',
-      marginBottom: 6,
-      paddingHorizontal: 2,
-    },
-
-    ownershipSegment: {
-      alignSelf:
-        'flex-start',
+    libraryControls: {
       flexDirection:
         'row',
-      padding: 3,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
-    },
-
-    ownershipSegmentButton: {
-      minHeight: 31,
-      paddingHorizontal: 11,
+      justifyContent:
+        'flex-end',
       alignItems:
         'center',
-      justifyContent:
-        'center',
-      borderRadius: 9,
-    },
-
-    ownershipSegmentButtonActive: {
-      backgroundColor:
-        colors.elevated,
-    },
-
-    ownershipSegmentText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 11,
-    },
-
-    ownershipSegmentTextActive: {
-      color:
-        colors.gold,
-    },
-
-    toolbar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-      marginTop: 20,
-      marginBottom: 14,
-    },
-
-    resultsText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 12,
+      marginTop:
+        9,
+      marginBottom:
+        10,
     },
 
     sortButton: {
@@ -4274,6 +4272,22 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize: 11,
+    },
+
+    sortButtonFiltered: {
+      borderColor:
+        colors.gold,
+    },
+
+    activeFilterDot: {
+      width:
+        6,
+      height:
+        6,
+      borderRadius:
+        3,
+      backgroundColor:
+        colors.gold,
     },
 
     gridRow: {
