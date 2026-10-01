@@ -943,65 +943,62 @@ export default function ReadingActivityScreen() {
                 }
               />
 
-              {personalization.charms.length >
-              0 ? (
-                <View
-                  style={[
-                    styles.charmScatter,
-                    styles.charmScatterTop,
-                  ]}
-                >
-                  {personalization.charms
-                    .slice(
-                      0,
-                      4
-                    )
-                    .map(
-                      (
-                        charm,
-                        index
-                      ) => (
-                        <View
-                          key={
+              <View
+                style={[
+                  styles.charmScatter,
+                  styles.charmScatterTop,
+                ]}
+              >
+                {personalization.charms
+                  .slice(
+                    0,
+                    4
+                  )
+                  .map(
+                    (
+                      charm,
+                      index
+                    ) => (
+                      <View
+                        key={
+                          charm
+                        }
+                        style={[
+                          styles.charmScatterItem,
+                          {
+                            transform: [
+                              {
+                                rotate:
+                                  CHARM_ROTATIONS[
+                                    index
+                                  ],
+                              },
+                              {
+                                translateY:
+                                  index % 2 ===
+                                  0
+                                    ? 3
+                                    : -3,
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        <ReadingMonthCharmArtwork
+                          charm={
                             charm
                           }
-                          style={[
-                            styles.charmScatterItem,
-                            {
-                              transform: [
-                                {
-                                  rotate:
-                                    CHARM_ROTATIONS[
-                                      index
-                                    ],
-                                },
-                                {
-                                  translateY:
-                                    index % 2 ===
-                                    0
-                                      ? 3
-                                      : -3,
-                                },
-                              ],
-                            },
-                          ]}
-                        >
-                          <ReadingMonthCharmArtwork
-                            charm={
-                              charm
-                            }
-                            size={
-                              index % 3 ===
-                              0
-                                ? 58
-                                : 54
-                            }
-                          />
-                        </View>
-                      )
-                    )}
-                </View>
-              ) : null}
+                          size={
+                            index % 3 ===
+                            0
+                              ? 58
+                              : 54
+                          }
+                        />
+                      </View>
+                    )
+                  )}
+              </View>
 
               <View
                 style={[
@@ -1277,73 +1274,69 @@ export default function ReadingActivityScreen() {
                 </View>
               ) : null}
 
-              <View
+              <Pressable
+                disabled
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled:
+                    true,
+                }}
                 style={
-                  styles.motionGuide
+                  styles.monthlyRecapButton
                 }
               >
                 <View
                   style={
-                    styles.motionGuideItem
+                    styles.monthlyRecapIcon
                   }
                 >
-                  <View
-                    style={[
-                      styles.motionGuideDot,
-                      styles.motionGuideDotRead,
-                    ]}
+                  <Ionicons
+                    name="sparkles-outline"
+                    size={
+                      18
+                    }
+                    color={
+                      colors.gold
+                    }
                   />
+                </View>
+
+                <View
+                  style={
+                    styles.monthlyRecapCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.monthlyRecapTitle
+                    }
+                  >
+                    View Monthly Recap
+                  </Text>
 
                   <Text
                     style={
-                      styles.motionGuideText
+                      styles.monthlyRecapSubtitle
                     }
                   >
-                    Reading day
+                    Your month, wrapped up in one place.
                   </Text>
                 </View>
 
                 <View
                   style={
-                    styles.motionGuideRule
-                  }
-                />
-
-                <View
-                  style={
-                    styles.motionGuideItem
+                    styles.monthlyRecapSoon
                   }
                 >
-                  <View
-                    style={[
-                      styles.motionGuideDot,
-                      styles.motionGuideDotToday,
-                    ]}
-                  />
-
                   <Text
                     style={
-                      styles.motionGuideText
+                      styles.monthlyRecapSoonText
                     }
                   >
-                    Today
+                    Soon
                   </Text>
                 </View>
-
-                <View
-                  style={
-                    styles.motionGuideRule
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.motionGuideHint
-                  }
-                >
-                  Tap a date
-                </Text>
-              </View>
+              </Pressable>
             </View>
 
             {selectedDateKey &&
@@ -2152,73 +2145,91 @@ function createStyles(
       justifyContent:
         'center',
     },
-    motionGuide: {
+    monthlyRecapButton: {
       minHeight:
-        38,
+        62,
       marginTop:
-        7,
+        12,
+      borderRadius:
+        17,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
       flexDirection:
         'row',
+      alignItems:
+        'center',
+      gap:
+        11,
+      paddingHorizontal:
+        13,
+      opacity:
+        0.88,
+    },
+    monthlyRecapIcon: {
+      width:
+        38,
+      height:
+        38,
+      borderRadius:
+        12,
+      backgroundColor:
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
         'center',
-      gap:
-        8,
-      paddingHorizontal:
-        8,
     },
-    motionGuideItem: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        5,
+    monthlyRecapCopy: {
+      flex:
+        1,
+      minWidth:
+        0,
     },
-    motionGuideDot: {
-      width:
-        10,
-      height:
-        10,
-      borderRadius:
-        5,
+    monthlyRecapTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        11.5,
     },
-    motionGuideDotRead: {
-      backgroundColor:
-        colors.gold,
-    },
-    motionGuideDotToday: {
-      borderWidth:
-        1.5,
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.surface,
-    },
-    motionGuideText: {
+    monthlyRecapSubtitle: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_500Medium',
+        'Inter_400Regular',
       fontSize:
-        9,
+        9.5,
+      marginTop:
+        2,
     },
-    motionGuideRule: {
-      width:
+    monthlyRecapSoon: {
+      borderRadius:
+        999,
+      borderWidth:
         1,
-      height:
-        13,
-      backgroundColor:
-        colors.border,
+      borderColor:
+        colors.gold,
+      paddingHorizontal:
+        8,
+      paddingVertical:
+        4,
     },
-    motionGuideHint: {
+    monthlyRecapSoonText: {
       color:
-        colors.secondaryText,
+        colors.gold,
       fontFamily:
-        'Inter_600SemiBold',
+        'Inter_700Bold',
       fontSize:
-        9,
+        8,
+      letterSpacing:
+        0.4,
+      textTransform:
+        'uppercase',
     },
     sectionIntro: {
       flexDirection:
