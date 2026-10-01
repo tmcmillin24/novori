@@ -102,6 +102,34 @@ function getMonthLabel(
   );
 }
 
+function getOrbitDayLabel(
+  dateKey:
+    string
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateKey
+      .split('-')
+      .map(Number);
+
+  return new Date(
+    year,
+    month - 1,
+    day
+  ).toLocaleDateString(
+    undefined,
+    {
+      month:
+        'long',
+      day:
+        'numeric',
+    }
+  );
+}
+
 function getDayTitle(
   dateKey:
     string
@@ -1102,74 +1130,116 @@ export default function ReadingActivityScreen() {
 
         <View
           style={
-            styles.monthHeader
+            styles.monthToolbar
           }
         >
+          <View
+            style={
+              styles.monthNav
+            }
+          >
+            <Pressable
+              onPress={() =>
+                moveMonth(
+                  -1
+                )
+              }
+              hitSlop={
+                8
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.monthButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={
+                  17
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </Pressable>
+
+            <Text
+              style={
+                styles.monthTitle
+              }
+            >
+              {getMonthLabel(
+                displayedMonth.year,
+                displayedMonth.monthIndex
+              )}
+            </Text>
+
+            <Pressable
+              disabled={
+                !canGoForward
+              }
+              onPress={() =>
+                moveMonth(
+                  1
+                )
+              }
+              hitSlop={
+                8
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.monthButton,
+                !canGoForward &&
+                  styles.monthButtonDisabled,
+                pressed &&
+                  canGoForward &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={
+                  17
+                }
+                color={
+                  canGoForward
+                    ? colors.gold
+                    : colors.mutedText
+                }
+              />
+            </Pressable>
+          </View>
+
           <Pressable
             onPress={() =>
-              moveMonth(
-                -1
+              setCustomizeVisible(
+                true
               )
             }
+            hitSlop={
+              8
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Personalize this reading month"
             style={({
               pressed,
             }) => [
-              styles.monthButton,
+              styles.personalizeIconButton,
               pressed &&
                 styles.pressed,
             ]}
           >
             <Ionicons
-              name="chevron-back"
+              name="color-palette-outline"
               size={
-                18
+                17
               }
               color={
                 colors.gold
-              }
-            />
-          </Pressable>
-
-          <Text
-            style={
-              styles.monthTitle
-            }
-          >
-            {getMonthLabel(
-              displayedMonth.year,
-              displayedMonth.monthIndex
-            )}
-          </Text>
-
-          <Pressable
-            disabled={
-              !canGoForward
-            }
-            onPress={() =>
-              moveMonth(
-                1
-              )
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.monthButton,
-              !canGoForward &&
-                styles.monthButtonDisabled,
-              pressed &&
-                canGoForward &&
-                styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="chevron-forward"
-              size={
-                18
-              }
-              color={
-                canGoForward
-                  ? colors.gold
-                  : colors.mutedText
               }
             />
           </Pressable>
@@ -1257,108 +1327,6 @@ export default function ReadingActivityScreen() {
                 styles.orbitHero
               }
             >
-              <View
-                style={
-                  styles.orbitIntro
-                }
-              >
-                <View
-                  style={
-                    styles.orbitEyebrowRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.orbitEyebrow
-                    }
-                  >
-                    YOUR MONTH
-                  </Text>
-
-                  <Ionicons
-                    name="sparkles"
-                    size={
-                      11
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.orbitHeadingRow
-                  }
-                >
-                  <View
-                    style={
-                      styles.orbitIntroCopy
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.orbitTitle
-                      }
-                    >
-                      Reading in motion
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.orbitSubtitle
-                      }
-                    >
-                      Every reading day leaves a mark.
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    onPress={() =>
-                      setCustomizeVisible(
-                        true
-                      )
-                    }
-                    hitSlop={
-                      8
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel="Personalize this reading month"
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.personalizeButton,
-                      pressed &&
-                        styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="color-palette-outline"
-                      size={
-                        14
-                      }
-                      color={
-                        colors.background
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.personalizeButtonText
-                      }
-                    >
-                      Personalize
-                    </Text>
-                  </Pressable>
-                </View>
-
-                <View
-                  style={
-                    styles.orbitAccentLine
-                  }
-                />
-              </View>
-
               <View
                 style={[
                   styles.orbitDecorStage,
@@ -1575,23 +1543,72 @@ export default function ReadingActivityScreen() {
                     },
                   ]}
                 >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      26
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
+                  {selectedDateKey &&
+                  selectedDay ? (
+                    <>
+                      <View
+                        style={
+                          styles.orbitCenterStatus
+                        }
+                      />
 
-                  <Text
-                    style={
-                      styles.orbitHint
-                    }
-                  >
-                    TAP A DAY
-                  </Text>
+                      <Text
+                        style={
+                          styles.orbitCenterTitle
+                        }
+                      >
+                        {getOrbitDayLabel(
+                          selectedDateKey
+                        )}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitCenterMeta
+                        }
+                      >
+                        {selectedDay.checkedIn
+                          ? 'Reading day'
+                          : hasSelectedActivity
+                          ? 'Reading activity'
+                          : 'Quiet day'}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitHint
+                        }
+                      >
+                        TAP CENTER TO CLOSE
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text
+                        style={
+                          styles.orbitCenterTitle
+                        }
+                      >
+                        Reading in motion
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitCenterMeta
+                        }
+                      >
+                        {monthData.daysRead} reading {monthData.daysRead === 1 ? 'day' : 'days'}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitHint
+                        }
+                      >
+                        TAP A DAY
+                      </Text>
+                    </>
+                  )}
                 </View>
 
               </View>
@@ -2187,43 +2204,37 @@ function createStyles(
       textAlign:
         'center',
     },
-    monthHeader: {
+    monthToolbar: {
+      position:
+        'relative',
+      minHeight:
+        38,
+      marginTop:
+        14,
+      marginBottom:
+        2,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    monthNav: {
       flexDirection:
         'row',
       alignItems:
         'center',
       justifyContent:
         'center',
-      alignSelf:
-        'center',
       gap:
-        7,
-      marginTop:
-        24,
-      marginBottom:
-        16,
-      paddingHorizontal:
-        7,
-      paddingVertical:
-        6,
-      borderRadius:
-        999,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
+        5,
     },
     monthButton: {
       width:
-        32,
+        30,
       height:
-        32,
+        30,
       borderRadius:
-        16,
-      backgroundColor:
-        colors.elevated,
+        15,
       alignItems:
         'center',
       justifyContent:
@@ -2231,117 +2242,45 @@ function createStyles(
     },
     monthButtonDisabled: {
       opacity:
-        0.45,
+        0.38,
     },
     monthTitle: {
+      minWidth:
+        148,
       color:
         colors.text,
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
-        21,
+        20,
+      textAlign:
+        'center',
+    },
+    personalizeIconButton: {
+      position:
+        'absolute',
+      right:
+        0,
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        17,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
     orbitHero: {
       marginBottom:
         26,
-    },
-    orbitIntro: {
-      marginBottom:
-        8,
-      paddingHorizontal:
-        2,
-    },
-    orbitEyebrowRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        5,
-      marginBottom:
-        4,
-    },
-    orbitHeadingRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'space-between',
-      gap:
-        14,
-    },
-    orbitIntroCopy: {
-      flex:
-        1,
-    },
-    orbitAccentLine: {
-      width:
-        42,
-      height:
-        2,
-      borderRadius:
-        999,
-      backgroundColor:
-        colors.gold,
-      opacity:
-        0.68,
-      marginTop:
-        11,
-    },
-    orbitEyebrow: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        8.5,
-      letterSpacing:
-        1.3,
-    },
-    orbitTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        25,
-      letterSpacing:
-        0.1,
-    },
-    orbitSubtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        11,
-      marginTop:
-        3,
-    },
-    personalizeButton: {
-      minHeight:
-        34,
-      borderRadius:
-        999,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        5,
-      paddingHorizontal:
-        11,
-      backgroundColor:
-        colors.gold,
-    },
-    personalizeButtonText: {
-      color:
-        colors.background,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        9.5,
     },
     orbitStage: {
       position:
@@ -2458,6 +2397,44 @@ function createStyles(
         'center',
       zIndex:
         3,
+      paddingHorizontal:
+        10,
+    },
+    orbitCenterStatus: {
+      width:
+        6,
+      height:
+        6,
+      borderRadius:
+        3,
+      backgroundColor:
+        colors.gold,
+      marginBottom:
+        7,
+    },
+    orbitCenterTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        17,
+      lineHeight:
+        21,
+      textAlign:
+        'center',
+    },
+    orbitCenterMeta: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+      marginTop:
+        4,
+      textAlign:
+        'center',
     },
     orbitHint: {
       color:
@@ -2465,11 +2442,13 @@ function createStyles(
       fontFamily:
         'Inter_700Bold',
       fontSize:
-        8,
+        7.5,
       letterSpacing:
-        1.45,
+        1.2,
       marginTop:
-        7,
+        8,
+      textAlign:
+        'center',
     },
     orbitDecorStage: {
       alignSelf:
