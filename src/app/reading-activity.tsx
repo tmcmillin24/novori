@@ -375,14 +375,10 @@ export default function ReadingActivityScreen() {
           activeOrbitSize /
             2;
 
-        const innerCircleRadius =
+        const outerCircleRadius =
           activeOrbitSize /
             2 -
-          innerHaloInset;
-
-        const stickerOrbitRadius =
-          innerCircleRadius +
-          14;
+          outerHaloInset;
 
         const slotAngles: Record<
           number,
@@ -455,6 +451,12 @@ export default function ReadingActivityScreen() {
               ? 54
               : 50;
 
+          const stickerCenterRadius =
+            outerCircleRadius +
+            size /
+              2 +
+            10;
+
           return {
             charm,
             size,
@@ -463,7 +465,7 @@ export default function ReadingActivityScreen() {
               Math.cos(
                 angle
               ) *
-                stickerOrbitRadius -
+                stickerCenterRadius -
               size /
                 2,
             top:
@@ -471,7 +473,7 @@ export default function ReadingActivityScreen() {
               Math.sin(
                 angle
               ) *
-                stickerOrbitRadius -
+                stickerCenterRadius -
               size /
                 2,
             rotate:
@@ -514,7 +516,7 @@ export default function ReadingActivityScreen() {
       },
       [
         activeOrbitSize,
-        innerHaloInset,
+        outerHaloInset,
         personalization.charms,
       ]
     );
