@@ -937,6 +937,12 @@ export default function ReadingActivityScreen() {
                 </Pressable>
               </View>
 
+              <View
+                style={
+                  styles.orbitDivider
+                }
+              />
+
               {personalization.charms.length >
               0 ? (
                 <View
@@ -987,8 +993,8 @@ export default function ReadingActivityScreen() {
                             size={
                               index % 3 ===
                               0
-                                ? 50
-                                : 46
+                                ? 58
+                                : 54
                             }
                           />
                         </View>
@@ -1261,8 +1267,8 @@ export default function ReadingActivityScreen() {
                             size={
                               index % 3 ===
                               0
-                                ? 50
-                                : 46
+                                ? 58
+                                : 54
                             }
                           />
                         </View>
@@ -1270,6 +1276,74 @@ export default function ReadingActivityScreen() {
                     )}
                 </View>
               ) : null}
+
+              <View
+                style={
+                  styles.motionGuide
+                }
+              >
+                <View
+                  style={
+                    styles.motionGuideItem
+                  }
+                >
+                  <View
+                    style={[
+                      styles.motionGuideDot,
+                      styles.motionGuideDotRead,
+                    ]}
+                  />
+
+                  <Text
+                    style={
+                      styles.motionGuideText
+                    }
+                  >
+                    Reading day
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.motionGuideRule
+                  }
+                />
+
+                <View
+                  style={
+                    styles.motionGuideItem
+                  }
+                >
+                  <View
+                    style={[
+                      styles.motionGuideDot,
+                      styles.motionGuideDotToday,
+                    ]}
+                  />
+
+                  <Text
+                    style={
+                      styles.motionGuideText
+                    }
+                  >
+                    Today
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.motionGuideRule
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.motionGuideHint
+                  }
+                >
+                  Tap a date
+                </Text>
+              </View>
             </View>
 
             {selectedDateKey &&
@@ -1856,6 +1930,20 @@ function createStyles(
       marginBottom:
         4,
     },
+    orbitDivider: {
+      height:
+        1,
+      width:
+        '100%',
+      backgroundColor:
+        colors.gold,
+      opacity:
+        0.58,
+      marginTop:
+        12,
+      marginBottom:
+        5,
+    },
     orbitEyebrow: {
       color:
         colors.gold,
@@ -2032,7 +2120,7 @@ function createStyles(
       width:
         '100%',
       minHeight:
-        58,
+        68,
       flexDirection:
         'row',
       alignItems:
@@ -2056,13 +2144,81 @@ function createStyles(
     },
     charmScatterItem: {
       width:
-        54,
+        64,
       height:
-        54,
+        64,
       alignItems:
         'center',
       justifyContent:
         'center',
+    },
+    motionGuide: {
+      minHeight:
+        38,
+      marginTop:
+        7,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        8,
+      paddingHorizontal:
+        8,
+    },
+    motionGuideItem: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+    },
+    motionGuideDot: {
+      width:
+        10,
+      height:
+        10,
+      borderRadius:
+        5,
+    },
+    motionGuideDotRead: {
+      backgroundColor:
+        colors.gold,
+    },
+    motionGuideDotToday: {
+      borderWidth:
+        1.5,
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.surface,
+    },
+    motionGuideText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize:
+        9,
+    },
+    motionGuideRule: {
+      width:
+        1,
+      height:
+        13,
+      backgroundColor:
+        colors.border,
+    },
+    motionGuideHint: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
     },
     sectionIntro: {
       flexDirection:
