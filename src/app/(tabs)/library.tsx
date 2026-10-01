@@ -46,6 +46,7 @@ import {
 } from '../../context/theme-context';
 
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
+import DailyCheckinSheet from '../../components/DailyCheckinSheet';
 
 import {
   getUserBooks,
@@ -64,6 +65,14 @@ import {
 import {
   transitionReadingJourney,
 } from '../../lib/reading-details';
+
+import {
+  DailyReadingCheckinState,
+  ensureDailyReadingCheckin,
+  getDailyReadingCheckinState,
+  getLocalDateKey,
+  getLocalWeekDates,
+} from '../../lib/reading-checkins';
 
 type LibraryFilter =
   | 'all'
@@ -457,6 +466,46 @@ export default function LibraryScreen() {
     setError,
   ] =
     useState('');
+
+  const [
+    checkinState,
+    setCheckinState,
+  ] =
+    useState<
+      DailyReadingCheckinState | null
+    >(null);
+
+  const [
+    loadingCheckin,
+    setLoadingCheckin,
+  ] =
+    useState(true);
+
+  const [
+    savingCheckin,
+    setSavingCheckin,
+  ] =
+    useState(false);
+
+  const [
+    checkinError,
+    setCheckinError,
+  ] =
+    useState('');
+
+  const [
+    checkinSheetVisible,
+    setCheckinSheetVisible,
+  ] =
+    useState(false);
+
+  const [
+    selectedCheckinBookIds,
+    setSelectedCheckinBookIds,
+  ] =
+    useState<string[]>(
+      []
+    );
 
   const [
     searchQuery,
@@ -880,6 +929,69 @@ export default function LibraryScreen() {
     }, [])
   );
 
+  useFocusEffect(
+    useCallback(
+      () => {
+        let active =
+          true;
+
+        async function loadCheckin() {
+          try {
+            setLoadingCheckin(
+              true
+            );
+
+            setCheckinError(
+              ''
+            );
+
+            const next =
+              await getDailyReadingCheckinState();
+
+            if (
+              active
+            ) {
+              setCheckinState(
+                next
+              );
+            }
+          } catch (
+            checkinLoadError
+          ) {
+            console.error(
+              'Could not load daily reading check-in:',
+              checkinLoadError
+            );
+
+            if (
+              active
+            ) {
+              setCheckinError(
+                'Daily check-ins are temporarily unavailable.'
+              );
+            }
+          } finally {
+            if (
+              active
+            ) {
+              setLoadingCheckin(
+                false
+              );
+            }
+          }
+        }
+
+        void loadCheckin();
+
+        return () => {
+          active =
+            false;
+        };
+      },
+      []
+    )
+  );
+
   useEffect(
     () => {
       const unsubscribe =
@@ -953,6 +1065,50 @@ export default function LibraryScreen() {
           ).length,
       };
     }, [books]);
+
+  const readingBooks =
+    useMemo(
+      () =>
+        books.filter(
+          (
+            book
+          ) =>
+            book.status ===
+            'reading'
+        ),
+      [
+        books,
+      ]
+    );
+
+  const checkinWeek =
+    useMemo(
+      () =>
+        getLocalWeekDates(),
+      [
+        checkinState
+          ?.localDate,
+      ]
+    );
+
+  const checkedDateSet =
+    useMemo(
+      () =>
+        new Set(
+          checkinState
+            ?.checkedDates ??
+          []
+        ),
+      [
+        checkinState
+          ?.checkedDates,
+      ]
+    );
+
+  const todayCheckinKey =
+    checkinState
+      ?.localDate ??
+    getLocalDateKey();
 
   const visibleBooks =
     useMemo(() => {
@@ -1130,6 +1286,155 @@ export default function LibraryScreen() {
         router,
       ]
     );
+
+  function toggleCheckinBook(
+    googleBookId:
+      string
+  ) {
+    if (
+      savingCheckin
+    ) {
+      return;
+    }
+
+    setSelectedCheckinBookIds(
+      (
+        current
+      ) =>
+        current.includes(
+          googleBookId
+        )
+          ? current.filter(
+              (
+                id
+              ) =>
+                id !==
+                googleBookId
+            )
+          : [
+              ...current,
+              googleBookId,
+            ]
+    );
+  }
+
+  async function saveDailyCheckin(
+    googleBookIds:
+      string[]
+  ) {
+    if (
+      savingCheckin ||
+      checkinState
+        ?.checkedIn
+    ) {
+      return;
+    }
+
+    try {
+      setSavingCheckin(
+        true
+      );
+
+      setCheckinError(
+        ''
+      );
+
+      await ensureDailyReadingCheckin(
+        googleBookIds,
+        'manual',
+        todayCheckinKey
+      );
+
+      const next =
+        await getDailyReadingCheckinState(
+          todayCheckinKey
+        );
+
+      setCheckinState(
+        next
+      );
+
+      setCheckinSheetVisible(
+        false
+      );
+
+      setSelectedCheckinBookIds(
+        []
+      );
+    } catch (
+      checkinSaveError
+    ) {
+      console.error(
+        'Could not save daily reading check-in:',
+        checkinSaveError
+      );
+
+      setCheckinError(
+        'Daily check-ins are temporarily unavailable.'
+      );
+
+      Alert.alert(
+        'Could not check in',
+        checkinSaveError instanceof
+          Error
+          ? checkinSaveError.message
+          : 'Novori had trouble saving today\'s reading check-in. Please try again.'
+      );
+    } finally {
+      setSavingCheckin(
+        false
+      );
+    }
+  }
+
+  function openDailyCheckin() {
+    if (
+      loadingCheckin ||
+      savingCheckin ||
+      checkinState
+        ?.checkedIn ||
+      checkinError
+    ) {
+      return;
+    }
+
+    if (
+      readingBooks.length ===
+      0
+    ) {
+      setSelectedCheckinBookIds(
+        []
+      );
+
+      setCheckinSheetVisible(
+        true
+      );
+
+      return;
+    }
+
+    if (
+      readingBooks.length ===
+      1
+    ) {
+      void saveDailyCheckin(
+        [
+          readingBooks[0]
+            .google_book_id,
+        ]
+      );
+
+      return;
+    }
+
+    setSelectedCheckinBookIds(
+      []
+    );
+
+    setCheckinSheetVisible(
+      true
+    );
+  }
 
   function openSortMenu() {
     Alert.alert(
@@ -1688,6 +1993,232 @@ export default function LibraryScreen() {
 
         <View
           style={
+            styles.checkinCard
+          }
+        >
+          <View
+            style={
+              styles.checkinTopRow
+            }
+          >
+            <View>
+              <Text
+                style={
+                  styles.checkinEyebrow
+                }
+              >
+                DAILY READING
+              </Text>
+
+              <View
+                style={
+                  styles.streakRow
+                }
+              >
+                <Ionicons
+                  name="flame-outline"
+                  size={16}
+                  color={
+                    colors.gold
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.streakText
+                  }
+                >
+                  {checkinState &&
+                  checkinState.currentStreak >
+                    0
+                    ? `${checkinState.currentStreak} day${checkinState.currentStreak === 1 ? '' : 's'} streak`
+                    : 'Start your streak today'}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.checkinStatusPill,
+                checkinState
+                  ?.checkedIn &&
+                  styles.checkinStatusPillDone,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.checkinStatusText,
+                  checkinState
+                    ?.checkedIn &&
+                    styles.checkinStatusTextDone,
+                ]}
+              >
+                {checkinState
+                  ?.checkedIn
+                  ? 'Today complete'
+                  : 'Today'}
+              </Text>
+            </View>
+          </View>
+
+          <Pressable
+            disabled={
+              loadingCheckin ||
+              savingCheckin ||
+              Boolean(
+                checkinState
+                  ?.checkedIn
+              ) ||
+              Boolean(
+                checkinError
+              )
+            }
+            onPress={
+              openDailyCheckin
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.checkinButton,
+              checkinState
+                ?.checkedIn &&
+                styles.checkinButtonDone,
+              (
+                pressed ||
+                loadingCheckin ||
+                savingCheckin ||
+                Boolean(
+                  checkinError
+                )
+              ) &&
+                styles.pressed,
+            ]}
+          >
+            {loadingCheckin ||
+            savingCheckin ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  colors.background
+                }
+              />
+            ) : (
+              <Ionicons
+                name={
+                  checkinState
+                    ?.checkedIn
+                    ? 'checkmark-circle'
+                    : 'checkmark-circle-outline'
+                }
+                size={18}
+                color={
+                  colors.background
+                }
+              />
+            )}
+
+            <Text
+              style={
+                styles.checkinButtonText
+              }
+            >
+              {checkinState
+                ?.checkedIn
+                ? 'Checked in'
+                : 'Check in'}
+            </Text>
+          </Pressable>
+
+          <View
+            style={
+              styles.weekRow
+            }
+          >
+            {checkinWeek.map(
+              (
+                item,
+                index
+              ) => {
+                const checked =
+                  checkedDateSet.has(
+                    item.key
+                  );
+
+                const isToday =
+                  item.key ===
+                  todayCheckinKey;
+
+                return (
+                  <View
+                    key={
+                      item.key
+                    }
+                    style={
+                      styles.weekDay
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.weekDayLabel,
+                        isToday &&
+                          styles.weekDayLabelToday,
+                      ]}
+                    >
+                      {
+                        [
+                          'M',
+                          'T',
+                          'W',
+                          'T',
+                          'F',
+                          'S',
+                          'S',
+                        ][index]
+                      }
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.dayBubble,
+                        isToday &&
+                          styles.dayBubbleToday,
+                        checked &&
+                          styles.dayBubbleChecked,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.dayBubbleText,
+                          checked &&
+                            styles.dayBubbleTextChecked,
+                        ]}
+                      >
+                        {
+                          item.date.getDate()
+                        }
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+            )}
+          </View>
+
+          {checkinError ? (
+            <Text
+              style={
+                styles.checkinErrorText
+              }
+            >
+              {
+                checkinError
+              }
+            </Text>
+          ) : null}
+        </View>
+
+        <View
+          style={
             styles.searchWrap
           }
         >
@@ -2221,6 +2752,38 @@ export default function LibraryScreen() {
           }
         />
       </SafeAreaView>
+
+      <DailyCheckinSheet
+        visible={
+          checkinSheetVisible
+        }
+        books={
+          readingBooks
+        }
+        selectedBookIds={
+          selectedCheckinBookIds
+        }
+        busy={
+          savingCheckin
+        }
+        onToggleBook={
+          toggleCheckinBook
+        }
+        onConfirm={async () => {
+          await saveDailyCheckin(
+            selectedCheckinBookIds
+          );
+        }}
+        onDismiss={() => {
+          setCheckinSheetVisible(
+            false
+          );
+
+          setSelectedCheckinBookIds(
+            []
+          );
+        }}
+      />
 
       <RemoveBookConfirmSheet
         visible={
@@ -3310,6 +3873,205 @@ function createStyles(
       fontSize: 15,
       marginTop: 5,
       letterSpacing: 0.15,
+    },
+
+    checkinCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        18,
+      padding:
+        14,
+      marginTop:
+        16,
+      marginBottom:
+        14,
+    },
+    checkinTopRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      justifyContent:
+        'space-between',
+      gap:
+        12,
+    },
+    checkinEyebrow: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9,
+      letterSpacing:
+        1,
+    },
+    streakRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      marginTop:
+        5,
+    },
+    streakText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        13,
+    },
+    checkinStatusPill: {
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        999,
+      backgroundColor:
+        colors.background,
+      paddingHorizontal:
+        9,
+      paddingVertical:
+        5,
+    },
+    checkinStatusPillDone: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.elevated,
+    },
+    checkinStatusText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+    },
+    checkinStatusTextDone: {
+      color:
+        colors.gold,
+    },
+    checkinButton: {
+      minHeight:
+        44,
+      borderRadius:
+        13,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      flexDirection:
+        'row',
+      gap:
+        7,
+      marginTop:
+        13,
+    },
+    checkinButtonDone: {
+      opacity:
+        0.72,
+    },
+    checkinButtonText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        12.5,
+    },
+    weekRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      justifyContent:
+        'space-between',
+      marginTop:
+        14,
+    },
+    weekDay: {
+      alignItems:
+        'center',
+      gap:
+        5,
+      flex:
+        1,
+    },
+    weekDayLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+    },
+    weekDayLabelToday: {
+      color:
+        colors.gold,
+    },
+    dayBubble: {
+      width:
+        30,
+      height:
+        30,
+      borderRadius:
+        15,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.background,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    dayBubbleToday: {
+      borderColor:
+        colors.gold,
+    },
+    dayBubbleChecked: {
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.gold,
+    },
+    dayBubbleText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        10.5,
+    },
+    dayBubbleTextChecked: {
+      color:
+        colors.background,
+    },
+    checkinErrorText: {
+      color:
+        colors.danger,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize:
+        10.5,
+      textAlign:
+        'center',
+      marginTop:
+        9,
     },
 
     searchWrap: {
