@@ -2108,7 +2108,9 @@ function createStyles(
       alignItems:
         'center',
       justifyContent:
-        'space-between',
+        'center',
+      gap:
+        12,
       marginTop:
         24,
       marginBottom:
