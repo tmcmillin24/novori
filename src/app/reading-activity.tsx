@@ -10,11 +10,15 @@ import {
 } from 'expo-router';
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -206,6 +210,13 @@ function emptyDay(
 export default function ReadingActivityScreen() {
   const router =
     useRouter();
+
+  const orbitFormationProgress =
+    useRef(
+      new Animated.Value(
+        1
+      )
+    ).current;
 
   const {
     width:
@@ -814,6 +825,52 @@ export default function ReadingActivityScreen() {
       ]
     );
 
+  useEffect(
+    () => {
+      if (
+        monthOrbitDots.length ===
+        0
+      ) {
+        return;
+      }
+
+      orbitFormationProgress.stopAnimation();
+      orbitFormationProgress.setValue(
+        0
+      );
+
+      const animation =
+        Animated.timing(
+          orbitFormationProgress,
+          {
+            toValue:
+              1,
+            duration:
+              1080,
+            easing:
+              Easing.out(
+                Easing.cubic
+              ),
+            useNativeDriver:
+              true,
+          }
+        );
+
+      animation.start();
+
+      return () => {
+        animation.stop();
+      };
+    },
+    [
+      displayedMonth.monthIndex,
+      displayedMonth.year,
+      monthData,
+      monthOrbitDots.length,
+      orbitFormationProgress,
+    ]
+  );
+
   const currentMonthStart =
     new Date(
       now.getFullYear(),
@@ -1315,41 +1372,116 @@ export default function ReadingActivityScreen() {
 
                 {monthOrbitDots.map(
                   (
-                    dot
+                    dot,
+                    index
                   ) => {
                     const selected =
                       dot.dateKey ===
                       selectedDateKey;
 
+                    const count =
+                      Math.max(
+                        1,
+                        monthOrbitDots.length
+                      );
+
+                    const revealStart =
+                      count ===
+                      1
+                        ? 0
+                        : (
+                            index /
+                            (
+                              count -
+                              1
+                            )
+                          ) *
+                          0.8;
+
+                    const revealEnd =
+                      Math.min(
+                        1,
+                        revealStart +
+                          0.2
+                      );
+
+                    const opacity =
+                      orbitFormationProgress.interpolate({
+                        inputRange: [
+                          revealStart,
+                          revealEnd,
+                        ],
+                        outputRange: [
+                          0,
+                          1,
+                        ],
+                        extrapolate:
+                          'clamp',
+                      });
+
+                    const scale =
+                      orbitFormationProgress.interpolate({
+                        inputRange: [
+                          revealStart,
+                          revealEnd,
+                        ],
+                        outputRange: [
+                          0.55,
+                          1,
+                        ],
+                        extrapolate:
+                          'clamp',
+                      });
+
+                    const translateX =
+                      orbitFormationProgress.interpolate({
+                        inputRange: [
+                          revealStart,
+                          revealEnd,
+                        ],
+                        outputRange: [
+                          (
+                            orbitCenter -
+                            dot.left
+                          ) *
+                            0.18,
+                          0,
+                        ],
+                        extrapolate:
+                          'clamp',
+                      });
+
+                    const translateY =
+                      orbitFormationProgress.interpolate({
+                        inputRange: [
+                          revealStart,
+                          revealEnd,
+                        ],
+                        outputRange: [
+                          (
+                            orbitCenter -
+                            dot.top
+                          ) *
+                            0.18,
+                          0,
+                        ],
+                        extrapolate:
+                          'clamp',
+                      });
+
                     return (
-                      <Pressable
+                      <Animated.View
                         key={
                           dot.dateKey
                         }
-                        onPress={() =>
-                          handleOrbitDayPress(
-                            dot.dateKey
-                          )
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel={`${getDayTitle(
-                          dot.dateKey
-                        )}${dot.checked ? ', reading day' : ', no reading logged'}`}
-                        accessibilityState={{
-                          selected,
-                        }}
-                        style={({
-                          pressed,
-                        }) => [
-                          styles.orbitDayTouch,
+                        pointerEvents="box-none"
+                        style={[
+                          styles.orbitDayAnimatedSlot,
                           {
                             width:
                               dayTouchSize,
                             height:
                               dayTouchSize,
-                            borderRadius:
-                              dayTouchSize /
-                              2,
                             left:
                               dot.left -
                               dayTouchSize /
@@ -1358,46 +1490,89 @@ export default function ReadingActivityScreen() {
                               dot.top -
                               dayTouchSize /
                                 2,
+                            opacity,
+                            transform: [
+                              {
+                                translateX,
+                              },
+                              {
+                                translateY,
+                              },
+                              {
+                                scale,
+                              },
+                            ],
                           },
-                          pressed &&
-                            styles.orbitDayTouchPressed,
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.orbitDayCircle,
+                        <Pressable
+                          onPress={() =>
+                            handleOrbitDayPress(
+                              dot.dateKey
+                            )
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            `${getDayTitle(
+                              dot.dateKey
+                            )}${dot.checked ? ', reading day' : ', no reading logged'}`
+                          }
+                          accessibilityState={{
+                            selected,
+                          }}
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.orbitDayTouch,
                             {
                               width:
-                                dayMarkerSize,
+                                dayTouchSize,
                               height:
-                                dayMarkerSize,
+                                dayTouchSize,
                               borderRadius:
-                                dayMarkerSize /
+                                dayTouchSize /
                                 2,
                             },
-                            dot.checked &&
-                              styles.orbitDayRead,
-                            dot.today &&
-                              styles.orbitDayToday,
-                            selected &&
-                              styles.orbitDaySelected,
+                            pressed &&
+                              styles.orbitDayTouchPressed,
                           ]}
                         >
-                          <Text
+                          <View
                             style={[
-                              styles.orbitDayNumber,
+                              styles.orbitDayCircle,
+                              {
+                                width:
+                                  dayMarkerSize,
+                                height:
+                                  dayMarkerSize,
+                                borderRadius:
+                                  dayMarkerSize /
+                                  2,
+                              },
                               dot.checked &&
-                                styles.orbitDayNumberRead,
+                                styles.orbitDayRead,
+                              dot.today &&
+                                styles.orbitDayToday,
                               selected &&
-                                styles.orbitDayNumberSelected,
+                                styles.orbitDaySelected,
                             ]}
                           >
-                            {
-                              dot.day
-                            }
-                          </Text>
-                        </View>
-                      </Pressable>
+                            <Text
+                              style={[
+                                styles.orbitDayNumber,
+                                dot.checked &&
+                                  styles.orbitDayNumberRead,
+                                selected &&
+                                  styles.orbitDayNumberSelected,
+                              ]}
+                            >
+                              {
+                                dot.day
+                              }
+                            </Text>
+                          </View>
+                        </Pressable>
+                      </Animated.View>
                     );
                   }
                 )}
@@ -1914,7 +2089,7 @@ function createStyles(
       borderColor:
         colors.border,
     },
-    orbitDayTouch: {
+    orbitDayAnimatedSlot: {
       position:
         'absolute',
       alignItems:
@@ -1923,6 +2098,12 @@ function createStyles(
         'center',
       zIndex:
         6,
+    },
+    orbitDayTouch: {
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
     orbitDayTouchPressed: {
       transform: [
