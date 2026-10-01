@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import ReadingMonthCharmArtwork from '../components/ReadingMonthCharmArtwork';
 import ReadingMonthCustomizeSheet from '../components/ReadingMonthCustomizeSheet';
@@ -55,8 +56,14 @@ const ORBIT_EDGE_GUTTER =
 const MAX_ORBIT_SIZE =
   460;
 
-const ORBIT_DECOR_VERTICAL_PADDING =
+const MAX_ORBIT_DECOR_VERTICAL_PADDING =
   88;
+
+const MIN_ORBIT_DECOR_VERTICAL_PADDING =
+  58;
+
+const MIN_ORBIT_SIZE =
+  240;
 
 const CHARM_ROTATIONS = [
   '-8deg',
@@ -204,8 +211,13 @@ export default function ReadingActivityScreen() {
   const {
     width:
       windowWidth,
+    height:
+      windowHeight,
   } =
     useWindowDimensions();
+
+  const insets =
+    useSafeAreaInsets();
 
   const {
     colors,
@@ -252,7 +264,7 @@ export default function ReadingActivityScreen() {
       null
     );
 
-  const fullOrbitSize =
+  const widthOrbitSize =
     Math.min(
       Math.max(
         windowWidth -
@@ -263,8 +275,65 @@ export default function ReadingActivityScreen() {
       MAX_ORBIT_SIZE
     );
 
+  const usableHeight =
+    Math.max(
+      480,
+      windowHeight -
+        insets.top
+    );
+
+  const compactHeight =
+    usableHeight <
+    700;
+
+  const topChromeBudget =
+    compactHeight
+      ? 126
+      : 164;
+
+  const heroHeightBudget =
+    Math.max(
+      360,
+      usableHeight -
+        topChromeBudget
+    );
+
+  const orbitDecorVerticalPadding =
+    Math.min(
+      MAX_ORBIT_DECOR_VERTICAL_PADDING,
+      Math.max(
+        MIN_ORBIT_DECOR_VERTICAL_PADDING,
+        (
+          heroHeightBudget -
+          widthOrbitSize
+        ) /
+          2
+      )
+    );
+
+  const heightOrbitBudget =
+    Math.max(
+      MIN_ORBIT_SIZE,
+      heroHeightBudget -
+        orbitDecorVerticalPadding *
+          2
+    );
+
   const activeOrbitSize =
-    fullOrbitSize;
+    Math.min(
+      widthOrbitSize,
+      heightOrbitBudget
+    );
+
+  const charmScale =
+    Math.min(
+      1,
+      Math.max(
+        0.82,
+        orbitDecorVerticalPadding /
+          74
+      )
+    );
 
   const orbitCenter =
     activeOrbitSize /
@@ -339,7 +408,7 @@ export default function ReadingActivityScreen() {
           2;
 
         const centerY =
-          ORBIT_DECOR_VERTICAL_PADDING +
+          orbitDecorVerticalPadding +
           activeOrbitSize /
             2;
 
@@ -413,11 +482,14 @@ export default function ReadingActivityScreen() {
             180;
 
           const size =
-            rotationIndex %
-              3 ===
-            0
-              ? 54
-              : 50;
+            (
+              rotationIndex %
+                3 ===
+              0
+                ? 54
+                : 50
+            ) *
+            charmScale;
 
           const stickerCenterRadius =
             outerCircleRadius +
@@ -426,9 +498,12 @@ export default function ReadingActivityScreen() {
             10;
 
           const verticalNudge =
-            top
-              ? -26
-              : 26;
+            (
+              top
+                ? -26
+                : 26
+            ) *
+            charmScale;
 
           return {
             charm,
@@ -490,6 +565,8 @@ export default function ReadingActivityScreen() {
       },
       [
         activeOrbitSize,
+        charmScale,
+        orbitDecorVerticalPadding,
         outerHaloInset,
         personalization.charms,
       ]
@@ -869,9 +946,11 @@ export default function ReadingActivityScreen() {
         scrollEventThrottle={
           16
         }
-        contentContainerStyle={
-          styles.content
-        }
+        contentContainerStyle={[
+          styles.content,
+          compactHeight &&
+            styles.contentCompact,
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={
@@ -895,9 +974,11 @@ export default function ReadingActivityScreen() {
         }
       >
         <View
-          style={
-            styles.headerRow
-          }
+          style={[
+            styles.headerRow,
+            compactHeight &&
+              styles.headerRowCompact,
+          ]}
         >
           <Pressable
             onPress={() =>
@@ -931,17 +1012,21 @@ export default function ReadingActivityScreen() {
             }
           >
             <Text
-              style={
-                styles.heading
-              }
+              style={[
+                styles.heading,
+                compactHeight &&
+                  styles.headingCompact,
+              ]}
             >
               Reading Activity
             </Text>
 
             <Text
-              style={
-                styles.subheading
-              }
+              style={[
+                styles.subheading,
+                compactHeight &&
+                  styles.subheadingCompact,
+              ]}
             >
               A record of the reading life you’re building.
             </Text>
@@ -949,9 +1034,11 @@ export default function ReadingActivityScreen() {
         </View>
 
         <View
-          style={
-            styles.monthToolbar
-          }
+          style={[
+            styles.monthToolbar,
+            compactHeight &&
+              styles.monthToolbarCompact,
+          ]}
         >
           <View
             style={
@@ -1143,9 +1230,11 @@ export default function ReadingActivityScreen() {
         ) : monthData ? (
           <>
             <View
-              style={
-                styles.orbitHero
-              }
+              style={[
+                styles.orbitHero,
+                compactHeight &&
+                  styles.orbitHeroCompact,
+              ]}
             >
               <View
                 style={[
@@ -1155,7 +1244,7 @@ export default function ReadingActivityScreen() {
                       activeOrbitSize,
                     height:
                       activeOrbitSize +
-                      ORBIT_DECOR_VERTICAL_PADDING *
+                      orbitDecorVerticalPadding *
                         2,
                   },
                 ]}
@@ -1165,7 +1254,7 @@ export default function ReadingActivityScreen() {
                   styles.orbitStage,
                   {
                     top:
-                      ORBIT_DECOR_VERTICAL_PADDING,
+                      orbitDecorVerticalPadding,
                     width:
                       activeOrbitSize,
                     height:
@@ -1959,6 +2048,10 @@ function createStyles(
       paddingBottom:
         70,
     },
+    contentCompact: {
+      paddingTop:
+        10,
+    },
     headerRow: {
       position:
         'relative',
@@ -1970,6 +2063,10 @@ function createStyles(
         66,
       paddingHorizontal:
         38,
+    },
+    headerRowCompact: {
+      minHeight:
+        58,
     },
     backButton: {
       position:
@@ -2007,6 +2104,10 @@ function createStyles(
       textAlign:
         'center',
     },
+    headingCompact: {
+      fontSize:
+        28,
+    },
     subheading: {
       color:
         colors.mutedText,
@@ -2018,6 +2119,12 @@ function createStyles(
         3,
       textAlign:
         'center',
+    },
+    subheadingCompact: {
+      fontSize:
+        11,
+      marginTop:
+        2,
     },
     monthToolbar: {
       position:
@@ -2032,6 +2139,12 @@ function createStyles(
         'center',
       justifyContent:
         'center',
+    },
+    monthToolbarCompact: {
+      marginTop:
+        8,
+      marginBottom:
+        0,
     },
     monthNav: {
       flexDirection:
@@ -2096,6 +2209,10 @@ function createStyles(
     orbitHero: {
       marginBottom:
         26,
+    },
+    orbitHeroCompact: {
+      marginBottom:
+        12,
     },
     orbitStage: {
       position:
