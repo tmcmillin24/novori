@@ -457,6 +457,11 @@ export default function ReadingActivityScreen() {
               2 +
             10;
 
+          const verticalNudge =
+            top
+              ? -18
+              : 18;
+
           return {
             charm,
             size,
@@ -475,7 +480,8 @@ export default function ReadingActivityScreen() {
               ) *
                 stickerCenterRadius -
               size /
-                2,
+                2 +
+              verticalNudge,
             rotate:
               CHARM_ROTATIONS[
                 rotationIndex %
