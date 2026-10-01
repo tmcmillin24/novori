@@ -21,6 +21,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import ReadingMonthCharmArtwork from './ReadingMonthCharmArtwork';
 import {
   NovoriColors,
 } from '../constants/novori-theme';
@@ -52,108 +53,54 @@ const CHARM_OPTIONS: Array<{
     ReadingMonthCharm;
   label:
     string;
-  icon:
-    keyof typeof Ionicons.glyphMap;
-  color:
-    string;
-  tint:
-    string;
 }> = [
   {
     value:
       'plant',
     label:
       'Plant',
-    icon:
-      'leaf-outline',
-    color:
-      '#5FAF73',
-    tint:
-      'rgba(95, 175, 115, 0.14)',
   },
   {
     value:
       'sun',
     label:
       'Sun',
-    icon:
-      'sunny-outline',
-    color:
-      '#F2C84B',
-    tint:
-      'rgba(242, 200, 75, 0.15)',
   },
   {
     value:
       'mug',
     label:
       'Mug',
-    icon:
-      'cafe-outline',
-    color:
-      '#C97A4A',
-    tint:
-      'rgba(201, 122, 74, 0.14)',
   },
   {
     value:
       'moon',
     label:
       'Moon',
-    icon:
-      'moon-outline',
-    color:
-      '#8A7DD1',
-    tint:
-      'rgba(138, 125, 209, 0.14)',
   },
   {
     value:
       'headphones',
     label:
       'Audio',
-    icon:
-      'headset-outline',
-    color:
-      '#5D9CEC',
-    tint:
-      'rgba(93, 156, 236, 0.14)',
   },
   {
     value:
       'flower',
     label:
       'Flower',
-    icon:
-      'flower-outline',
-    color:
-      '#D979A7',
-    tint:
-      'rgba(217, 121, 167, 0.14)',
   },
   {
     value:
       'cat',
     label:
       'Cat',
-    icon:
-      'paw-outline',
-    color:
-      '#E59B4C',
-    tint:
-      'rgba(229, 155, 76, 0.14)',
   },
   {
     value:
       'globe',
     label:
       'Globe',
-    icon:
-      'earth-outline',
-    color:
-      '#48A9A6',
-    tint:
-      'rgba(72, 169, 166, 0.14)',
   },
 ];
 
@@ -392,7 +339,7 @@ export default function ReadingMonthCustomizeSheet({
 
         if (
           current.length >=
-          3
+          8
         ) {
           return current;
         }
@@ -616,7 +563,7 @@ export default function ReadingMonthCustomizeSheet({
                     styles.subtitle
                   }
                 >
-                  Pick up to three colorful charms for this month.
+                  Pick up to eight little charms for this month.
                 </Text>
               </View>
             </View>
@@ -639,7 +586,7 @@ export default function ReadingMonthCustomizeSheet({
                   styles.counter
                 }
               >
-                {charms.length}/3
+                {charms.length}/8
               </Text>
             </View>
 
@@ -660,7 +607,7 @@ export default function ReadingMonthCustomizeSheet({
                   const disabled =
                     !selected &&
                     charms.length >=
-                      3;
+                      8;
 
                   return (
                     <Pressable
@@ -689,23 +636,16 @@ export default function ReadingMonthCustomizeSheet({
                       ]}
                     >
                       <View
-                        style={[
-                          styles.charmPreview,
-                          {
-                            backgroundColor:
-                              option.tint,
-                          },
-                        ]}
+                        style={
+                          styles.charmArtworkWrap
+                        }
                       >
-                        <Ionicons
-                          name={
-                            option.icon
+                        <ReadingMonthCharmArtwork
+                          charm={
+                            option.value
                           }
                           size={
-                            23
-                          }
-                          color={
-                            option.color
+                            34
                           }
                         />
                       </View>
@@ -931,39 +871,29 @@ function createStyles(
       width:
         '23%',
       minHeight:
-        79,
-      borderRadius:
-        15,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.background,
+        76,
       alignItems:
         'center',
       justifyContent:
         'center',
-      padding:
+      paddingVertical:
         7,
+      opacity:
+        0.86,
     },
     charmChoiceSelected: {
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.elevated,
+      opacity:
+        1,
     },
     charmChoiceDisabled: {
       opacity:
-        0.35,
+        0.28,
     },
-    charmPreview: {
+    charmArtworkWrap: {
       width:
-        40,
+        42,
       height:
-        40,
-      borderRadius:
-        14,
+        42,
       alignItems:
         'center',
       justifyContent:
@@ -977,15 +907,23 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize:
-        9,
+        9.5,
       textAlign:
         'center',
+      paddingBottom:
+        3,
+      borderBottomWidth:
+        1,
+      borderBottomColor:
+        'transparent',
     },
     charmLabelSelected: {
       color:
         colors.gold,
       fontFamily:
-        'Inter_600SemiBold',
+        'Inter_700Bold',
+      borderBottomColor:
+        colors.gold,
     },
     helperText: {
       color:
