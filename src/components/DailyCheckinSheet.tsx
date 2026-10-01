@@ -471,7 +471,7 @@ export default function DailyCheckinSheet({
               {books.length >
                 0
                 ? editing
-                  ? 'Choose the book that should be attached to today’s check-in. Your streak stays exactly the same.'
+                  ? 'Choose a different book and Novori will save the change automatically. Your streak stays exactly the same.'
                   : 'Choose the book you read today. You can change it later if you picked the wrong one.'
                 : 'Add a book to your Library and mark it as Reading before checking in.'}
             </Text>
@@ -611,91 +611,120 @@ export default function DailyCheckinSheet({
 
             {books.length >
             0 ? (
-            <View
-              style={
-                styles.actions
-              }
-            >
-              <Pressable
-                disabled={
-                  busy
-                }
-                onPress={
-                  closeSmoothly
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.cancelButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={
-                    styles.cancelText
+              editing ? (
+                <Pressable
+                  disabled={
+                    busy
                   }
+                  onPress={
+                    closeSmoothly
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.editCloseButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
                 >
-                  Cancel
-                </Text>
-              </Pressable>
-
-              <Pressable
-                disabled={
-                  busy ||
-                  selectedBookIds.length ===
-                    0
-                }
-                onPress={() =>
-                  void confirm()
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.confirmButton,
-                  (
-                    pressed ||
-                    busy ||
-                    selectedBookIds.length ===
-                      0
-                  ) &&
-                    styles.disabled,
-                ]}
-              >
-                {busy ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      colors.background
-                    }
-                  />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={
-                        editing
-                          ? 'save-outline'
-                          : 'checkmark-circle-outline'
-                      }
-                      size={17}
+                  {busy ? (
+                    <ActivityIndicator
+                      size="small"
                       color={
-                        colors.background
+                        colors.gold
                       }
                     />
-
+                  ) : (
                     <Text
                       style={
-                        styles.confirmText
+                        styles.editCloseText
                       }
                     >
-                      {editing
-                        ? 'Save changes'
-                        : 'Check in'}
+                      Cancel
                     </Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
+                  )}
+                </Pressable>
+              ) : (
+                <View
+                  style={
+                    styles.actions
+                  }
+                >
+                  <Pressable
+                    disabled={
+                      busy
+                    }
+                    onPress={
+                      closeSmoothly
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.cancelButton,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.cancelText
+                      }
+                    >
+                      Cancel
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    disabled={
+                      busy ||
+                      selectedBookIds.length ===
+                        0
+                    }
+                    onPress={() =>
+                      void confirm()
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.confirmButton,
+                      (
+                        pressed ||
+                        busy ||
+                        selectedBookIds.length ===
+                          0
+                      ) &&
+                        styles.disabled,
+                    ]}
+                  >
+                    {busy ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.background
+                        }
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle-outline"
+                          size={17}
+                          color={
+                            colors.background
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.confirmText
+                          }
+                        >
+                          Check in
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              )
             ) : (
               <Pressable
                 onPress={
@@ -929,6 +958,32 @@ function createStyles(
         10,
       marginTop:
         16,
+    },
+    editCloseButton: {
+      minHeight:
+        42,
+      borderRadius:
+        13,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.background,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginTop:
+        16,
+    },
+    editCloseText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
     },
     cancelButton: {
       flex:
