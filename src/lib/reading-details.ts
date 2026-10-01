@@ -61,6 +61,15 @@ export type ReadingNote = {
   updated_at: string;
 };
 
+export type ReadingJourneyArchive = {
+  session: ReadingSession;
+  latest_checkpoint:
+    | ReadingCheckpoint
+    | null;
+  checkpoints: ReadingCheckpoint[];
+  notes: ReadingNote[];
+};
+
 export type ReadingDetailsData = {
   book: UserBook;
   session: ReadingSession;
@@ -69,6 +78,8 @@ export type ReadingDetailsData = {
     | null;
   checkpoints: ReadingCheckpoint[];
   notes: ReadingNote[];
+  previous_journeys:
+    ReadingJourneyArchive[];
 };
 
 type ProgressInput = {
@@ -281,59 +292,114 @@ export async function getReadingDetails(
       googleBookId
     );
 
+  const {
+    data: sessionsData,
+    error: sessionsError,
+  } =
+    await supabase
+      .from(
+        'reading_sessions'
+      )
+      .select('*')
+      .eq(
+        'user_id',
+        user.id
+      )
+      .eq(
+        'user_book_id',
+        book.id
+      )
+      .order(
+        'session_number',
+        {
+          ascending:
+            false,
+        }
+      );
+
+  if (sessionsError) {
+    throw sessionsError;
+  }
+
+  const sessions =
+    (
+      sessionsData ??
+      []
+    ) as ReadingSession[];
+
+  const sessionIds =
+    sessions.map(
+      (
+        item
+      ) =>
+        item.id
+    );
+
   const [
     checkpointsResult,
     notesResult,
   ] =
-    await Promise.all([
-      supabase
-        .from(
-          'reading_checkpoints'
-        )
-        .select('*')
-        .eq(
-          'user_id',
-          user.id
-        )
-        .eq(
-          'session_id',
-          session.id
-        )
-        .order(
-          'created_at',
+    sessionIds.length >
+    0
+      ? await Promise.all([
+          supabase
+            .from(
+              'reading_checkpoints'
+            )
+            .select('*')
+            .eq(
+              'user_id',
+              user.id
+            )
+            .in(
+              'session_id',
+              sessionIds
+            )
+            .order(
+              'created_at',
+              {
+                ascending:
+                  false,
+              }
+            ),
+          supabase
+            .from(
+              'reading_notes'
+            )
+            .select('*')
+            .eq(
+              'user_id',
+              user.id
+            )
+            .in(
+              'session_id',
+              sessionIds
+            )
+            .order(
+              'is_pinned',
+              {
+                ascending:
+                  false,
+              }
+            )
+            .order(
+              'created_at',
+              {
+                ascending:
+                  false,
+              }
+            ),
+        ])
+      : [
           {
-            ascending:
-              false,
-          }
-        ),
-      supabase
-        .from(
-          'reading_notes'
-        )
-        .select('*')
-        .eq(
-          'user_id',
-          user.id
-        )
-        .eq(
-          'session_id',
-          session.id
-        )
-        .order(
-          'is_pinned',
+            data: [],
+            error: null,
+          },
           {
-            ascending:
-              false,
-          }
-        )
-        .order(
-          'created_at',
-          {
-            ascending:
-              false,
-          }
-        ),
-    ]);
+            data: [],
+            error: null,
+          },
+        ];
 
   if (
     checkpointsResult.error
@@ -347,7 +413,7 @@ export async function getReadingDetails(
     throw notesResult.error;
   }
 
-  const checkpoints =
+  const allCheckpoints =
     (
       checkpointsResult.data ??
       []
@@ -355,13 +421,76 @@ export async function getReadingDetails(
       normalizeCheckpoint
     );
 
-  const notes =
+  const allNotes =
     (
       notesResult.data ??
       []
     ).map(
       normalizeNote
     );
+
+  const checkpoints =
+    allCheckpoints.filter(
+      (
+        checkpoint
+      ) =>
+        checkpoint.session_id ===
+        session.id
+    );
+
+  const notes =
+    allNotes.filter(
+      (
+        note
+      ) =>
+        note.session_id ===
+        session.id
+    );
+
+  const previous_journeys =
+    sessions
+      .filter(
+        (
+          item
+        ) =>
+          item.id !==
+          session.id
+      )
+      .map(
+        (
+          archivedSession
+        ): ReadingJourneyArchive => {
+          const archivedCheckpoints =
+            allCheckpoints.filter(
+              (
+                checkpoint
+              ) =>
+                checkpoint.session_id ===
+                archivedSession.id
+            );
+
+          const archivedNotes =
+            allNotes.filter(
+              (
+                note
+              ) =>
+                note.session_id ===
+                archivedSession.id
+            );
+
+          return {
+            session:
+              archivedSession,
+            latest_checkpoint:
+              archivedCheckpoints[0] ??
+              null,
+            checkpoints:
+              archivedCheckpoints,
+            notes:
+              archivedNotes,
+          };
+        }
+      );
 
   return {
     book,
@@ -371,6 +500,7 @@ export async function getReadingDetails(
       null,
     checkpoints,
     notes,
+    previous_journeys,
   };
 }
 
