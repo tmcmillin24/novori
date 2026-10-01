@@ -1369,6 +1369,32 @@ export default function LibraryScreen() {
       return;
     }
 
+    if (
+      editingCheckin
+    ) {
+      if (
+        selectedCheckinBookIds.includes(
+          googleBookId
+        )
+      ) {
+        return;
+      }
+
+      setSelectedCheckinBookIds(
+        [
+          googleBookId,
+        ]
+      );
+
+      void saveEditedDailyCheckin(
+        [
+          googleBookId,
+        ]
+      );
+
+      return;
+    }
+
     setSelectedCheckinBookIds(
       (
         current
