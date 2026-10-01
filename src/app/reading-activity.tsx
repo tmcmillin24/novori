@@ -354,15 +354,17 @@ export default function ReadingActivityScreen() {
   const monthCharmPlacements =
     useMemo(
       () => {
-        const count =
-          personalization.charms.length;
+        const topCharms =
+          personalization.charms.slice(
+            0,
+            4
+          );
 
-        if (
-          count ===
-          0
-        ) {
-          return [];
-        }
+        const bottomCharms =
+          personalization.charms.slice(
+            4,
+            8
+          );
 
         const centerX =
           activeOrbitSize /
@@ -375,10 +377,10 @@ export default function ReadingActivityScreen() {
 
         const horizontalRadius =
           Math.max(
-            96,
+            102,
             activeOrbitSize /
               2 -
-              34
+              28
           );
 
         const verticalRadius =
@@ -386,71 +388,139 @@ export default function ReadingActivityScreen() {
             2 +
           18;
 
-        const startAngle =
-          count ===
-          1
-            ? -Math.PI /
-              2
-            : count ===
-              2
-            ? -Math.PI /
-              4
-            : count ===
-              3
-            ? -Math.PI /
-              2
-            : -Math.PI /
-                2 +
-              Math.PI /
-                count;
+        const arcInset =
+          Math.PI *
+          0.19;
 
-        return personalization.charms.map(
-          (
-            charm,
-            index
-          ) => {
-            const angle =
-              startAngle +
-              (
-                index /
-                count
-              ) *
-                Math.PI *
-                2;
-
-            const size =
-              index % 3 ===
-              0
-                ? 58
-                : 54;
-
-            return {
-              charm,
-              size,
-              left:
-                centerX +
-                Math.cos(
-                  angle
-                ) *
-                  horizontalRadius -
-                size /
-                  2,
-              top:
-                centerY +
-                Math.sin(
-                  angle
-                ) *
-                  verticalRadius -
-                size /
-                  2,
-              rotate:
-                CHARM_ROTATIONS[
-                  index %
-                    CHARM_ROTATIONS.length
-                ],
-            };
+        function getArcAngle(
+          index:
+            number,
+          count:
+            number,
+          top:
+            boolean
+        ) {
+          if (
+            count <=
+            1
+          ) {
+            return top
+              ? -Math.PI /
+                  2
+              : Math.PI /
+                  2;
           }
-        );
+
+          const startAngle =
+            top
+              ? -Math.PI +
+                arcInset
+              : arcInset;
+
+          const endAngle =
+            top
+              ? -arcInset
+              : Math.PI -
+                arcInset;
+
+          return (
+            startAngle +
+            (
+              index /
+              (
+                count -
+                1
+              )
+            ) *
+              (
+                endAngle -
+                startAngle
+              )
+          );
+        }
+
+        function placeCharm(
+          charm:
+            ReadingMonthPersonalization['charms'][number],
+          index:
+            number,
+          count:
+            number,
+          top:
+            boolean,
+          rotationIndex:
+            number
+        ) {
+          const angle =
+            getArcAngle(
+              index,
+              count,
+              top
+            );
+
+          const size =
+            rotationIndex %
+              3 ===
+            0
+              ? 58
+              : 54;
+
+          return {
+            charm,
+            size,
+            left:
+              centerX +
+              Math.cos(
+                angle
+              ) *
+                horizontalRadius -
+              size /
+                2,
+            top:
+              centerY +
+              Math.sin(
+                angle
+              ) *
+                verticalRadius -
+              size /
+                2,
+            rotate:
+              CHARM_ROTATIONS[
+                rotationIndex %
+                  CHARM_ROTATIONS.length
+              ],
+          };
+        }
+
+        return [
+          ...topCharms.map(
+            (
+              charm,
+              index
+            ) =>
+              placeCharm(
+                charm,
+                index,
+                topCharms.length,
+                true,
+                index
+              )
+          ),
+          ...bottomCharms.map(
+            (
+              charm,
+              index
+            ) =>
+              placeCharm(
+                charm,
+                index,
+                bottomCharms.length,
+                false,
+                index +
+                  4
+              )
+          ),
+        ];
       },
       [
         activeOrbitSize,
