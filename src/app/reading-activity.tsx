@@ -59,15 +59,15 @@ const MAX_ORBIT_SIZE =
 const COMPACT_ORBIT_MAX =
   276;
 
-const CHARM_LAYOUTS = [
-  { x: 0.88, y: 0.17, rotate: '5deg' },
-  { x: 0.12, y: 0.25, rotate: '-7deg' },
-  { x: 0.93, y: 0.49, rotate: '4deg' },
-  { x: 0.09, y: 0.67, rotate: '-4deg' },
-  { x: 0.83, y: 0.82, rotate: '7deg' },
-  { x: 0.29, y: 0.93, rotate: '-5deg' },
-  { x: 0.70, y: 0.07, rotate: '3deg' },
-  { x: 0.35, y: 0.07, rotate: '-3deg' },
+const CHARM_ROTATIONS = [
+  '-8deg',
+  '5deg',
+  '-3deg',
+  '7deg',
+  '-6deg',
+  '4deg',
+  '-4deg',
+  '6deg',
 ] as const;
 
 function getMonthLabel(
@@ -250,10 +250,24 @@ export default function ReadingActivityScreen() {
     activeOrbitSize /
     2;
 
+  const dayMarkerSize =
+    selectedDateKey
+      ? 20
+      : 24;
+
+  const dayTouchSize =
+    selectedDateKey
+      ? 28
+      : 32;
+
   const orbitRadius =
     activeOrbitSize /
       2 -
-    16;
+    (
+      dayMarkerSize /
+        2 +
+      10
+    );
 
   const outerHaloInset =
     Math.max(
@@ -923,6 +937,66 @@ export default function ReadingActivityScreen() {
                 </Pressable>
               </View>
 
+              {personalization.charms.length >
+              0 ? (
+                <View
+                  style={[
+                    styles.charmScatter,
+                    styles.charmScatterTop,
+                  ]}
+                >
+                  {personalization.charms
+                    .slice(
+                      0,
+                      4
+                    )
+                    .map(
+                      (
+                        charm,
+                        index
+                      ) => (
+                        <View
+                          key={
+                            charm
+                          }
+                          style={[
+                            styles.charmScatterItem,
+                            {
+                              transform: [
+                                {
+                                  rotate:
+                                    CHARM_ROTATIONS[
+                                      index
+                                    ],
+                                },
+                                {
+                                  translateY:
+                                    index % 2 ===
+                                    0
+                                      ? 3
+                                      : -3,
+                                },
+                              ],
+                            },
+                          ]}
+                        >
+                          <ReadingMonthCharmArtwork
+                            charm={
+                              charm
+                            }
+                            size={
+                              index % 3 ===
+                              0
+                                ? 50
+                                : 46
+                            }
+                          />
+                        </View>
+                      )
+                    )}
+                </View>
+              ) : null}
+
               <View
                 style={[
                   styles.orbitStage,
@@ -1025,30 +1099,64 @@ export default function ReadingActivityScreen() {
                         style={({
                           pressed,
                         }) => [
-                          styles.orbitDotTouch,
+                          styles.orbitDayTouch,
                           {
+                            width:
+                              dayTouchSize,
+                            height:
+                              dayTouchSize,
+                            borderRadius:
+                              dayTouchSize /
+                              2,
                             left:
                               dot.left -
-                              13,
+                              dayTouchSize /
+                                2,
                             top:
                               dot.top -
-                              13,
+                              dayTouchSize /
+                                2,
                           },
                           pressed &&
-                            styles.orbitDotTouchPressed,
+                            styles.orbitDayTouchPressed,
                         ]}
                       >
                         <View
                           style={[
-                            styles.orbitDot,
+                            styles.orbitDayCircle,
+                            {
+                              width:
+                                dayMarkerSize,
+                              height:
+                                dayMarkerSize,
+                              borderRadius:
+                                dayMarkerSize /
+                                2,
+                            },
                             dot.checked &&
-                              styles.orbitDotRead,
+                              styles.orbitDayRead,
                             dot.today &&
-                              styles.orbitDotToday,
+                              styles.orbitDayToday,
                             selected &&
-                              styles.orbitDotSelected,
+                              styles.orbitDaySelected,
                           ]}
-                        />
+                        >
+                          <Text
+                            style={[
+                              styles.orbitDayNumber,
+                              selectedDateKey &&
+                                styles.orbitDayNumberCompact,
+                              dot.checked &&
+                                styles.orbitDayNumberRead,
+                              selected &&
+                                styles.orbitDayNumberSelected,
+                            ]}
+                          >
+                            {
+                              dot.day
+                            }
+                          </Text>
+                        </View>
                       </Pressable>
                     );
                   }
@@ -1100,78 +1208,68 @@ export default function ReadingActivityScreen() {
                   </Text>
                 </View>
 
-                {personalization.charms.map(
-                  (
-                    charm,
-                    index
-                  ) => {
-                    const layout =
-                      CHARM_LAYOUTS[
-                        index
-                      ];
-
-                    const artworkSize =
-                      selectedDateKey
-                        ? index % 3 ===
-                          0
-                          ? 30
-                          : 27
-                        : index % 3 ===
-                          0
-                        ? 38
-                        : 34;
-
-                    const wrapperSize =
-                      artworkSize +
-                      8;
-
-                    return (
-                      <View
-                        key={
-                          charm
-                        }
-                        pointerEvents="none"
-                        style={[
-                          styles.orbitCharm,
-                          {
-                            width:
-                              wrapperSize,
-                            height:
-                              wrapperSize,
-                            left:
-                              activeOrbitSize *
-                                layout.x -
-                              wrapperSize /
-                                2,
-                            top:
-                              activeOrbitSize *
-                                layout.y -
-                              wrapperSize /
-                                2,
-                            transform: [
-                              {
-                                rotate:
-                                  layout.rotate,
-                              },
-                            ],
-                          },
-                        ]}
-                      >
-                        <ReadingMonthCharmArtwork
-                          charm={
-                            charm
-                          }
-                          size={
-                            artworkSize
-                          }
-                        />
-                      </View>
-                    );
-                  }
-                )}
-
               </View>
 
+              {personalization.charms.length >
+              4 ? (
+                <View
+                  style={[
+                    styles.charmScatter,
+                    styles.charmScatterBottom,
+                  ]}
+                >
+                  {personalization.charms
+                    .slice(
+                      4,
+                      8
+                    )
+                    .map(
+                      (
+                        charm,
+                        index
+                      ) => (
+                        <View
+                          key={
+                            charm
+                          }
+                          style={[
+                            styles.charmScatterItem,
+                            {
+                              transform: [
+                                {
+                                  rotate:
+                                    CHARM_ROTATIONS[
+                                      index +
+                                      4
+                                    ],
+                                },
+                                {
+                                  translateY:
+                                    index % 2 ===
+                                    0
+                                      ? -2
+                                      : 4,
+                                },
+                              ],
+                            },
+                          ]}
+                        >
+                          <ReadingMonthCharmArtwork
+                            charm={
+                              charm
+                            }
+                            size={
+                              index % 3 ===
+                              0
+                                ? 50
+                                : 46
+                            }
+                          />
+                        </View>
+                      )
+                    )}
+                </View>
+              ) : null}
             </View>
 
             {selectedDateKey &&
@@ -1834,15 +1932,9 @@ function createStyles(
       borderColor:
         colors.border,
     },
-    orbitDotTouch: {
+    orbitDayTouch: {
       position:
         'absolute',
-      width:
-        26,
-      height:
-        26,
-      borderRadius:
-        13,
       alignItems:
         'center',
       justifyContent:
@@ -1850,52 +1942,68 @@ function createStyles(
       zIndex:
         6,
     },
-    orbitDotTouchPressed: {
+    orbitDayTouchPressed: {
       transform: [
         {
           scale:
-            1.14,
+            1.12,
         },
       ],
     },
-    orbitDot: {
-      width:
-        5,
-      height:
-        5,
-      borderRadius:
-        3,
+    orbitDayCircle: {
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
       backgroundColor:
-        colors.border,
-    },
-    orbitDotRead: {
-      width:
-        8,
-      height:
-        8,
-      borderRadius:
-        4,
-      backgroundColor:
-        colors.gold,
-    },
-    orbitDotToday: {
+        colors.surface,
       borderWidth:
         1,
       borderColor:
-        colors.text,
+        colors.border,
     },
-    orbitDotSelected: {
-      width:
-        12,
-      height:
-        12,
-      borderRadius:
-        6,
+    orbitDayRead: {
+      backgroundColor:
+        colors.gold,
+      borderColor:
+        colors.gold,
+    },
+    orbitDayToday: {
+      borderWidth:
+        1.5,
+      borderColor:
+        colors.gold,
+    },
+    orbitDaySelected: {
       borderWidth:
         2,
       borderColor:
         colors.softGold,
       backgroundColor:
+        colors.elevated,
+    },
+    orbitDayNumber: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        8.5,
+      lineHeight:
+        10,
+    },
+    orbitDayNumberCompact: {
+      fontSize:
+        7.5,
+      lineHeight:
+        9,
+    },
+    orbitDayNumberRead: {
+      color:
+        colors.background,
+    },
+    orbitDayNumberSelected: {
+      color:
         colors.gold,
     },
     orbitCenter: {
@@ -1920,19 +2028,41 @@ function createStyles(
       marginTop:
         7,
     },
-    orbitCharm: {
-      position:
-        'absolute',
+    charmScatter: {
       width:
-        44,
+        '100%',
+      minHeight:
+        58,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-around',
+      paddingHorizontal:
+        6,
+    },
+    charmScatterTop: {
+      marginTop:
+        8,
+      marginBottom:
+        2,
+    },
+    charmScatterBottom: {
+      marginTop:
+        2,
+      marginBottom:
+        5,
+    },
+    charmScatterItem: {
+      width:
+        54,
       height:
-        44,
+        54,
       alignItems:
         'center',
       justifyContent:
         'center',
-      zIndex:
-        9,
     },
     sectionIntro: {
       flexDirection:
