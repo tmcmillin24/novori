@@ -375,91 +375,38 @@ export default function ReadingActivityScreen() {
           activeOrbitSize /
             2;
 
-        const horizontalRadius =
-          Math.max(
-            112,
-            activeOrbitSize /
-              2 -
-              40
-          );
-
-        const verticalRadius =
+        const innerCircleRadius =
           activeOrbitSize /
-            2 +
-          48;
+            2 -
+          innerHaloInset;
 
-        function getArcHalfSpan(
-          count:
-            number
-        ) {
-          if (
-            count <=
-            1
-          ) {
-            return 0;
-          }
+        const stickerOrbitRadius =
+          innerCircleRadius +
+          30;
 
-          if (
-            count ===
-            2
-          ) {
-            return Math.PI *
-              0.13;
-          }
-
-          if (
-            count ===
-            3
-          ) {
-            return Math.PI *
-              0.18;
-          }
-
-          return Math.PI *
-            0.23;
-        }
-
-        function getArcAngle(
-          index:
-            number,
-          count:
-            number,
-          top:
-            boolean
-        ) {
-          const centerAngle =
-            top
-              ? -Math.PI /
-                  2
-              : Math.PI /
-                  2;
-
-          if (
-            count <=
-            1
-          ) {
-            return centerAngle;
-          }
-
-          const halfSpan =
-            getArcHalfSpan(
-              count
-            );
-
-          return (
-            centerAngle -
-            halfSpan +
-            (
-              index /
-              (
-                count -
-                1
-              )
-            ) *
-              halfSpan *
-              2
-          );
-        }
+        const slotAngles: Record<
+          number,
+          number[]
+        > = {
+          1: [
+            0,
+          ],
+          2: [
+            -28,
+            28,
+          ],
+          3: [
+            -42,
+            0,
+            42,
+          ],
+          4: [
+            -52,
+            -18,
+            18,
+            52,
+          ],
+        };
 
         function placeCharm(
           charm:
@@ -473,19 +420,40 @@ export default function ReadingActivityScreen() {
           rotationIndex:
             number
         ) {
+          const offsets =
+            slotAngles[
+              Math.min(
+                4,
+                Math.max(
+                  1,
+                  count
+                )
+              )
+            ];
+
+          const degreesFromVertical =
+            offsets[
+              index
+            ] ??
+            0;
+
           const angle =
-            getArcAngle(
-              index,
-              count,
+            (
               top
-            );
+                ? -90 +
+                  degreesFromVertical
+                : 90 -
+                  degreesFromVertical
+            ) *
+            Math.PI /
+            180;
 
           const size =
             rotationIndex %
               3 ===
             0
-              ? 58
-              : 54;
+              ? 54
+              : 50;
 
           return {
             charm,
@@ -495,7 +463,7 @@ export default function ReadingActivityScreen() {
               Math.cos(
                 angle
               ) *
-                horizontalRadius -
+                stickerOrbitRadius -
               size /
                 2,
             top:
@@ -503,7 +471,7 @@ export default function ReadingActivityScreen() {
               Math.sin(
                 angle
               ) *
-                verticalRadius -
+                stickerOrbitRadius -
               size /
                 2,
             rotate:
@@ -546,6 +514,7 @@ export default function ReadingActivityScreen() {
       },
       [
         activeOrbitSize,
+        innerHaloInset,
         personalization.charms,
       ]
     );
