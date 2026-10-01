@@ -1615,12 +1615,15 @@ export default function ReadingActivityScreen() {
                 }}
               >
             <View
-              style={[
-                styles.sectionIntro,
-                styles.daySectionIntro,
-              ]}
+              style={
+                styles.dayMemorySection
+              }
             >
-              <View>
+              <View
+                style={
+                  styles.dayMemoryEyebrowRow
+                }
+              >
                 <Text
                   style={
                     styles.sectionEyebrow
@@ -1629,31 +1632,13 @@ export default function ReadingActivityScreen() {
                   ON THIS DAY
                 </Text>
 
-                <Text
+                <View
                   style={
-                    styles.sectionIntroTitle
+                    styles.dayMemoryEyebrowLine
                   }
-                >
-                  Your reading, remembered.
-                </Text>
+                />
               </View>
 
-              <Ionicons
-                name="sparkles-outline"
-                size={
-                  18
-                }
-                color={
-                  colors.gold
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.dayDetailCard
-              }
-            >
               <View
                 style={
                   styles.dayDetailHeader
@@ -1680,10 +1665,10 @@ export default function ReadingActivityScreen() {
                     }
                   >
                     {selectedDay.checkedIn
-                      ? 'Reading day'
+                      ? 'A day you showed up for your reading.'
                       : hasSelectedActivity
-                      ? 'Reading activity'
-                      : 'No reading logged'}
+                      ? 'A little piece of your reading history.'
+                      : 'A quiet day in your reading story.'}
                   </Text>
                 </View>
 
@@ -1693,13 +1678,9 @@ export default function ReadingActivityScreen() {
                       styles.readBadge
                     }
                   >
-                    <Ionicons
-                      name="checkmark"
-                      size={
-                        13
-                      }
-                      color={
-                        colors.background
+                    <View
+                      style={
+                        styles.readBadgeDot
                       }
                     />
 
@@ -1708,11 +1689,17 @@ export default function ReadingActivityScreen() {
                         styles.readBadgeText
                       }
                     >
-                      Read
+                      Reading day
                     </Text>
                   </View>
                 ) : null}
               </View>
+
+              <View
+                style={
+                  styles.dayMemoryRule
+                }
+              />
 
               {!hasSelectedActivity ? (
                 <View
@@ -1720,37 +1707,37 @@ export default function ReadingActivityScreen() {
                     styles.emptyDay
                   }
                 >
+                  <Ionicons
+                    name="book-outline"
+                    size={
+                      20
+                    }
+                    color={
+                      colors.gold
+                    }
+                  />
+
                   <View
                     style={
-                      styles.emptyDayIcon
+                      styles.emptyDayCopy
                     }
                   >
-                    <Ionicons
-                      name="book-outline"
-                      size={
-                        22
+                    <Text
+                      style={
+                        styles.emptyDayTitle
                       }
-                      color={
-                        colors.gold
+                    >
+                      Nothing logged this day
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emptyDayText
                       }
-                    />
+                    >
+                      Reading activity and journey moments will collect here over time.
+                    </Text>
                   </View>
-
-                  <Text
-                    style={
-                      styles.emptyDayTitle
-                    }
-                  >
-                    Nothing logged this day
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.emptyDayText
-                    }
-                  >
-                    Reading days, books, and journey milestones will appear here.
-                  </Text>
                 </View>
               ) : (
                 <>
@@ -1818,7 +1805,7 @@ export default function ReadingActivityScreen() {
                           styles.detailLabel
                         }
                       >
-                        JOURNEY MILESTONES
+                        JOURNEY MOMENTS
                       </Text>
 
                       <View
@@ -1847,11 +1834,11 @@ export default function ReadingActivityScreen() {
                                   name={
                                     event.type ===
                                     'finished'
-                                      ? 'checkmark-circle-outline'
+                                      ? 'checkmark'
                                       : 'flag-outline'
                                   }
                                   size={
-                                    18
+                                    15
                                   }
                                   color={
                                     colors.gold
@@ -2458,22 +2445,33 @@ function createStyles(
       marginTop:
         2,
     },
-    daySectionIntro: {
+    dayMemorySection: {
       marginTop:
-        18,
-    },
-
-    dayDetailCard: {
-      backgroundColor:
-        colors.surface,
-      borderRadius:
         20,
-      padding:
-        15,
-      borderLeftWidth:
+      paddingHorizontal:
         2,
-      borderLeftColor:
+      paddingBottom:
+        6,
+    },
+    dayMemoryEyebrowRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        9,
+      marginBottom:
+        7,
+    },
+    dayMemoryEyebrowLine: {
+      flex:
+        1,
+      height:
+        1,
+      backgroundColor:
         colors.gold,
+      opacity:
+        0.3,
     },
     dayDetailHeader: {
       flexDirection:
@@ -2483,11 +2481,13 @@ function createStyles(
       justifyContent:
         'space-between',
       gap:
-        10,
+        12,
     },
     dayDetailCopy: {
       flex:
         1,
+      minWidth:
+        0,
     },
     dayDetailTitle: {
       color:
@@ -2495,7 +2495,9 @@ function createStyles(
       fontFamily:
         'PlayfairDisplay_700Bold',
       fontSize:
-        19,
+        23,
+      lineHeight:
+        29,
     },
     dayDetailSubtitle: {
       color:
@@ -2503,9 +2505,11 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        10.5,
+        11,
+      lineHeight:
+        16,
       marginTop:
-        2,
+        3,
     },
     readBadge: {
       flexDirection:
@@ -2513,63 +2517,83 @@ function createStyles(
       alignItems:
         'center',
       gap:
-        4,
-      backgroundColor:
-        colors.gold,
+        6,
       paddingHorizontal:
         9,
       paddingVertical:
-        5,
+        6,
       borderRadius:
         999,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      marginTop:
+        2,
+    },
+    readBadgeDot: {
+      width:
+        6,
+      height:
+        6,
+      borderRadius:
+        3,
+      backgroundColor:
+        colors.gold,
     },
     readBadgeText: {
       color:
-        colors.background,
+        colors.text,
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
       fontSize:
-        9,
+        9.5,
+    },
+    dayMemoryRule: {
+      height:
+        1,
+      backgroundColor:
+        colors.border,
+      marginTop:
+        14,
     },
     detailSection: {
       marginTop:
-        17,
+        18,
     },
     detailLabel: {
       color:
-        colors.mutedText,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize:
-        9,
+        8.5,
       letterSpacing:
-        1,
+        1.15,
       marginBottom:
         7,
     },
     bookList: {
       gap:
-        7,
+        0,
     },
     bookRow: {
       minHeight:
-        70,
+        76,
       flexDirection:
         'row',
       alignItems:
         'center',
       gap:
-        10,
-      backgroundColor:
-        colors.background,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        14,
-      padding:
+        11,
+      paddingVertical:
         8,
+      borderBottomWidth:
+        1,
+      borderBottomColor:
+        colors.border,
     },
     bookCover: {
       width:
@@ -2623,7 +2647,7 @@ function createStyles(
     },
     milestoneList: {
       gap:
-        7,
+        0,
     },
     milestoneRow: {
       flexDirection:
@@ -2631,25 +2655,21 @@ function createStyles(
       alignItems:
         'center',
       gap:
-        9,
-      padding:
         10,
-      borderWidth:
+      paddingVertical:
+        10,
+      borderBottomWidth:
         1,
-      borderColor:
+      borderBottomColor:
         colors.border,
-      borderRadius:
-        13,
-      backgroundColor:
-        colors.background,
     },
     milestoneIcon: {
       width:
-        31,
+        30,
       height:
-        31,
+        30,
       borderRadius:
-        10,
+        15,
       backgroundColor:
         colors.elevated,
       alignItems:
@@ -2680,28 +2700,18 @@ function createStyles(
         2,
     },
     emptyDay: {
+      flexDirection:
+        'row',
       alignItems:
-        'center',
+        'flex-start',
+      gap:
+        11,
       paddingVertical:
-        23,
-      paddingHorizontal:
-        10,
+        17,
     },
-    emptyDayIcon: {
-      width:
-        42,
-      height:
-        42,
-      borderRadius:
-        14,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginBottom:
-        9,
+    emptyDayCopy: {
+      flex:
+        1,
     },
     emptyDayTitle: {
       color:
@@ -2720,12 +2730,10 @@ function createStyles(
         10.5,
       lineHeight:
         15,
-      textAlign:
-        'center',
       marginTop:
-        4,
+        3,
       maxWidth:
-        250,
+        280,
     },
     loadingCard: {
       minHeight:
