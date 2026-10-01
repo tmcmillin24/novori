@@ -172,6 +172,8 @@ function emptyDay(
       null,
     books:
       [],
+    checkinBooks:
+      [],
     readingUpdates:
       [],
     journeyEvents:
@@ -658,6 +660,14 @@ export default function ReadingActivityScreen() {
           selectedDateKey
         )
       : null;
+
+  const selectedDayBooks =
+    selectedDay
+      ? selectedDay.checkinBooks.length >
+        0
+        ? selectedDay.checkinBooks
+        : selectedDay.books
+      : [];
 
   const monthOrbitDots =
     useMemo(
@@ -1741,7 +1751,7 @@ export default function ReadingActivityScreen() {
                 </View>
               ) : (
                 <>
-                  {selectedDay.books.length >
+                  {selectedDayBooks.length >
                   0 ? (
                     <View
                       style={
@@ -1761,7 +1771,7 @@ export default function ReadingActivityScreen() {
                           styles.bookList
                         }
                       >
-                        {selectedDay.books.map(
+                        {selectedDayBooks.map(
                           (
                             book,
                             index
