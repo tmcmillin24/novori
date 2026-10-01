@@ -67,6 +67,9 @@ const ORBIT_EDGE_GUTTER =
 const MAX_ORBIT_SIZE =
   460;
 
+const ORBIT_DECOR_VERTICAL_PADDING =
+  60;
+
 const CHARM_ROTATIONS = [
   '-8deg',
   '5deg',
@@ -347,6 +350,113 @@ export default function ReadingActivityScreen() {
       charms:
         [],
     });
+
+  const monthCharmPlacements =
+    useMemo(
+      () => {
+        const count =
+          personalization.charms.length;
+
+        if (
+          count ===
+          0
+        ) {
+          return [];
+        }
+
+        const centerX =
+          activeOrbitSize /
+          2;
+
+        const centerY =
+          ORBIT_DECOR_VERTICAL_PADDING +
+          activeOrbitSize /
+            2;
+
+        const horizontalRadius =
+          Math.max(
+            96,
+            activeOrbitSize /
+              2 -
+              34
+          );
+
+        const verticalRadius =
+          activeOrbitSize /
+            2 +
+          18;
+
+        const startAngle =
+          count ===
+          1
+            ? -Math.PI /
+              2
+            : count ===
+              2
+            ? -Math.PI /
+              4
+            : count ===
+              3
+            ? -Math.PI /
+              2
+            : -Math.PI /
+                2 +
+              Math.PI /
+                count;
+
+        return personalization.charms.map(
+          (
+            charm,
+            index
+          ) => {
+            const angle =
+              startAngle +
+              (
+                index /
+                count
+              ) *
+                Math.PI *
+                2;
+
+            const size =
+              index % 3 ===
+              0
+                ? 58
+                : 54;
+
+            return {
+              charm,
+              size,
+              left:
+                centerX +
+                Math.cos(
+                  angle
+                ) *
+                  horizontalRadius -
+                size /
+                  2,
+              top:
+                centerY +
+                Math.sin(
+                  angle
+                ) *
+                  verticalRadius -
+                size /
+                  2,
+              rotate:
+                CHARM_ROTATIONS[
+                  index %
+                    CHARM_ROTATIONS.length
+                ],
+            };
+          }
+        );
+      },
+      [
+        activeOrbitSize,
+        personalization.charms,
+      ]
+    );
 
   const [
     customizeVisible,
@@ -1111,65 +1221,23 @@ export default function ReadingActivityScreen() {
 
               <View
                 style={[
-                  styles.charmScatter,
-                  styles.charmScatterTop,
+                  styles.orbitDecorStage,
+                  {
+                    width:
+                      activeOrbitSize,
+                    height:
+                      activeOrbitSize +
+                      ORBIT_DECOR_VERTICAL_PADDING *
+                        2,
+                  },
                 ]}
               >
-                {personalization.charms
-                  .slice(
-                    0,
-                    4
-                  )
-                  .map(
-                    (
-                      charm,
-                      index
-                    ) => (
-                      <View
-                        key={
-                          charm
-                        }
-                        style={[
-                          styles.charmScatterItem,
-                          {
-                            transform: [
-                              {
-                                rotate:
-                                  CHARM_ROTATIONS[
-                                    index
-                                  ],
-                              },
-                              {
-                                translateY:
-                                  index % 2 ===
-                                  0
-                                    ? 3
-                                    : -3,
-                              },
-                            ],
-                          },
-                        ]}
-                      >
-                        <ReadingMonthCharmArtwork
-                          charm={
-                            charm
-                          }
-                          size={
-                            index % 3 ===
-                            0
-                              ? 58
-                              : 54
-                          }
-                        />
-                      </View>
-                    )
-                  )}
-              </View>
-
               <View
                 style={[
                   styles.orbitStage,
                   {
+                    top:
+                      ORBIT_DECOR_VERTICAL_PADDING,
                     width:
                       activeOrbitSize,
                     height:
@@ -1371,66 +1439,51 @@ export default function ReadingActivityScreen() {
 
               </View>
 
-              {personalization.charms.length >
-              4 ? (
-                <View
-                  style={[
-                    styles.charmScatter,
-                    styles.charmScatterBottom,
-                  ]}
-                >
-                  {personalization.charms
-                    .slice(
-                      4,
-                      8
-                    )
-                    .map(
-                      (
-                        charm,
-                        index
-                      ) => (
-                        <View
-                          key={
-                            charm
-                          }
-                          style={[
-                            styles.charmScatterItem,
-                            {
-                              transform: [
-                                {
-                                  rotate:
-                                    CHARM_ROTATIONS[
-                                      index +
-                                      4
-                                    ],
-                                },
-                                {
-                                  translateY:
-                                    index % 2 ===
-                                    0
-                                      ? -2
-                                      : 4,
-                                },
-                              ],
-                            },
-                          ]}
-                        >
-                          <ReadingMonthCharmArtwork
-                            charm={
-                              charm
-                            }
-                            size={
-                              index % 3 ===
-                              0
-                                ? 58
-                                : 54
-                            }
-                          />
-                        </View>
-                      )
-                    )}
-                </View>
-              ) : null}
+              {monthCharmPlacements.map(
+                (
+                  placement
+                ) => (
+                  <View
+                    key={
+                      placement.charm
+                    }
+                    pointerEvents="none"
+                    style={[
+                      styles.orbitCharm,
+                      {
+                        width:
+                          placement.size +
+                          8,
+                        height:
+                          placement.size +
+                          8,
+                        left:
+                          placement.left -
+                          4,
+                        top:
+                          placement.top -
+                          4,
+                        transform: [
+                          {
+                            rotate:
+                              placement.rotate,
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ReadingMonthCharmArtwork
+                      charm={
+                        placement.charm
+                      }
+                      size={
+                        placement.size
+                      }
+                    />
+                  </View>
+                )
+              )}
+            </View>
 
             </View>
 
@@ -2105,14 +2158,10 @@ function createStyles(
         9.5,
     },
     orbitStage: {
-      alignSelf:
-        'center',
       position:
-        'relative',
-      marginTop:
-        18,
-      marginBottom:
-        6,
+        'absolute',
+      left:
+        0,
     },
     orbitHaloOuter: {
       position:
@@ -2222,41 +2271,23 @@ function createStyles(
       marginTop:
         7,
     },
-    charmScatter: {
-      width:
-        '100%',
-      minHeight:
-        68,
-      flexDirection:
-        'row',
-      alignItems:
+    orbitDecorStage: {
+      alignSelf:
         'center',
-      justifyContent:
-        'space-around',
-      paddingHorizontal:
-        6,
+      position:
+        'relative',
+      overflow:
+        'visible',
     },
-    charmScatterTop: {
-      marginTop:
-        8,
-      marginBottom:
-        2,
-    },
-    charmScatterBottom: {
-      marginTop:
-        2,
-      marginBottom:
-        5,
-    },
-    charmScatterItem: {
-      width:
-        64,
-      height:
-        64,
+    orbitCharm: {
+      position:
+        'absolute',
       alignItems:
         'center',
       justifyContent:
         'center',
+      zIndex:
+        4,
     },
     sectionIntro: {
       flexDirection:
