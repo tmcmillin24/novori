@@ -905,6 +905,16 @@ export default function ReadingDetailsScreen() {
     useState(false);
 
   const [
+    restartMode,
+    setRestartMode,
+  ] =
+    useState<
+      'fresh' |
+      'carry' |
+      null
+    >(null);
+
+  const [
     progressEditorOpen,
     setProgressEditorOpen,
   ] =
@@ -1524,9 +1534,18 @@ export default function ReadingDetailsScreen() {
           ).getTime()
       );
 
+    let newJourneyStarted =
+      false;
+
     try {
       setJourneyAction(
         'start'
+      );
+
+      setRestartMode(
+        carryOver
+          ? 'carry'
+          : 'fresh'
       );
 
       const newSession =
@@ -1535,38 +1554,63 @@ export default function ReadingDetailsScreen() {
           'start'
         );
 
+      newJourneyStarted =
+        true;
+
       if (
         carryOver
       ) {
-        if (
-          previousSummary
-            ?.trim()
-        ) {
-          await saveReadingSummary(
-            newSession.id,
+        try {
+          if (
             previousSummary
-          );
-        }
+              ?.trim()
+          ) {
+            await saveReadingSummary(
+              newSession.id,
+              previousSummary
+            );
+          }
 
-        for (
-          const note of
-          previousNotes
+          for (
+            const note of
+            previousNotes
+          ) {
+            await addReadingNote(
+              newSession.id,
+              {
+                body:
+                  note.body,
+                pageNumber:
+                  note.page_number,
+                progressPercent:
+                  note.progress_percent,
+                chapter:
+                  note.chapter,
+                audioPositionSeconds:
+                  note.audio_position_seconds,
+              }
+            );
+          }
+        } catch (
+          carryOverError
         ) {
-          await addReadingNote(
-            newSession.id,
-            {
-              body:
-                note.body,
-              pageNumber:
-                note.page_number,
-              progressPercent:
-                note.progress_percent,
-              chapter:
-                note.chapter,
-              audioPositionSeconds:
-                note.audio_position_seconds,
-            }
+          console.error(
+            'Could not carry over all reading journey context:',
+            carryOverError
           );
+
+          restartPromptSheet.closeSmoothly();
+
+          await loadData(
+            false
+          );
+
+          Alert.alert(
+            'New journey started',
+            'Your previous journey is still safe, but Novori could not copy all of its notes or summary into the new journey.'
+          );
+
+          return;
         }
       }
 
@@ -1583,6 +1627,23 @@ export default function ReadingDetailsScreen() {
         restartError
       );
 
+      if (
+        newJourneyStarted
+      ) {
+        restartPromptSheet.closeSmoothly();
+
+        await loadData(
+          false
+        );
+
+        Alert.alert(
+          'New journey started',
+          'Your new reading journey was created, but Novori had trouble refreshing Reading Details. Reopen the page to continue.'
+        );
+
+        return;
+      }
+
       Alert.alert(
         'Could not start again',
         restartError instanceof
@@ -1592,6 +1653,10 @@ export default function ReadingDetailsScreen() {
       );
     } finally {
       setJourneyAction(
+        null
+      );
+
+      setRestartMode(
         null
       );
     }
@@ -3133,7 +3198,9 @@ export default function ReadingDetailsScreen() {
                   ]}
                 >
                   {journeyAction ===
-                  'start' ? (
+                    'start' &&
+                  restartMode ===
+                    'fresh' ? (
                     <ActivityIndicator
                       size="small"
                       color={
@@ -4578,7 +4645,9 @@ export default function ReadingDetailsScreen() {
                   </View>
 
                   {journeyAction ===
-                  'start' ? (
+                    'start' &&
+                  restartMode ===
+                    'carry' ? (
                     <ActivityIndicator
                       size="small"
                       color={
