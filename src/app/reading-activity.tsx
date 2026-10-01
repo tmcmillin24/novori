@@ -44,8 +44,8 @@ import {
 } from '../lib/reading-checkins';
 import {
   getReadingMonthPersonalization,
+  ReadingMonthCharm,
   ReadingMonthPersonalization,
-  ReadingShelfDecor,
   saveReadingMonthPersonalization,
 } from '../lib/reading-month-personalization';
 
@@ -58,6 +58,93 @@ const WEEK_LABELS = [
   'S',
   'S',
 ];
+
+const MONTH_CHARM_VISUALS: Record<
+  ReadingMonthCharm,
+  {
+    icon:
+      keyof typeof Ionicons.glyphMap;
+    color:
+      string;
+    tint:
+      string;
+  }
+> = {
+  plant: {
+    icon:
+      'leaf-outline',
+    color:
+      '#5FAF73',
+    tint:
+      'rgba(95, 175, 115, 0.15)',
+  },
+  sun: {
+    icon:
+      'sunny-outline',
+    color:
+      '#F2C84B',
+    tint:
+      'rgba(242, 200, 75, 0.16)',
+  },
+  mug: {
+    icon:
+      'cafe-outline',
+    color:
+      '#C97A4A',
+    tint:
+      'rgba(201, 122, 74, 0.15)',
+  },
+  moon: {
+    icon:
+      'moon-outline',
+    color:
+      '#8A7DD1',
+    tint:
+      'rgba(138, 125, 209, 0.15)',
+  },
+  headphones: {
+    icon:
+      'headset-outline',
+    color:
+      '#5D9CEC',
+    tint:
+      'rgba(93, 156, 236, 0.15)',
+  },
+  flower: {
+    icon:
+      'flower-outline',
+    color:
+      '#D979A7',
+    tint:
+      'rgba(217, 121, 167, 0.15)',
+  },
+  cat: {
+    icon:
+      'paw-outline',
+    color:
+      '#E59B4C',
+    tint:
+      'rgba(229, 155, 76, 0.15)',
+  },
+  globe: {
+    icon:
+      'earth-outline',
+    color:
+      '#48A9A6',
+    tint:
+      'rgba(72, 169, 166, 0.15)',
+  },
+};
+
+const ORBIT_SIZE =
+  232;
+
+const ORBIT_CENTER =
+  ORBIT_SIZE /
+  2;
+
+const ORBIT_RADIUS =
+  102;
 
 function getMonthLabel(
   year:
@@ -292,7 +379,7 @@ export default function ReadingActivityScreen() {
     setPersonalization,
   ] =
     useState<ReadingMonthPersonalization>({
-      decor:
+      charms:
         [],
     });
 
@@ -455,7 +542,16 @@ export default function ReadingActivityScreen() {
       ]
     );
 
-  const monthlyBooks =
+  const selectedDay =
+    monthData
+      ?.days[
+        selectedDateKey
+      ] ??
+    emptyDay(
+      selectedDateKey
+    );
+
+  const monthOrbitDots =
     useMemo(
       () => {
         if (
@@ -464,59 +560,81 @@ export default function ReadingActivityScreen() {
           return [];
         }
 
-        const seen =
-          new Set<string>();
+        const checked =
+          new Set(
+            monthData.checkedDates
+          );
 
-        const books:
-          ReadingActivityBook[] =
-          [];
+        const daysInMonth =
+          new Date(
+            displayedMonth.year,
+            displayedMonth.monthIndex +
+              1,
+            0
+          ).getDate();
 
-        for (
-          const day
-          of Object.values(
-            monthData.days
-          )
-        ) {
-          for (
-            const book
-            of day.books
-          ) {
-            const identity =
-              book.userBookId ??
-              book.googleBookId ??
-              book.title;
+        return Array.from(
+          {
+            length:
+              daysInMonth,
+          },
+          (
+            _,
+            index
+          ) => {
+            const day =
+              index +
+              1;
 
-            if (
-              seen.has(
-                identity
-              )
-            ) {
-              continue;
-            }
+            const dateKey =
+              getDateKey(
+                displayedMonth.year,
+                displayedMonth.monthIndex,
+                day
+              );
 
-            seen.add(
-              identity
-            );
-            books.push(
-              book
-            );
+            const angle =
+              -Math.PI /
+                2 +
+              (
+                index /
+                daysInMonth
+              ) *
+                Math.PI *
+                2;
+
+            return {
+              day,
+              dateKey,
+              checked:
+                checked.has(
+                  dateKey
+                ),
+              today:
+                dateKey ===
+                todayKey,
+              left:
+                ORBIT_CENTER +
+                Math.cos(
+                  angle
+                ) *
+                  ORBIT_RADIUS,
+              top:
+                ORBIT_CENTER +
+                Math.sin(
+                  angle
+                ) *
+                  ORBIT_RADIUS,
+            };
           }
-        }
-
-        return books;
+        );
       },
       [
+        displayedMonth.monthIndex,
+        displayedMonth.year,
         monthData,
+        todayKey,
       ]
-    );
-
-  const selectedDay =
-    monthData
-      ?.days[
-        selectedDateKey
-      ] ??
-    emptyDay(
-      selectedDateKey
     );
 
   const currentMonthStart =
@@ -862,32 +980,29 @@ export default function ReadingActivityScreen() {
           <>
             <View
               style={
-                styles.shelfSection
+                styles.orbitHero
               }
             >
               <View
                 style={
-                  styles.shelfSectionHeader
+                  styles.orbitTopRow
                 }
               >
                 <View>
                   <Text
                     style={
-                      styles.shelfEyebrow
+                      styles.orbitEyebrow
                     }
                   >
-                    {getMonthLabel(
-                      displayedMonth.year,
-                      displayedMonth.monthIndex
-                    ).toUpperCase()}
+                    YOUR MONTH
                   </Text>
 
                   <Text
                     style={
-                      styles.shelfTitle
+                      styles.orbitTitle
                     }
                   >
-                    Your Reading Shelf
+                    Reading in motion
                   </Text>
                 </View>
 
@@ -901,17 +1016,17 @@ export default function ReadingActivityScreen() {
                     8
                   }
                   accessibilityRole="button"
-                  accessibilityLabel="Decorate this reading shelf"
+                  accessibilityLabel="Personalize this reading month"
                   style={({
                     pressed,
                   }) => [
-                    styles.decorateButton,
+                    styles.personalizeButton,
                     pressed &&
                       styles.pressed,
                   ]}
                 >
                   <Ionicons
-                    name="sparkles-outline"
+                    name="color-palette-outline"
                     size={
                       15
                     }
@@ -922,201 +1037,180 @@ export default function ReadingActivityScreen() {
 
                   <Text
                     style={
-                      styles.decorateButtonText
+                      styles.personalizeButtonText
                     }
                   >
-                    Decorate
+                    Personalize
                   </Text>
                 </Pressable>
               </View>
 
               <View
                 style={
-                  styles.shelfNook
+                  styles.orbitStage
                 }
               >
                 <View
                   style={
-                    styles.shelfGlow
+                    styles.orbitHaloOuter
                   }
                 />
 
                 <View
                   style={
-                    styles.shelfBooksRow
+                    styles.orbitHaloInner
                   }
-                >
-                  {monthlyBooks.length >
-                  0 ? (
-                    monthlyBooks
-                      .slice(
-                        0,
-                        4
-                      )
-                      .map(
-                        (
-                          book,
-                          index
-                        ) => (
-                          <Pressable
-                            key={
-                              book.userBookId ??
-                              book.googleBookId ??
-                              `${book.title}-${index}`
-                            }
-                            disabled={
-                              !book.googleBookId
-                            }
-                            onPress={() =>
-                              openBook(
-                                book
-                              )
-                            }
-                            style={({
-                              pressed,
-                            }) => [
-                              styles.shelfBookWrap,
-                              index ===
-                                0 &&
-                                styles.shelfBookLeanLeft,
-                              index ===
-                                3 &&
-                                styles.shelfBookLeanRight,
-                              pressed &&
-                                styles.pressed,
-                            ]}
-                          >
-                            {book.coverUrl ? (
-                              <ExpoImage
-                                source={
-                                  book.coverUrl
-                                }
-                                style={
-                                  styles.shelfBookCover
-                                }
-                                contentFit="cover"
-                                cachePolicy="memory-disk"
-                                transition={
-                                  0
-                                }
-                                recyclingKey={
-                                  book.coverUrl
-                                }
-                              />
-                            ) : (
-                              <View
-                                style={
-                                  styles.shelfBookPlaceholder
-                                }
-                              >
-                                <Ionicons
-                                  name="book-outline"
-                                  size={
-                                    20
-                                  }
-                                  color={
-                                    colors.gold
-                                  }
-                                />
-                              </View>
-                            )}
-                          </Pressable>
-                        )
-                      )
-                  ) : (
-                    <View
-                      style={
-                        styles.emptyShelfBooks
-                      }
-                    >
-                      <Ionicons
-                        name="library-outline"
-                        size={
-                          28
-                        }
-                        color={
-                          colors.gold
-                        }
-                      />
+                />
 
-                      <Text
-                        style={
-                          styles.emptyShelfText
-                        }
-                      >
-                        Your shelf will fill as you read.
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {personalization.decor.map(
+                {monthOrbitDots.map(
                   (
-                    item,
-                    index
+                    dot
                   ) => (
                     <View
                       key={
-                        item
+                        dot.dateKey
                       }
-                      pointerEvents="none"
                       style={[
-                        styles.shelfDecorSlot,
-                        index ===
-                          0
-                          ? styles.shelfDecorLeft
-                          : index ===
-                            1
-                          ? styles.shelfDecorRight
-                          : styles.shelfDecorUpper,
+                        styles.orbitDot,
+                        {
+                          left:
+                            dot.left -
+                            (
+                              dot.checked
+                                ? 4
+                                : 2.5
+                            ),
+                          top:
+                            dot.top -
+                            (
+                              dot.checked
+                                ? 4
+                                : 2.5
+                            ),
+                        },
+                        dot.checked &&
+                          styles.orbitDotRead,
+                        dot.today &&
+                          styles.orbitDotToday,
                       ]}
-                    >
-                      <ShelfDecorPiece
-                        item={
-                          item
-                        }
-                        colors={
-                          colors
-                        }
-                        styles={
-                          styles
-                        }
-                      />
-                    </View>
+                    />
                   )
                 )}
 
                 <View
                   style={
-                    styles.shelfBoard
+                    styles.orbitCenter
                   }
                 >
-                  <View
+                  <Text
                     style={
-                      styles.shelfBoardHighlight
+                      styles.orbitNumber
                     }
-                  />
+                  >
+                    {
+                      monthData.daysRead
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.orbitNumberLabel
+                    }
+                  >
+                    {monthData.daysRead ===
+                    1
+                      ? 'READING DAY'
+                      : 'READING DAYS'}
+                  </Text>
                 </View>
+
+                {personalization.charms.map(
+                  (
+                    charm,
+                    index
+                  ) => {
+                    const visual =
+                      MONTH_CHARM_VISUALS[
+                        charm
+                      ];
+
+                    return (
+                      <View
+                        key={
+                          charm
+                        }
+                        style={[
+                          styles.orbitCharm,
+                          index ===
+                            0
+                            ? styles.orbitCharmOne
+                            : index ===
+                              1
+                            ? styles.orbitCharmTwo
+                            : styles.orbitCharmThree,
+                          {
+                            backgroundColor:
+                              visual.tint,
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            visual.icon
+                          }
+                          size={
+                            23
+                          }
+                          color={
+                            visual.color
+                          }
+                        />
+                      </View>
+                    );
+                  }
+                )}
+
+                {personalization.charms.length ===
+                0 ? (
+                  <Pressable
+                    onPress={() =>
+                      setCustomizeVisible(
+                        true
+                      )
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.orbitCharmEmpty,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="add"
+                      size={
+                        17
+                      }
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </Pressable>
+                ) : null}
               </View>
 
-              {personalization.decor.length ===
-              0 ? (
-                <Pressable
-                  onPress={() =>
-                    setCustomizeVisible(
-                      true
-                    )
+              <View
+                style={
+                  styles.orbitStats
+                }
+              >
+                <View
+                  style={
+                    styles.orbitStat
                   }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.emptyDecorPrompt,
-                    pressed &&
-                      styles.pressed,
-                  ]}
                 >
                   <Ionicons
-                    name="add-circle-outline"
+                    name="flame-outline"
                     size={
                       16
                     }
@@ -1127,122 +1221,61 @@ export default function ReadingActivityScreen() {
 
                   <Text
                     style={
-                      styles.emptyDecorPromptText
-                    }
-                  >
-                    Add a plant, mug, candle, or something that feels like your shelf.
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              <View
-                style={
-                  styles.shelfStats
-                }
-              >
-                <View
-                  style={
-                    styles.shelfPrimaryStat
-                  }
-                >
-                  <Text
-                    style={
-                      styles.shelfPrimaryNumber
+                      styles.orbitStatValue
                     }
                   >
                     {
-                      monthData.daysRead
+                      monthData.bestStreak
                     }
                   </Text>
 
                   <Text
                     style={
-                      styles.shelfPrimaryLabel
+                      styles.orbitStatLabel
                     }
                   >
-                    {monthData.daysRead ===
-                    1
-                      ? 'reading day'
-                      : 'reading days'}
+                    best streak
                   </Text>
                 </View>
 
                 <View
                   style={
-                    styles.shelfStatDivider
+                    styles.orbitStatsRule
                   }
                 />
 
                 <View
                   style={
-                    styles.shelfMiniStat
-                  }
-                >
-                  <Ionicons
-                    name="flame-outline"
-                    size={
-                      15
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <View>
-                    <Text
-                      style={
-                        styles.shelfMiniValue
-                      }
-                    >
-                      {
-                        monthData.bestStreak
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.shelfMiniLabel
-                      }
-                    >
-                      best streak
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={
-                    styles.shelfMiniStat
+                    styles.orbitStat
                   }
                 >
                   <Ionicons
                     name="checkmark-circle-outline"
                     size={
-                      15
+                      16
                     }
                     color={
                       colors.gold
                     }
                   />
 
-                  <View>
-                    <Text
-                      style={
-                        styles.shelfMiniValue
-                      }
-                    >
-                      {
-                        monthData.booksFinished
-                      }
-                    </Text>
+                  <Text
+                    style={
+                      styles.orbitStatValue
+                    }
+                  >
+                    {
+                      monthData.booksFinished
+                    }
+                  </Text>
 
-                    <Text
-                      style={
-                        styles.shelfMiniLabel
-                      }
-                    >
-                      finished
-                    </Text>
-                  </View>
+                  <Text
+                    style={
+                      styles.orbitStatLabel
+                    }
+                  >
+                    finished
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1795,210 +1828,6 @@ export default function ReadingActivityScreen() {
   );
 }
 
-function StoryStat({
-  icon,
-  value,
-  label,
-  colors,
-  styles,
-}: {
-  icon:
-    keyof typeof Ionicons.glyphMap;
-  value:
-    number;
-  label:
-    string;
-  colors:
-    NovoriColors;
-  styles:
-    ReturnType<
-      typeof createStyles
-    >;
-}) {
-  return (
-    <View
-      style={
-        styles.storyStat
-      }
-    >
-      <View
-        style={
-          styles.storyStatTop
-        }
-      >
-        <Ionicons
-          name={
-            icon
-          }
-          size={
-            14
-          }
-          color={
-            colors.gold
-          }
-        />
-
-        <Text
-          style={
-            styles.storyStatValue
-          }
-        >
-          {value}
-        </Text>
-      </View>
-
-      <Text
-        style={
-          styles.storyStatLabel
-        }
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function ShelfDecorPiece({
-  item,
-  colors,
-  styles,
-}: {
-  item:
-    ReadingShelfDecor;
-  colors:
-    NovoriColors;
-  styles:
-    ReturnType<
-      typeof createStyles
-    >;
-}) {
-  if (
-    item ===
-    'plant'
-  ) {
-    return (
-      <View
-        style={
-          styles.decorPlant
-        }
-      >
-        <Ionicons
-          name="leaf-outline"
-          size={
-            29
-          }
-          color={
-            colors.gold
-          }
-        />
-
-        <View
-          style={
-            styles.decorPot
-          }
-        />
-      </View>
-    );
-  }
-
-  if (
-    item ===
-    'candle'
-  ) {
-    return (
-      <View
-        style={
-          styles.decorCandle
-        }
-      >
-        <Ionicons
-          name="flame-outline"
-          size={
-            14
-          }
-          color={
-            colors.gold
-          }
-        />
-
-        <View
-          style={
-            styles.decorCandleBody
-          }
-        />
-      </View>
-    );
-  }
-
-  if (
-    item ===
-    'flowers'
-  ) {
-    return (
-      <View
-        style={
-          styles.decorPlant
-        }
-      >
-        <Ionicons
-          name="sparkles-outline"
-          size={
-            27
-          }
-          color={
-            colors.gold
-          }
-        />
-
-        <View
-          style={
-            styles.decorVase
-          }
-        />
-      </View>
-    );
-  }
-
-  const icon:
-    keyof typeof Ionicons.glyphMap =
-    item ===
-      'mug'
-      ? 'cafe-outline'
-      : item ===
-        'moon'
-      ? 'moon-outline'
-      : item ===
-        'headphones'
-      ? 'headset-outline'
-      : item ===
-        'cat'
-      ? 'paw-outline'
-      : 'planet-outline';
-
-  return (
-    <View
-      style={
-        styles.decorObject
-      }
-    >
-      <Ionicons
-        name={
-          icon
-        }
-        size={
-          item ===
-          'moon'
-            ? 28
-            : 26
-        }
-        color={
-          colors.gold
-        }
-      />
-    </View>
-  );
-}
-
 function ActivityBookRow({
   book,
   colors,
@@ -2242,11 +2071,11 @@ function createStyles(
       fontSize:
         21,
     },
-    shelfSection: {
+    orbitHero: {
       marginBottom:
-        24,
+        26,
     },
-    shelfSectionHeader: {
+    orbitTopRow: {
       flexDirection:
         'row',
       alignItems:
@@ -2255,12 +2084,12 @@ function createStyles(
         'space-between',
       gap:
         12,
-      marginBottom:
-        11,
       paddingHorizontal:
         2,
+      marginBottom:
+        4,
     },
-    shelfEyebrow: {
+    orbitEyebrow: {
       color:
         colors.gold,
       fontFamily:
@@ -2268,9 +2097,9 @@ function createStyles(
       fontSize:
         8.5,
       letterSpacing:
-        1.25,
+        1.3,
     },
-    shelfTitle: {
+    orbitTitle: {
       color:
         colors.text,
       fontFamily:
@@ -2280,17 +2109,11 @@ function createStyles(
       marginTop:
         2,
     },
-    decorateButton: {
+    personalizeButton: {
       minHeight:
         34,
       borderRadius:
         999,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
       flexDirection:
         'row',
       alignItems:
@@ -2298,9 +2121,15 @@ function createStyles(
       gap:
         5,
       paddingHorizontal:
-        11,
+        10,
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
     },
-    decorateButtonText: {
+    personalizeButtonText: {
       color:
         colors.gold,
       fontFamily:
@@ -2308,389 +2137,263 @@ function createStyles(
       fontSize:
         9.5,
     },
-    shelfNook: {
-      position:
-        'relative',
-      minHeight:
-        176,
-      overflow:
-        'hidden',
-      borderTopLeftRadius:
-        22,
-      borderTopRightRadius:
-        22,
-      borderWidth:
-        1,
-      borderBottomWidth:
-        0,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
-      justifyContent:
-        'flex-end',
-      paddingHorizontal:
-        18,
-      paddingBottom:
-        23,
-    },
-    shelfGlow: {
-      position:
-        'absolute',
+    orbitStage: {
       width:
-        190,
+        ORBIT_SIZE,
       height:
-        190,
-      borderRadius:
-        95,
-      top:
-        -78,
+        ORBIT_SIZE,
       alignSelf:
         'center',
-      backgroundColor:
-        colors.elevated,
-      opacity:
-        0.5,
-    },
-    shelfBooksRow: {
-      minHeight:
-        118,
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-end',
-      justifyContent:
-        'center',
-      gap:
-        7,
-      zIndex:
-        4,
-    },
-    shelfBookWrap: {
-      transform: [
-        {
-          translateY:
-            0,
-        },
-      ],
-    },
-    shelfBookLeanLeft: {
-      transform: [
-        {
-          rotate:
-            '-2deg',
-        },
-      ],
-    },
-    shelfBookLeanRight: {
-      transform: [
-        {
-          rotate:
-            '2deg',
-        },
-      ],
-    },
-    shelfBookCover: {
-      width:
-        48,
-      height:
-        76,
-      borderRadius:
-        5,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
-    },
-    shelfBookPlaceholder: {
-      width:
-        48,
-      height:
-        76,
-      borderRadius:
-        5,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-    emptyShelfBooks: {
-      minHeight:
-        88,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap:
-        7,
-    },
-    emptyShelfText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        10.5,
-    },
-    shelfDecorSlot: {
       position:
-        'absolute',
-      zIndex:
-        8,
-      bottom:
-        22,
-    },
-    shelfDecorLeft: {
-      left:
-        13,
-    },
-    shelfDecorRight: {
-      right:
-        13,
-    },
-    shelfDecorUpper: {
-      right:
-        58,
-      bottom:
-        99,
-      opacity:
-        0.9,
-    },
-    decorObject: {
-      width:
-        42,
-      height:
-        48,
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-end',
-      paddingBottom:
-        2,
-    },
-    decorPlant: {
-      width:
-        44,
-      height:
-        58,
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-end',
-    },
-    decorPot: {
-      width:
-        25,
-      height:
-        18,
+        'relative',
       marginTop:
-        -5,
-      borderBottomLeftRadius:
-        7,
-      borderBottomRightRadius:
-        7,
-      borderTopLeftRadius:
-        3,
-      borderTopRightRadius:
-        3,
-      backgroundColor:
-        colors.gold,
-      opacity:
-        0.82,
-    },
-    decorVase: {
-      width:
-        20,
-      height:
-        20,
-      marginTop:
-        -3,
-      borderBottomLeftRadius:
         9,
-      borderBottomRightRadius:
-        9,
-      borderTopLeftRadius:
-        4,
-      borderTopRightRadius:
-        4,
-      borderWidth:
-        1,
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.elevated,
-    },
-    decorCandle: {
-      width:
-        34,
-      height:
-        52,
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-end',
-    },
-    decorCandleBody: {
-      width:
-        22,
-      height:
-        31,
-      marginTop:
-        -2,
-      borderTopLeftRadius:
-        5,
-      borderTopRightRadius:
-        5,
-      borderBottomLeftRadius:
-        3,
-      borderBottomRightRadius:
-        3,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.gold,
-    },
-    shelfBoard: {
-      position:
-        'absolute',
-      left:
-        0,
-      right:
-        0,
-      bottom:
-        0,
-      height:
-        23,
-      backgroundColor:
-        colors.elevated,
-      borderTopWidth:
-        2,
-      borderTopColor:
-        colors.gold,
-      zIndex:
-        10,
-    },
-    shelfBoardHighlight: {
-      position:
-        'absolute',
-      left:
-        18,
-      right:
-        18,
-      top:
-        5,
-      height:
-        1,
-      backgroundColor:
-        colors.border,
-    },
-    emptyDecorPrompt: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap:
-        6,
-      paddingVertical:
+      marginBottom:
         8,
-      marginTop:
-        4,
     },
-    emptyDecorPromptText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        9.5,
-      textAlign:
-        'center',
-      flex:
-        1,
-    },
-    shelfStats: {
-      minHeight:
-        63,
-      marginTop:
-        0,
-      borderBottomLeftRadius:
-        18,
-      borderBottomRightRadius:
-        18,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderTopWidth:
-        0,
-      borderColor:
-        colors.border,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal:
+    orbitHaloOuter: {
+      position:
+        'absolute',
+      left:
         15,
-      gap:
-        12,
-    },
-    shelfPrimaryStat: {
-      flexDirection:
-        'row',
-      alignItems:
-        'baseline',
-      gap:
-        6,
-      flex:
+      top:
+        15,
+      width:
+        ORBIT_SIZE -
+        30,
+      height:
+        ORBIT_SIZE -
+        30,
+      borderRadius:
+        (
+          ORBIT_SIZE -
+          30
+        ) /
+        2,
+      borderWidth:
         1,
+      borderColor:
+        colors.border,
     },
-    shelfPrimaryNumber: {
-      color:
+    orbitHaloInner: {
+      position:
+        'absolute',
+      left:
+        39,
+      top:
+        39,
+      width:
+        ORBIT_SIZE -
+        78,
+      height:
+        ORBIT_SIZE -
+        78,
+      borderRadius:
+        (
+          ORBIT_SIZE -
+          78
+        ) /
+        2,
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+    },
+    orbitDot: {
+      position:
+        'absolute',
+      width:
+        5,
+      height:
+        5,
+      borderRadius:
+        3,
+      backgroundColor:
+        colors.border,
+      zIndex:
+        4,
+    },
+    orbitDotRead: {
+      width:
+        8,
+      height:
+        8,
+      borderRadius:
+        4,
+      backgroundColor:
         colors.gold,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        29,
     },
-    shelfPrimaryLabel: {
+    orbitDotToday: {
+      borderWidth:
+        1,
+      borderColor:
+        colors.text,
+    },
+    orbitCenter: {
+      position:
+        'absolute',
+      left:
+        52,
+      top:
+        52,
+      width:
+        ORBIT_SIZE -
+        104,
+      height:
+        ORBIT_SIZE -
+        104,
+      borderRadius:
+        (
+          ORBIT_SIZE -
+          104
+        ) /
+        2,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex:
+        3,
+    },
+    orbitNumber: {
       color:
         colors.text,
       fontFamily:
-        'Inter_600SemiBold',
+        'PlayfairDisplay_700Bold',
       fontSize:
-        10.5,
+        52,
+      lineHeight:
+        54,
     },
-    shelfStatDivider: {
-      width:
+    orbitNumberLabel: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        8.5,
+      letterSpacing:
+        1.25,
+      marginTop:
         1,
-      height:
-        30,
-      backgroundColor:
-        colors.border,
     },
-    shelfMiniStat: {
-      minWidth:
-        60,
+    orbitCharm: {
+      position:
+        'absolute',
+      width:
+        44,
+      height:
+        44,
+      borderRadius:
+        15,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex:
+        8,
+      borderWidth:
+        1,
+      borderColor:
+        colors.background,
+    },
+    orbitCharmOne: {
+      right:
+        4,
+      top:
+        33,
+      transform: [
+        {
+          rotate:
+            '5deg',
+        },
+      ],
+    },
+    orbitCharmTwo: {
+      left:
+        2,
+      bottom:
+        37,
+      transform: [
+        {
+          rotate:
+            '-5deg',
+        },
+      ],
+    },
+    orbitCharmThree: {
+      right:
+        21,
+      bottom:
+        8,
+      transform: [
+        {
+          rotate:
+            '3deg',
+        },
+      ],
+    },
+    orbitCharmEmpty: {
+      position:
+        'absolute',
+      right:
+        6,
+      top:
+        36,
+      width:
+        38,
+      height:
+        38,
+      borderRadius:
+        14,
+      borderWidth:
+        1,
+      borderStyle:
+        'dashed',
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.surface,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex:
+        8,
+    },
+    orbitStats: {
+      minHeight:
+        48,
       flexDirection:
         'row',
       alignItems:
         'center',
-      gap:
-        6,
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        10,
+      borderTopWidth:
+        1,
+      borderBottomWidth:
+        1,
+      borderColor:
+        colors.border,
     },
-    shelfMiniValue: {
+    orbitStat: {
+      flex:
+        1,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        5,
+    },
+    orbitStatValue: {
       color:
         colors.text,
       fontFamily:
@@ -2698,15 +2401,21 @@ function createStyles(
       fontSize:
         12,
     },
-    shelfMiniLabel: {
+    orbitStatLabel: {
       color:
         colors.mutedText,
       fontFamily:
         'Inter_500Medium',
       fontSize:
-        8.5,
-      marginTop:
+        9.5,
+    },
+    orbitStatsRule: {
+      width:
         1,
+      height:
+        22,
+      backgroundColor:
+        colors.border,
     },
     sectionIntro: {
       flexDirection:
