@@ -381,8 +381,8 @@ export default function ReadingActivityScreen() {
           innerHaloInset;
 
         const stickerOrbitRadius =
-          innerCircleRadius +
-          30;
+          innerCircleRadius -
+          8;
 
         const slotAngles: Record<
           number,
@@ -392,19 +392,19 @@ export default function ReadingActivityScreen() {
             0,
           ],
           2: [
-            -28,
-            28,
+            -20,
+            20,
           ],
           3: [
-            -42,
+            -34,
             0,
-            42,
+            34,
           ],
           4: [
-            -52,
-            -18,
-            18,
-            52,
+            -42,
+            -14,
+            14,
+            42,
           ],
         };
 
