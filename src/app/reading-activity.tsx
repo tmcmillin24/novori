@@ -68,7 +68,7 @@ const MAX_ORBIT_SIZE =
   460;
 
 const ORBIT_DECOR_VERTICAL_PADDING =
-  60;
+  88;
 
 const CHARM_ROTATIONS = [
   '-8deg',
