@@ -397,11 +397,15 @@ export default function CreateReadingUpdateScreen() {
                 return current;
               }
 
-              return (
-                result[0]
-                  ?.google_book_id ??
-                null
-              );
+              if (
+                result.length ===
+                1
+              ) {
+                return result[0]
+                  .google_book_id;
+              }
+
+              return null;
             }
           );
         } catch (
@@ -1446,19 +1450,28 @@ export default function CreateReadingUpdateScreen() {
                       accessibilityLabel={
                         isEditing
                           ? `${book.title}, original book`
+                          : visibleBooks.length ===
+                            1
+                          ? `${book.title}, selected book`
                           : `Select ${book.title}`
                       }
                       accessibilityState={{
                         selected,
                         disabled:
-                          isEditing,
+                          isEditing ||
+                          visibleBooks.length ===
+                            1,
                       }}
                       disabled={
-                        isEditing
+                        isEditing ||
+                        visibleBooks.length ===
+                          1
                       }
                       onPress={() => {
                         if (
-                          !isEditing
+                          !isEditing &&
+                          visibleBooks.length >
+                            1
                         ) {
                           setSelectedBookId(
                             book.google_book_id
