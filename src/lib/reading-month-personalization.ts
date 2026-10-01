@@ -4,34 +4,60 @@ import {
   supabase,
 } from './supabase';
 
-export type ReadingMonthIcon =
-  | 'coffee-outline'
-  | 'moon-outline'
-  | 'headset-outline'
-  | 'rainy-outline'
-  | 'airplane-outline'
-  | 'paw-outline'
-  | 'heart-outline'
-  | 'sparkles-outline'
-  | 'flame-outline'
-  | 'planet-outline'
-  | 'leaf-outline'
-  | 'book-outline';
+export type ReadingShelfDecor =
+  | 'plant'
+  | 'mug'
+  | 'candle'
+  | 'moon'
+  | 'headphones'
+  | 'flowers'
+  | 'cat'
+  | 'globe';
 
 export type ReadingMonthPersonalization = {
-  icons:
-    ReadingMonthIcon[];
-  note:
-    string;
+  decor:
+    ReadingShelfDecor[];
 };
 
 const DEFAULT_PERSONALIZATION:
   ReadingMonthPersonalization = {
-    icons:
+    decor:
       [],
-    note:
-      '',
   };
+
+const LEGACY_ICON_MAP: Record<
+  string,
+  ReadingShelfDecor
+> = {
+  'coffee-outline':
+    'mug',
+  'moon-outline':
+    'moon',
+  'headset-outline':
+    'headphones',
+  'paw-outline':
+    'cat',
+  'leaf-outline':
+    'plant',
+  'sparkles-outline':
+    'flowers',
+  'planet-outline':
+    'globe',
+  'flame-outline':
+    'candle',
+};
+
+const VALID_DECOR =
+  new Set<ReadingShelfDecor>([
+    'plant',
+    'mug',
+    'candle',
+    'moon',
+    'headphones',
+    'flowers',
+    'cat',
+    'globe',
+  ]);
 
 async function getStorageKey(
   year:
@@ -91,39 +117,50 @@ export async function getReadingMonthPersonalization(
         raw
       );
 
-    const icons =
+    const savedDecor =
       Array.isArray(
-        parsed?.icons
+        parsed?.decor
       )
-        ? parsed.icons
-            .filter(
-              (
-                value:
-                  unknown
-              ): value is ReadingMonthIcon =>
-                typeof value ===
+        ? parsed.decor
+        : Array.isArray(
+            parsed?.icons
+          )
+        ? parsed.icons.map(
+            (
+              value:
+                unknown
+            ) =>
+              typeof value ===
                 'string'
-            )
-            .slice(
-              0,
-              4
-            )
+                ? LEGACY_ICON_MAP[
+                    value
+                  ]
+                : null
+          )
         : [];
 
-    const note =
-      typeof parsed?.note ===
-        'string'
-        ? parsed.note
-            .trim()
-            .slice(
-              0,
-              80
-            )
-        : '';
+    const decor =
+      Array.from(
+        new Set(
+          savedDecor.filter(
+            (
+              value:
+                unknown
+            ): value is ReadingShelfDecor =>
+              typeof value ===
+                'string' &&
+              VALID_DECOR.has(
+                value as ReadingShelfDecor
+              )
+          )
+        )
+      ).slice(
+        0,
+        3
+      );
 
     return {
-      icons,
-      note,
+      decor,
     };
   } catch (
     error
@@ -155,21 +192,23 @@ export async function saveReadingMonthPersonalization(
 
   const payload:
     ReadingMonthPersonalization = {
-      icons:
+      decor:
         Array.from(
           new Set(
-            value.icons
+            value.decor
           )
-        ).slice(
-          0,
-          4
-        ),
-      note:
-        value.note
-          .trim()
+        )
+          .filter(
+            (
+              item
+            ) =>
+              VALID_DECOR.has(
+                item
+              )
+          )
           .slice(
             0,
-            80
+            3
           ),
     };
 
