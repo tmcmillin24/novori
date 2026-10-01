@@ -178,7 +178,7 @@ export async function getReadingMonthPersonalization(
         )
       ).slice(
         0,
-        3
+        8
       );
 
     return {
