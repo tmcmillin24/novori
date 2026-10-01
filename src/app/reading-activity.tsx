@@ -16,8 +16,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -29,6 +27,16 @@ import {
 import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
+import {
+  Easing as ReanimatedEasing,
+  cancelAnimation,
+  scrollTo,
+  useAnimatedRef,
+  useDerivedValue,
+  useScrollOffset,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import ReadingMonthCharmArtwork from '../components/ReadingMonthCharmArtwork';
 import ReadingMonthCustomizeSheet from '../components/ReadingMonthCustomizeSheet';
@@ -181,9 +189,7 @@ export default function ReadingActivityScreen() {
     useWindowDimensions();
 
   const scrollViewRef =
-    useRef<ScrollView | null>(
-      null
-    );
+    useAnimatedRef<ScrollView>();
 
   const dayDetailsYRef =
     useRef<number | null>(
@@ -195,22 +201,40 @@ export default function ReadingActivityScreen() {
       false
     );
 
-  const currentScrollYRef =
-    useRef(
+  const scrollOffset =
+    useScrollOffset(
+      scrollViewRef
+    );
+
+  const animatedScrollY =
+    useSharedValue(
       0
     );
 
-  const scrollAnimationValue =
-    useRef(
-      new Animated.Value(
-        0
-      )
-    ).current;
-
-  const scrollAnimationListenerRef =
-    useRef<string | null>(
-      null
+  const autoScrollActive =
+    useSharedValue(
+      false
     );
+
+  useDerivedValue(
+    () => {
+      if (
+        autoScrollActive.value
+      ) {
+        scrollTo(
+          scrollViewRef,
+          0,
+          animatedScrollY.value,
+          false
+        );
+      }
+    },
+    [
+      animatedScrollY,
+      autoScrollActive,
+      scrollViewRef,
+    ]
+  );
 
   const {
     colors,
@@ -639,18 +663,12 @@ export default function ReadingActivityScreen() {
   }
 
   function stopDayScrollAnimation() {
-    scrollAnimationValue.stopAnimation();
+    cancelAnimation(
+      animatedScrollY
+    );
 
-    if (
-      scrollAnimationListenerRef.current
-    ) {
-      scrollAnimationValue.removeListener(
-        scrollAnimationListenerRef.current
-      );
-
-      scrollAnimationListenerRef.current =
-        null;
-    }
+    autoScrollActive.value =
+      false;
   }
 
   function scrollToDayDetails(
@@ -676,61 +694,37 @@ export default function ReadingActivityScreen() {
 
     stopDayScrollAnimation();
 
-    scrollAnimationValue.setValue(
-      currentScrollYRef.current
-    );
+    animatedScrollY.value =
+      scrollOffset.value;
 
-    scrollAnimationListenerRef.current =
-      scrollAnimationValue.addListener(
-        ({
-          value,
-        }) => {
-          scrollViewRef.current?.scrollTo({
-            y:
-              value,
-            animated:
-              false,
-          });
+    autoScrollActive.value =
+      true;
+
+    animatedScrollY.value =
+      withTiming(
+        targetY,
+        {
+          duration:
+            760,
+          easing:
+            ReanimatedEasing.bezier(
+              0.45,
+              0,
+              0.2,
+              1
+            ),
+        },
+        (
+          finished
+        ) => {
+          if (
+            finished
+          ) {
+            autoScrollActive.value =
+              false;
+          }
         }
       );
-
-    Animated.timing(
-      scrollAnimationValue,
-      {
-        toValue:
-          targetY,
-        duration:
-          440,
-        easing:
-          Easing.inOut(
-            Easing.cubic
-          ),
-        useNativeDriver:
-          false,
-      }
-    ).start(
-      ({
-        finished,
-      }) => {
-        if (
-          finished
-        ) {
-          currentScrollYRef.current =
-            targetY;
-        }
-
-        if (
-          scrollAnimationListenerRef.current
-        ) {
-          scrollAnimationValue.removeListener(
-            scrollAnimationListenerRef.current
-          );
-
-          scrollAnimationListenerRef.current =
-            null;
-        }
-      }
-    );
   }
 
   function handleOrbitDayPress(
@@ -808,12 +802,6 @@ export default function ReadingActivityScreen() {
         scrollEventThrottle={
           16
         }
-        onScroll={(
-          event
-        ) => {
-          currentScrollYRef.current =
-            event.nativeEvent.contentOffset.y;
-        }}
         onScrollBeginDrag={
           stopDayScrollAnimation
         }
