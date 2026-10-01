@@ -22,7 +22,7 @@ import {
   Animated,
   Easing,
   FlatList,
-  GestureResponderEvent,
+  type GestureResponderEvent,
   Modal,
   Platform,
   Pressable,
