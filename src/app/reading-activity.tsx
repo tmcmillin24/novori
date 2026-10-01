@@ -846,7 +846,7 @@ export default function ReadingActivityScreen() {
             toValue:
               1,
             duration:
-              1080,
+              1500,
             easing:
               Easing.out(
                 Easing.cubic
