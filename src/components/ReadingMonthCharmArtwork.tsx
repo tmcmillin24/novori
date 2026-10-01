@@ -48,7 +48,7 @@ export default function ReadingMonthCharmArtwork({
             15 *
             scale
           }
-          color="#54CC78"
+          color="#3DDB70"
           style={[
             styles.plantLeaf,
             {
@@ -74,7 +74,7 @@ export default function ReadingMonthCharmArtwork({
             16 *
             scale
           }
-          color="#74DF91"
+          color="#78F09B"
           style={[
             styles.plantLeaf,
             {
@@ -100,7 +100,7 @@ export default function ReadingMonthCharmArtwork({
             15 *
             scale
           }
-          color="#35AE5A"
+          color="#22BF55"
           style={[
             styles.plantLeaf,
             {
@@ -176,7 +176,7 @@ export default function ReadingMonthCharmArtwork({
             12 *
             scale
           }
-          color="#F2A654"
+          color="#FFB45C"
           style={[
             styles.catEar,
             {
@@ -202,7 +202,7 @@ export default function ReadingMonthCharmArtwork({
             12 *
             scale
           }
-          color="#F2A654"
+          color="#FFB45C"
           style={[
             styles.catEar,
             {
@@ -334,37 +334,37 @@ export default function ReadingMonthCharmArtwork({
         icon:
           'sunny',
         color:
-          '#FFD447',
+          '#FFE05A',
       },
       mug: {
         icon:
           'cafe',
         color:
-          '#DC8451',
+          '#EB8D54',
       },
       moon: {
         icon:
           'moon',
         color:
-          '#9A86F5',
+          '#A58CFF',
       },
       headphones: {
         icon:
           'headset',
         color:
-          '#57A6FF',
+          '#4EA8FF',
       },
       flower: {
         icon:
           'flower',
         color:
-          '#F07DB6',
+          '#FF7CBC',
       },
       globe: {
         icon:
           'earth',
         color:
-          '#42C7C1',
+          '#32D1CA',
       },
     };
 
@@ -423,11 +423,11 @@ const styles =
       position:
         'absolute',
       backgroundColor:
-        '#D87845',
+        '#E8894D',
       borderTopWidth:
         1,
       borderTopColor:
-        '#F09A67',
+        '#FFAA74',
     },
     catEar: {
       position:
@@ -437,7 +437,7 @@ const styles =
       position:
         'absolute',
       backgroundColor:
-        '#F2A654',
+        '#FFB45C',
     },
     catEye: {
       position:
