@@ -882,6 +882,23 @@ export default function ReadingDetailsScreen() {
     >(null);
 
   const [
+    journeyConfirmAction,
+    setJourneyConfirmAction,
+  ] =
+    useState<
+      'finish' |
+      'dnf' |
+      null
+    >(null);
+
+  const journeyReviewActionRef =
+    useRef<
+      'finish' |
+      'dnf' |
+      null
+    >(null);
+
+  const [
     progressEditorOpen,
     setProgressEditorOpen,
   ] =
@@ -1039,6 +1056,33 @@ export default function ReadingDetailsScreen() {
     setSavingDates,
   ] =
     useState(false);
+
+  const journeyConfirmSheet =
+    useNovoriSheet(
+      () => {
+        setJourneyConfirmAction(
+          null
+        );
+
+        const completedAction =
+          journeyReviewActionRef.current;
+
+        journeyReviewActionRef.current =
+          null;
+
+        if (
+          completedAction
+        ) {
+          router.push({
+            pathname:
+              '/rate-review',
+            params: {
+              googleBookId,
+            },
+          });
+        }
+      }
+    );
 
   const summarySheet =
     useNovoriSheet(
@@ -1334,7 +1378,7 @@ export default function ReadingDetailsScreen() {
       !data ||
       journeyAction
     ) {
-      return;
+      return false;
     }
 
     try {
@@ -1351,20 +1395,7 @@ export default function ReadingDetailsScreen() {
         false
       );
 
-      if (
-        action ===
-          'finish' ||
-        action ===
-          'dnf'
-      ) {
-        router.push({
-          pathname:
-            '/rate-review',
-          params: {
-            googleBookId,
-          },
-        });
-      }
+      return true;
     } catch (
       journeyError
     ) {
@@ -1384,6 +1415,8 @@ export default function ReadingDetailsScreen() {
           ? journeyError.message
           : 'Please try again.'
       );
+
+      return false;
     } finally {
       setJourneyAction(
         null
@@ -1396,40 +1429,43 @@ export default function ReadingDetailsScreen() {
       | 'finish'
       | 'dnf'
   ) {
-    const finishing =
-      action ===
-      'finish';
+    if (
+      journeyAction
+    ) {
+      return;
+    }
 
-    Alert.alert(
-      finishing
-        ? 'Finish this book?'
-        : 'Mark this book DNF?',
-      finishing
-        ? 'This will complete your current reading journey. You can always start the book again later.'
-        : 'This will end your current reading journey as Did Not Finish. You can always start the book again later.',
-      [
-        {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-        {
-          text:
-            finishing
-              ? 'Finish Book'
-              : 'Mark DNF',
-          style:
-            finishing
-              ? 'default'
-              : 'destructive',
-          onPress: () =>
-            void changeJourneyState(
-              action
-            ),
-        },
-      ]
+    setJourneyConfirmAction(
+      action
     );
+  }
+
+  async function completeJourneyFromSheet() {
+    if (
+      !journeyConfirmAction ||
+      journeyAction
+    ) {
+      return;
+    }
+
+    const action =
+      journeyConfirmAction;
+
+    const completed =
+      await changeJourneyState(
+        action
+      );
+
+    if (
+      !completed
+    ) {
+      return;
+    }
+
+    journeyReviewActionRef.current =
+      action;
+
+    journeyConfirmSheet.closeSmoothly();
   }
 
   function openProgressEditor() {
@@ -4181,6 +4217,206 @@ export default function ReadingDetailsScreen() {
         <Modal
           visible={
             Boolean(
+              journeyConfirmAction
+            )
+          }
+          transparent
+          animationType="none"
+          onShow={
+            journeyConfirmSheet.animateIn
+          }
+          onRequestClose={
+            journeyConfirmSheet.closeSmoothly
+          }
+        >
+          <Pressable
+            style={
+              styles.modalBackdrop
+            }
+            onPress={
+              journeyAction
+                ? undefined
+                : journeyConfirmSheet.closeSmoothly
+            }
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                styles.modalBackdropVisual,
+                {
+                  opacity:
+                    journeyConfirmSheet.backdropOpacity,
+                },
+              ]}
+            />
+
+            <Animated.View
+              {...journeyConfirmSheet.panResponder.panHandlers}
+              onLayout={({
+                nativeEvent,
+              }) => {
+                journeyConfirmSheet.sheetHeight.current =
+                  nativeEvent.layout.height;
+              }}
+              style={[
+                styles.modalSheet,
+                styles.journeyConfirmModalSheet,
+                {
+                  opacity:
+                    journeyConfirmSheet.sheetOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        journeyConfirmSheet.translateY,
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={(
+                  event
+                ) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  style={
+                    styles.modalHandle
+                  }
+                />
+
+                <View
+                  style={
+                    styles.journeyConfirmIcon
+                  }
+                >
+                  <Ionicons
+                    name={
+                      journeyConfirmAction ===
+                        'finish'
+                        ? 'checkmark-circle-outline'
+                        : 'close-circle-outline'
+                    }
+                    size={24}
+                    color={
+                      journeyConfirmAction ===
+                        'finish'
+                        ? colors.gold
+                        : colors.danger
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.journeyConfirmTitle
+                  }
+                >
+                  {journeyConfirmAction ===
+                  'finish'
+                    ? 'Finish this book?'
+                    : 'Mark this book DNF?'}
+                </Text>
+
+                <Text
+                  style={
+                    styles.journeyConfirmMessage
+                  }
+                >
+                  {journeyConfirmAction ===
+                  'finish'
+                    ? 'This completes your current reading journey and saves today as the finish date. You can always start the book again later.'
+                    : 'This ends your current reading journey as Did Not Finish and saves today as the stopped date. You can always start the book again later.'}
+                </Text>
+
+                <View
+                  style={
+                    styles.journeyConfirmActions
+                  }
+                >
+                  <Pressable
+                    disabled={
+                      journeyAction !==
+                      null
+                    }
+                    onPress={
+                      journeyConfirmSheet.closeSmoothly
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.journeyConfirmCancelButton,
+                      pressed &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.journeyConfirmCancelText
+                      }
+                    >
+                      Cancel
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    disabled={
+                      journeyAction !==
+                      null
+                    }
+                    onPress={() =>
+                      void completeJourneyFromSheet()
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.journeyConfirmPrimaryButton,
+                      journeyConfirmAction ===
+                        'dnf' &&
+                        styles.journeyConfirmDangerButton,
+                      (
+                        pressed ||
+                        journeyAction !==
+                          null
+                      ) &&
+                        styles.pressed,
+                    ]}
+                  >
+                    {journeyAction ===
+                    journeyConfirmAction ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.background
+                        }
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.journeyConfirmPrimaryText,
+                          journeyConfirmAction ===
+                            'dnf' &&
+                            styles.journeyConfirmDangerText,
+                        ]}
+                      >
+                        {journeyConfirmAction ===
+                        'finish'
+                          ? 'Finish Book'
+                          : 'Mark DNF'}
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Animated.View>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          visible={
+            Boolean(
               noteMenuTarget
             )
           }
@@ -5941,6 +6177,127 @@ function createStyles(
       color: colors.gold,
       fontFamily: 'Inter_600SemiBold',
       fontSize: 11,
+    },
+    journeyConfirmModalSheet: {
+      paddingBottom:
+        Platform.OS ===
+        'ios'
+          ? 30
+          : 22,
+    },
+    journeyConfirmIcon: {
+      width:
+        48,
+      height:
+        48,
+      borderRadius:
+        24,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      alignSelf:
+        'center',
+      marginTop:
+        6,
+      marginBottom:
+        14,
+    },
+    journeyConfirmTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        21,
+      textAlign:
+        'center',
+    },
+    journeyConfirmMessage: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        19,
+      textAlign:
+        'center',
+      marginTop:
+        7,
+    },
+    journeyConfirmActions: {
+      flexDirection:
+        'row',
+      gap:
+        10,
+      marginTop:
+        20,
+    },
+    journeyConfirmCancelButton: {
+      flex:
+        1,
+      minHeight:
+        46,
+      borderRadius:
+        14,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.background,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    journeyConfirmPrimaryButton: {
+      flex:
+        1,
+      minHeight:
+        46,
+      borderRadius:
+        14,
+      borderWidth:
+        1,
+      borderColor:
+        colors.gold,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+    journeyConfirmDangerButton: {
+      borderColor:
+        colors.danger,
+      backgroundColor:
+        colors.danger,
+    },
+    journeyConfirmCancelText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    journeyConfirmPrimaryText: {
+      color:
+        colors.background,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        12.5,
+    },
+    journeyConfirmDangerText: {
+      color:
+        colors.text,
     },
     noteMenuButton: {
       width:
