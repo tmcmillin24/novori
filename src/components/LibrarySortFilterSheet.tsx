@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   Modal,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -156,6 +157,11 @@ export default function LibrarySortFilterSheet({
       false
     );
 
+  const sheetHeight =
+    useRef(
+      0
+    );
+
   function animateIn() {
     closing.current =
       false;
@@ -295,6 +301,97 @@ export default function LibrarySortFilterSheet({
     );
   }
 
+  const panResponder =
+    useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (
+          _event,
+          gesture
+        ) => {
+          const mostlyVertical =
+            Math.abs(
+              gesture.dy
+            ) >
+            Math.abs(
+              gesture.dx
+            );
+
+          return (
+            visible &&
+            !closing.current &&
+            gesture.dy >
+              6 &&
+            mostlyVertical
+          );
+        },
+
+        onPanResponderMove: (
+          _event,
+          gesture
+        ) => {
+          translateY.setValue(
+            Math.max(
+              0,
+              gesture.dy
+            )
+          );
+        },
+
+        onPanResponderRelease: (
+          _event,
+          gesture
+        ) => {
+          if (
+            gesture.dy >
+              Math.max(
+                78,
+                sheetHeight.current *
+                  0.2
+              ) ||
+            gesture.vy >
+              1.1
+          ) {
+            closeSmoothly();
+            return;
+          }
+
+          Animated.spring(
+            translateY,
+            {
+              toValue:
+                0,
+              useNativeDriver:
+                true,
+              damping:
+                20,
+              stiffness:
+                220,
+              mass:
+                0.8,
+            }
+          ).start();
+        },
+
+        onPanResponderTerminate: () => {
+          Animated.spring(
+            translateY,
+            {
+              toValue:
+                0,
+              useNativeDriver:
+                true,
+              damping:
+                20,
+              stiffness:
+                220,
+              mass:
+                0.8,
+            }
+          ).start();
+        },
+      })
+    ).current;
+
   return (
     <Modal
       visible={
@@ -330,6 +427,13 @@ export default function LibrarySortFilterSheet({
         />
 
         <Animated.View
+          {...panResponder.panHandlers}
+          onLayout={(
+            event
+          ) => {
+            sheetHeight.current =
+              event.nativeEvent.layout.height;
+          }}
           style={[
             styles.sheet,
             {
