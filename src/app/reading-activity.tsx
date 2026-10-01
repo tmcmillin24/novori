@@ -1222,71 +1222,111 @@ export default function ReadingActivityScreen() {
             >
               <View
                 style={
-                  styles.orbitTopRow
+                  styles.orbitIntroCard
                 }
               >
-                <View>
-                  <Text
+                <View
+                  style={
+                    styles.orbitTopRow
+                  }
+                >
+                  <View
                     style={
-                      styles.orbitEyebrow
+                      styles.orbitIntroLead
                     }
                   >
-                    YOUR MONTH
-                  </Text>
+                    <View
+                      style={
+                        styles.orbitIconBadge
+                      }
+                    >
+                      <Ionicons
+                        name="sparkles"
+                        size={
+                          17
+                        }
+                        color={
+                          colors.background
+                        }
+                      />
+                    </View>
 
-                  <Text
-                    style={
-                      styles.orbitTitle
+                    <View
+                      style={
+                        styles.orbitIntroCopy
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.orbitEyebrow
+                        }
+                      >
+                        YOUR MONTH
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitTitle
+                        }
+                      >
+                        Reading in motion
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitSubtitle
+                        }
+                      >
+                        Every reading day leaves a mark.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={() =>
+                      setCustomizeVisible(
+                        true
+                      )
                     }
+                    hitSlop={
+                      8
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="Personalize this reading month"
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.personalizeButton,
+                      pressed &&
+                        styles.pressed,
+                    ]}
                   >
-                    Reading in motion
-                  </Text>
+                    <Ionicons
+                      name="color-palette-outline"
+                      size={
+                        15
+                      }
+                      color={
+                        colors.background
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.personalizeButtonText
+                      }
+                    >
+                      Personalize
+                    </Text>
+                  </Pressable>
                 </View>
 
-                <Pressable
-                  onPress={() =>
-                    setCustomizeVisible(
-                      true
-                    )
+                <View
+                  style={
+                    styles.orbitAccent
                   }
-                  hitSlop={
-                    8
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel="Personalize this reading month"
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.personalizeButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="color-palette-outline"
-                    size={
-                      15
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.personalizeButtonText
-                    }
-                  >
-                    Personalize
-                  </Text>
-                </Pressable>
+                />
               </View>
-
-              <View
-                style={
-                  styles.orbitDivider
-                }
-              />
 
               <View
                 style={[
@@ -2109,28 +2149,36 @@ function createStyles(
         'center',
       justifyContent:
         'center',
+      alignSelf:
+        'center',
       gap:
-        12,
+        7,
       marginTop:
         24,
       marginBottom:
-        14,
+        16,
       paddingHorizontal:
-        2,
-    },
-    monthButton: {
-      width:
-        38,
-      height:
-        38,
+        7,
+      paddingVertical:
+        6,
       borderRadius:
-        12,
+        999,
       borderWidth:
         1,
       borderColor:
         colors.border,
       backgroundColor:
         colors.surface,
+    },
+    monthButton: {
+      width:
+        32,
+      height:
+        32,
+      borderRadius:
+        16,
+      backgroundColor:
+        colors.elevated,
       alignItems:
         'center',
       justifyContent:
@@ -2152,33 +2200,75 @@ function createStyles(
       marginBottom:
         26,
     },
+    orbitIntroCard: {
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        20,
+      paddingHorizontal:
+        15,
+      paddingTop:
+        14,
+      paddingBottom:
+        12,
+      marginBottom:
+        7,
+    },
     orbitTopRow: {
       flexDirection:
         'row',
       alignItems:
-        'flex-end',
+        'center',
       justifyContent:
         'space-between',
       gap:
         12,
-      paddingHorizontal:
-        2,
-      marginBottom:
-        4,
     },
-    orbitDivider: {
-      height:
+    orbitIntroLead: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      flex:
         1,
+      gap:
+        11,
+    },
+    orbitIconBadge: {
       width:
-        '100%',
+        38,
+      height:
+        38,
+      borderRadius:
+        19,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.gold,
+    },
+    orbitIntroCopy: {
+      flex:
+        1,
+    },
+    orbitAccent: {
+      width:
+        46,
+      height:
+        2,
+      borderRadius:
+        999,
       backgroundColor:
         colors.gold,
       opacity:
-        0.58,
+        0.72,
       marginTop:
         12,
-      marginBottom:
-        5,
     },
     orbitEyebrow: {
       color:
@@ -2198,6 +2288,16 @@ function createStyles(
       fontSize:
         22,
       marginTop:
+        1,
+    },
+    orbitSubtitle: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      marginTop:
         2,
     },
     personalizeButton: {
@@ -2212,19 +2312,15 @@ function createStyles(
       gap:
         5,
       paddingHorizontal:
-        10,
+        11,
       backgroundColor:
-        colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
+        colors.gold,
     },
     personalizeButtonText: {
       color:
-        colors.gold,
+        colors.background,
       fontFamily:
-        'Inter_600SemiBold',
+        'Inter_700Bold',
       fontSize:
         9.5,
     },
