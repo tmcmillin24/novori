@@ -2145,28 +2145,35 @@ export default function LibraryScreen() {
               </View>
             </View>
 
-            <View
-              style={[
-                styles.checkinStatusPill,
-                checkinState
-                  ?.checkedIn &&
-                  styles.checkinStatusPillDone,
+            <Pressable
+              onPress={() =>
+                router.push(
+                  '/reading-activity'
+                )
+              }
+              hitSlop={
+                8
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Open reading activity calendar"
+              style={({
+                pressed,
+              }) => [
+                styles.activityCalendarButton,
+                pressed &&
+                  styles.pressed,
               ]}
             >
-              <Text
-                style={[
-                  styles.checkinStatusText,
-                  checkinState
-                    ?.checkedIn &&
-                    styles.checkinStatusTextDone,
-                ]}
-              >
-                {checkinState
-                  ?.checkedIn
-                  ? 'Today complete'
-                  : 'Today'}
-              </Text>
-            </View>
+              <Ionicons
+                name="calendar-outline"
+                size={
+                  19
+                }
+                color={
+                  colors.gold
+                }
+              />
+            </Pressable>
           </View>
 
           <Pressable
@@ -4025,37 +4032,23 @@ function createStyles(
       fontSize:
         13,
     },
-    checkinStatusPill: {
+    activityCalendarButton: {
+      width:
+        38,
+      height:
+        38,
+      borderRadius:
+        12,
       borderWidth:
         1,
       borderColor:
         colors.border,
-      borderRadius:
-        999,
       backgroundColor:
         colors.background,
-      paddingHorizontal:
-        9,
-      paddingVertical:
-        5,
-    },
-    checkinStatusPillDone: {
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.elevated,
-    },
-    checkinStatusText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        9.5,
-    },
-    checkinStatusTextDone: {
-      color:
-        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
     checkinButton: {
       minHeight:
