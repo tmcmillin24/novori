@@ -3198,9 +3198,7 @@ export default function ReadingDetailsScreen() {
                   ]}
                 >
                   {journeyAction ===
-                    'start' &&
-                  restartMode ===
-                    'fresh' ? (
+                  'start' ? (
                     <ActivityIndicator
                       size="small"
                       color={
@@ -4568,7 +4566,9 @@ export default function ReadingDetailsScreen() {
                   </View>
 
                   {journeyAction ===
-                  'start' ? (
+                    'start' &&
+                  restartMode ===
+                    'fresh' ? (
                     <ActivityIndicator
                       size="small"
                       color={
