@@ -32,7 +32,6 @@ export type ReadingMonthCharm =
   | 'leaves'
   | 'mushroom'
   | 'rain'
-  | 'butterfly'
   | 'cat'
   | 'dog'
   | 'paw'
@@ -186,7 +185,6 @@ export const READING_MONTH_CHARM_OPTIONS: ReadingMonthCharmOption[] = [
   { id: 'leaves', label: 'Leaves', emoji: '🍂', category: 'nature' },
   { id: 'mushroom', label: 'Mushroom', emoji: '🍄', category: 'nature' },
   { id: 'rain', label: 'Rain', emoji: '🌧️', category: 'nature' },
-  { id: 'butterfly', label: 'Butterfly', emoji: '🦋', category: 'nature' },
 
   { id: 'cat', label: 'Cat', emoji: '🐈', category: 'cute' },
   { id: 'dog', label: 'Dog', emoji: '🐕', category: 'cute' },
