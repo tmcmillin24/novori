@@ -471,8 +471,8 @@ export default function DailyCheckinSheet({
               {books.length >
                 0
                 ? editing
-                  ? 'Update the books attached to today’s check-in. Your streak stays exactly the same.'
-                  : 'Select every book you read today. It still counts as one daily check-in.'
+                  ? 'Choose the book that should be attached to today’s check-in. Your streak stays exactly the same.'
+                  : 'Choose the book you read today. You can change it later if you picked the wrong one.'
                 : 'Add a book to your Library and mark it as Reading before checking in.'}
             </Text>
 
