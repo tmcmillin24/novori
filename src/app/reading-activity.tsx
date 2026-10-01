@@ -377,20 +377,47 @@ export default function ReadingActivityScreen() {
 
         const horizontalRadius =
           Math.max(
-            102,
+            112,
             activeOrbitSize /
               2 -
-              28
+              40
           );
 
         const verticalRadius =
           activeOrbitSize /
             2 +
-          18;
+          48;
 
-        const arcInset =
-          Math.PI *
-          0.19;
+        function getArcHalfSpan(
+          count:
+            number
+        ) {
+          if (
+            count <=
+            1
+          ) {
+            return 0;
+          }
+
+          if (
+            count ===
+            2
+          ) {
+            return Math.PI *
+              0.13;
+          }
+
+          if (
+            count ===
+            3
+          ) {
+            return Math.PI *
+              0.18;
+          }
+
+          return Math.PI *
+            0.23;
+        }
 
         function getArcAngle(
           index:
@@ -400,31 +427,28 @@ export default function ReadingActivityScreen() {
           top:
             boolean
         ) {
-          if (
-            count <=
-            1
-          ) {
-            return top
+          const centerAngle =
+            top
               ? -Math.PI /
                   2
               : Math.PI /
                   2;
+
+          if (
+            count <=
+            1
+          ) {
+            return centerAngle;
           }
 
-          const startAngle =
-            top
-              ? -Math.PI +
-                arcInset
-              : arcInset;
-
-          const endAngle =
-            top
-              ? -arcInset
-              : Math.PI -
-                arcInset;
+          const halfSpan =
+            getArcHalfSpan(
+              count
+            );
 
           return (
-            startAngle +
+            centerAngle -
+            halfSpan +
             (
               index /
               (
@@ -432,10 +456,8 @@ export default function ReadingActivityScreen() {
                 1
               )
             ) *
-              (
-                endAngle -
-                startAngle
-              )
+              halfSpan *
+              2
           );
         }
 
