@@ -4202,8 +4202,22 @@ export default function ReadingDetailsScreen() {
             }
           >
             <Animated.View
+              pointerEvents="none"
               style={[
-                styles.noteMenuSheet,
+                StyleSheet.absoluteFill,
+                styles.modalBackdropVisual,
+                {
+                  opacity:
+                    noteMenuSheet.backdropOpacity,
+                },
+              ]}
+            />
+
+            <Animated.View
+              {...noteMenuSheet.panResponder.panHandlers}
+              style={[
+                styles.modalSheet,
+                styles.noteMenuModalSheet,
                 {
                   opacity:
                     noteMenuSheet.sheetOpacity,
@@ -4230,17 +4244,10 @@ export default function ReadingDetailsScreen() {
                 }
               >
                 <View
-                  {...noteMenuSheet.panResponder.panHandlers}
                   style={
-                    styles.sheetHandleArea
+                    styles.modalHandle
                   }
-                >
-                  <View
-                    style={
-                      styles.sheetHandle
-                    }
-                  />
-                </View>
+                />
 
                 <Pressable
                   onPress={
@@ -5949,27 +5956,12 @@ function createStyles(
       marginTop:
         -5,
     },
-    noteMenuSheet: {
-      position:
-        'absolute',
-      left:
-        16,
-      right:
-        16,
-      bottom:
-        16,
-      backgroundColor:
-        colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        20,
-      overflow:
-        'hidden',
+    noteMenuModalSheet: {
       paddingBottom:
-        6,
+        Platform.OS ===
+        'ios'
+          ? 28
+          : 20,
     },
     noteMenuAction: {
       minHeight:
