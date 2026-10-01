@@ -1353,21 +1353,6 @@ export default function ReadingActivityScreen() {
                   },
                 ]}
               >
-                <Pressable
-                  onPress={
-                    dismissSelectedDayToTop
-                  }
-                  disabled={
-                    !selectedDateKey
-                  }
-                  accessible={
-                    false
-                  }
-                  style={
-                    styles.orbitDismissSurface
-                  }
-                />
-
                 <View
                   pointerEvents="none"
                   style={[
@@ -1442,9 +1427,6 @@ export default function ReadingActivityScreen() {
                             dot.dateKey
                           )
                         }
-                        hitSlop={
-                          3
-                        }
                         accessibilityRole="button"
                         accessibilityLabel={`${getDayTitle(
                           dot.dateKey
@@ -1516,8 +1498,25 @@ export default function ReadingActivityScreen() {
                   }
                 )}
 
-                <View
-                  pointerEvents="none"
+                <Pressable
+                  onPress={
+                    selectedDateKey
+                      ? dismissSelectedDayToTop
+                      : undefined
+                  }
+                  disabled={
+                    !selectedDateKey
+                  }
+                  accessibilityRole={
+                    selectedDateKey
+                      ? 'button'
+                      : undefined
+                  }
+                  accessibilityLabel={
+                    selectedDateKey
+                      ? 'Close selected reading day'
+                      : undefined
+                  }
                   style={[
                     styles.orbitCenter,
                     {
@@ -1609,7 +1608,7 @@ export default function ReadingActivityScreen() {
                       </Text>
                     </>
                   )}
-                </View>
+                </Pressable>
 
               </View>
 
@@ -2287,20 +2286,6 @@ function createStyles(
         'absolute',
       left:
         0,
-    },
-    orbitDismissSurface: {
-      position:
-        'absolute',
-      left:
-        0,
-      top:
-        0,
-      right:
-        0,
-      bottom:
-        0,
-      zIndex:
-        1,
     },
     orbitHaloOuter: {
       position:
