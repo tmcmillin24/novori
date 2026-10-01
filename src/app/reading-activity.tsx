@@ -26,6 +26,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import ReadingMonthCharmArtwork from '../components/ReadingMonthCharmArtwork';
 import ReadingMonthCustomizeSheet from '../components/ReadingMonthCustomizeSheet';
 import {
   NovoriColors,
@@ -44,107 +45,19 @@ import {
 } from '../lib/reading-checkins';
 import {
   getReadingMonthPersonalization,
-  ReadingMonthCharm,
   ReadingMonthPersonalization,
   saveReadingMonthPersonalization,
 } from '../lib/reading-month-personalization';
 
-const WEEK_LABELS = [
-  'M',
-  'T',
-  'W',
-  'T',
-  'F',
-  'S',
-  'S',
-];
-
-const MONTH_CHARM_VISUALS: Record<
-  ReadingMonthCharm,
-  {
-    icon:
-      keyof typeof Ionicons.glyphMap;
-    color:
-      string;
-    tint:
-      string;
-  }
-> = {
-  plant: {
-    icon:
-      'leaf-outline',
-    color:
-      '#5FAF73',
-    tint:
-      'rgba(95, 175, 115, 0.15)',
-  },
-  sun: {
-    icon:
-      'sunny-outline',
-    color:
-      '#F2C84B',
-    tint:
-      'rgba(242, 200, 75, 0.16)',
-  },
-  mug: {
-    icon:
-      'cafe-outline',
-    color:
-      '#C97A4A',
-    tint:
-      'rgba(201, 122, 74, 0.15)',
-  },
-  moon: {
-    icon:
-      'moon-outline',
-    color:
-      '#8A7DD1',
-    tint:
-      'rgba(138, 125, 209, 0.15)',
-  },
-  headphones: {
-    icon:
-      'headset-outline',
-    color:
-      '#5D9CEC',
-    tint:
-      'rgba(93, 156, 236, 0.15)',
-  },
-  flower: {
-    icon:
-      'flower-outline',
-    color:
-      '#D979A7',
-    tint:
-      'rgba(217, 121, 167, 0.15)',
-  },
-  cat: {
-    icon:
-      'paw-outline',
-    color:
-      '#E59B4C',
-    tint:
-      'rgba(229, 155, 76, 0.15)',
-  },
-  globe: {
-    icon:
-      'earth-outline',
-    color:
-      '#48A9A6',
-    tint:
-      'rgba(72, 169, 166, 0.15)',
-  },
-};
-
 const ORBIT_SIZE =
-  232;
+  252;
 
 const ORBIT_CENTER =
   ORBIT_SIZE /
   2;
 
 const ORBIT_RADIUS =
-  102;
+  111;
 
 function getMonthLabel(
   year:
@@ -223,79 +136,6 @@ function getDateKey(
   )}-${padPart(
     day
   )}`;
-}
-
-function getCalendarCells(
-  year:
-    number,
-  monthIndex:
-    number
-) {
-  const firstDay =
-    new Date(
-      year,
-      monthIndex,
-      1
-    ).getDay();
-
-  const mondayOffset =
-    firstDay ===
-      0
-      ? 6
-      : firstDay -
-        1;
-
-  const daysInMonth =
-    new Date(
-      year,
-      monthIndex +
-        1,
-      0
-    ).getDate();
-
-  const cells:
-    Array<
-      number | null
-    > =
-    [];
-
-  for (
-    let index =
-      0;
-    index <
-    mondayOffset;
-    index +=
-      1
-  ) {
-    cells.push(
-      null
-    );
-  }
-
-  for (
-    let day =
-      1;
-    day <=
-    daysInMonth;
-    day +=
-      1
-  ) {
-    cells.push(
-      day
-    );
-  }
-
-  while (
-    cells.length %
-      7 !==
-    0
-  ) {
-    cells.push(
-      null
-    );
-  }
-
-  return cells;
 }
 
 function emptyDay(
@@ -528,19 +368,6 @@ export default function ReadingActivityScreen() {
       ]
     )
   );
-
-  const calendarCells =
-    useMemo(
-      () =>
-        getCalendarCells(
-          displayedMonth.year,
-          displayedMonth.monthIndex
-        ),
-      [
-        displayedMonth.monthIndex,
-        displayedMonth.year,
-      ]
-    );
 
   const selectedDay =
     monthData
@@ -1065,36 +892,61 @@ export default function ReadingActivityScreen() {
                 {monthOrbitDots.map(
                   (
                     dot
-                  ) => (
-                    <View
-                      key={
-                        dot.dateKey
-                      }
-                      style={[
-                        styles.orbitDot,
-                        {
-                          left:
-                            dot.left -
-                            (
-                              dot.checked
-                                ? 4
-                                : 2.5
-                            ),
-                          top:
-                            dot.top -
-                            (
-                              dot.checked
-                                ? 4
-                                : 2.5
-                            ),
-                        },
-                        dot.checked &&
-                          styles.orbitDotRead,
-                        dot.today &&
-                          styles.orbitDotToday,
-                      ]}
-                    />
-                  )
+                  ) => {
+                    const selected =
+                      dot.dateKey ===
+                      selectedDateKey;
+
+                    return (
+                      <Pressable
+                        key={
+                          dot.dateKey
+                        }
+                        onPress={() =>
+                          setSelectedDateKey(
+                            dot.dateKey
+                          )
+                        }
+                        hitSlop={
+                          3
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`${getDayTitle(
+                          dot.dateKey
+                        )}${dot.checked ? ', reading day' : ', no reading logged'}`}
+                        accessibilityState={{
+                          selected,
+                        }}
+                        style={({
+                          pressed,
+                        }) => [
+                          styles.orbitDotTouch,
+                          {
+                            left:
+                              dot.left -
+                              13,
+                            top:
+                              dot.top -
+                              13,
+                          },
+                          pressed &&
+                            styles.orbitDotTouchPressed,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.orbitDot,
+                            dot.checked &&
+                              styles.orbitDotRead,
+                            dot.today &&
+                              styles.orbitDotToday,
+                            selected &&
+                              styles.orbitDotSelected,
+                          ]}
+                        />
+                      </Pressable>
+                    );
+                  }
                 )}
 
                 <View
@@ -1128,46 +980,33 @@ export default function ReadingActivityScreen() {
                   (
                     charm,
                     index
-                  ) => {
-                    const visual =
-                      MONTH_CHARM_VISUALS[
+                  ) => (
+                    <View
+                      key={
                         charm
-                      ];
-
-                    return (
-                      <View
-                        key={
+                      }
+                      pointerEvents="none"
+                      style={[
+                        styles.orbitCharm,
+                        styles[
+                          `orbitCharm${index +
+                            1}` as keyof typeof styles
+                        ] as any,
+                      ]}
+                    >
+                      <ReadingMonthCharmArtwork
+                        charm={
                           charm
                         }
-                        style={[
-                          styles.orbitCharm,
-                          index ===
-                            0
-                            ? styles.orbitCharmOne
-                            : index ===
-                              1
-                            ? styles.orbitCharmTwo
-                            : styles.orbitCharmThree,
-                          {
-                            backgroundColor:
-                              visual.tint,
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name={
-                            visual.icon
-                          }
-                          size={
-                            23
-                          }
-                          color={
-                            visual.color
-                          }
-                        />
-                      </View>
-                    );
-                  }
+                        size={
+                          index % 3 ===
+                          0
+                            ? 38
+                            : 34
+                        }
+                      />
+                    </View>
+                  )
                 )}
 
                 {personalization.charms.length ===
@@ -1187,14 +1026,22 @@ export default function ReadingActivityScreen() {
                     ]}
                   >
                     <Ionicons
-                      name="add"
+                      name="sparkles-outline"
                       size={
-                        17
+                        16
                       }
                       color={
                         colors.gold
                       }
                     />
+
+                    <Text
+                      style={
+                        styles.orbitCharmEmptyText
+                      }
+                    >
+                      Add charms
+                    </Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -1275,237 +1122,6 @@ export default function ReadingActivityScreen() {
                     }
                   >
                     finished
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View
-              style={
-                styles.sectionIntro
-              }
-            >
-              <View>
-                <Text
-                  style={
-                    styles.sectionEyebrow
-                  }
-                >
-                  YOUR READING RHYTHM
-                </Text>
-
-                <Text
-                  style={
-                    styles.sectionIntroTitle
-                  }
-                >
-                  Every day tells a little more.
-                </Text>
-              </View>
-
-              <Ionicons
-                name="calendar-outline"
-                size={
-                  18
-                }
-                color={
-                  colors.gold
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.calendarCard
-              }
-            >
-              <View
-                style={
-                  styles.weekLabels
-                }
-              >
-                {WEEK_LABELS.map(
-                  (
-                    label,
-                    index
-                  ) => (
-                    <Text
-                      key={
-                        `${label}-${index}`
-                      }
-                      style={
-                        styles.weekLabel
-                      }
-                    >
-                      {label}
-                    </Text>
-                  )
-                )}
-              </View>
-
-              <View
-                style={
-                  styles.calendarGrid
-                }
-              >
-                {calendarCells.map(
-                  (
-                    day,
-                    index
-                  ) => {
-                    if (
-                      day ===
-                      null
-                    ) {
-                      return (
-                        <View
-                          key={
-                            `empty-${index}`
-                          }
-                          style={
-                            styles.dayCellWrap
-                          }
-                        />
-                      );
-                    }
-
-                    const dateKey =
-                      getDateKey(
-                        displayedMonth.year,
-                        displayedMonth.monthIndex,
-                        day
-                      );
-
-                    const activity =
-                      monthData.days[
-                        dateKey
-                      ];
-
-                    const checked =
-                      Boolean(
-                        activity
-                          ?.checkedIn
-                      );
-
-                    const selected =
-                      dateKey ===
-                      selectedDateKey;
-
-                    const isToday =
-                      dateKey ===
-                      todayKey;
-
-                    const hasOtherActivity =
-                      Boolean(
-                        activity &&
-                        (
-                          activity.readingUpdates.length >
-                            0 ||
-                          activity.journeyEvents.length >
-                            0
-                        )
-                      );
-
-                    return (
-                      <View
-                        key={
-                          dateKey
-                        }
-                        style={
-                          styles.dayCellWrap
-                        }
-                      >
-                        <Pressable
-                          onPress={() =>
-                            setSelectedDateKey(
-                              dateKey
-                            )
-                          }
-                          style={({
-                            pressed,
-                          }) => [
-                            styles.dayCell,
-                            (
-                              selected ||
-                              isToday
-                            ) &&
-                              styles.dayCellOutlined,
-                            checked &&
-                              styles.dayCellRead,
-                            selected &&
-                              checked &&
-                              styles.dayCellReadSelected,
-                            pressed &&
-                              styles.pressed,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.dayNumber,
-                              checked &&
-                                styles.dayNumberRead,
-                            ]}
-                          >
-                            {day}
-                          </Text>
-
-                          {!checked &&
-                          hasOtherActivity ? (
-                            <View
-                              style={
-                                styles.activityDot
-                              }
-                            />
-                          ) : null}
-                        </Pressable>
-                      </View>
-                    );
-                  }
-                )}
-              </View>
-
-              <View
-                style={
-                  styles.legendRow
-                }
-              >
-                <View
-                  style={
-                    styles.legendItem
-                  }
-                >
-                  <View
-                    style={
-                      styles.legendRead
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.legendText
-                    }
-                  >
-                    Read
-                  </Text>
-                </View>
-
-                <View
-                  style={
-                    styles.legendItem
-                  }
-                >
-                  <View
-                    style={
-                      styles.legendToday
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.legendText
-                    }
-                  >
-                    Today
                   </Text>
                 </View>
               </View>
@@ -2201,9 +1817,31 @@ function createStyles(
       borderColor:
         colors.border,
     },
-    orbitDot: {
+    orbitDotTouch: {
       position:
         'absolute',
+      width:
+        26,
+      height:
+        26,
+      borderRadius:
+        13,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex:
+        6,
+    },
+    orbitDotTouchPressed: {
+      transform: [
+        {
+          scale:
+            1.14,
+        },
+      ],
+    },
+    orbitDot: {
       width:
         5,
       height:
@@ -2212,8 +1850,6 @@ function createStyles(
         3,
       backgroundColor:
         colors.border,
-      zIndex:
-        4,
     },
     orbitDotRead: {
       width:
@@ -2231,53 +1867,19 @@ function createStyles(
       borderColor:
         colors.text,
     },
-    orbitCenter: {
-      position:
-        'absolute',
-      left:
-        52,
-      top:
-        52,
+    orbitDotSelected: {
       width:
-        ORBIT_SIZE -
-        104,
+        12,
       height:
-        ORBIT_SIZE -
-        104,
+        12,
       borderRadius:
-        (
-          ORBIT_SIZE -
-          104
-        ) /
+        6,
+      borderWidth:
         2,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      zIndex:
-        3,
-    },
-    orbitNumber: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        52,
-      lineHeight:
-        54,
-    },
-    orbitNumberLabel: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        8.5,
-      letterSpacing:
-        1.25,
-      marginTop:
-        1,
+      borderColor:
+        colors.softGold,
+      backgroundColor:
+        colors.gold,
     },
     orbitCharm: {
       position:
@@ -2286,24 +1888,18 @@ function createStyles(
         44,
       height:
         44,
-      borderRadius:
-        15,
       alignItems:
         'center',
       justifyContent:
         'center',
       zIndex:
-        8,
-      borderWidth:
-        1,
-      borderColor:
-        colors.background,
+        9,
     },
-    orbitCharmOne: {
+    orbitCharm1: {
       right:
-        4,
+        -8,
       top:
-        33,
+        28,
       transform: [
         {
           rotate:
@@ -2311,11 +1907,59 @@ function createStyles(
         },
       ],
     },
-    orbitCharmTwo: {
+    orbitCharm2: {
       left:
-        2,
+        -10,
+      top:
+        52,
+      transform: [
+        {
+          rotate:
+            '-7deg',
+        },
+      ],
+    },
+    orbitCharm3: {
+      right:
+        -18,
+      top:
+        108,
+      transform: [
+        {
+          rotate:
+            '4deg',
+        },
+      ],
+    },
+    orbitCharm4: {
+      left:
+        -18,
       bottom:
-        37,
+        58,
+      transform: [
+        {
+          rotate:
+            '-4deg',
+        },
+      ],
+    },
+    orbitCharm5: {
+      right:
+        1,
+      bottom:
+        27,
+      transform: [
+        {
+          rotate:
+            '7deg',
+        },
+      ],
+    },
+    orbitCharm6: {
+      left:
+        28,
+      bottom:
+        -8,
       transform: [
         {
           rotate:
@@ -2323,11 +1967,11 @@ function createStyles(
         },
       ],
     },
-    orbitCharmThree: {
+    orbitCharm7: {
       right:
-        21,
-      bottom:
-        8,
+        43,
+      top:
+        -12,
       transform: [
         {
           rotate:
@@ -2335,33 +1979,45 @@ function createStyles(
         },
       ],
     },
+    orbitCharm8: {
+      left:
+        55,
+      top:
+        -13,
+      transform: [
+        {
+          rotate:
+            '-3deg',
+        },
+      ],
+    },
     orbitCharmEmpty: {
       position:
         'absolute',
       right:
-        6,
+        -9,
       top:
-        36,
-      width:
-        38,
-      height:
-        38,
-      borderRadius:
-        14,
-      borderWidth:
-        1,
-      borderStyle:
-        'dashed',
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.surface,
+        34,
+      minHeight:
+        31,
+      flexDirection:
+        'row',
       alignItems:
         'center',
-      justifyContent:
-        'center',
-      zIndex:
+      gap:
+        4,
+      paddingHorizontal:
         8,
+      zIndex:
+        9,
+    },
+    orbitCharmEmptyText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9,
     },
     orbitStats: {
       minHeight:
@@ -2453,171 +2109,9 @@ function createStyles(
     },
     daySectionIntro: {
       marginTop:
-        22,
+        24,
     },
 
-    calendarCard: {
-      backgroundColor:
-        colors.surface,
-      borderRadius:
-        20,
-      paddingHorizontal:
-        12,
-      paddingTop:
-        16,
-      paddingBottom:
-        13,
-      borderTopWidth:
-        2,
-      borderTopColor:
-        colors.gold,
-    },
-    weekLabels: {
-      flexDirection:
-        'row',
-      marginBottom:
-        8,
-    },
-    weekLabel: {
-      width:
-        '14.2857%',
-      textAlign:
-        'center',
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        9,
-    },
-    calendarGrid: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-    },
-    dayCellWrap: {
-      width:
-        '14.2857%',
-      aspectRatio:
-        1,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-    dayCell: {
-      width:
-        36,
-      height:
-        36,
-      borderRadius:
-        18,
-      borderWidth:
-        1,
-      borderColor:
-        'transparent',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      position:
-        'relative',
-    },
-    dayCellOutlined: {
-      borderColor:
-        colors.gold,
-    },
-    dayCellRead: {
-      backgroundColor:
-        colors.gold,
-      borderColor:
-        colors.gold,
-    },
-    dayCellReadSelected: {
-      borderWidth:
-        2,
-      borderColor:
-        colors.text,
-    },
-    dayNumber: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        11,
-    },
-    dayNumberRead: {
-      color:
-        colors.background,
-      fontFamily:
-        'Inter_700Bold',
-    },
-    activityDot: {
-      position:
-        'absolute',
-      bottom:
-        4,
-      width:
-        4,
-      height:
-        4,
-      borderRadius:
-        2,
-      backgroundColor:
-        colors.gold,
-    },
-    legendRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap:
-        18,
-      marginTop:
-        9,
-    },
-    legendItem: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        6,
-    },
-    legendRead: {
-      width:
-        10,
-      height:
-        10,
-      borderRadius:
-        5,
-      backgroundColor:
-        colors.gold,
-    },
-    legendToday: {
-      width:
-        10,
-      height:
-        10,
-      borderRadius:
-        5,
-      borderWidth:
-        1,
-      borderColor:
-        colors.gold,
-    },
-    legendText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        9.5,
-    },
     dayDetailCard: {
       backgroundColor:
         colors.surface,
