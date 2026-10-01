@@ -3405,6 +3405,13 @@ export default function ReadingDetailsScreen() {
                               />
                             )}
 
+                          </View>
+
+                          <View
+                            style={
+                              styles.noteMetaRight
+                            }
+                          >
                             <Text
                               style={
                                 styles.noteDate
@@ -3416,33 +3423,33 @@ export default function ReadingDetailsScreen() {
                                 )
                               }
                             </Text>
-                          </View>
 
-                          <Pressable
-                            onPress={() =>
-                              openNoteMenu(
-                                note
-                              )
-                            }
-                            hitSlop={10}
-                            style={({
-                              pressed,
-                            }) => [
-                              styles.noteMenuButton,
-                              pressed &&
-                                styles.pressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Note options"
-                          >
-                            <Ionicons
-                              name="ellipsis-horizontal"
-                              size={18}
-                              color={
-                                colors.mutedText
+                            <Pressable
+                              onPress={() =>
+                                openNoteMenu(
+                                  note
+                                )
                               }
-                            />
-                          </Pressable>
+                              hitSlop={10}
+                              style={({
+                                pressed,
+                              }) => [
+                                styles.noteMenuButton,
+                                pressed &&
+                                  styles.pressed,
+                              ]}
+                              accessibilityRole="button"
+                              accessibilityLabel="Note options"
+                            >
+                              <Ionicons
+                                name="ellipsis-horizontal"
+                                size={18}
+                                color={
+                                  colors.mutedText
+                                }
+                              />
+                            </Pressable>
+                          </View>
                         </View>
 
                         {location ? (
@@ -5815,6 +5822,8 @@ function createStyles(
     noteMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent:
+        'space-between',
       marginBottom: 10,
     },
     noteMetaLeft: {
@@ -5826,6 +5835,16 @@ function createStyles(
         7,
       flexShrink:
         1,
+    },
+    noteMetaRight: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        3,
+      marginLeft:
+        10,
     },
     readingUpdateBadge: {
       borderRadius:
@@ -5952,8 +5971,6 @@ function createStyles(
       justifyContent:
         'center',
       marginRight:
-        -5,
-      marginTop:
         -5,
     },
     noteMenuModalSheet: {
