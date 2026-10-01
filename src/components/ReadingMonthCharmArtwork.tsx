@@ -20,11 +20,11 @@ type Props = {
 export default function ReadingMonthCharmArtwork({
   charm,
   size =
-    34,
+    40,
 }: Props) {
   const scale =
     size /
-    34;
+    40;
 
   if (
     charm ===
@@ -48,7 +48,7 @@ export default function ReadingMonthCharmArtwork({
             15 *
             scale
           }
-          color="#5FAF73"
+          color="#54CC78"
           style={[
             styles.plantLeaf,
             {
@@ -74,7 +74,7 @@ export default function ReadingMonthCharmArtwork({
             16 *
             scale
           }
-          color="#69BF7B"
+          color="#74DF91"
           style={[
             styles.plantLeaf,
             {
@@ -100,7 +100,7 @@ export default function ReadingMonthCharmArtwork({
             15 *
             scale
           }
-          color="#4F9B64"
+          color="#35AE5A"
           style={[
             styles.plantLeaf,
             {
@@ -176,7 +176,7 @@ export default function ReadingMonthCharmArtwork({
             12 *
             scale
           }
-          color="#E59B4C"
+          color="#F2A654"
           style={[
             styles.catEar,
             {
@@ -202,7 +202,7 @@ export default function ReadingMonthCharmArtwork({
             12 *
             scale
           }
-          color="#E59B4C"
+          color="#F2A654"
           style={[
             styles.catEar,
             {
@@ -334,37 +334,37 @@ export default function ReadingMonthCharmArtwork({
         icon:
           'sunny',
         color:
-          '#F2C84B',
+          '#FFD447',
       },
       mug: {
         icon:
           'cafe',
         color:
-          '#C97A4A',
+          '#DC8451',
       },
       moon: {
         icon:
           'moon',
         color:
-          '#8A7DD1',
+          '#9A86F5',
       },
       headphones: {
         icon:
           'headset',
         color:
-          '#5D9CEC',
+          '#57A6FF',
       },
       flower: {
         icon:
           'flower',
         color:
-          '#D979A7',
+          '#F07DB6',
       },
       globe: {
         icon:
           'earth',
         color:
-          '#48A9A6',
+          '#42C7C1',
       },
     };
 
@@ -423,11 +423,11 @@ const styles =
       position:
         'absolute',
       backgroundColor:
-        '#B86E45',
+        '#D87845',
       borderTopWidth:
         1,
       borderTopColor:
-        '#D58D64',
+        '#F09A67',
     },
     catEar: {
       position:
@@ -437,7 +437,7 @@ const styles =
       position:
         'absolute',
       backgroundColor:
-        '#E59B4C',
+        '#F2A654',
     },
     catEye: {
       position:
@@ -449,6 +449,6 @@ const styles =
       position:
         'absolute',
       backgroundColor:
-        '#7D4E3A',
+        '#8E5038',
     },
   });
