@@ -458,7 +458,7 @@ export default function DailyCheckinSheet({
               {books.length >
                 0
                 ? editing
-                  ? 'Edit today’s books'
+                  ? 'Edit today’s book'
                   : 'What did you read today?'
                 : 'Start a book first'}
             </Text>
