@@ -230,7 +230,7 @@ export async function saveReadingMonthPersonalization(
           )
           .slice(
             0,
-            3
+            8
           ),
     };
 
