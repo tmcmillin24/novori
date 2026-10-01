@@ -703,7 +703,7 @@ export default function ReadingMonthCustomizeSheet({
                             option.value
                           }
                           size={
-                            42
+                            46
                           }
                         />
                       </View>
@@ -975,9 +975,9 @@ function createStyles(
     },
     charmArtworkWrap: {
       width:
-        50,
+        54,
       height:
-        50,
+        54,
       alignItems:
         'center',
       justifyContent:
