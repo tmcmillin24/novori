@@ -1376,15 +1376,8 @@ export default function LibraryScreen() {
         current.includes(
           googleBookId
         )
-          ? current.filter(
-              (
-                id
-              ) =>
-                id !==
-                googleBookId
-            )
+          ? []
           : [
-              ...current,
               googleBookId,
             ]
     );
@@ -1531,58 +1524,68 @@ export default function LibraryScreen() {
     }
   }
 
-  async function openDailyCheckin() {
+  async function openEditDailyCheckin() {
     if (
       loadingCheckin ||
       savingCheckin ||
-      checkinError
+      checkinError ||
+      !checkinState
+        ?.checkedIn
     ) {
       return;
     }
 
-    if (
-      checkinState
-        ?.checkedIn
+    try {
+      setSavingCheckin(
+        true
+      );
+
+      const existingBookIds =
+        await getDailyReadingCheckinBookIds(
+          todayCheckinKey
+        );
+
+      setSelectedCheckinBookIds(
+        existingBookIds.slice(
+          0,
+          1
+        )
+      );
+
+      setEditingCheckin(
+        true
+      );
+
+      setCheckinSheetVisible(
+        true
+      );
+    } catch (
+      checkinLoadError
     ) {
-      try {
-        setSavingCheckin(
-          true
-        );
-
-        const existingBookIds =
-          await getDailyReadingCheckinBookIds(
-            todayCheckinKey
-          );
-
-        setSelectedCheckinBookIds(
-          existingBookIds
-        );
-
-        setEditingCheckin(
-          true
-        );
-
-        setCheckinSheetVisible(
-          true
-        );
-      } catch (
+      console.error(
+        'Could not load today’s check-in books:',
         checkinLoadError
-      ) {
-        console.error(
-          'Could not load today’s check-in books:',
-          checkinLoadError
-        );
+      );
 
-        Alert.alert(
-          'Could not edit check-in',
-          'Novori had trouble loading today’s books. Please try again.'
-        );
-      } finally {
-        setSavingCheckin(
-          false
-        );
-      }
+      Alert.alert(
+        'Could not edit check-in',
+        'Novori had trouble loading today’s book. Please try again.'
+      );
+    } finally {
+      setSavingCheckin(
+        false
+      );
+    }
+  }
 
+  function openDailyCheckin() {
+    if (
+      loadingCheckin ||
+      savingCheckin ||
+      checkinState
+        ?.checkedIn ||
+      checkinError
+    ) {
       return;
     }
 
@@ -2339,10 +2342,57 @@ export default function LibraryScreen() {
             </Pressable>
           </View>
 
+          {checkinState
+            ?.checkedIn ? (
+            <Pressable
+              disabled={
+                loadingCheckin ||
+                savingCheckin ||
+                Boolean(
+                  checkinError
+                )
+              }
+              onPress={
+                openEditDailyCheckin
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Edit book for today’s reading check-in"
+              style={({
+                pressed,
+              }) => [
+                styles.editCheckinButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="pencil-outline"
+                size={
+                  14
+                }
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.editCheckinButtonText
+                }
+              >
+                Edit books
+              </Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             disabled={
               loadingCheckin ||
               savingCheckin ||
+              Boolean(
+                checkinState
+                  ?.checkedIn
+              ) ||
               Boolean(
                 checkinError
               )
@@ -2354,7 +2404,7 @@ export default function LibraryScreen() {
             accessibilityLabel={
               checkinState
                 ?.checkedIn
-                ? 'Edit books for today’s reading check-in'
+                ? 'Checked in for today’s reading'
                 : 'Check in for today’s reading'
             }
             style={({
@@ -2363,14 +2413,11 @@ export default function LibraryScreen() {
               styles.checkinButton,
               checkinState
                 ?.checkedIn &&
-                styles.checkinButtonDone,
+                styles.checkinButtonAfterEdit,
               (
                 pressed ||
                 loadingCheckin ||
-                savingCheckin ||
-                Boolean(
-                  checkinError
-                )
+                savingCheckin
               ) &&
                 styles.pressed,
             ]}
@@ -2380,10 +2427,7 @@ export default function LibraryScreen() {
               <ActivityIndicator
                 size="small"
                 color={
-                  checkinState
-                    ?.checkedIn
-                    ? colors.gold
-                    : colors.background
+                  colors.background
                 }
               />
             ) : (
@@ -2391,30 +2435,26 @@ export default function LibraryScreen() {
                 name={
                   checkinState
                     ?.checkedIn
-                    ? 'pencil-outline'
+                    ? 'checkmark-circle'
                     : 'checkmark-circle-outline'
                 }
-                size={18}
+                size={
+                  18
+                }
                 color={
-                  checkinState
-                    ?.checkedIn
-                    ? colors.gold
-                    : colors.background
+                  colors.background
                 }
               />
             )}
 
             <Text
-              style={[
-                styles.checkinButtonText,
-                checkinState
-                  ?.checkedIn &&
-                  styles.checkinButtonTextDone,
-              ]}
+              style={
+                styles.checkinButtonText
+              }
             >
               {checkinState
                 ?.checkedIn
-                ? 'Edit books'
+                ? 'Checked in'
                 : 'Check in'}
             </Text>
           </Pressable>
@@ -4260,13 +4300,43 @@ function createStyles(
       marginTop:
         13,
     },
-    checkinButtonDone: {
-      backgroundColor:
-        colors.elevated,
+    editCheckinButton: {
+      minHeight:
+        32,
+      borderRadius:
+        11,
       borderWidth:
         1,
       borderColor:
         colors.border,
+      backgroundColor:
+        colors.elevated,
+      alignSelf:
+        'center',
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap:
+        5,
+      paddingHorizontal:
+        11,
+      marginTop:
+        13,
+    },
+    editCheckinButtonText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        10.5,
+    },
+    checkinButtonAfterEdit: {
+      marginTop:
+        8,
     },
     checkinButtonText: {
       color:
@@ -4275,10 +4345,6 @@ function createStyles(
         'Inter_700Bold',
       fontSize:
         12.5,
-    },
-    checkinButtonTextDone: {
-      color:
-        colors.gold,
     },
     weekRow: {
       flexDirection:
