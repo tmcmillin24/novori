@@ -931,41 +931,16 @@ export default function ReadingActivityScreen() {
 
     stopDayScrollAnimation();
 
+    scrollViewRef.current?.scrollTo({
+      y:
+        0,
+      animated:
+        true,
+    });
+
     setSelectedDateKey(
       null
     );
-
-    animatedScrollY.value =
-      scrollOffset.value;
-
-    autoScrollActive.value =
-      true;
-
-    animatedScrollY.value =
-      withTiming(
-        0,
-        {
-          duration:
-            620,
-          easing:
-            ReanimatedEasing.bezier(
-              0.45,
-              0,
-              0.2,
-              1
-            ),
-        },
-        (
-          finished
-        ) => {
-          if (
-            finished
-          ) {
-            autoScrollActive.value =
-              false;
-          }
-        }
-      );
   }
 
   function handleOrbitDayPress(
