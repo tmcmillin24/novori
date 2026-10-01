@@ -71,9 +71,11 @@ import {
 import {
   DailyReadingCheckinState,
   ensureDailyReadingCheckin,
+  getDailyReadingCheckinBookIds,
   getDailyReadingCheckinState,
   getLocalDateKey,
   getLocalWeekDates,
+  replaceDailyReadingCheckinBooks,
 } from '../../lib/reading-checkins';
 
 type LibraryFilter =
@@ -507,6 +509,14 @@ export default function LibraryScreen() {
   ] =
     useState<string[]>(
       []
+    );
+
+  const [
+    editingCheckin,
+    setEditingCheckin,
+  ] =
+    useState(
+      false
     );
 
   const [
@@ -1110,6 +1120,39 @@ export default function LibraryScreen() {
       ]
     );
 
+  const checkinPickerBooks =
+    useMemo(
+      () => {
+        if (
+          !editingCheckin
+        ) {
+          return readingBooks;
+        }
+
+        const selectedIds =
+          new Set(
+            selectedCheckinBookIds
+          );
+
+        return books.filter(
+          (
+            book
+          ) =>
+            book.status ===
+              'reading' ||
+            selectedIds.has(
+              book.google_book_id
+            )
+        );
+      },
+      [
+        books,
+        editingCheckin,
+        readingBooks,
+        selectedCheckinBookIds,
+      ]
+    );
+
   const checkinWeek =
     useMemo(
       () =>
@@ -1390,6 +1433,10 @@ export default function LibraryScreen() {
       setSelectedCheckinBookIds(
         []
       );
+
+      setEditingCheckin(
+        false
+      );
     } catch (
       checkinSaveError
     ) {
@@ -1416,16 +1463,132 @@ export default function LibraryScreen() {
     }
   }
 
-  function openDailyCheckin() {
+  async function saveEditedDailyCheckin(
+    googleBookIds:
+      string[]
+  ) {
+    if (
+      savingCheckin ||
+      !checkinState
+        ?.checkedIn
+    ) {
+      return;
+    }
+
+    try {
+      setSavingCheckin(
+        true
+      );
+
+      setCheckinError(
+        ''
+      );
+
+      await replaceDailyReadingCheckinBooks(
+        googleBookIds,
+        todayCheckinKey
+      );
+
+      const next =
+        await getDailyReadingCheckinState(
+          todayCheckinKey
+        );
+
+      setCheckinState(
+        next
+      );
+
+      setCheckinSheetVisible(
+        false
+      );
+
+      setSelectedCheckinBookIds(
+        []
+      );
+
+      setEditingCheckin(
+        false
+      );
+    } catch (
+      checkinSaveError
+    ) {
+      console.error(
+        'Could not update daily reading check-in books:',
+        checkinSaveError
+      );
+
+      Alert.alert(
+        'Could not update check-in',
+        checkinSaveError instanceof
+          Error
+          ? checkinSaveError.message
+          : 'Novori had trouble updating today’s books. Please try again.'
+      );
+    } finally {
+      setSavingCheckin(
+        false
+      );
+    }
+  }
+
+  async function openDailyCheckin() {
     if (
       loadingCheckin ||
       savingCheckin ||
-      checkinState
-        ?.checkedIn ||
       checkinError
     ) {
       return;
     }
+
+    if (
+      checkinState
+        ?.checkedIn
+    ) {
+      try {
+        setSavingCheckin(
+          true
+        );
+
+        const existingBookIds =
+          await getDailyReadingCheckinBookIds(
+            todayCheckinKey
+          );
+
+        setSelectedCheckinBookIds(
+          existingBookIds
+        );
+
+        setEditingCheckin(
+          true
+        );
+
+        setCheckinSheetVisible(
+          true
+        );
+      } catch (
+        checkinLoadError
+      ) {
+        console.error(
+          'Could not load today’s check-in books:',
+          checkinLoadError
+        );
+
+        Alert.alert(
+          'Could not edit check-in',
+          'Novori had trouble loading today’s books. Please try again.'
+        );
+      } finally {
+        setSavingCheckin(
+          false
+        );
+      }
+
+      return;
+    }
+
+    setEditingCheckin(
+      false
+    );
 
     if (
       readingBooks.length ===
@@ -2181,10 +2344,6 @@ export default function LibraryScreen() {
               loadingCheckin ||
               savingCheckin ||
               Boolean(
-                checkinState
-                  ?.checkedIn
-              ) ||
-              Boolean(
                 checkinError
               )
             }
@@ -2222,24 +2381,30 @@ export default function LibraryScreen() {
                 name={
                   checkinState
                     ?.checkedIn
-                    ? 'checkmark-circle'
+                    ? 'pencil-outline'
                     : 'checkmark-circle-outline'
                 }
                 size={18}
                 color={
-                  colors.background
+                  checkinState
+                    ?.checkedIn
+                    ? colors.gold
+                    : colors.background
                 }
               />
             )}
 
             <Text
-              style={
-                styles.checkinButtonText
-              }
+              style={[
+                styles.checkinButtonText,
+                checkinState
+                  ?.checkedIn &&
+                  styles.checkinButtonTextDone,
+              ]}
             >
               {checkinState
                 ?.checkedIn
-                ? 'Checked in'
+                ? 'Edit books'
                 : 'Check in'}
             </Text>
           </Pressable>
@@ -2826,7 +2991,7 @@ export default function LibraryScreen() {
           checkinSheetVisible
         }
         books={
-          readingBooks
+          checkinPickerBooks
         }
         selectedBookIds={
           selectedCheckinBookIds
@@ -2834,10 +2999,23 @@ export default function LibraryScreen() {
         busy={
           savingCheckin
         }
+        editing={
+          editingCheckin
+        }
         onToggleBook={
           toggleCheckinBook
         }
         onConfirm={async () => {
+          if (
+            editingCheckin
+          ) {
+            await saveEditedDailyCheckin(
+              selectedCheckinBookIds
+            );
+
+            return;
+          }
+
           await saveDailyCheckin(
             selectedCheckinBookIds
           );
@@ -2849,6 +3027,10 @@ export default function LibraryScreen() {
 
           setSelectedCheckinBookIds(
             []
+          );
+
+          setEditingCheckin(
+            false
           );
         }}
       />
@@ -4069,8 +4251,12 @@ function createStyles(
         13,
     },
     checkinButtonDone: {
-      opacity:
-        0.72,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
     },
     checkinButtonText: {
       color:
@@ -4079,6 +4265,10 @@ function createStyles(
         'Inter_700Bold',
       fontSize:
         12.5,
+    },
+    checkinButtonTextDone: {
+      color:
+        colors.gold,
     },
     weekRow: {
       flexDirection:
