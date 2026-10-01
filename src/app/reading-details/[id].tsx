@@ -52,6 +52,7 @@ import {
   getReadingDetails,
   ReadingCheckpoint,
   ReadingDetailsData,
+  ReadingJourneyArchive,
   ReadingNote,
   saveReadingCheckpoint,
   saveReadingSummary,
@@ -82,6 +83,42 @@ function formatDate(
       year:
         'numeric',
     }
+  );
+}
+
+
+function journeyStatusLabel(
+  status:
+    ReadingJourneyArchive['session']['journey_status']
+) {
+  if (
+    status ===
+    'finished'
+  ) {
+    return 'Finished';
+  }
+
+  if (
+    status ===
+    'dnf'
+  ) {
+    return 'DNF';
+  }
+
+  return 'Currently Reading';
+}
+
+function journeyEndDate(
+  journey:
+    ReadingJourneyArchive
+) {
+  return (
+    journey.session
+      .finished_at ??
+    journey.session
+      .dnf_at ??
+    journey.session
+      .updated_at
   );
 }
 
@@ -1048,6 +1085,14 @@ export default function ReadingDetailsScreen() {
   ] =
     useState(false);
 
+  const [
+    selectedPreviousJourney,
+    setSelectedPreviousJourney,
+  ] =
+    useState<
+      ReadingJourneyArchive | null
+    >(null);
+
 
   const [
     dateEditorVisible,
@@ -1072,6 +1117,14 @@ export default function ReadingDetailsScreen() {
     setSavingDates,
   ] =
     useState(false);
+
+  const previousJourneySheet =
+    useNovoriSheet(
+      () =>
+        setSelectedPreviousJourney(
+          null
+        )
+    );
 
   const restartPromptSheet =
     useNovoriSheet(
@@ -3227,6 +3280,156 @@ export default function ReadingDetailsScreen() {
             )}
           </View>
 
+          {data.previous_journeys
+            .length > 0 ? (
+            <View
+              style={[
+                styles.card,
+                styles.journeysCard,
+              ]}
+            >
+              <View
+                style={
+                  styles.sectionHeader
+                }
+              >
+                <View
+                  style={
+                    styles.sectionHeaderCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.sectionTitle
+                    }
+                  >
+                    Reading Journeys
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.sectionSubtitle
+                    }
+                  >
+                    Journey {data.session.session_number} · {journeyStatusLabel(data.session.journey_status)}
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.journeyCountPill
+                  }
+                >
+                  <Text
+                    style={
+                      styles.journeyCountText
+                    }
+                  >
+                    {data.previous_journeys.length} previous
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.previousJourneyList
+                }
+              >
+                {data.previous_journeys.map(
+                  (
+                    journey
+                  ) => (
+                    <Pressable
+                      key={
+                        journey.session.id
+                      }
+                      onPress={() =>
+                        setSelectedPreviousJourney(
+                          journey
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.previousJourneyRow,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open Journey ${journey.session.session_number}`}
+                    >
+                      <View
+                        style={
+                          styles.previousJourneyIcon
+                        }
+                      >
+                        <Ionicons
+                          name={
+                            journey.session.journey_status ===
+                            'finished'
+                              ? 'checkmark-circle-outline'
+                              : journey.session.journey_status ===
+                                'dnf'
+                              ? 'close-circle-outline'
+                              : 'book-outline'
+                          }
+                          size={18}
+                          color={
+                            colors.gold
+                          }
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.previousJourneyCopy
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.previousJourneyTitle
+                          }
+                        >
+                          Journey {journey.session.session_number}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.previousJourneyMeta
+                          }
+                        >
+                          {journeyStatusLabel(journey.session.journey_status)}
+                          {journeyEndDate(journey)
+                            ? ` · ${formatDate(journeyEndDate(journey))}`
+                            : ''}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.previousJourneySaved
+                          }
+                        >
+                          {journey.notes.length} {journey.notes.length === 1 ? 'note' : 'notes'}
+                          {journey.session.summary_text
+                            ? ' · Summary saved'
+                            : ''}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    </Pressable>
+                  )
+                )}
+              </View>
+            </View>
+          ) : null}
+
           {progressEditorOpen ? (
             <View
               style={
@@ -4404,6 +4607,331 @@ export default function ReadingDetailsScreen() {
               </Animated.View>
             </Pressable>
           </KeyboardAvoidingView>
+        </Modal>
+
+        <Modal
+          visible={
+            Boolean(
+              selectedPreviousJourney
+            )
+          }
+          transparent
+          animationType="none"
+          onShow={
+            previousJourneySheet.animateIn
+          }
+          onRequestClose={
+            previousJourneySheet.closeSmoothly
+          }
+        >
+          <Pressable
+            style={
+              styles.modalBackdrop
+            }
+            onPress={
+              previousJourneySheet.closeSmoothly
+            }
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                styles.modalBackdropVisual,
+                {
+                  opacity:
+                    previousJourneySheet.backdropOpacity,
+                },
+              ]}
+            />
+
+            <Animated.View
+              {...previousJourneySheet.panResponder.panHandlers}
+              onLayout={({
+                nativeEvent,
+              }) => {
+                previousJourneySheet.sheetHeight.current =
+                  nativeEvent.layout.height;
+              }}
+              style={[
+                styles.modalSheet,
+                styles.previousJourneyModalSheet,
+                {
+                  opacity:
+                    previousJourneySheet.sheetOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        previousJourneySheet.translateY,
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={(
+                  event
+                ) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  style={
+                    styles.modalHandle
+                  }
+                />
+
+                <View
+                  style={
+                    styles.previousJourneyModalHeader
+                  }
+                >
+                  <View>
+                    <Text
+                      style={
+                        styles.previousJourneyModalEyebrow
+                      }
+                    >
+                      PRESERVED READING JOURNEY
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.previousJourneyModalTitle
+                      }
+                    >
+                      Journey {selectedPreviousJourney?.session.session_number}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.previousJourneyModalMeta
+                      }
+                    >
+                      {selectedPreviousJourney
+                        ? journeyStatusLabel(selectedPreviousJourney.session.journey_status)
+                        : ''}
+                      {selectedPreviousJourney?.session.started_at
+                        ? ` · ${formatDate(selectedPreviousJourney.session.started_at)}`
+                        : ''}
+                      {selectedPreviousJourney &&
+                      journeyEndDate(selectedPreviousJourney)
+                        ? ` – ${formatDate(journeyEndDate(selectedPreviousJourney))}`
+                        : ''}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={
+                      previousJourneySheet.closeSmoothly
+                    }
+                    hitSlop={8}
+                    style={
+                      styles.modalCloseButton
+                    }
+                  >
+                    <Ionicons
+                      name="close"
+                      size={20}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  </Pressable>
+                </View>
+
+                <ScrollView
+                  style={
+                    styles.previousJourneyScroll
+                  }
+                  contentContainerStyle={
+                    styles.previousJourneyScrollContent
+                  }
+                  showsVerticalScrollIndicator={
+                    false
+                  }
+                >
+                  <View
+                    style={
+                      styles.archivedSection
+                    }
+                  >
+                    <View
+                      style={
+                        styles.archivedSectionHeading
+                      }
+                    >
+                      <Ionicons
+                        name="document-text-outline"
+                        size={16}
+                        color={
+                          colors.gold
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.archivedSectionTitle
+                        }
+                      >
+                        Summary
+                      </Text>
+                    </View>
+
+                    {selectedPreviousJourney?.session.summary_text ? (
+                      <Text
+                        style={
+                          styles.archivedSummaryText
+                        }
+                      >
+                        {selectedPreviousJourney.session.summary_text}
+                      </Text>
+                    ) : (
+                      <Text
+                        style={
+                          styles.archivedEmptyText
+                        }
+                      >
+                        No summary was saved for this journey.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View
+                    style={
+                      styles.archivedSection
+                    }
+                  >
+                    <View
+                      style={
+                        styles.archivedSectionHeading
+                      }
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={15}
+                        color={
+                          colors.gold
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.archivedSectionTitle
+                        }
+                      >
+                        Notes
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.archivedNoteCount
+                        }
+                      >
+                        {selectedPreviousJourney?.notes.length ?? 0}
+                      </Text>
+                    </View>
+
+                    {selectedPreviousJourney &&
+                    selectedPreviousJourney.notes.length >
+                      0 ? (
+                      <View
+                        style={
+                          styles.archivedNotesList
+                        }
+                      >
+                        {selectedPreviousJourney.notes.map(
+                          (
+                            note
+                          ) => {
+                            const location =
+                              noteLocation(
+                                note.page_number,
+                                note.progress_percent,
+                                note.chapter,
+                                note.audio_position_seconds
+                              );
+
+                            return (
+                              <View
+                                key={
+                                  note.id
+                                }
+                                style={
+                                  styles.archivedNote
+                                }
+                              >
+                                <View
+                                  style={
+                                    styles.archivedNoteMeta
+                                  }
+                                >
+                                  <Text
+                                    style={
+                                      styles.archivedNoteDate
+                                    }
+                                  >
+                                    {formatDate(note.created_at)}
+                                  </Text>
+
+                                  {location ? (
+                                    <Text
+                                      style={
+                                        styles.archivedNoteLocation
+                                      }
+                                    >
+                                      {location}
+                                    </Text>
+                                  ) : null}
+                                </View>
+
+                                <Text
+                                  style={
+                                    styles.archivedNoteBody
+                                  }
+                                >
+                                  {note.body}
+                                </Text>
+                              </View>
+                            );
+                          }
+                        )}
+                      </View>
+                    ) : (
+                      <Text
+                        style={
+                          styles.archivedEmptyText
+                        }
+                      >
+                        No notes were saved for this journey.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View
+                    style={
+                      styles.archivedReadOnlyNotice
+                    }
+                  >
+                    <Ionicons
+                      name="archive-outline"
+                      size={15}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.archivedReadOnlyText
+                      }
+                    >
+                      This is a preserved snapshot. Your current reading journey is unchanged.
+                    </Text>
+                  </View>
+                </ScrollView>
+              </Pressable>
+            </Animated.View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -6657,6 +7185,305 @@ function createStyles(
       color: colors.gold,
       fontFamily: 'Inter_600SemiBold',
       fontSize: 11,
+    },
+    journeysCard: {
+      paddingBottom:
+        14,
+    },
+    journeyCountPill: {
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        999,
+      backgroundColor:
+        colors.background,
+      paddingHorizontal:
+        9,
+      paddingVertical:
+        5,
+      marginLeft:
+        10,
+    },
+    journeyCountText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        10,
+    },
+    previousJourneyList: {
+      marginTop:
+        14,
+      gap:
+        9,
+    },
+    previousJourneyRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        14,
+      backgroundColor:
+        colors.background,
+      paddingHorizontal:
+        12,
+      paddingVertical:
+        11,
+    },
+    previousJourneyIcon: {
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        11,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        11,
+    },
+    previousJourneyCopy: {
+      flex:
+        1,
+      marginRight:
+        8,
+    },
+    previousJourneyTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    previousJourneyMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      marginTop:
+        2,
+    },
+    previousJourneySaved: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize:
+        10,
+      marginTop:
+        4,
+    },
+    previousJourneyModalSheet: {
+      maxHeight:
+        '82%',
+      paddingBottom:
+        Platform.OS ===
+        'ios'
+          ? 24
+          : 18,
+    },
+    previousJourneyModalHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'flex-start',
+      justifyContent:
+        'space-between',
+      gap:
+        14,
+      marginBottom:
+        14,
+    },
+    previousJourneyModalEyebrow: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        9.5,
+      letterSpacing:
+        0.7,
+    },
+    previousJourneyModalTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        22,
+      marginTop:
+        4,
+    },
+    previousJourneyModalMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11.5,
+      marginTop:
+        4,
+    },
+    previousJourneyScroll: {
+      maxHeight:
+        520,
+    },
+    previousJourneyScrollContent: {
+      paddingBottom:
+        8,
+    },
+    archivedSection: {
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        15,
+      backgroundColor:
+        colors.background,
+      padding:
+        13,
+      marginBottom:
+        10,
+    },
+    archivedSectionHeading: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+      marginBottom:
+        10,
+    },
+    archivedSectionTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
+    },
+    archivedNoteCount: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        10.5,
+      marginLeft:
+        'auto',
+    },
+    archivedSummaryText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        13,
+      lineHeight:
+        20,
+    },
+    archivedEmptyText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        11.5,
+      lineHeight:
+        17,
+    },
+    archivedNotesList: {
+      gap:
+        9,
+    },
+    archivedNote: {
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+      borderTopColor:
+        colors.border,
+      paddingTop:
+        9,
+    },
+    archivedNoteMeta: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'space-between',
+      gap:
+        10,
+      marginBottom:
+        5,
+    },
+    archivedNoteDate: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize:
+        10,
+    },
+    archivedNoteLocation: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        10,
+      flexShrink:
+        1,
+    },
+    archivedNoteBody: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        19,
+    },
+    archivedReadOnlyNotice: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        7,
+      paddingHorizontal:
+        4,
+      paddingTop:
+        2,
+    },
+    archivedReadOnlyText: {
+      flex:
+        1,
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      lineHeight:
+        15,
     },
     restartPromptModalSheet: {
       paddingBottom:
