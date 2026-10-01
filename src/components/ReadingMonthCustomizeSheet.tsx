@@ -352,6 +352,20 @@ export default function ReadingMonthCustomizeSheet({
     );
   }
 
+  function clearAll() {
+    if (
+      saving ||
+      charms.length ===
+        0
+    ) {
+      return;
+    }
+
+    setCharms(
+      []
+    );
+  }
+
   async function save() {
     if (
       saving
@@ -563,7 +577,7 @@ export default function ReadingMonthCustomizeSheet({
                     styles.subtitle
                   }
                 >
-                  Pick up to eight little charms for this month.
+                  Pick up to eight colorful charms for this month.
                 </Text>
               </View>
             </View>
@@ -581,13 +595,57 @@ export default function ReadingMonthCustomizeSheet({
                 MONTH CHARMS
               </Text>
 
-              <Text
+              <View
                 style={
-                  styles.counter
+                  styles.sectionHeaderActions
                 }
               >
-                {charms.length}/8
-              </Text>
+                <Pressable
+                  disabled={
+                    charms.length ===
+                      0 ||
+                    saving
+                  }
+                  onPress={
+                    clearAll
+                  }
+                  hitSlop={
+                    6
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.clearAllButton,
+                    (
+                      charms.length ===
+                      0 ||
+                      saving
+                    ) &&
+                      styles.clearAllButtonDisabled,
+                    pressed &&
+                      charms.length >
+                        0 &&
+                      !saving &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.clearAllText
+                    }
+                  >
+                    Clear All
+                  </Text>
+                </Pressable>
+
+                <Text
+                  style={
+                    styles.counter
+                  }
+                >
+                  {charms.length}/8
+                </Text>
+              </View>
             </View>
 
             <View
@@ -645,7 +703,7 @@ export default function ReadingMonthCustomizeSheet({
                             option.value
                           }
                           size={
-                            34
+                            42
                           }
                         />
                       </View>
@@ -672,7 +730,7 @@ export default function ReadingMonthCustomizeSheet({
                 styles.helperText
               }
             >
-              Charms float around your monthly reading orbit and can change every month.
+              Charms decorate the page around your Reading in Motion view and can change every month.
             </Text>
 
             <View
@@ -841,6 +899,32 @@ function createStyles(
       marginBottom:
         9,
     },
+    sectionHeaderActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        10,
+    },
+    clearAllButton: {
+      paddingVertical:
+        4,
+      paddingHorizontal:
+        2,
+    },
+    clearAllButtonDisabled: {
+      opacity:
+        0.35,
+    },
+    clearAllText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        9.5,
+    },
     sectionLabel: {
       color:
         colors.mutedText,
@@ -871,7 +955,7 @@ function createStyles(
       width:
         '23%',
       minHeight:
-        76,
+        86,
       alignItems:
         'center',
       justifyContent:
@@ -891,9 +975,9 @@ function createStyles(
     },
     charmArtworkWrap: {
       width:
-        42,
+        50,
       height:
-        42,
+        50,
       alignItems:
         'center',
       justifyContent:
