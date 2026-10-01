@@ -2350,6 +2350,13 @@ export default function LibraryScreen() {
             onPress={
               openDailyCheckin
             }
+            accessibilityRole="button"
+            accessibilityLabel={
+              checkinState
+                ?.checkedIn
+                ? 'Edit books for today’s reading check-in'
+                : 'Check in for today’s reading'
+            }
             style={({
               pressed,
             }) => [
@@ -2373,7 +2380,10 @@ export default function LibraryScreen() {
               <ActivityIndicator
                 size="small"
                 color={
-                  colors.background
+                  checkinState
+                    ?.checkedIn
+                    ? colors.gold
+                    : colors.background
                 }
               />
             ) : (
