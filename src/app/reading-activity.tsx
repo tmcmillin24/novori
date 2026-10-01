@@ -27,17 +27,6 @@ import {
 import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
-import {
-  Easing as ReanimatedEasing,
-  cancelAnimation,
-  scrollTo,
-  useAnimatedRef,
-  useDerivedValue,
-  useScrollOffset,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-
 import ReadingMonthCharmArtwork from '../components/ReadingMonthCharmArtwork';
 import ReadingMonthCustomizeSheet from '../components/ReadingMonthCustomizeSheet';
 import {
@@ -216,58 +205,8 @@ export default function ReadingActivityScreen() {
   const {
     width:
       windowWidth,
-    height:
-      windowHeight,
   } =
     useWindowDimensions();
-
-  const scrollViewRef =
-    useAnimatedRef<ScrollView>();
-
-  const dayDetailsYRef =
-    useRef<number | null>(
-      null
-    );
-
-  const shouldAutoScrollRef =
-    useRef(
-      false
-    );
-
-  const scrollOffset =
-    useScrollOffset(
-      scrollViewRef
-    );
-
-  const animatedScrollY =
-    useSharedValue(
-      0
-    );
-
-  const autoScrollActive =
-    useSharedValue(
-      false
-    );
-
-  useDerivedValue(
-    () => {
-      if (
-        autoScrollActive.value
-      ) {
-        scrollTo(
-          scrollViewRef,
-          0,
-          animatedScrollY.value,
-          false
-        );
-      }
-    },
-    [
-      animatedScrollY,
-      autoScrollActive,
-      scrollViewRef,
-    ]
-  );
 
   const {
     colors,
@@ -636,9 +575,6 @@ export default function ReadingActivityScreen() {
           setSelectedDateKey(
             null
           );
-
-          dayDetailsYRef.current =
-            null;
         } catch (
           loadError
         ) {
@@ -830,9 +766,6 @@ export default function ReadingActivityScreen() {
       null
     );
 
-    dayDetailsYRef.current =
-      null;
-
     setDisplayedMonth({
       year:
         next.getFullYear(),
@@ -879,92 +812,12 @@ export default function ReadingActivityScreen() {
     );
   }
 
-  function stopDayScrollAnimation() {
-    cancelAnimation(
-      animatedScrollY
-    );
-
-    autoScrollActive.value =
-      false;
-  }
-
-  function scrollToDayDetails(
-    y:
-      number
-  ) {
-    const revealOffset =
-      Math.min(
-        310,
-        Math.max(
-          215,
-          windowHeight *
-            0.42
-        )
-      );
-
-    const targetY =
-      Math.max(
-        0,
-        y -
-          revealOffset
-      );
-
-    stopDayScrollAnimation();
-
-    animatedScrollY.value =
-      scrollOffset.value;
-
-    autoScrollActive.value =
-      true;
-
-    animatedScrollY.value =
-      withTiming(
-        targetY,
-        {
-          duration:
-            760,
-          easing:
-            ReanimatedEasing.bezier(
-              0.45,
-              0,
-              0.2,
-              1
-            ),
-        },
-        (
-          finished
-        ) => {
-          if (
-            finished
-          ) {
-            autoScrollActive.value =
-              false;
-          }
-        }
-      );
-  }
-
-  function dismissSelectedDayToTop() {
+  function dismissSelectedDay() {
     if (
       !selectedDateKey
     ) {
       return;
     }
-
-    shouldAutoScrollRef.current =
-      false;
-
-    dayDetailsYRef.current =
-      null;
-
-    stopDayScrollAnimation();
-
-    scrollViewRef.current?.scrollTo({
-      y:
-        0,
-      animated:
-        true,
-    });
 
     setSelectedDateKey(
       null
@@ -975,41 +828,15 @@ export default function ReadingActivityScreen() {
     dateKey:
       string
   ) {
-    if (
-      selectedDateKey ===
-      dateKey
-    ) {
-      shouldAutoScrollRef.current =
-        false;
-      dayDetailsYRef.current =
-        null;
-
-      stopDayScrollAnimation();
-
-      setSelectedDateKey(
-        null
-      );
-      return;
-    }
-
-    shouldAutoScrollRef.current =
-      true;
-
     setSelectedDateKey(
-      dateKey
+      (
+        current
+      ) =>
+        current ===
+        dateKey
+          ? null
+          : dateKey
     );
-
-    if (
-      dayDetailsYRef.current !==
-      null
-    ) {
-      shouldAutoScrollRef.current =
-        false;
-
-      scrollToDayDetails(
-        dayDetailsYRef.current
-      );
-    }
   }
 
   const hasSelectedActivity =
@@ -1037,17 +864,11 @@ export default function ReadingActivityScreen() {
       ]}
     >
       <ScrollView
-        ref={
-          scrollViewRef
-        }
         showsVerticalScrollIndicator={
           false
         }
         scrollEventThrottle={
           16
-        }
-        onScrollBeginDrag={
-          stopDayScrollAnimation
         }
         contentContainerStyle={
           styles.content
@@ -1501,7 +1322,7 @@ export default function ReadingActivityScreen() {
                 <Pressable
                   onPress={
                     selectedDateKey
-                      ? dismissSelectedDayToTop
+                      ? dismissSelectedDay
                       : undefined
                   }
                   disabled={
@@ -1553,12 +1374,29 @@ export default function ReadingActivityScreen() {
 
                       <Text
                         style={
-                          styles.orbitCenterTitle
+                          styles.orbitCenterDate
                         }
                       >
                         {getOrbitDayLabel(
                           selectedDateKey
                         )}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.orbitCenterTitle
+                        }
+                        numberOfLines={
+                          2
+                        }
+                      >
+                        {selectedDayBooks[0]
+                          ?.title ??
+                          (selectedDay.checkedIn
+                            ? 'Reading day'
+                            : hasSelectedActivity
+                            ? 'Reading activity'
+                            : 'Quiet day')}
                       </Text>
 
                       <Text
@@ -1569,8 +1407,8 @@ export default function ReadingActivityScreen() {
                         {selectedDay.checkedIn
                           ? 'Reading day'
                           : hasSelectedActivity
-                          ? 'Reading activity'
-                          : 'Quiet day'}
+                          ? 'Activity logged'
+                          : 'No reading logged'}
                       </Text>
 
                       <Text
@@ -1662,28 +1500,7 @@ export default function ReadingActivityScreen() {
 
             {selectedDateKey &&
             selectedDay ? (
-              <View
-                onLayout={(
-                  event
-                ) => {
-                  const y =
-                    event.nativeEvent.layout.y;
-
-                  dayDetailsYRef.current =
-                    y;
-
-                  if (
-                    shouldAutoScrollRef.current
-                  ) {
-                    shouldAutoScrollRef.current =
-                      false;
-
-                    scrollToDayDetails(
-                      y
-                    );
-                  }
-                }}
-              >
+              <View>
             <View
               style={
                 styles.dayMemorySection
@@ -2396,6 +2213,22 @@ function createStyles(
         colors.gold,
       marginBottom:
         7,
+    },
+    orbitCenterDate: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        8,
+      letterSpacing:
+        1,
+      marginBottom:
+        5,
+      textTransform:
+        'uppercase',
+      textAlign:
+        'center',
     },
     orbitCenterTitle: {
       color:
