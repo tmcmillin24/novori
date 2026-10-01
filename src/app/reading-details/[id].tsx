@@ -982,6 +982,14 @@ export default function ReadingDetailsScreen() {
     useState(false);
 
   const [
+    noteMenuTarget,
+    setNoteMenuTarget,
+  ] =
+    useState<ReadingNote | null>(
+      null
+    );
+
+  const [
     notePendingDelete,
     setNotePendingDelete,
   ] =
@@ -1053,6 +1061,14 @@ export default function ReadingDetailsScreen() {
           false
         );
       }
+    );
+
+  const noteMenuSheet =
+    useNovoriSheet(
+      () =>
+        setNoteMenuTarget(
+          null
+        )
     );
 
   const deleteNoteSheet =
@@ -1794,6 +1810,52 @@ export default function ReadingDetailsScreen() {
         false
       );
     }
+  }
+
+  function openNoteMenu(
+    note: ReadingNote
+  ) {
+    setNoteMenuTarget(
+      note
+    );
+  }
+
+  function editNoteFromMenu() {
+    if (
+      !noteMenuTarget
+    ) {
+      return;
+    }
+
+    const note =
+      noteMenuTarget;
+
+    setNoteMenuTarget(
+      null
+    );
+
+    openNoteEditor(
+      note
+    );
+  }
+
+  function deleteNoteFromMenu() {
+    if (
+      !noteMenuTarget
+    ) {
+      return;
+    }
+
+    const note =
+      noteMenuTarget;
+
+    setNoteMenuTarget(
+      null
+    );
+
+    confirmDeleteNote(
+      note
+    );
   }
 
   function confirmDeleteNote(
@@ -3356,6 +3418,31 @@ export default function ReadingDetailsScreen() {
                             </Text>
                           </View>
 
+                          <Pressable
+                            onPress={() =>
+                              openNoteMenu(
+                                note
+                              )
+                            }
+                            hitSlop={10}
+                            style={({
+                              pressed,
+                            }) => [
+                              styles.noteMenuButton,
+                              pressed &&
+                                styles.pressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Note options"
+                          >
+                            <Ionicons
+                              name="ellipsis-horizontal"
+                              size={18}
+                              color={
+                                colors.mutedText
+                              }
+                            />
+                          </Pressable>
                         </View>
 
                         {location ? (
@@ -3462,75 +3549,6 @@ export default function ReadingDetailsScreen() {
                           </View>
                         )}
 
-                        <View
-                          style={
-                            styles.noteManageRow
-                          }
-                        >
-                          <Pressable
-                            onPress={() =>
-                              openNoteEditor(
-                                note
-                              )
-                            }
-                            style={({
-                              pressed,
-                            }) => [
-                              styles.noteManageButton,
-                              pressed &&
-                                styles.pressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Edit note"
-                          >
-                            <Ionicons
-                              name="pencil-outline"
-                              size={14}
-                              color={
-                                colors.mutedText
-                              }
-                            />
-
-                            <Text
-                              style={
-                                styles.noteManageText
-                              }
-                            >
-                              Edit
-                            </Text>
-                          </Pressable>
-
-                          <Pressable
-                            onPress={() =>
-                              confirmDeleteNote(
-                                note
-                              )
-                            }
-                            style={({
-                              pressed,
-                            }) => [
-                              styles.noteManageButton,
-                              pressed &&
-                                styles.pressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Delete note"
-                          >
-                            <Ionicons
-                              name="trash-outline"
-                              size={14}
-                              color="#D86A6A"
-                            />
-
-                            <Text
-                              style={
-                                styles.noteDeleteText
-                              }
-                            >
-                              Delete
-                            </Text>
-                          </Pressable>
-                        </View>
                       </View>
                     );
                   }
@@ -4158,6 +4176,152 @@ export default function ReadingDetailsScreen() {
               </Animated.View>
             </Pressable>
           </KeyboardAvoidingView>
+        </Modal>
+
+        <Modal
+          visible={
+            Boolean(
+              noteMenuTarget
+            )
+          }
+          transparent
+          animationType="none"
+          onShow={
+            noteMenuSheet.animateIn
+          }
+          onRequestClose={
+            noteMenuSheet.closeSmoothly
+          }
+        >
+          <Pressable
+            style={
+              styles.modalBackdrop
+            }
+            onPress={
+              noteMenuSheet.closeSmoothly
+            }
+          >
+            <Animated.View
+              style={[
+                styles.noteMenuSheet,
+                {
+                  opacity:
+                    noteMenuSheet.sheetOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        noteMenuSheet.translateY,
+                    },
+                  ],
+                },
+              ]}
+              onLayout={({
+                nativeEvent,
+              }) => {
+                noteMenuSheet.sheetHeight.current =
+                  nativeEvent.layout.height;
+              }}
+            >
+              <Pressable
+                onPress={(
+                  event
+                ) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  {...noteMenuSheet.panResponder.panHandlers}
+                  style={
+                    styles.sheetHandleArea
+                  }
+                >
+                  <View
+                    style={
+                      styles.sheetHandle
+                    }
+                  />
+                </View>
+
+                <Pressable
+                  onPress={
+                    editNoteFromMenu
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.noteMenuAction,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit note"
+                >
+                  <View
+                    style={
+                      styles.noteMenuActionIcon
+                    }
+                  >
+                    <Ionicons
+                      name="pencil-outline"
+                      size={18}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={
+                      styles.noteMenuActionText
+                    }
+                  >
+                    Edit note
+                  </Text>
+                </Pressable>
+
+                <View
+                  style={
+                    styles.noteMenuDivider
+                  }
+                />
+
+                <Pressable
+                  onPress={
+                    deleteNoteFromMenu
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.noteMenuAction,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete note"
+                >
+                  <View
+                    style={
+                      styles.noteMenuActionIcon
+                    }
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color="#D86A6A"
+                    />
+                  </View>
+
+                  <Text
+                    style={
+                      styles.noteMenuDeleteText
+                    }
+                  >
+                    Delete note
+                  </Text>
+                </Pressable>
+              </Pressable>
+            </Animated.View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -5769,40 +5933,93 @@ function createStyles(
       fontFamily: 'Inter_600SemiBold',
       fontSize: 11,
     },
-    noteManageRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      paddingTop: 8,
-      marginTop: 8,
+    noteMenuButton: {
+      width:
+        30,
+      height:
+        30,
+      borderRadius:
+        9,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        -5,
+      marginTop:
+        -5,
     },
-    noteManageButton: {
+    noteMenuSheet: {
+      position:
+        'absolute',
+      left:
+        16,
+      right:
+        16,
+      bottom:
+        16,
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        20,
+      overflow:
+        'hidden',
+      paddingBottom:
+        6,
+    },
+    noteMenuAction: {
+      minHeight:
+        56,
       flexDirection:
         'row',
       alignItems:
         'center',
-      gap:
-        5,
-      paddingVertical:
-        4,
+      paddingHorizontal:
+        16,
     },
-    noteManageText: {
+    noteMenuActionIcon: {
+      width:
+        34,
+      height:
+        34,
+      borderRadius:
+        10,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      marginRight:
+        12,
+    },
+    noteMenuActionText: {
       color:
-        colors.mutedText,
+        colors.text,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        11,
+        14,
     },
-    noteDeleteText: {
+    noteMenuDeleteText: {
       color:
         '#D86A6A',
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        11,
+        14,
+    },
+    noteMenuDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      backgroundColor:
+        colors.border,
+      marginLeft:
+        62,
     },
     inlineLink: {
       alignSelf:
