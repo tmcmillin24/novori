@@ -40,6 +40,8 @@ export type ReadingActivityDay = {
     | null;
   books:
     ReadingActivityBook[];
+  checkinBooks:
+    ReadingActivityBook[];
   readingUpdates:
     ReadingActivityUpdate[];
   journeyEvents:
@@ -206,6 +208,8 @@ function createEmptyDay(
     checkinSource:
       null,
     books:
+      [],
+    checkinBooks:
       [],
     readingUpdates:
       [],
@@ -717,16 +721,27 @@ export async function getReadingActivityMonth(
       continue;
     }
 
-    addUniqueBook(
-      getDay(
-        date
-      ).books,
+    const checkinBook =
       bookByUserBookId.get(
         String(
           row.user_book_id
         )
       ) ??
-      null
+      null;
+
+    const day =
+      getDay(
+        date
+      );
+
+    addUniqueBook(
+      day.books,
+      checkinBook
+    );
+
+    addUniqueBook(
+      day.checkinBooks,
+      checkinBook
     );
   }
 
