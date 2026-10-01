@@ -37,6 +37,7 @@ type DailyCheckinSheetProps = {
   books: UserBook[];
   selectedBookIds: string[];
   busy?: boolean;
+  editing?: boolean;
   onToggleBook: (
     googleBookId:
       string
@@ -50,6 +51,7 @@ export default function DailyCheckinSheet({
   books,
   selectedBookIds,
   busy = false,
+  editing = false,
   onToggleBook,
   onConfirm,
   onDismiss,
@@ -455,7 +457,9 @@ export default function DailyCheckinSheet({
             >
               {books.length >
                 0
-                ? 'What did you read today?'
+                ? editing
+                  ? 'Edit today’s books'
+                  : 'What did you read today?'
                 : 'Start a book first'}
             </Text>
 
@@ -466,7 +470,9 @@ export default function DailyCheckinSheet({
             >
               {books.length >
                 0
-                ? 'Select every book you read today. It still counts as one daily check-in.'
+                ? editing
+                  ? 'Update the books attached to today’s check-in. Your streak stays exactly the same.'
+                  : 'Select every book you read today. It still counts as one daily check-in.'
                 : 'Add a book to your Library and mark it as Reading before checking in.'}
             </Text>
 
@@ -666,7 +672,11 @@ export default function DailyCheckinSheet({
                 ) : (
                   <>
                     <Ionicons
-                      name="checkmark-circle-outline"
+                      name={
+                        editing
+                          ? 'save-outline'
+                          : 'checkmark-circle-outline'
+                      }
                       size={17}
                       color={
                         colors.background
@@ -678,7 +688,9 @@ export default function DailyCheckinSheet({
                         styles.confirmText
                       }
                     >
-                      Check in
+                      {editing
+                        ? 'Save changes'
+                        : 'Check in'}
                     </Text>
                   </>
                 )}
