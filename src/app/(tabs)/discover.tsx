@@ -5667,7 +5667,7 @@ function createStyles(
     },
 
     discoverHomeContent: {
-      paddingTop: 24,
+      paddingTop: 18,
       paddingBottom: 32,
     },
 
@@ -6082,7 +6082,7 @@ function createStyles(
     },
 
     newReleasesSection: {
-      marginTop: 24,
+      marginTop: 18,
       paddingTop: 0,
     },
 
