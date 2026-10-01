@@ -916,6 +916,58 @@ export default function ReadingActivityScreen() {
       );
   }
 
+  function dismissSelectedDayToTop() {
+    if (
+      !selectedDateKey
+    ) {
+      return;
+    }
+
+    shouldAutoScrollRef.current =
+      false;
+
+    dayDetailsYRef.current =
+      null;
+
+    stopDayScrollAnimation();
+
+    setSelectedDateKey(
+      null
+    );
+
+    animatedScrollY.value =
+      scrollOffset.value;
+
+    autoScrollActive.value =
+      true;
+
+    animatedScrollY.value =
+      withTiming(
+        0,
+        {
+          duration:
+            620,
+          easing:
+            ReanimatedEasing.bezier(
+              0.45,
+              0,
+              0.2,
+              1
+            ),
+        },
+        (
+          finished
+        ) => {
+          if (
+            finished
+          ) {
+            autoScrollActive.value =
+              false;
+          }
+        }
+      );
+  }
+
   function handleOrbitDayPress(
     dateKey:
       string
@@ -1358,7 +1410,23 @@ export default function ReadingActivityScreen() {
                   },
                 ]}
               >
+                <Pressable
+                  onPress={
+                    dismissSelectedDayToTop
+                  }
+                  disabled={
+                    !selectedDateKey
+                  }
+                  accessible={
+                    false
+                  }
+                  style={
+                    styles.orbitDismissSurface
+                  }
+                />
+
                 <View
+                  pointerEvents="none"
                   style={[
                     styles.orbitHaloOuter,
                     {
@@ -1386,6 +1454,7 @@ export default function ReadingActivityScreen() {
                 />
 
                 <View
+                  pointerEvents="none"
                   style={[
                     styles.orbitHaloInner,
                     {
@@ -2304,6 +2373,20 @@ function createStyles(
         'absolute',
       left:
         0,
+    },
+    orbitDismissSurface: {
+      position:
+        'absolute',
+      left:
+        0,
+      top:
+        0,
+      right:
+        0,
+      bottom:
+        0,
+      zIndex:
+        1,
     },
     orbitHaloOuter: {
       position:
