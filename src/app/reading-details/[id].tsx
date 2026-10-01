@@ -899,6 +899,12 @@ export default function ReadingDetailsScreen() {
     >(null);
 
   const [
+    restartPromptVisible,
+    setRestartPromptVisible,
+  ] =
+    useState(false);
+
+  const [
     progressEditorOpen,
     setProgressEditorOpen,
   ] =
@@ -1056,6 +1062,14 @@ export default function ReadingDetailsScreen() {
     setSavingDates,
   ] =
     useState(false);
+
+  const restartPromptSheet =
+    useNovoriSheet(
+      () =>
+        setRestartPromptVisible(
+          false
+        )
+    );
 
   const journeyConfirmSheet =
     useNovoriSheet(
@@ -1466,6 +1480,121 @@ export default function ReadingDetailsScreen() {
       action;
 
     journeyConfirmSheet.closeSmoothly();
+  }
+
+  function openRestartPrompt() {
+    if (
+      !data ||
+      journeyAction
+    ) {
+      return;
+    }
+
+    setRestartPromptVisible(
+      true
+    );
+  }
+
+  async function startNewJourney(
+    carryOver:
+      boolean
+  ) {
+    if (
+      !data ||
+      journeyAction
+    ) {
+      return;
+    }
+
+    const previousSummary =
+      data.session
+        .summary_text;
+
+    const previousNotes =
+      [...data.notes].sort(
+        (
+          a,
+          b
+        ) =>
+          new Date(
+            a.created_at
+          ).getTime() -
+          new Date(
+            b.created_at
+          ).getTime()
+      );
+
+    try {
+      setJourneyAction(
+        'start'
+      );
+
+      const newSession =
+        await transitionReadingJourney(
+          googleBookId,
+          'start'
+        );
+
+      if (
+        carryOver
+      ) {
+        if (
+          previousSummary
+            ?.trim()
+        ) {
+          await saveReadingSummary(
+            newSession.id,
+            previousSummary
+          );
+        }
+
+        for (
+          const note of
+          previousNotes
+        ) {
+          await addReadingNote(
+            newSession.id,
+            {
+              body:
+                note.body,
+              pageNumber:
+                note.page_number,
+              progressPercent:
+                note.progress_percent,
+              chapter:
+                note.chapter,
+              audioPositionSeconds:
+                note.audio_position_seconds,
+            }
+          );
+        }
+      }
+
+      restartPromptSheet.closeSmoothly();
+
+      await loadData(
+        false
+      );
+    } catch (
+      restartError
+    ) {
+      console.error(
+        'Could not start new reading journey:',
+        restartError
+      );
+
+      Alert.alert(
+        'Could not start again',
+        restartError instanceof
+          Error
+          ? restartError.message
+          : 'Novori had trouble starting a new reading journey. Please try again.'
+      );
+    } finally {
+      setJourneyAction(
+        null
+      );
+    }
   }
 
   function openProgressEditor() {
@@ -2984,10 +3113,8 @@ export default function ReadingDetailsScreen() {
                 </Text>
 
                 <Pressable
-                  onPress={() =>
-                    void changeJourneyState(
-                      'start'
-                    )
+                  onPress={
+                    openRestartPrompt
                   }
                   disabled={
                     journeyAction !==
@@ -4212,6 +4339,290 @@ export default function ReadingDetailsScreen() {
               </Animated.View>
             </Pressable>
           </KeyboardAvoidingView>
+        </Modal>
+
+        <Modal
+          visible={
+            restartPromptVisible
+          }
+          transparent
+          animationType="none"
+          onShow={
+            restartPromptSheet.animateIn
+          }
+          onRequestClose={
+            restartPromptSheet.closeSmoothly
+          }
+        >
+          <Pressable
+            style={
+              styles.modalBackdrop
+            }
+            onPress={
+              journeyAction
+                ? undefined
+                : restartPromptSheet.closeSmoothly
+            }
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                styles.modalBackdropVisual,
+                {
+                  opacity:
+                    restartPromptSheet.backdropOpacity,
+                },
+              ]}
+            />
+
+            <Animated.View
+              {...restartPromptSheet.panResponder.panHandlers}
+              onLayout={({
+                nativeEvent,
+              }) => {
+                restartPromptSheet.sheetHeight.current =
+                  nativeEvent.layout.height;
+              }}
+              style={[
+                styles.modalSheet,
+                styles.restartPromptModalSheet,
+                {
+                  opacity:
+                    restartPromptSheet.sheetOpacity,
+                  transform: [
+                    {
+                      translateY:
+                        restartPromptSheet.translateY,
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                onPress={(
+                  event
+                ) =>
+                  event.stopPropagation()
+                }
+              >
+                <View
+                  style={
+                    styles.modalHandle
+                  }
+                />
+
+                <View
+                  style={
+                    styles.restartPromptIcon
+                  }
+                >
+                  <Ionicons
+                    name="refresh-outline"
+                    size={24}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.restartPromptTitle
+                  }
+                >
+                  Start a new reading journey?
+                </Text>
+
+                <Text
+                  style={
+                    styles.restartPromptMessage
+                  }
+                >
+                  Your previous journey stays saved in your Reading Recap, including its notes and summary.
+                </Text>
+
+                <Pressable
+                  disabled={
+                    journeyAction !==
+                    null
+                  }
+                  onPress={() =>
+                    void startNewJourney(
+                      false
+                    )
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.restartChoice,
+                    (
+                      pressed ||
+                      journeyAction !==
+                        null
+                    ) &&
+                      styles.pressed,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.restartChoiceIcon
+                    }
+                  >
+                    <Ionicons
+                      name="sparkles-outline"
+                      size={18}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.restartChoiceCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.restartChoiceTitle
+                      }
+                    >
+                      Start Fresh
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.restartChoiceText
+                      }
+                    >
+                      Begin Journey #{(data?.session.session_number ?? 0) + 1} with a clean summary and no carried-over notes.
+                    </Text>
+                  </View>
+
+                  {journeyAction ===
+                  'start' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  disabled={
+                    journeyAction !==
+                    null
+                  }
+                  onPress={() =>
+                    void startNewJourney(
+                      true
+                    )
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.restartChoice,
+                    (
+                      pressed ||
+                      journeyAction !==
+                        null
+                    ) &&
+                      styles.pressed,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.restartChoiceIcon
+                    }
+                  >
+                    <Ionicons
+                      name="copy-outline"
+                      size={18}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.restartChoiceCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.restartChoiceTitle
+                      }
+                    >
+                      Carry Over Notes & Summary
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.restartChoiceText
+                      }
+                    >
+                      Copy your previous private notes and summary into the new journey. The original journey remains unchanged.
+                    </Text>
+                  </View>
+
+                  {journeyAction ===
+                  'start' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        colors.gold
+                      }
+                    />
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  disabled={
+                    journeyAction !==
+                    null
+                  }
+                  onPress={
+                    restartPromptSheet.closeSmoothly
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.restartCancelButton,
+                    pressed &&
+                      styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.restartCancelText
+                    }
+                  >
+                    Cancel
+                  </Text>
+                </Pressable>
+              </Pressable>
+            </Animated.View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -6177,6 +6588,149 @@ function createStyles(
       color: colors.gold,
       fontFamily: 'Inter_600SemiBold',
       fontSize: 11,
+    },
+    restartPromptModalSheet: {
+      paddingBottom:
+        Platform.OS ===
+        'ios'
+          ? 30
+          : 22,
+    },
+    restartPromptIcon: {
+      width:
+        48,
+      height:
+        48,
+      borderRadius:
+        24,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      alignSelf:
+        'center',
+      marginTop:
+        6,
+      marginBottom:
+        14,
+    },
+    restartPromptTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize:
+        21,
+      textAlign:
+        'center',
+    },
+    restartPromptMessage: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        12.5,
+      lineHeight:
+        19,
+      textAlign:
+        'center',
+      marginTop:
+        7,
+      marginBottom:
+        16,
+    },
+    restartChoice: {
+      minHeight:
+        72,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      borderRadius:
+        15,
+      backgroundColor:
+        colors.background,
+      paddingHorizontal:
+        12,
+      paddingVertical:
+        11,
+      marginBottom:
+        10,
+    },
+    restartChoiceIcon: {
+      width:
+        36,
+      height:
+        36,
+      borderRadius:
+        11,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        11,
+    },
+    restartChoiceCopy: {
+      flex:
+        1,
+      marginRight:
+        8,
+    },
+    restartChoiceTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        13,
+    },
+    restartChoiceText: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        10.5,
+      lineHeight:
+        15,
+      marginTop:
+        3,
+    },
+    restartCancelButton: {
+      minHeight:
+        44,
+      borderRadius:
+        13,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginTop:
+        2,
+    },
+    restartCancelText: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize:
+        12.5,
     },
     journeyConfirmModalSheet: {
       paddingBottom:
