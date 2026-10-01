@@ -50,14 +50,14 @@ import {
 } from '../lib/reading-month-personalization';
 
 const ORBIT_SIZE =
-  252;
+  304;
 
 const ORBIT_CENTER =
   ORBIT_SIZE /
   2;
 
 const ORBIT_RADIUS =
-  111;
+  137;
 
 function getMonthLabel(
   year:
@@ -200,8 +200,10 @@ export default function ReadingActivityScreen() {
     selectedDateKey,
     setSelectedDateKey,
   ] =
-    useState(
-      todayKey
+    useState<
+      string | null
+    >(
+      null
     );
 
   const [
@@ -299,37 +301,9 @@ export default function ReadingActivityScreen() {
             nextPersonalization
           );
 
-          const isCurrentMonth =
-            displayedMonth.year ===
-              now.getFullYear() &&
-            displayedMonth.monthIndex ===
-              now.getMonth();
-
-          if (
-            isCurrentMonth
-          ) {
-            setSelectedDateKey(
-              todayKey
-            );
-          } else if (
-            next.checkedDates.length >
-            0
-          ) {
-            setSelectedDateKey(
-              next.checkedDates[
-                next.checkedDates.length -
-                  1
-              ]
-            );
-          } else {
-            setSelectedDateKey(
-              getDateKey(
-                displayedMonth.year,
-                displayedMonth.monthIndex,
-                1
-              )
-            );
-          }
+          setSelectedDateKey(
+            null
+          );
         } catch (
           loadError
         ) {
@@ -370,13 +344,15 @@ export default function ReadingActivityScreen() {
   );
 
   const selectedDay =
-    monthData
-      ?.days[
-        selectedDateKey
-      ] ??
-    emptyDay(
-      selectedDateKey
-    );
+    selectedDateKey
+      ? monthData
+          ?.days[
+            selectedDateKey
+          ] ??
+        emptyDay(
+          selectedDateKey
+        )
+      : null;
 
   const monthOrbitDots =
     useMemo(
@@ -505,6 +481,10 @@ export default function ReadingActivityScreen() {
       null
     );
 
+    setSelectedDateKey(
+      null
+    );
+
     setDisplayedMonth({
       year:
         next.getFullYear(),
@@ -552,13 +532,18 @@ export default function ReadingActivityScreen() {
   }
 
   const hasSelectedActivity =
-    selectedDay.checkedIn ||
-    selectedDay.books.length >
-      0 ||
-    selectedDay.readingUpdates.length >
-      0 ||
-    selectedDay.journeyEvents.length >
-      0;
+    Boolean(
+      selectedDay &&
+      (
+        selectedDay.checkedIn ||
+        selectedDay.books.length >
+          0 ||
+        selectedDay.readingUpdates.length >
+          0 ||
+        selectedDay.journeyEvents.length >
+          0
+      )
+    );
 
   return (
     <>
@@ -950,29 +935,27 @@ export default function ReadingActivityScreen() {
                 )}
 
                 <View
+                  pointerEvents="none"
                   style={
                     styles.orbitCenter
                   }
                 >
-                  <Text
-                    style={
-                      styles.orbitNumber
+                  <Ionicons
+                    name="book-outline"
+                    size={
+                      26
                     }
-                  >
-                    {
-                      monthData.daysRead
+                    color={
+                      colors.gold
                     }
-                  </Text>
+                  />
 
                   <Text
                     style={
-                      styles.orbitNumberLabel
+                      styles.orbitHint
                     }
                   >
-                    {monthData.daysRead ===
-                    1
-                      ? 'READING DAY'
-                      : 'READING DAYS'}
+                    TAP A DAY
                   </Text>
                 </View>
 
@@ -1009,124 +992,13 @@ export default function ReadingActivityScreen() {
                   )
                 )}
 
-                {personalization.charms.length ===
-                0 ? (
-                  <Pressable
-                    onPress={() =>
-                      setCustomizeVisible(
-                        true
-                      )
-                    }
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.orbitCharmEmpty,
-                      pressed &&
-                        styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="sparkles-outline"
-                      size={
-                        16
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.orbitCharmEmptyText
-                      }
-                    >
-                      Add charms
-                    </Text>
-                  </Pressable>
-                ) : null}
               </View>
 
-              <View
-                style={
-                  styles.orbitStats
-                }
-              >
-                <View
-                  style={
-                    styles.orbitStat
-                  }
-                >
-                  <Ionicons
-                    name="flame-outline"
-                    size={
-                      16
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.orbitStatValue
-                    }
-                  >
-                    {
-                      monthData.bestStreak
-                    }
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.orbitStatLabel
-                    }
-                  >
-                    best streak
-                  </Text>
-                </View>
-
-                <View
-                  style={
-                    styles.orbitStatsRule
-                  }
-                />
-
-                <View
-                  style={
-                    styles.orbitStat
-                  }
-                >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={
-                      16
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.orbitStatValue
-                    }
-                  >
-                    {
-                      monthData.booksFinished
-                    }
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.orbitStatLabel
-                    }
-                  >
-                    finished
-                  </Text>
-                </View>
-              </View>
             </View>
 
+            {selectedDateKey &&
+            selectedDay ? (
+              <>
             <View
               style={[
                 styles.sectionIntro,
@@ -1413,6 +1285,9 @@ export default function ReadingActivityScreen() {
                 </>
               )}
             </View>
+
+              </>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -1763,9 +1638,9 @@ function createStyles(
       position:
         'relative',
       marginTop:
-        9,
+        18,
       marginBottom:
-        8,
+        6,
     },
     orbitHaloOuter: {
       position:
@@ -1795,19 +1670,19 @@ function createStyles(
       position:
         'absolute',
       left:
-        39,
+        51,
       top:
-        39,
+        51,
       width:
         ORBIT_SIZE -
-        78,
+        102,
       height:
         ORBIT_SIZE -
-        78,
+        102,
       borderRadius:
         (
           ORBIT_SIZE -
-          78
+          102
         ) /
         2,
       backgroundColor:
@@ -1881,6 +1756,44 @@ function createStyles(
       backgroundColor:
         colors.gold,
     },
+    orbitCenter: {
+      position:
+        'absolute',
+      left:
+        78,
+      top:
+        78,
+      width:
+        ORBIT_SIZE -
+        156,
+      height:
+        ORBIT_SIZE -
+        156,
+      borderRadius:
+        (
+          ORBIT_SIZE -
+          156
+        ) /
+        2,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex:
+        3,
+    },
+    orbitHint: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        8,
+      letterSpacing:
+        1.45,
+      marginTop:
+        7,
+    },
     orbitCharm: {
       position:
         'absolute',
@@ -1897,9 +1810,9 @@ function createStyles(
     },
     orbitCharm1: {
       right:
-        -8,
+        -2,
       top:
-        28,
+        40,
       transform: [
         {
           rotate:
@@ -1909,9 +1822,9 @@ function createStyles(
     },
     orbitCharm2: {
       left:
-        -10,
+        -2,
       top:
-        52,
+        72,
       transform: [
         {
           rotate:
@@ -1921,9 +1834,9 @@ function createStyles(
     },
     orbitCharm3: {
       right:
-        -18,
+        -10,
       top:
-        108,
+        138,
       transform: [
         {
           rotate:
@@ -1933,9 +1846,9 @@ function createStyles(
     },
     orbitCharm4: {
       left:
-        -18,
+        -10,
       bottom:
-        58,
+        76,
       transform: [
         {
           rotate:
@@ -1945,9 +1858,9 @@ function createStyles(
     },
     orbitCharm5: {
       right:
-        1,
+        8,
       bottom:
-        27,
+        42,
       transform: [
         {
           rotate:
@@ -1957,9 +1870,9 @@ function createStyles(
     },
     orbitCharm6: {
       left:
-        28,
+        42,
       bottom:
-        -8,
+        -3,
       transform: [
         {
           rotate:
@@ -1969,9 +1882,9 @@ function createStyles(
     },
     orbitCharm7: {
       right:
-        43,
+        58,
       top:
-        -12,
+        -5,
       transform: [
         {
           rotate:
@@ -1981,97 +1894,15 @@ function createStyles(
     },
     orbitCharm8: {
       left:
-        55,
+        72,
       top:
-        -13,
+        -5,
       transform: [
         {
           rotate:
             '-3deg',
         },
       ],
-    },
-    orbitCharmEmpty: {
-      position:
-        'absolute',
-      right:
-        -9,
-      top:
-        34,
-      minHeight:
-        31,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        4,
-      paddingHorizontal:
-        8,
-      zIndex:
-        9,
-    },
-    orbitCharmEmptyText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        9,
-    },
-    orbitStats: {
-      minHeight:
-        48,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      paddingHorizontal:
-        10,
-      borderTopWidth:
-        1,
-      borderBottomWidth:
-        1,
-      borderColor:
-        colors.border,
-    },
-    orbitStat: {
-      flex:
-        1,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap:
-        5,
-    },
-    orbitStatValue: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize:
-        12,
-    },
-    orbitStatLabel: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        9.5,
-    },
-    orbitStatsRule: {
-      width:
-        1,
-      height:
-        22,
-      backgroundColor:
-        colors.border,
     },
     sectionIntro: {
       flexDirection:
@@ -2109,7 +1940,7 @@ function createStyles(
     },
     daySectionIntro: {
       marginTop:
-        24,
+        30,
     },
 
     dayDetailCard: {
