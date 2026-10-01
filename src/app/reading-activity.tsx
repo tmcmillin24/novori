@@ -366,7 +366,25 @@ export default function ReadingActivityScreen() {
 
   const centerInset =
     activeOrbitSize *
-    0.29;
+    0.27;
+
+  const centerCoverWidth =
+    Math.min(
+      44,
+      Math.max(
+        36,
+        activeOrbitSize *
+          0.12
+      )
+    );
+
+  const centerCoverHeight =
+    centerCoverWidth *
+    1.5;
+
+  const showCenterAuthor =
+    activeOrbitSize >=
+    300;
 
   const [
     monthData,
@@ -1432,6 +1450,28 @@ export default function ReadingActivityScreen() {
                   selectedDay ? (
                     selectedDayBooks[0] ? (
                       <>
+                        <View
+                          style={
+                            styles.orbitCenterEyebrowRow
+                          }
+                        >
+                          <View
+                            style={
+                              styles.orbitCenterEyebrowDot
+                            }
+                          />
+
+                          <Text
+                            style={
+                              styles.orbitCenterEyebrow
+                            }
+                          >
+                            {selectedDay.checkedIn
+                              ? 'READING DAY'
+                              : 'READING ACTIVITY'}
+                          </Text>
+                        </View>
+
                         {selectedDayBooks[0]
                           .coverUrl ? (
                           <ExpoImage
@@ -1439,9 +1479,15 @@ export default function ReadingActivityScreen() {
                               selectedDayBooks[0]
                                 .coverUrl
                             }
-                            style={
-                              styles.orbitCenterCover
-                            }
+                            style={[
+                              styles.orbitCenterCover,
+                              {
+                                width:
+                                  centerCoverWidth,
+                                height:
+                                  centerCoverHeight,
+                              },
+                            ]}
                             contentFit="cover"
                             cachePolicy="memory-disk"
                             transition={
@@ -1454,14 +1500,20 @@ export default function ReadingActivityScreen() {
                           />
                         ) : (
                           <View
-                            style={
-                              styles.orbitCenterCoverPlaceholder
-                            }
+                            style={[
+                              styles.orbitCenterCoverPlaceholder,
+                              {
+                                width:
+                                  centerCoverWidth,
+                                height:
+                                  centerCoverHeight,
+                              },
+                            ]}
                           >
                             <Ionicons
                               name="book-outline"
                               size={
-                                15
+                                17
                               }
                               color={
                                 colors.gold
@@ -1483,6 +1535,25 @@ export default function ReadingActivityScreen() {
                               .title
                           }
                         </Text>
+
+                        {showCenterAuthor &&
+                        selectedDayBooks[0]
+                          .authors.length >
+                          0 ? (
+                          <Text
+                            style={
+                              styles.orbitCenterAuthor
+                            }
+                            numberOfLines={
+                              1
+                            }
+                          >
+                            {
+                              selectedDayBooks[0]
+                                .authors[0]
+                            }
+                          </Text>
+                        ) : null}
 
                         <Text
                           style={
@@ -1923,25 +1994,47 @@ function createStyles(
       paddingHorizontal:
         10,
     },
-    orbitCenterCover: {
-      width:
-        32,
-      height:
-        48,
-      borderRadius:
-        5,
-      backgroundColor:
-        colors.elevated,
+    orbitCenterEyebrowRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        4,
       marginBottom:
         5,
     },
-    orbitCenterCoverPlaceholder: {
+    orbitCenterEyebrowDot: {
       width:
-        32,
+        4,
       height:
-        48,
+        4,
       borderRadius:
-        5,
+        2,
+      backgroundColor:
+        colors.gold,
+    },
+    orbitCenterEyebrow: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize:
+        7,
+      letterSpacing:
+        1,
+    },
+    orbitCenterCover: {
+      borderRadius:
+        6,
+      backgroundColor:
+        colors.elevated,
+      marginBottom:
+        6,
+    },
+    orbitCenterCoverPlaceholder: {
+      borderRadius:
+        6,
       backgroundColor:
         colors.elevated,
       borderWidth:
@@ -1953,7 +2046,7 @@ function createStyles(
       justifyContent:
         'center',
       marginBottom:
-        5,
+        6,
     },
     orbitCenterBookTitle: {
       maxWidth:
@@ -1961,11 +2054,25 @@ function createStyles(
       color:
         colors.text,
       fontFamily:
-        'Inter_600SemiBold',
+        'PlayfairDisplay_700Bold',
       fontSize:
-        9.5,
+        11.5,
       lineHeight:
-        12,
+        14,
+      textAlign:
+        'center',
+    },
+    orbitCenterAuthor: {
+      maxWidth:
+        '88%',
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize:
+        7.5,
+      marginTop:
+        2,
       textAlign:
         'center',
     },
