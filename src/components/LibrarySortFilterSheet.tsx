@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  useMemo,
   useRef,
 } from 'react';
 import {
@@ -302,95 +303,101 @@ export default function LibrarySortFilterSheet({
   }
 
   const panResponder =
-    useRef(
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (
-          _event,
-          gesture
-        ) => {
-          const mostlyVertical =
-            Math.abs(
-              gesture.dy
-            ) >
-            Math.abs(
-              gesture.dx
+    useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (
+            _event,
+            gesture
+          ) => {
+            const mostlyVertical =
+              Math.abs(
+                gesture.dy
+              ) >
+              Math.abs(
+                gesture.dx
+              );
+
+            return (
+              visible &&
+              !closing.current &&
+              gesture.dy >
+                6 &&
+              mostlyVertical
             );
+          },
 
-          return (
-            visible &&
-            !closing.current &&
-            gesture.dy >
-              6 &&
-            mostlyVertical
-          );
-        },
-
-        onPanResponderMove: (
-          _event,
-          gesture
-        ) => {
-          translateY.setValue(
-            Math.max(
-              0,
-              gesture.dy
-            )
-          );
-        },
-
-        onPanResponderRelease: (
-          _event,
-          gesture
-        ) => {
-          if (
-            gesture.dy >
+          onPanResponderMove: (
+            _event,
+            gesture
+          ) => {
+            translateY.setValue(
               Math.max(
-                78,
-                sheetHeight.current *
-                  0.2
-              ) ||
-            gesture.vy >
-              1.1
-          ) {
-            closeSmoothly();
-            return;
-          }
-
-          Animated.spring(
-            translateY,
-            {
-              toValue:
                 0,
-              useNativeDriver:
-                true,
-              damping:
-                20,
-              stiffness:
-                220,
-              mass:
-                0.8,
-            }
-          ).start();
-        },
+                gesture.dy
+              )
+            );
+          },
 
-        onPanResponderTerminate: () => {
-          Animated.spring(
-            translateY,
-            {
-              toValue:
-                0,
-              useNativeDriver:
-                true,
-              damping:
-                20,
-              stiffness:
-                220,
-              mass:
-                0.8,
+          onPanResponderRelease: (
+            _event,
+            gesture
+          ) => {
+            if (
+              gesture.dy >
+                Math.max(
+                  78,
+                  sheetHeight.current *
+                    0.2
+                ) ||
+              gesture.vy >
+                1.1
+            ) {
+              closeSmoothly();
+              return;
             }
-          ).start();
-        },
-      })
-    ).current;
+
+            Animated.spring(
+              translateY,
+              {
+                toValue:
+                  0,
+                useNativeDriver:
+                  true,
+                damping:
+                  20,
+                stiffness:
+                  220,
+                mass:
+                  0.8,
+              }
+            ).start();
+          },
+
+          onPanResponderTerminate: () => {
+            Animated.spring(
+              translateY,
+              {
+                toValue:
+                  0,
+                useNativeDriver:
+                  true,
+                damping:
+                  20,
+                stiffness:
+                  220,
+                mass:
+                  0.8,
+              }
+            ).start();
+          },
+        }),
+      [
+        translateY,
+        visible,
+      ]
+    );
+
 
   return (
     <Modal
