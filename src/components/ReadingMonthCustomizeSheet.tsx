@@ -635,23 +635,13 @@ export default function ReadingMonthCustomizeSheet({
                 styles.selectedHeader
               }
             >
-              <View>
-                <Text
-                  style={
-                    styles.sectionLabel
-                  }
-                >
-                  YOUR CHARMS
-                </Text>
-
-                <Text
-                  style={
-                    styles.selectedHint
-                  }
-                >
-                  Tap a selected sticker to remove it.
-                </Text>
-              </View>
+              <Text
+                style={
+                  styles.sectionLabel
+                }
+              >
+                YOUR CHARMS
+              </Text>
 
               <View
                 style={
@@ -989,7 +979,7 @@ export default function ReadingMonthCustomizeSheet({
                                       option.id
                                     }
                                     size={
-                                      52
+                                      58
                                     }
                                   />
 
@@ -1012,20 +1002,6 @@ export default function ReadingMonthCustomizeSheet({
                                   ) : null}
                                 </View>
 
-                                <Text
-                                  numberOfLines={
-                                    1
-                                  }
-                                  style={[
-                                    styles.stickerLabel,
-                                    selected &&
-                                      styles.stickerLabelSelected,
-                                  ]}
-                                >
-                                  {
-                                    option.label
-                                  }
-                                </Text>
                               </Pressable>
                             );
                           }
@@ -1060,14 +1036,6 @@ export default function ReadingMonthCustomizeSheet({
                 )
               )}
             </View>
-
-            <Text
-              style={
-                styles.helperText
-              }
-            >
-              Swipe left and right through sticker packs. October opens Halloween, December opens Christmas, and July opens celebrations.
-            </Text>
 
             <View
               style={
@@ -1247,16 +1215,6 @@ function createStyles(
       letterSpacing:
         1,
     },
-    selectedHint: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        9,
-      marginTop:
-        2,
-    },
     selectedHeaderActions: {
       flexDirection:
         'row',
@@ -1425,7 +1383,7 @@ function createStyles(
     },
     stickerPage: {
       minHeight:
-        178,
+        166,
       flexDirection:
         'row',
       flexWrap:
@@ -1441,7 +1399,7 @@ function createStyles(
       width:
         '25%',
       height:
-        86,
+        80,
       alignItems:
         'center',
       justifyContent:
@@ -1463,9 +1421,9 @@ function createStyles(
     },
     stickerArtwork: {
       width:
-        58,
+        64,
       height:
-        58,
+        64,
       alignItems:
         'center',
       justifyContent:
@@ -1490,26 +1448,6 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-    },
-    stickerLabel: {
-      maxWidth:
-        76,
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        9,
-      textAlign:
-        'center',
-      marginTop:
-        1,
-    },
-    stickerLabelSelected: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
     },
     pagerDots: {
       height:
@@ -1541,27 +1479,13 @@ function createStyles(
       backgroundColor:
         colors.gold,
     },
-    helperText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        9.5,
-      lineHeight:
-        14,
-      textAlign:
-        'center',
-      marginTop:
-        5,
-    },
     actions: {
       flexDirection:
         'row',
       gap:
         9,
       marginTop:
-        13,
+        9,
     },
     cancelButton: {
       flex:
