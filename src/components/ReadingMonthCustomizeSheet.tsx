@@ -28,8 +28,8 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
+  ReadingMonthCharm,
   ReadingMonthPersonalization,
-  ReadingShelfDecor,
 } from '../lib/reading-month-personalization';
 
 type Props = {
@@ -47,13 +47,17 @@ type Props = {
     ) => Promise<void> | void;
 };
 
-const DECOR_OPTIONS: Array<{
+const CHARM_OPTIONS: Array<{
   value:
-    ReadingShelfDecor;
+    ReadingMonthCharm;
   label:
     string;
   icon:
     keyof typeof Ionicons.glyphMap;
+  color:
+    string;
+  tint:
+    string;
 }> = [
   {
     value:
@@ -62,6 +66,22 @@ const DECOR_OPTIONS: Array<{
       'Plant',
     icon:
       'leaf-outline',
+    color:
+      '#5FAF73',
+    tint:
+      'rgba(95, 175, 115, 0.14)',
+  },
+  {
+    value:
+      'sun',
+    label:
+      'Sun',
+    icon:
+      'sunny-outline',
+    color:
+      '#F2C84B',
+    tint:
+      'rgba(242, 200, 75, 0.15)',
   },
   {
     value:
@@ -70,38 +90,46 @@ const DECOR_OPTIONS: Array<{
       'Mug',
     icon:
       'cafe-outline',
-  },
-  {
-    value:
-      'candle',
-    label:
-      'Candle',
-    icon:
-      'flame-outline',
+    color:
+      '#C97A4A',
+    tint:
+      'rgba(201, 122, 74, 0.14)',
   },
   {
     value:
       'moon',
     label:
-      'Moon lamp',
+      'Moon',
     icon:
       'moon-outline',
+    color:
+      '#8A7DD1',
+    tint:
+      'rgba(138, 125, 209, 0.14)',
   },
   {
     value:
       'headphones',
     label:
-      'Headphones',
+      'Audio',
     icon:
       'headset-outline',
+    color:
+      '#5D9CEC',
+    tint:
+      'rgba(93, 156, 236, 0.14)',
   },
   {
     value:
-      'flowers',
+      'flower',
     label:
-      'Flowers',
+      'Flower',
     icon:
-      'sparkles-outline',
+      'flower-outline',
+    color:
+      '#D979A7',
+    tint:
+      'rgba(217, 121, 167, 0.14)',
   },
   {
     value:
@@ -110,6 +138,10 @@ const DECOR_OPTIONS: Array<{
       'Cat',
     icon:
       'paw-outline',
+    color:
+      '#E59B4C',
+    tint:
+      'rgba(229, 155, 76, 0.14)',
   },
   {
     value:
@@ -117,7 +149,11 @@ const DECOR_OPTIONS: Array<{
     label:
       'Globe',
     icon:
-      'planet-outline',
+      'earth-outline',
+    color:
+      '#48A9A6',
+    tint:
+      'rgba(72, 169, 166, 0.14)',
   },
 ];
 
@@ -148,13 +184,13 @@ export default function ReadingMonthCustomizeSheet({
     useSafeAreaInsets();
 
   const [
-    decor,
-    setDecor,
+    charms,
+    setCharms,
   ] =
     useState<
-      ReadingShelfDecor[]
+      ReadingMonthCharm[]
     >(
-      value.decor
+      value.charms
     );
 
   const [
@@ -201,13 +237,13 @@ export default function ReadingMonthCustomizeSheet({
       if (
         visible
       ) {
-        setDecor(
-          value.decor
+        setCharms(
+          value.charms
         );
       }
     },
     [
-      value.decor,
+      value.charms,
       visible,
     ]
   );
@@ -332,11 +368,11 @@ export default function ReadingMonthCustomizeSheet({
     );
   }
 
-  function toggleDecor(
+  function toggleCharm(
     item:
-      ReadingShelfDecor
+      ReadingMonthCharm
   ) {
-    setDecor(
+    setCharms(
       (
         current
       ) => {
@@ -382,7 +418,7 @@ export default function ReadingMonthCustomizeSheet({
       );
 
       await onSave({
-        decor,
+        charms,
       });
 
       onDismiss();
@@ -552,7 +588,7 @@ export default function ReadingMonthCustomizeSheet({
                 }
               >
                 <Ionicons
-                  name="library-outline"
+                  name="color-palette-outline"
                   size={
                     21
                   }
@@ -572,7 +608,7 @@ export default function ReadingMonthCustomizeSheet({
                     styles.title
                   }
                 >
-                  Decorate your shelf
+                  Personalize {monthLabel}
                 </Text>
 
                 <Text
@@ -580,7 +616,7 @@ export default function ReadingMonthCustomizeSheet({
                     styles.subtitle
                   }
                 >
-                  Give {monthLabel} a little personality.
+                  Pick up to three colorful charms for this month.
                 </Text>
               </View>
             </View>
@@ -595,7 +631,7 @@ export default function ReadingMonthCustomizeSheet({
                   styles.sectionLabel
                 }
               >
-                CHOOSE UP TO 3
+                MONTH CHARMS
               </Text>
 
               <Text
@@ -603,27 +639,27 @@ export default function ReadingMonthCustomizeSheet({
                   styles.counter
                 }
               >
-                {decor.length}/3
+                {charms.length}/3
               </Text>
             </View>
 
             <View
               style={
-                styles.decorGrid
+                styles.charmGrid
               }
             >
-              {DECOR_OPTIONS.map(
+              {CHARM_OPTIONS.map(
                 (
                   option
                 ) => {
                   const selected =
-                    decor.includes(
+                    charms.includes(
                       option.value
                     );
 
                   const disabled =
                     !selected &&
-                    decor.length >=
+                    charms.length >=
                       3;
 
                   return (
@@ -635,18 +671,18 @@ export default function ReadingMonthCustomizeSheet({
                         disabled
                       }
                       onPress={() =>
-                        toggleDecor(
+                        toggleCharm(
                           option.value
                         )
                       }
                       style={({
                         pressed,
                       }) => [
-                        styles.decorChoice,
+                        styles.charmChoice,
                         selected &&
-                          styles.decorChoiceSelected,
+                          styles.charmChoiceSelected,
                         disabled &&
-                          styles.decorChoiceDisabled,
+                          styles.charmChoiceDisabled,
                         pressed &&
                           !disabled &&
                           styles.pressed,
@@ -654,9 +690,11 @@ export default function ReadingMonthCustomizeSheet({
                     >
                       <View
                         style={[
-                          styles.decorPreview,
-                          selected &&
-                            styles.decorPreviewSelected,
+                          styles.charmPreview,
+                          {
+                            backgroundColor:
+                              option.tint,
+                          },
                         ]}
                       >
                         <Ionicons
@@ -664,21 +702,19 @@ export default function ReadingMonthCustomizeSheet({
                             option.icon
                           }
                           size={
-                            22
+                            23
                           }
                           color={
-                            selected
-                              ? colors.gold
-                              : colors.secondaryText
+                            option.color
                           }
                         />
                       </View>
 
                       <Text
                         style={[
-                          styles.decorLabel,
+                          styles.charmLabel,
                           selected &&
-                            styles.decorLabelSelected,
+                            styles.charmLabelSelected,
                         ]}
                       >
                         {
@@ -696,7 +732,7 @@ export default function ReadingMonthCustomizeSheet({
                 styles.helperText
               }
             >
-              These pieces sit beside your books on the monthly shelf.
+              Charms float around your monthly reading orbit and can change every month.
             </Text>
 
             <View
@@ -753,7 +789,7 @@ export default function ReadingMonthCustomizeSheet({
                 >
                   {saving
                     ? 'Saving...'
-                    : 'Save Shelf'}
+                    : 'Save Charms'}
                 </Text>
               </Pressable>
             </View>
@@ -850,6 +886,8 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         11.5,
+      lineHeight:
+        16,
       marginTop:
         2,
     },
@@ -881,7 +919,7 @@ function createStyles(
       fontSize:
         10,
     },
-    decorGrid: {
+    charmGrid: {
       flexDirection:
         'row',
       flexWrap:
@@ -889,11 +927,11 @@ function createStyles(
       gap:
         8,
     },
-    decorChoice: {
+    charmChoice: {
       width:
         '23%',
       minHeight:
-        78,
+        79,
       borderRadius:
         15,
       borderWidth:
@@ -909,25 +947,23 @@ function createStyles(
       padding:
         7,
     },
-    decorChoiceSelected: {
+    charmChoiceSelected: {
       borderColor:
         colors.gold,
       backgroundColor:
         colors.elevated,
     },
-    decorChoiceDisabled: {
+    charmChoiceDisabled: {
       opacity:
         0.35,
     },
-    decorPreview: {
+    charmPreview: {
       width:
-        38,
+        40,
       height:
-        38,
+        40,
       borderRadius:
-        13,
-      backgroundColor:
-        colors.surface,
+        14,
       alignItems:
         'center',
       justifyContent:
@@ -935,11 +971,7 @@ function createStyles(
       marginBottom:
         6,
     },
-    decorPreviewSelected: {
-      backgroundColor:
-        colors.background,
-    },
-    decorLabel: {
+    charmLabel: {
       color:
         colors.mutedText,
       fontFamily:
@@ -949,7 +981,7 @@ function createStyles(
       textAlign:
         'center',
     },
-    decorLabelSelected: {
+    charmLabelSelected: {
       color:
         colors.gold,
       fontFamily:
