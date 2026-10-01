@@ -1032,10 +1032,10 @@ export default function ReadingActivityScreen() {
             <Ionicons
               name="chevron-back"
               size={
-                22
+                20
               }
               color={
-                colors.gold
+                colors.mutedText
               }
             />
           </Pressable>
@@ -2074,34 +2074,40 @@ function createStyles(
         70,
     },
     headerRow: {
-      flexDirection:
-        'row',
+      position:
+        'relative',
       alignItems:
         'center',
-      gap:
-        12,
+      justifyContent:
+        'center',
+      minHeight:
+        66,
+      paddingHorizontal:
+        38,
     },
     backButton: {
+      position:
+        'absolute',
+      left:
+        0,
+      top:
+        7,
       width:
-        42,
+        34,
       height:
-        42,
+        34,
       borderRadius:
-        13,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
+        17,
       alignItems:
         'center',
       justifyContent:
         'center',
     },
     headerCopy: {
-      flex:
-        1,
+      width:
+        '100%',
+      alignItems:
+        'center',
     },
     heading: {
       color:
@@ -2112,6 +2118,8 @@ function createStyles(
         31,
       letterSpacing:
         0.1,
+      textAlign:
+        'center',
     },
     subheading: {
       color:
@@ -2121,7 +2129,9 @@ function createStyles(
       fontSize:
         12,
       marginTop:
-        2,
+        3,
+      textAlign:
+        'center',
     },
     monthHeader: {
       flexDirection:
