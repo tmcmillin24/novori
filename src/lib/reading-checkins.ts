@@ -91,6 +91,164 @@ function getClientTimezone() {
   }
 }
 
+export async function getDailyReadingCheckinBookIds(
+  localDate =
+    getLocalDateKey()
+): Promise<string[]> {
+  const {
+    data: {
+      user,
+    },
+    error:
+      authError,
+  } =
+    await supabase.auth
+      .getUser();
+
+  if (authError) {
+    throw authError;
+  }
+
+  if (!user) {
+    throw new Error(
+      'You must be signed in.'
+    );
+  }
+
+  const {
+    data:
+      checkin,
+    error:
+      checkinError,
+  } =
+    await supabase
+      .from(
+        'reading_checkins'
+      )
+      .select(
+        'id'
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .eq(
+        'local_date',
+        localDate
+      )
+      .maybeSingle();
+
+  if (checkinError) {
+    throw checkinError;
+  }
+
+  if (!checkin?.id) {
+    return [];
+  }
+
+  const {
+    data:
+      links,
+    error:
+      linksError,
+  } =
+    await supabase
+      .from(
+        'reading_checkin_books'
+      )
+      .select(
+        'user_book_id'
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .eq(
+        'checkin_id',
+        checkin.id
+      );
+
+  if (linksError) {
+    throw linksError;
+  }
+
+  const userBookIds =
+    Array.from(
+      new Set(
+        (
+          links ??
+          []
+        )
+          .map(
+            (
+              row
+            ) =>
+              String(
+                row.user_book_id ??
+                ''
+              )
+          )
+          .filter(
+            Boolean
+          )
+      )
+    );
+
+  if (
+    userBookIds.length ===
+    0
+  ) {
+    return [];
+  }
+
+  const {
+    data:
+      books,
+    error:
+      booksError,
+  } =
+    await supabase
+      .from(
+        'user_books'
+      )
+      .select(
+        'google_book_id'
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .in(
+        'id',
+        userBookIds
+      );
+
+  if (booksError) {
+    throw booksError;
+  }
+
+  return Array.from(
+    new Set(
+      (
+        books ??
+        []
+      )
+        .map(
+          (
+            row
+          ) =>
+            String(
+              row.google_book_id ??
+              ''
+            ).trim()
+        )
+        .filter(
+          Boolean
+        )
+    )
+  );
+}
+
 export async function getDailyReadingCheckinState(
   localDate =
     getLocalDateKey()
@@ -228,3 +386,53 @@ export async function ensureDailyReadingCheckin(
     checkinId
   );
 }
+
+export async function replaceDailyReadingCheckinBooks(
+  googleBookIds:
+    string[],
+  localDate =
+    getLocalDateKey()
+): Promise<void> {
+  const bookIds =
+    Array.from(
+      new Set(
+        googleBookIds
+          .map(
+            (
+              value
+            ) =>
+              value.trim()
+          )
+          .filter(
+            Boolean
+          )
+      )
+    );
+
+  if (
+    bookIds.length ===
+    0
+  ) {
+    throw new Error(
+      'Choose at least one book you read today.'
+    );
+  }
+
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      'set_daily_reading_checkin_books',
+      {
+        target_local_date:
+          localDate,
+        target_google_book_ids:
+          bookIds,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
