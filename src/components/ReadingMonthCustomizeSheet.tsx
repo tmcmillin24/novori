@@ -10,14 +10,11 @@ import {
 import {
   Animated,
   Easing,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import {
@@ -31,8 +28,8 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
-  ReadingMonthIcon,
   ReadingMonthPersonalization,
+  ReadingShelfDecor,
 } from '../lib/reading-month-personalization';
 
 type Props = {
@@ -50,83 +47,77 @@ type Props = {
     ) => Promise<void> | void;
 };
 
-const ICON_OPTIONS: Array<{
+const DECOR_OPTIONS: Array<{
   value:
-    ReadingMonthIcon;
+    ReadingShelfDecor;
   label:
     string;
+  icon:
+    keyof typeof Ionicons.glyphMap;
 }> = [
   {
     value:
-      'coffee-outline',
+      'plant',
     label:
-      'Cozy',
-  },
-  {
-    value:
-      'moon-outline',
-    label:
-      'Late night',
-  },
-  {
-    value:
-      'headset-outline',
-    label:
-      'Audiobook',
-  },
-  {
-    value:
-      'rainy-outline',
-    label:
-      'Rainy',
-  },
-  {
-    value:
-      'airplane-outline',
-    label:
-      'Travel',
-  },
-  {
-    value:
-      'paw-outline',
-    label:
-      'Pet',
-  },
-  {
-    value:
-      'heart-outline',
-    label:
-      'Romance',
-  },
-  {
-    value:
-      'sparkles-outline',
-    label:
-      'Magic',
-  },
-  {
-    value:
-      'flame-outline',
-    label:
-      'On fire',
-  },
-  {
-    value:
-      'planet-outline',
-    label:
-      'Sci-fi',
-  },
-  {
-    value:
+      'Plant',
+    icon:
       'leaf-outline',
-    label:
-      'Calm',
   },
   {
     value:
-      'book-outline',
+      'mug',
     label:
-      'Bookish',
+      'Mug',
+    icon:
+      'cafe-outline',
+  },
+  {
+    value:
+      'candle',
+    label:
+      'Candle',
+    icon:
+      'flame-outline',
+  },
+  {
+    value:
+      'moon',
+    label:
+      'Moon lamp',
+    icon:
+      'moon-outline',
+  },
+  {
+    value:
+      'headphones',
+    label:
+      'Headphones',
+    icon:
+      'headset-outline',
+  },
+  {
+    value:
+      'flowers',
+    label:
+      'Flowers',
+    icon:
+      'sparkles-outline',
+  },
+  {
+    value:
+      'cat',
+    label:
+      'Cat',
+    icon:
+      'paw-outline',
+  },
+  {
+    value:
+      'globe',
+    label:
+      'Globe',
+    icon:
+      'planet-outline',
   },
 ];
 
@@ -157,21 +148,13 @@ export default function ReadingMonthCustomizeSheet({
     useSafeAreaInsets();
 
   const [
-    icons,
-    setIcons,
+    decor,
+    setDecor,
   ] =
     useState<
-      ReadingMonthIcon[]
+      ReadingShelfDecor[]
     >(
-      value.icons
-    );
-
-  const [
-    note,
-    setNote,
-  ] =
-    useState(
-      value.note
+      value.decor
     );
 
   const [
@@ -216,22 +199,15 @@ export default function ReadingMonthCustomizeSheet({
   useEffect(
     () => {
       if (
-        !visible
+        visible
       ) {
-        return;
+        setDecor(
+          value.decor
+        );
       }
-
-      setIcons(
-        value.icons
-      );
-
-      setNote(
-        value.note
-      );
     },
     [
-      value.icons,
-      value.note,
+      value.decor,
       visible,
     ]
   );
@@ -239,10 +215,6 @@ export default function ReadingMonthCustomizeSheet({
   function animateIn() {
     closing.current =
       false;
-
-    translateY.stopAnimation();
-    sheetOpacity.stopAnimation();
-    backdropOpacity.stopAnimation();
 
     translateY.setValue(
       18
@@ -277,10 +249,6 @@ export default function ReadingMonthCustomizeSheet({
             1,
           duration:
             130,
-          easing:
-            Easing.out(
-              Easing.cubic
-            ),
           useNativeDriver:
             true,
         }
@@ -292,10 +260,6 @@ export default function ReadingMonthCustomizeSheet({
             1,
           duration:
             145,
-          easing:
-            Easing.out(
-              Easing.cubic
-            ),
           useNativeDriver:
             true,
         }
@@ -337,10 +301,6 @@ export default function ReadingMonthCustomizeSheet({
             0,
           duration:
             100,
-          easing:
-            Easing.in(
-              Easing.cubic
-            ),
           useNativeDriver:
             true,
         }
@@ -352,10 +312,6 @@ export default function ReadingMonthCustomizeSheet({
             0,
           duration:
             115,
-          easing:
-            Easing.in(
-              Easing.cubic
-            ),
           useNativeDriver:
             true,
         }
@@ -376,38 +332,38 @@ export default function ReadingMonthCustomizeSheet({
     );
   }
 
-  function toggleIcon(
-    icon:
-      ReadingMonthIcon
+  function toggleDecor(
+    item:
+      ReadingShelfDecor
   ) {
-    setIcons(
+    setDecor(
       (
         current
       ) => {
         if (
           current.includes(
-            icon
+            item
           )
         ) {
           return current.filter(
             (
-              item
+              value
             ) =>
-              item !==
-                icon
+              value !==
+                item
           );
         }
 
         if (
           current.length >=
-          4
+          3
         ) {
           return current;
         }
 
         return [
           ...current,
-          icon,
+          item,
         ];
       }
     );
@@ -426,18 +382,9 @@ export default function ReadingMonthCustomizeSheet({
       );
 
       await onSave({
-        icons,
-        note:
-          note
-            .trim()
-            .slice(
-              0,
-              80
-            ),
+        decor,
       });
 
-      closing.current =
-        false;
       onDismiss();
     } finally {
       setSaving(
@@ -453,24 +400,18 @@ export default function ReadingMonthCustomizeSheet({
           onMoveShouldSetPanResponder: (
             _event,
             gesture
-          ) => {
-            const mostlyVertical =
-              Math.abs(
-                gesture.dy
-              ) >
+          ) =>
+            visible &&
+            !saving &&
+            !closing.current &&
+            gesture.dy >
+              6 &&
+            Math.abs(
+              gesture.dy
+            ) >
               Math.abs(
                 gesture.dx
-              );
-
-            return (
-              visible &&
-              !saving &&
-              !closing.current &&
-              gesture.dy >
-                6 &&
-              mostlyVertical
-            );
-          },
+              ),
 
           onPanResponderMove: (
             _event,
@@ -502,24 +443,6 @@ export default function ReadingMonthCustomizeSheet({
               return;
             }
 
-            Animated.spring(
-              translateY,
-              {
-                toValue:
-                  0,
-                useNativeDriver:
-                  true,
-                damping:
-                  20,
-                stiffness:
-                  220,
-                mass:
-                  0.8,
-              }
-            ).start();
-          },
-
-          onPanResponderTerminate: () => {
             Animated.spring(
               translateY,
               {
@@ -578,312 +501,264 @@ export default function ReadingMonthCustomizeSheet({
           ]}
         />
 
-        <KeyboardAvoidingView
-          behavior={
-            Platform.OS ===
-            'ios'
-              ? 'padding'
-              : undefined
-          }
+        <Animated.View
+          {...panResponder.panHandlers}
+          onLayout={(
+            event
+          ) => {
+            sheetHeight.current =
+              event.nativeEvent.layout.height;
+          }}
+          style={[
+            styles.sheet,
+            {
+              paddingBottom:
+                Math.max(
+                  20,
+                  insets.bottom +
+                    10
+                ),
+              opacity:
+                sheetOpacity,
+              transform: [
+                {
+                  translateY,
+                },
+              ],
+            },
+          ]}
         >
-          <Animated.View
-            {...panResponder.panHandlers}
-            onLayout={(
+          <Pressable
+            onPress={(
               event
-            ) => {
-              sheetHeight.current =
-                event.nativeEvent.layout.height;
-            }}
-            style={[
-              styles.sheet,
-              {
-                paddingBottom:
-                  Math.max(
-                    20,
-                    insets.bottom +
-                      10
-                  ),
-                opacity:
-                  sheetOpacity,
-                transform: [
-                  {
-                    translateY,
-                  },
-                ],
-              },
-            ]}
+            ) =>
+              event.stopPropagation()
+            }
           >
-            <Pressable
-              onPress={(
-                event
-              ) =>
-                event.stopPropagation()
+            <View
+              style={
+                styles.handle
+              }
+            />
+
+            <View
+              style={
+                styles.header
               }
             >
               <View
                 style={
-                  styles.handle
-                }
-              />
-
-              <View
-                style={
-                  styles.header
+                  styles.headerIcon
                 }
               >
-                <View
-                  style={
-                    styles.headerIcon
+                <Ionicons
+                  name="library-outline"
+                  size={
+                    21
                   }
-                >
-                  <Ionicons
-                    name="sparkles-outline"
-                    size={
-                      20
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.headerCopy
-                  }
-                >
-                  <Text
-                    style={
-                      styles.title
-                    }
-                  >
-                    Make {monthLabel} yours
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.subtitle
-                    }
-                  >
-                    Pick up to four icons and leave yourself a tiny note.
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={
-                  styles.sectionHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.sectionLabel
-                  }
-                >
-                  YOUR ICONS
-                </Text>
-
-                <Text
-                  style={
-                    styles.counter
-                  }
-                >
-                  {icons.length}/4
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.iconGrid
-                }
-              >
-                {ICON_OPTIONS.map(
-                  (
-                    option
-                  ) => {
-                    const selected =
-                      icons.includes(
-                        option.value
-                      );
-
-                    const disabled =
-                      !selected &&
-                      icons.length >=
-                        4;
-
-                    return (
-                      <Pressable
-                        key={
-                          option.value
-                        }
-                        disabled={
-                          disabled
-                        }
-                        onPress={() =>
-                          toggleIcon(
-                            option.value
-                          )
-                        }
-                        style={({
-                          pressed,
-                        }) => [
-                          styles.iconChoice,
-                          selected &&
-                            styles.iconChoiceSelected,
-                          disabled &&
-                            styles.iconChoiceDisabled,
-                          pressed &&
-                            !disabled &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.iconBubble,
-                            selected &&
-                              styles.iconBubbleSelected,
-                          ]}
-                        >
-                          <Ionicons
-                            name={
-                              option.value
-                            }
-                            size={
-                              18
-                            }
-                            color={
-                              selected
-                                ? colors.gold
-                                : colors.mutedText
-                            }
-                          />
-                        </View>
-
-                        <Text
-                          style={[
-                            styles.iconLabel,
-                            selected &&
-                              styles.iconLabelSelected,
-                          ]}
-                          numberOfLines={
-                            1
-                          }
-                        >
-                          {
-                            option.label
-                          }
-                        </Text>
-                      </Pressable>
-                    );
-                  }
-                )}
-              </View>
-
-              <Text
-                style={[
-                  styles.sectionLabel,
-                  styles.noteLabel,
-                ]}
-              >
-                MONTH NOTE
-              </Text>
-
-              <View
-                style={
-                  styles.noteWrap
-                }
-              >
-                <TextInput
-                  value={
-                    note
-                  }
-                  onChangeText={
-                    setNote
-                  }
-                  maxLength={
-                    80
-                  }
-                  placeholder="Thrillers, late nights, and way too much coffee."
-                  placeholderTextColor={
-                    colors.mutedText
-                  }
-                  multiline
-                  textAlignVertical="top"
-                  style={
-                    styles.noteInput
+                  color={
+                    colors.gold
                   }
                 />
-
-                <Text
-                  style={
-                    styles.noteCount
-                  }
-                >
-                  {note.length}/80
-                </Text>
               </View>
 
               <View
                 style={
-                  styles.actions
+                  styles.headerCopy
                 }
               >
-                <Pressable
-                  disabled={
-                    saving
+                <Text
+                  style={
+                    styles.title
                   }
-                  onPress={
-                    closeSmoothly
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.cancelButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
                 >
-                  <Text
-                    style={
-                      styles.cancelText
-                    }
-                  >
-                    Cancel
-                  </Text>
-                </Pressable>
+                  Decorate your shelf
+                </Text>
 
-                <Pressable
-                  disabled={
-                    saving
+                <Text
+                  style={
+                    styles.subtitle
                   }
-                  onPress={() =>
-                    void save()
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.saveButton,
-                    (
-                      pressed ||
-                      saving
-                    ) &&
-                      styles.pressed,
-                  ]}
                 >
-                  <Text
-                    style={
-                      styles.saveText
-                    }
-                  >
-                    {saving
-                      ? 'Saving...'
-                      : 'Save Month'}
-                  </Text>
-                </Pressable>
+                  Give {monthLabel} a little personality.
+                </Text>
               </View>
-            </Pressable>
-          </Animated.View>
-        </KeyboardAvoidingView>
+            </View>
+
+            <View
+              style={
+                styles.sectionHeader
+              }
+            >
+              <Text
+                style={
+                  styles.sectionLabel
+                }
+              >
+                CHOOSE UP TO 3
+              </Text>
+
+              <Text
+                style={
+                  styles.counter
+                }
+              >
+                {decor.length}/3
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.decorGrid
+              }
+            >
+              {DECOR_OPTIONS.map(
+                (
+                  option
+                ) => {
+                  const selected =
+                    decor.includes(
+                      option.value
+                    );
+
+                  const disabled =
+                    !selected &&
+                    decor.length >=
+                      3;
+
+                  return (
+                    <Pressable
+                      key={
+                        option.value
+                      }
+                      disabled={
+                        disabled
+                      }
+                      onPress={() =>
+                        toggleDecor(
+                          option.value
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.decorChoice,
+                        selected &&
+                          styles.decorChoiceSelected,
+                        disabled &&
+                          styles.decorChoiceDisabled,
+                        pressed &&
+                          !disabled &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.decorPreview,
+                          selected &&
+                            styles.decorPreviewSelected,
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            option.icon
+                          }
+                          size={
+                            22
+                          }
+                          color={
+                            selected
+                              ? colors.gold
+                              : colors.secondaryText
+                          }
+                        />
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.decorLabel,
+                          selected &&
+                            styles.decorLabelSelected,
+                        ]}
+                      >
+                        {
+                          option.label
+                        }
+                      </Text>
+                    </Pressable>
+                  );
+                }
+              )}
+            </View>
+
+            <Text
+              style={
+                styles.helperText
+              }
+            >
+              These pieces sit beside your books on the monthly shelf.
+            </Text>
+
+            <View
+              style={
+                styles.actions
+              }
+            >
+              <Pressable
+                disabled={
+                  saving
+                }
+                onPress={
+                  closeSmoothly
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.cancelButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.cancelText
+                  }
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                disabled={
+                  saving
+                }
+                onPress={() =>
+                  void save()
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.saveButton,
+                  (
+                    pressed ||
+                    saving
+                  ) &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.saveText
+                  }
+                >
+                  {saving
+                    ? 'Saving...'
+                    : 'Save Shelf'}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -899,8 +774,6 @@ function createStyles(
         1,
       justifyContent:
         'flex-end',
-      backgroundColor:
-        'transparent',
     },
     backdropVisual: {
       backgroundColor:
@@ -909,8 +782,6 @@ function createStyles(
     sheet: {
       width:
         '100%',
-      maxHeight:
-        '88%',
       backgroundColor:
         colors.surface,
       borderTopLeftRadius:
@@ -963,8 +834,6 @@ function createStyles(
     headerCopy: {
       flex:
         1,
-      minWidth:
-        0,
     },
     title: {
       color:
@@ -981,20 +850,18 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         11.5,
-      lineHeight:
-        16,
       marginTop:
         2,
     },
     sectionHeader: {
       flexDirection:
         'row',
-      alignItems:
-        'center',
       justifyContent:
         'space-between',
+      alignItems:
+        'center',
       marginBottom:
-        8,
+        9,
     },
     sectionLabel: {
       color:
@@ -1014,7 +881,7 @@ function createStyles(
       fontSize:
         10,
     },
-    iconGrid: {
+    decorGrid: {
       flexDirection:
         'row',
       flexWrap:
@@ -1022,13 +889,13 @@ function createStyles(
       gap:
         8,
     },
-    iconChoice: {
+    decorChoice: {
       width:
         '23%',
       minHeight:
-        68,
+        78,
       borderRadius:
-        14,
+        15,
       borderWidth:
         1,
       borderColor:
@@ -1039,28 +906,26 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-      paddingHorizontal:
-        5,
-      paddingVertical:
-        8,
+      padding:
+        7,
     },
-    iconChoiceSelected: {
+    decorChoiceSelected: {
       borderColor:
         colors.gold,
       backgroundColor:
         colors.elevated,
     },
-    iconChoiceDisabled: {
+    decorChoiceDisabled: {
       opacity:
-        0.38,
+        0.35,
     },
-    iconBubble: {
+    decorPreview: {
       width:
-        31,
+        38,
       height:
-        31,
+        38,
       borderRadius:
-        11,
+        13,
       backgroundColor:
         colors.surface,
       alignItems:
@@ -1068,13 +933,13 @@ function createStyles(
       justifyContent:
         'center',
       marginBottom:
-        5,
+        6,
     },
-    iconBubbleSelected: {
+    decorPreviewSelected: {
       backgroundColor:
         colors.background,
     },
-    iconLabel: {
+    decorLabel: {
       color:
         colors.mutedText,
       fontFamily:
@@ -1084,61 +949,23 @@ function createStyles(
       textAlign:
         'center',
     },
-    iconLabelSelected: {
+    decorLabelSelected: {
       color:
         colors.gold,
       fontFamily:
         'Inter_600SemiBold',
     },
-    noteLabel: {
-      marginTop:
-        18,
-      marginBottom:
-        8,
-    },
-    noteWrap: {
-      position:
-        'relative',
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.background,
-      borderRadius:
-        15,
-      padding:
-        11,
-      paddingBottom:
-        26,
-    },
-    noteInput: {
-      minHeight:
-        58,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        12,
-      lineHeight:
-        17,
-      padding:
-        0,
-    },
-    noteCount: {
-      position:
-        'absolute',
-      right:
-        10,
-      bottom:
-        8,
+    helperText: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_500Medium',
+        'Inter_400Regular',
       fontSize:
-        9,
+        10.5,
+      lineHeight:
+        15,
+      marginTop:
+        13,
     },
     actions: {
       flexDirection:
