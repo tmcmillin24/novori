@@ -1765,6 +1765,9 @@ export default function ReadingActivityScreen() {
             displayedMonth.monthIndex
           )
         }
+        monthIndex={
+          displayedMonth.monthIndex
+        }
         onDismiss={() =>
           setCustomizeVisible(
             false
