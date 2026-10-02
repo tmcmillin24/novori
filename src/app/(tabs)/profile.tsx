@@ -2278,33 +2278,68 @@ export default function ProfileScreen() {
                         >
                           <Text
                             style={
-                              styles.activityFeedBookTitle
+                              styles.activityFeedCompactBookTitle
                             }
                             numberOfLines={1}
                           >
-                            {
-                              post.book_title
-                            }
+                            {post.book_title}
                           </Text>
 
-                          {post.book_authors?.length ? (
+                          {(post.book_authors &&
+                            post.book_authors.length >
+                              0) ||
+                          post.book_series_name ? (
                             <Text
                               style={
-                                styles.activityFeedBookAuthor
+                                styles.activityFeedCompactBookMeta
                               }
                               numberOfLines={1}
                             >
-                              {post.book_authors.join(
-                                ', '
-                              )}
+                              {post.book_authors &&
+                              post.book_authors.length >
+                                0
+                                ? post.book_authors.join(
+                                    ', '
+                                  )
+                                : ''}
+                              {post.book_authors &&
+                              post.book_authors.length >
+                                0 &&
+                              post.book_series_name
+                                ? ' · '
+                                : ''}
+                              {post.book_series_name
+                                ? `${post.book_series_name}${post.book_series_position !== null
+                                    ? ` #${post.book_series_position}`
+                                    : ''}`
+                                : ''}
                             </Text>
+                          ) : null}
+
+                          {(post.post_type ===
+                            'question' ||
+                            post.post_type ===
+                              'reading_update') &&
+                          post.book_title ? (
+                            <CanonicalBookRating
+                              googleBookId={
+                                post.google_book_id
+                              }
+                              title={
+                                post.book_title
+                              }
+                              authors={
+                                post.book_authors
+                              }
+                              compact
+                            />
                           ) : null}
                         </View>
 
                         {post.google_book_id ? (
                           <Ionicons
                             name="chevron-forward"
-                            size={17}
+                            size={15}
                             color={
                               colors.mutedText
                             }
@@ -2312,10 +2347,38 @@ export default function ProfileScreen() {
                         ) : null}
                       </Pressable>
                     ) : (
-                      <View
-                        style={
-                          styles.activityFeedBookCard
+                      <Pressable
+                        disabled={
+                          !post.google_book_id
                         }
+                        onPress={(event) => {
+                          event.stopPropagation();
+
+                          if (
+                            !post.google_book_id
+                          ) {
+                            return;
+                          }
+
+                          router.push({
+                            pathname:
+                              '/book/[id]',
+                            params: {
+                              id:
+                                post.google_book_id,
+                              source:
+                                'shared',
+                            },
+                          });
+                        }}
+                        style={({ pressed }) => [
+                          styles.activityFeedBookCard,
+                          pressed &&
+                            Boolean(
+                              post.google_book_id
+                            ) &&
+                            styles.pressed,
+                        ]}
                       >
                         {post.book_cover_url ? (
                           <ExpoImage
@@ -2340,7 +2403,7 @@ export default function ProfileScreen() {
                           >
                             <Ionicons
                               name="book-outline"
-                              size={20}
+                              size={22}
                               color={
                                 colors.gold
                               }
@@ -2353,18 +2416,40 @@ export default function ProfileScreen() {
                             styles.activityFeedBookCopy
                           }
                         >
+                          <View
+                            style={
+                              styles.activityFeedBookEyebrow
+                            }
+                          >
+                            <Ionicons
+                              name="book-outline"
+                              size={12}
+                              color={
+                                colors.gold
+                              }
+                            />
+
+                            <Text
+                              style={
+                                styles.activityFeedBookEyebrowText
+                              }
+                            >
+                              Book
+                            </Text>
+                          </View>
+
                           <Text
                             style={
                               styles.activityFeedBookTitle
                             }
                             numberOfLines={2}
                           >
-                            {
-                              post.book_title
-                            }
+                            {post.book_title}
                           </Text>
 
-                          {post.book_authors?.length ? (
+                          {post.book_authors &&
+                          post.book_authors.length >
+                            0 ? (
                             <Text
                               style={
                                 styles.activityFeedBookAuthor
@@ -2377,13 +2462,11 @@ export default function ProfileScreen() {
                             </Text>
                           ) : null}
 
-                          {(
+                          {(post.post_type ===
+                            'question' ||
                             post.post_type ===
-                              'question' ||
-                            post.post_type ===
-                              'reading_update'
-                          ) &&
-                          post.google_book_id ? (
+                              'reading_update') &&
+                          post.book_title ? (
                             <CanonicalBookRating
                               googleBookId={
                                 post.google_book_id
@@ -2392,14 +2475,46 @@ export default function ProfileScreen() {
                                 post.book_title
                               }
                               authors={
-                                post.book_authors ??
-                                []
+                                post.book_authors
                               }
-                              compact
                             />
                           ) : null}
+
+                          {post.rating ? (
+                            <View
+                              style={
+                                styles.activityFeedBookRatingRow
+                              }
+                            >
+                              <Ionicons
+                                name="star"
+                                size={13}
+                                color={
+                                  colors.gold
+                                }
+                              />
+
+                              <Text
+                                style={
+                                  styles.activityFeedBookRating
+                                }
+                              >
+                                {post.rating}
+                              </Text>
+                            </View>
+                          ) : null}
                         </View>
-                      </View>
+
+                        {post.google_book_id ? (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={17}
+                            color={
+                              colors.mutedText
+                            }
+                          />
+                        ) : null}
+                      </Pressable>
                     )
                   ) : null}
                 </View>
@@ -2511,10 +2626,24 @@ export default function ProfileScreen() {
                     </Pressable>
                   </View>
 
-                  <View
-                    style={
-                      styles.activityFeedMetric
-                    }
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      router.push({
+                        pathname:
+                          '/post/[id]',
+                        params: {
+                          id:
+                            post.id,
+                        },
+                      });
+                    }}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.activityCommentAction,
+                      pressed &&
+                        styles.pressed,
+                    ]}
                   >
                     <Ionicons
                       name="chatbubble-outline"
@@ -2523,9 +2652,10 @@ export default function ProfileScreen() {
                         colors.mutedText
                       }
                     />
+
                     <Text
                       style={
-                        styles.activityFeedMetricText
+                        styles.activityCommentActionText
                       }
                     >
                       {post.comment_count ??
@@ -2535,7 +2665,7 @@ export default function ProfileScreen() {
                         ? 'comment'
                         : 'comments'}
                     </Text>
-                  </View>
+                  </Pressable>
                 </View>
               </Pressable>
             );
