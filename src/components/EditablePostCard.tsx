@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import { FeedPostType } from '../lib/feed';
-import { supabase } from '../lib/supabase';
+import { PostComposerProfile } from '../hooks/use-post-composer-profile';
 import PostTypeIdentifier from './PostTypeIdentifier';
 import ClubDestinationImage from './ClubDestinationImage';
 
@@ -15,39 +15,15 @@ type Props = {
   clubId?: string | null;
   clubName?: string | null;
   clubCoverUrl?: string | null;
-};
-
-type Author = {
-  display_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
+  author?: PostComposerProfile | null;
 };
 
 // The feed's outer post card, with composition controls in place of post actions.
 export default function EditablePostCard({
-  children, postType, clubId = null, clubName, clubCoverUrl,
+  children, postType, clubId = null, clubName, clubCoverUrl, author,
 }: Props) {
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [author, setAuthor] = useState<Author | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function loadHeader() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data, error } = await supabase.from('profiles')
-          .select('display_name, username, avatar_url').eq('id', user.id).single();
-        if (error) throw error;
-        if (active) setAuthor(data as Author);
-      } catch (error) {
-        console.warn('Could not load post author:', error);
-      }
-    }
-    void loadHeader();
-    return () => { active = false; };
-  }, []);
 
   const displayName = author?.display_name?.trim() || author?.username?.trim() || 'You';
   const audience = clubId

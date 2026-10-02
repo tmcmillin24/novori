@@ -15,6 +15,7 @@ import { searchNovoriBooks } from '../src/lib/book-search';
 import { getMyClubs } from '../src/lib/clubs';
 
 let mockParams = {};
+let mockProfile;
 const mockRouter = { replace: jest.fn(), back: jest.fn(), push: jest.fn() };
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
@@ -27,6 +28,16 @@ jest.mock('react-native', () => ({
   Modal: ({ visible, ...props }) => visible ? require('react').createElement('Modal', props) : null,
   StyleSheet: { create: (value) => value, hairlineWidth: 1 },
   Alert: { alert: jest.fn() },
+  Keyboard: { dismiss: jest.fn() },
+  Animated: {
+    View: 'AnimatedView',
+    Value: class { setValue() {} stopAnimation() {} },
+    timing: () => ({ start: (callback) => callback?.({ finished: true }) }),
+    spring: () => ({ start: (callback) => callback?.({ finished: true }) }),
+    parallel: () => ({ start: (callback) => callback?.({ finished: true }) }),
+  },
+  Easing: { cubic: 'cubic', in: (value) => value, out: (value) => value },
+  PanResponder: { create: () => ({ panHandlers: {} }) },
   TurboModuleRegistry: { get: () => null },
   Platform: { OS: 'ios', select: (options) => options.ios ?? options.default },
   useWindowDimensions: () => ({ width: 390, height: 844 }),
@@ -34,7 +45,7 @@ jest.mock('react-native', () => ({
 jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
 jest.mock('react-native-keyboard-controller', () => ({ KeyboardAwareScrollView: 'KeyboardAwareScrollView' }));
-jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 0 }) }));
 jest.mock('../src/context/theme-context', () => ({
   useNovoriTheme: () => ({ colors: require('../src/constants/novori-theme').DARK_COLORS }),
 }));
@@ -57,7 +68,7 @@ jest.mock('../src/lib/supabase', () => ({
     auth: { getUser: () => Promise.resolve({ data: { user: { id: 'reader' } } }) },
     from: () => {
       const query = { select: () => query, eq: () => query,
-        single: () => Promise.resolve({ data: { display_name: 'Reader', username: 'reader', avatar_url: null } }) };
+        single: () => Promise.resolve({ data: mockProfile }) };
       return query;
     },
   },
@@ -75,6 +86,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockParams = {};
+  mockProfile = { display_name: 'Reader', username: 'reader', avatar_url: 'https://profiles/reader.jpg' };
   getMyClubs.mockResolvedValue([{ id: 'club-1', name: 'Our readers', cover_url: 'https://clubs/our-readers.jpg' }]);
   getUserBooks.mockResolvedValue(books);
   getBookStack.mockResolvedValue(stack);
@@ -235,7 +247,7 @@ test('Reading Update can choose a joined club and shows its cached photo', async
   getUserBooks.mockResolvedValue([books[0]]);
   await renderScreen(CreateReadingUpdateScreen);
   await press('Post to Your feed');
-  const photo = view.root.findByType('ExpoImage');
+  const photo = view.root.findAllByType('ExpoImage').find((node) => node.props.source.uri === 'https://clubs/our-readers.jpg');
   expect(photo.props.source.uri).toBe('https://clubs/our-readers.jpg');
   expect(photo.props.cachePolicy).toBe('memory-disk');
   const club = view.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.props.children === 'Our readers'));
@@ -259,4 +271,40 @@ test('Ask Readers chooses a destination above the card and publishes the display
   await press('Publish Ask Readers post');
   expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: 'What should I read next?', clubId: 'club-1', postType: 'question' }));
   expect(getMyClubs).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  ['Reading Update', CreateReadingUpdateScreen],
+  ['Ask Readers', AskReadersScreen],
+  ['Book Stack', CreateBookStackScreen],
+])('%s shows the reader photo in the selected feed bar and dropdown', async (_, Screen) => {
+  await renderScreen(Screen);
+  const picker = view.root.findByType(PostDestinationPicker);
+  expect(picker.findByType('ExpoImage').props.source.uri).toBe('https://profiles/reader.jpg');
+  await press('Post to Your feed');
+  const feedOption = button('Choose Your feed');
+  expect(feedOption.findByType('ExpoImage').props.source.uri).toBe('https://profiles/reader.jpg');
+  expect(feedOption.findByType('ExpoImage').props.cachePolicy).toBe('memory-disk');
+});
+
+test.each(['Save stack to profile without posting', 'Save and publish Book Stack'])('%s uses dismissible animated validation warnings and preserves the draft', async (action) => {
+  await renderScreen(CreateBookStackScreen);
+  await press(action);
+  expect(view.root.findAllByType('Text').some((node) => node.props.children === 'Name your stack')).toBe(true);
+  expect(view.root.findByType('Modal').props.animationType).toBe('none');
+  await act(async () => view.root.findByType('Modal').props.onShow());
+  expect(view.root.findAllByType('AnimatedView')).toHaveLength(2);
+  await press('Dismiss warning');
+  expect(view.root.findAllByType('Modal')).toHaveLength(0);
+  await fill('Stack name', 'Favorites');
+  await fill('Optional text about this stack', 'Keep this draft');
+  await press(action);
+  expect(view.root.findAllByType('Text').some((node) => node.props.children === 'A Book Stack needs at least 2 books.')).toBe(true);
+  await act(async () => view.root.findByType('Modal').props.onRequestClose());
+  expect(view.root.findAllByType('Modal')).toHaveLength(0);
+  expect(field('Stack name').props.value).toBe('Favorites');
+  expect(field('Optional text about this stack').props.value).toBe('Keep this draft');
+  expect(createBookStack).not.toHaveBeenCalled();
+  expect(createPost).not.toHaveBeenCalled();
+  expect(Alert.alert).not.toHaveBeenCalled();
 });

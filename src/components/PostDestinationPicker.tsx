@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,6 +7,7 @@ import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import { ClubWithMembership } from '../lib/clubs';
 import ClubDestinationImage from './ClubDestinationImage';
+import { PostComposerProfile } from '../hooks/use-post-composer-profile';
 
 type Props = {
   clubs: ClubWithMembership[];
@@ -14,11 +16,12 @@ type Props = {
   loading?: boolean;
   disabled?: boolean;
   onClubIdChange: (clubId: string | null) => void;
+  profile?: PostComposerProfile | null;
 };
 
 // Match Regular Post's top destination bar; the card only displays the choice.
 export default function PostDestinationPicker({
-  clubs, clubId, clubName, loading = false, disabled = false, onClubIdChange,
+  clubs, clubId, clubName, loading = false, disabled = false, onClubIdChange, profile,
 }: Props) {
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -26,6 +29,17 @@ export default function PostDestinationPicker({
   const selectedClub = clubs.find((club) => club.id === clubId);
   const title = clubId ? selectedClub?.name || clubName || 'Your club' : 'Your feed';
   const locked = loading || disabled;
+  const initial = (profile?.display_name?.trim() || profile?.username?.trim() || 'You').charAt(0).toUpperCase();
+
+  function feedPhoto(size: number) {
+    const frame = [styles.feedImage, { width: size, height: size, borderRadius: size / 2 }];
+    return profile?.avatar_url ? (
+      <Image source={{ uri: profile.avatar_url }} contentFit="cover" cachePolicy="memory-disk"
+        recyclingKey={profile.avatar_url} style={frame} accessibilityLabel="Your profile photo" />
+    ) : (
+      <View style={frame}><Text style={styles.feedInitial}>{initial}</Text></View>
+    );
+  }
 
   function selectDestination(id: string | null) {
     onClubIdChange(id);
@@ -43,11 +57,9 @@ export default function PostDestinationPicker({
         onPress={() => setExpanded((current) => !current)}
         style={({ pressed }) => [styles.bar, expanded && styles.barOpen, pressed && styles.pressed]}
       >
-        {clubId ? (
-          <View style={styles.image}>
-            <ClubDestinationImage club={selectedClub ?? { name: title, cover_url: null }} size={42} />
-          </View>
-        ) : null}
+        <View style={styles.image}>
+          {clubId ? <ClubDestinationImage club={selectedClub ?? { name: title, cover_url: null }} size={42} /> : feedPhoto(42)}
+        </View>
         <View style={styles.copy}>
           <Text style={styles.eyebrow}>POST TO</Text>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
@@ -74,11 +86,7 @@ export default function PostDestinationPicker({
                 style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}
               >
                 <View style={styles.optionImage}>
-                  {club.id ? <ClubDestinationImage club={club} size={36} /> : (
-                    <View style={styles.feedImage}>
-                      <Ionicons name="person-outline" size={18} color={colors.gold} />
-                    </View>
-                  )}
+                  {club.id ? <ClubDestinationImage club={club} size={36} /> : feedPhoto(36)}
                 </View>
                 <View style={styles.copy}>
                   <Text style={[styles.optionTitle, selected && styles.optionTitleSelected]} numberOfLines={1}>{club.name}</Text>
@@ -110,6 +118,7 @@ function createStyles(colors: NovoriColors) {
     optionSelected: { backgroundColor: colors.elevated },
     optionImage: { marginRight: 10 },
     feedImage: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
+    feedInitial: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 15 },
     optionTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
     optionTitleSelected: { color: colors.gold },
     optionSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 2 },

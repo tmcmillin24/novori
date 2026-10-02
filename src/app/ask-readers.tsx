@@ -548,7 +548,7 @@ export default function AskReadersScreen() {
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
-        <PostDestinationPicker clubs={clubs} clubId={destination.clubId} clubName={clubName} loading={loadingClubs} disabled={publishing}
+        <PostDestinationPicker clubs={clubs} clubId={destination.clubId} clubName={clubName} loading={loadingClubs} disabled={publishing} profile={viewerProfile}
           onClubIdChange={(clubId) => setDestination(clubId ? { type: 'club', clubId } : { type: 'profile', clubId: null })} />
         <View style={styles.feedPreviewCard}>
           <View style={styles.feedPreviewHeader}>

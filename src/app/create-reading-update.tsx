@@ -22,6 +22,7 @@ import CanonicalBookRating from '../components/CanonicalBookRating';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
 import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
 import {
   NovoriColors,
 } from '../constants/novori-theme';
@@ -292,6 +293,7 @@ export default function CreateReadingUpdateScreen() {
   const [postClubId, setPostClubId] = useState<string | null>(null);
   const [postClubName, setPostClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
+  const viewerProfile = usePostComposerProfile();
   const selectedClub = clubs.find((club) => club.id === postClubId);
 
   const [
@@ -756,8 +758,8 @@ export default function CreateReadingUpdateScreen() {
         showsVerticalScrollIndicator={false}
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={publishing || loadingEditPost}
-          clubId={postClubId} clubName={postClubName} onClubIdChange={setPostClubId} />
-        <EditablePostCard postType="reading_update" clubId={postClubId}
+          clubId={postClubId} clubName={postClubName} onClubIdChange={setPostClubId} profile={viewerProfile} />
+        <EditablePostCard postType="reading_update" clubId={postClubId} author={viewerProfile}
           clubName={selectedClub?.name ?? postClubName} clubCoverUrl={selectedClub?.cover_url}>
           {loading || loadingEditPost ? (
             <View style={styles.stateCard}>

@@ -12,6 +12,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -29,6 +30,8 @@ import BookStackShowcase from '../components/BookStackShowcase';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
 import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -204,6 +207,8 @@ export default function CreateBookStackScreen() {
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubName, setClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
+  const viewerProfile = usePostComposerProfile();
+  const [stackWarning, setStackWarning] = useState<{ title: string; message: string } | null>(null);
   const selectedClub = clubs.find((club) => club.id === clubId);
   const [postTextHeight, setPostTextHeight] = useState(22);
   const saveInFlight = useRef(false);
@@ -900,10 +905,8 @@ export default function CreateBookStackScreen() {
     if (
       !cleanName
     ) {
-      Alert.alert(
-        'Name your stack',
-        'Give this Book Stack a name before saving it.'
-      );
+      Keyboard.dismiss();
+      setStackWarning({ title: 'Name your stack', message: 'Give this Book Stack a name before saving it.' });
       return false;
     }
 
@@ -911,10 +914,8 @@ export default function CreateBookStackScreen() {
       items.length <
       MIN_STACK_BOOKS
     ) {
-      Alert.alert(
-        'Add more books',
-        'A Book Stack needs at least 2 books.'
-      );
+      Keyboard.dismiss();
+      setStackWarning({ title: 'Add more books', message: 'A Book Stack needs at least 2 books.' });
       return false;
     }
 
@@ -1270,9 +1271,10 @@ export default function CreateBookStackScreen() {
         showsVerticalScrollIndicator={false}
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={saving || publishing}
-          clubId={clubId} clubName={clubName} onClubIdChange={setClubId} />
+          clubId={clubId} clubName={clubName} onClubIdChange={setClubId} profile={viewerProfile} />
         <EditablePostCard
           postType="book_stack"
+          author={viewerProfile}
           clubId={clubId}
           clubName={selectedClub?.name ?? clubName}
           clubCoverUrl={selectedClub?.cover_url}
@@ -1366,6 +1368,9 @@ export default function CreateBookStackScreen() {
           )}
         </View>
       </KeyboardAwareScrollView>
+
+      <ValidationWarningSheet visible={Boolean(stackWarning)} title={stackWarning?.title ?? ''}
+        message={stackWarning?.message ?? ''} onDismiss={() => setStackWarning(null)} />
 
       <Modal
         visible={
