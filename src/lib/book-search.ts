@@ -148,7 +148,7 @@ async function fetchSharedGoogleBooksSearch(
   );
 }
 
-async function attachAuthoritativeSearchCovers(
+async function attachCatalogSearchCovers(
   books: GoogleBookSearchItem[]
 ) {
   if (
@@ -182,7 +182,7 @@ async function attachAuthoritativeSearchCovers(
 
     if (error) {
       console.warn(
-        'Could not load authoritative search covers:',
+        'Could not load catalog search covers:',
         error
       );
       return;
@@ -245,7 +245,7 @@ async function attachAuthoritativeSearchCovers(
     error
   ) {
     console.warn(
-      'Could not load authoritative search covers:',
+      'Could not load catalog search covers:',
       error
     );
   }
@@ -2807,7 +2807,7 @@ export async function searchNovoriBooks(
     )
   );
 
-  await attachAuthoritativeSearchCovers(
+  await attachCatalogSearchCovers(
     collapsed
   );
 
