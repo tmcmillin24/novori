@@ -54,7 +54,9 @@ import {
   FeedPost,
   getHomeFeed,
   getPostMutationVersion,
+  PostVoteValue,
   splitQuestionPostBody,
+  togglePostVote,
 } from '../../lib/feed';
 import {
   PROFILE_BOOK_STATUS_LABELS,
@@ -393,6 +395,14 @@ export default function ProfileScreen() {
   const [
     deletingPostId,
     setDeletingPostId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    votingPostId,
+    setVotingPostId,
   ] =
     useState<string | null>(
       null
@@ -1804,6 +1814,103 @@ export default function ProfileScreen() {
     }
   }
 
+  async function handleActivityPostVote(
+    postId: string,
+    voteValue:
+      PostVoteValue
+  ) {
+    if (
+      votingPostId ===
+      postId
+    ) {
+      return;
+    }
+
+    try {
+      setVotingPostId(
+        postId
+      );
+
+      const nextVote =
+        await togglePostVote(
+          postId,
+          voteValue
+        );
+
+      setPosts(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              post
+            ) =>
+              post.id ===
+              postId
+                ? {
+                    ...post,
+                    ...nextVote,
+                  }
+                : post
+          )
+      );
+
+      const currentPostMutationVersion =
+        getPostMutationVersion();
+
+      lastSeenPostMutationRef.current =
+        currentPostMutationVersion;
+
+      if (
+        profileSessionCache
+      ) {
+        const nextSnapshot:
+          ProfileCacheSnapshot = {
+            ...profileSessionCache.snapshot,
+            posts:
+              profileSessionCache.snapshot.posts.map(
+                (
+                  post
+                ) =>
+                  post.id ===
+                  postId
+                    ? {
+                        ...post,
+                        ...nextVote,
+                      }
+                    : post
+              ),
+            postMutationVersion:
+              currentPostMutationVersion,
+          };
+
+        profileSessionCache = {
+          ...profileSessionCache,
+          snapshot:
+            nextSnapshot,
+          postMutationVersion:
+            currentPostMutationVersion,
+        };
+
+        void writeProfileCache(
+          profileSessionCache.userId,
+          nextSnapshot
+        );
+      }
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not update post vote:',
+        error
+      );
+    } finally {
+      setVotingPostId(
+        null
+      );
+    }
+  }
+
   function renderActivityTab() {
     if (
       posts.length ===
@@ -2304,24 +2411,104 @@ export default function ProfileScreen() {
                 >
                   <View
                     style={
-                      styles.activityFeedMetric
+                      styles.activityVoteControl
                     }
                   >
-                    <Ionicons
-                      name="arrow-up-circle-outline"
-                      size={18}
-                      color={
-                        colors.mutedText
+                    <Pressable
+                      disabled={
+                        votingPostId ===
+                        post.id
                       }
-                    />
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleActivityPostVote(
+                          post.id,
+                          1
+                        );
+                      }}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.activityVoteButton,
+                        post.viewer_vote ===
+                          1 &&
+                          styles.activityVoteButtonActive,
+                        pressed &&
+                          styles.pressed,
+                        votingPostId ===
+                          post.id &&
+                          styles.activityVoteButtonDisabled,
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          post.viewer_vote ===
+                          1
+                            ? 'arrow-up-circle'
+                            : 'arrow-up-circle-outline'
+                        }
+                        size={20}
+                        color={
+                          post.viewer_vote ===
+                          1
+                            ? colors.gold
+                            : colors.mutedText
+                        }
+                      />
+                    </Pressable>
+
                     <Text
-                      style={
-                        styles.activityFeedMetricText
-                      }
+                      style={[
+                        styles.activityVoteScore,
+                        post.viewer_vote !==
+                          0 &&
+                          styles.activityVoteScoreActive,
+                      ]}
                     >
                       {post.vote_score ??
                         0}
                     </Text>
+
+                    <Pressable
+                      disabled={
+                        votingPostId ===
+                        post.id
+                      }
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleActivityPostVote(
+                          post.id,
+                          -1
+                        );
+                      }}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.activityVoteButton,
+                        post.viewer_vote ===
+                          -1 &&
+                          styles.activityVoteButtonActive,
+                        pressed &&
+                          styles.pressed,
+                        votingPostId ===
+                          post.id &&
+                          styles.activityVoteButtonDisabled,
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          post.viewer_vote ===
+                          -1
+                            ? 'arrow-down-circle'
+                            : 'arrow-down-circle-outline'
+                        }
+                        size={20}
+                        color={
+                          post.viewer_vote ===
+                          -1
+                            ? colors.gold
+                            : colors.mutedText
+                        }
+                      />
+                    </Pressable>
                   </View>
 
                   <View
@@ -4046,6 +4233,56 @@ function createStyles(
       paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 15,
+    },
+
+    activityVoteControl: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      minHeight: 36,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      paddingHorizontal: 4,
+    },
+
+    activityVoteButton: {
+      width: 30,
+      height: 34,
+      borderRadius: 17,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    activityVoteButtonActive: {
+      backgroundColor:
+        colors.surface,
+    },
+
+    activityVoteButtonDisabled: {
+      opacity: 0.5,
+    },
+
+    activityVoteScore: {
+      minWidth: 20,
+      textAlign:
+        'center',
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    activityVoteScoreActive: {
+      color:
+        colors.gold,
     },
 
     activityFeedMetric: {
