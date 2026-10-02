@@ -148,6 +148,109 @@ async function fetchSharedGoogleBooksSearch(
   );
 }
 
+async function attachAuthoritativeSearchCovers(
+  books: GoogleBookSearchItem[]
+) {
+  if (
+    books.length ===
+    0
+  ) {
+    return;
+  }
+
+  try {
+    const volumeIds =
+      books.map(
+        (
+          book
+        ) =>
+          book.id
+      );
+
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'book-cover-selection',
+        {
+          body: {
+            volumeIds,
+          },
+        }
+      );
+
+    if (error) {
+      console.warn(
+        'Could not load authoritative search covers:',
+        error
+      );
+      return;
+    }
+
+    const response =
+      data as
+        | {
+            ok?: boolean;
+            data?: {
+              covers?: Record<
+                string,
+                | string
+                | null
+              >;
+            };
+          }
+        | null;
+
+    if (
+      response?.ok !==
+      true
+    ) {
+      return;
+    }
+
+    const covers =
+      response.data
+        ?.covers ??
+      {};
+
+    for (
+      const book of
+        books
+    ) {
+      const selectedCover =
+        covers[
+          book.id
+        ]
+          ?.replace(
+            'http://',
+            'https://'
+          )
+          .trim();
+
+      if (
+        !selectedCover ||
+        !book.novoriWork
+      ) {
+        continue;
+      }
+
+      book.novoriWork = {
+        ...book.novoriWork,
+        canonicalCoverUrl:
+          selectedCover,
+      };
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not load authoritative search covers:',
+      error
+    );
+  }
+}
+
 type HardcoverSearchPopularityResponse = {
   popularity?: Record<
     string,
@@ -2702,6 +2805,10 @@ export async function searchNovoriBooks(
         };
       }
     )
+  );
+
+  await attachAuthoritativeSearchCovers(
+    collapsed
   );
 
   return collapsed;
