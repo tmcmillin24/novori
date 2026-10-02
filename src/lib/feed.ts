@@ -500,6 +500,8 @@ export async function togglePostVote(
       0
     );
 
+  bumpPostMutationVersion();
+
   return {
     upvote_count:
       Number(
