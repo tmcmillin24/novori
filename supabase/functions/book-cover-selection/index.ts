@@ -310,10 +310,6 @@ Deno.serve(
             .eq(
               'status',
               'selected'
-            )
-            .eq(
-              'locked',
-              true
             );
 
         if (selectionError) {
