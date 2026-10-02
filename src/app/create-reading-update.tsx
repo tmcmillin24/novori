@@ -656,6 +656,7 @@ export default function CreateReadingUpdateScreen() {
         thought:
           thought,
         sourceNoteId,
+        clubId: postClubId,
       });
 
       router.replace(
@@ -704,6 +705,7 @@ export default function CreateReadingUpdateScreen() {
           chapter,
           audioPosition,
           thought,
+          clubId: postClubId,
         }
       );
 
@@ -749,7 +751,7 @@ export default function CreateReadingUpdateScreen() {
         bottomOffset={20}
         showsVerticalScrollIndicator={false}
       >
-        <EditablePostCard postType="reading_update" disabled={publishing} clubId={postClubId} clubName={postClubName}>
+        <EditablePostCard postType="reading_update" disabled={publishing} clubId={postClubId} clubName={postClubName} onClubIdChange={setPostClubId}>
           {loading || loadingEditPost ? (
             <View style={styles.stateCard}>
               <ActivityIndicator color={colors.gold} />

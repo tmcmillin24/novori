@@ -663,7 +663,7 @@ export default function CreatePostScreen() {
   const profileName =
     viewerProfile?.display_name?.trim() ||
     viewerProfile?.username?.trim() ||
-    'My Profile';
+    'Your feed';
 
   const profileInitial =
     profileName
@@ -684,7 +684,7 @@ export default function CreatePostScreen() {
 
   const selectedTitle =
     profileSelected
-      ? 'My Profile'
+      ? 'Your feed'
       : selectedClub
           ?.name ??
         'Choose destination';
@@ -1400,7 +1400,7 @@ export default function CreatePostScreen() {
                           styles.dropdownTitleSelected,
                       ]}
                     >
-                      My Profile
+                      Your feed
                     </Text>
                     <Text
                       style={

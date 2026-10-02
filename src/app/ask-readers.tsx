@@ -17,6 +17,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import BookCoverImage from '../components/BookCoverImage';
+import ClubDestinationImage from '../components/ClubDestinationImage';
 import CanonicalBookRating from '../components/CanonicalBookRating';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
@@ -584,24 +585,22 @@ export default function AskReadersScreen() {
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Post to ${selectedClub?.name ?? 'your profile'}`}
-                accessibilityHint={isEditing ? undefined : 'Choose your profile or a club.'}
+                accessibilityLabel={`Post to ${selectedClub?.name ?? 'your feed'}`}
+                accessibilityHint="Choose your feed or a club."
                 accessibilityState={{
                   expanded: destinationExpanded,
-                  disabled: loadingClubs || isEditing || publishing,
+                  disabled: loadingClubs || publishing,
                 }}
-                disabled={loadingClubs || isEditing || publishing}
+                disabled={loadingClubs || publishing}
                 onPress={() => setDestinationExpanded((current) => !current)}
                 style={({ pressed }) => [
                   styles.feedPreviewAudienceRow,
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons
-                  name={selectedClub ? 'people-outline' : 'person-outline'}
-                  size={13}
-                  color={colors.gold}
-                />
+                {selectedClub ? <ClubDestinationImage club={selectedClub} size={18} /> : (
+                  <Ionicons name="person-outline" size={13} color={colors.gold} />
+                )}
                 <Text
                   style={
                     selectedClub
@@ -610,17 +609,17 @@ export default function AskReadersScreen() {
                   }
                   numberOfLines={1}
                 >
-                  {selectedClub ? `in ${selectedClub.name}` : 'Your profile'}
+                  {selectedClub ? `in ${selectedClub.name}` : 'Your feed'}
                 </Text>
                 {loadingClubs ? (
                   <ActivityIndicator size="small" color={colors.mutedText} />
-                ) : !isEditing ? (
+                ) : (
                   <Ionicons
                     name={destinationExpanded ? 'chevron-up' : 'chevron-down'}
                     size={13}
                     color={colors.mutedText}
                   />
-                ) : null}
+                )}
               </Pressable>
             </View>
           </View>
@@ -647,7 +646,7 @@ export default function AskReadersScreen() {
                 />
 
                 <Text style={styles.destinationOptionText}>
-                  Your profile
+                  Your feed
                 </Text>
 
                 {destination.type === 'profile' ? (
@@ -674,11 +673,7 @@ export default function AskReadersScreen() {
                     pressed && styles.destinationOptionPressed,
                   ]}
                 >
-                  <Ionicons
-                    name="people-outline"
-                    size={18}
-                    color={colors.gold}
-                  />
+                  <ClubDestinationImage club={club} />
 
                   <Text
                     style={styles.destinationOptionText}

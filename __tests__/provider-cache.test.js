@@ -28,7 +28,7 @@ function harness() {
       const filters = {};
       const q = {
         select: () => q, eq: (k,v) => { filters[k] = v; return q; },
-        in: () => q, or: () => q, order: () => q, limit: () => q,
+        in: () => q, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
           return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : null };

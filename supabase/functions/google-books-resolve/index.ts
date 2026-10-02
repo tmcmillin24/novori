@@ -72,6 +72,7 @@ type CacheRow = {
 };
 
 // A missing mapping can become available soon (especially for upcoming books).
+const NEGATIVE_RESOLVER_VERSION = 2;
 const NEGATIVE_FRESH_MS = 6 * 60 * 60 * 1000;
 const NEGATIVE_STALE_MS = 7 * 86400000;
 function isNegativeMapping(payload: unknown) {
@@ -80,6 +81,12 @@ function isNegativeMapping(payload: unknown) {
 }
 function boundedResolverCache(row: CacheRow): CacheRow {
   if (!isNegativeMapping(row.response_json)) return row;
+  const payload = row.response_json as { kind?: string; resolverVersion?: number };
+  // Retry only old unsuccessful identity mappings. Successful mappings and all
+  // raw provider responses retain their existing keys, expiry and cache locks.
+  if (payload.kind !== 'isbn' && payload.resolverVersion !== NEGATIVE_RESOLVER_VERSION) {
+    return { ...row, expires_at: new Date(0).toISOString(), stale_until: new Date(0).toISOString() };
+  }
   const fetched = Date.parse(row.fetched_at ?? '') || 0;
   return { ...row,
     expires_at: new Date(Math.min(Date.parse(row.expires_at), fetched + NEGATIVE_FRESH_MS)).toISOString(),
@@ -175,6 +182,11 @@ function canonicalWorkTitle(
       /\s*[:\-–—]\s*(?:a novel|the novel|special edition|deluxe edition|collector'?s edition|collectors edition|anniversary edition|movie tie[- ]?in edition|tv tie[- ]?in edition|hardcover edition|paperback edition|mass market paperback|large print edition|.*(?:series|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|#\s*\d+).*)$/i,
       ''
     );
+
+  raw = raw.replace(
+    /\s*[:\-–—]\s*(?:an?\s+)?(?:(?:gma|good morning america|reese'?s|oprah'?s|read with jenna)\s+)?book club (?:pick|selection)(?:\s*[:\-–—]\s*(?:a novel|the novel))?\s*$/i,
+    ''
+  );
 
   let title =
     normalizeTitle(
@@ -687,6 +699,18 @@ function canonicalWorkTitleForInput(
   return normalizedTitle;
 }
 
+async function findCachedVolumeIdentity(admin: SupabaseClient, title: string, author: string) {
+  // Google responses already stored by Discover/Search are enough to repair a
+  // missed mapping; this lookup never calls either upstream book provider.
+  const prefix = title.trim().replace(/[\\%_]/g, '\\$&');
+  const { data, error } = await admin.from('google_books_catalog')
+    .select('metadata').ilike('metadata->volumeInfo->>title', `${prefix}%`).limit(40);
+  if (error) throw new Error('Could not read cached book identity: ' + error.message);
+  const books = (data ?? []).map((row: { metadata: GoogleBookItem }) => row.metadata)
+    .filter((book: GoogleBookItem) => book?.id && book.volumeInfo);
+  return canonicalIdentityBook(books, title, author)?.id ?? null;
+}
+
 async function findCanonicalCatalogGoogleBookId(
   supabaseAdmin:
     SupabaseClient,
@@ -747,7 +771,7 @@ async function findCanonicalCatalogGoogleBookId(
       | undefined;
 
   if (!workId) {
-    return null;
+    return findCachedVolumeIdentity(supabaseAdmin, title, author);
   }
 
   const {
@@ -934,7 +958,7 @@ async function findCanonicalCatalogGoogleBookId(
   return (
     ranked[0]
       ?.id ??
-    null
+    await findCachedVolumeIdentity(supabaseAdmin, title, author)
   );
 }
 
@@ -1502,7 +1526,8 @@ Deno.serve(
         isFuture(
           cache.expires_at,
           now
-        )
+        ) &&
+        !isNegativeMapping(cache.response_json)
       ) {
         await recordCacheHit(
           supabaseAdmin,
@@ -1537,10 +1562,7 @@ Deno.serve(
           )
         );
 
-      if (
-        mode ===
-          'identity'
-      ) {
+      if (mode === 'identity' || mode === 'trending') {
         const catalogGoogleBookId =
           await findCanonicalCatalogGoogleBookId(
             supabaseAdmin,
@@ -1552,8 +1574,7 @@ Deno.serve(
           catalogGoogleBookId
         ) {
           const resultPayload = {
-            kind:
-              'identity',
+            kind: mode,
             googleBookId:
               catalogGoogleBookId,
           };
@@ -1596,6 +1617,12 @@ Deno.serve(
       }
 
 
+
+      if (cache && isFuture(cache.expires_at, now) && isNegativeMapping(cache.response_json)) {
+        await recordCacheHit(supabaseAdmin, requestKey, false);
+        return jsonResponse({ ok: true, status: 200, data: cache.response_json,
+          cache: { status: 'hit', googleRequestMade: false, expiresAt: cache.expires_at } });
+      }
 
       const upstreamToday =
         await getUpstreamToday(
@@ -2169,29 +2196,11 @@ Deno.serve(
                 .items ??
               [];
 
-            const exactIsbnMatch =
-              results.find(
-                (
-                  result
-                ) =>
-                  result.volumeInfo
-                    .industryIdentifiers
-                    ?.some(
-                      (
-                        identifier
-                      ) =>
-                        identifier
-                          .identifier ===
-                        isbn
-                    )
-              );
-
-            googleBookId =
-              exactIsbnMatch
-                ?.id ??
-              results[0]
-                ?.id ??
-              null;
+            const verified = results.filter((result) =>
+              canonicalWorkTitleForBook(result) === canonicalWorkTitle(title) &&
+              authorMatchesWork(author, result.volumeInfo.authors ?? [])
+            );
+            googleBookId = canonicalIdentityBook(verified, title, author)?.id ?? null;
           }
         }
 
@@ -2338,84 +2347,34 @@ Deno.serve(
                 .items ??
               [];
 
-            const wantedTitle =
-              normalizeTitle(
-                title
-              );
-
-            const exactTitle =
-              results.find(
-                (
-                  result
-                ) =>
-                  normalizeTitle(
-                    result.volumeInfo
-                      .title
-                  ) ===
-                  wantedTitle
-              );
-
-            if (exactTitle) {
-              googleBookId =
-                exactTitle.id;
-            } else {
-              const titleAndAuthor =
-                results.find(
-                  (
-                    result
-                  ) => {
-                    const resultTitle =
-                      normalizeTitle(
-                        result.volumeInfo
-                          .title
-                      );
-
-                    const resultAuthors =
-                      result.volumeInfo
-                        .authors ??
-                      [];
-
-                    const titleMatches =
-                      resultTitle.includes(
-                        wantedTitle
-                      ) ||
-                      wantedTitle.includes(
-                        resultTitle
-                      );
-
-                    const authorMatches =
-                      !author ||
-                      resultAuthors.some(
-                        (
-                          resultAuthor
-                        ) =>
-                          resultAuthor
-                            .toLowerCase()
-                            .includes(
-                              author.toLowerCase()
-                            ) ||
-                          author
-                            .toLowerCase()
-                            .includes(
-                              resultAuthor.toLowerCase()
-                            )
-                      );
-
-                    return (
-                      titleMatches &&
-                      authorMatches
-                    );
-                  }
-                );
-
-              googleBookId =
-                titleAndAuthor
-                  ?.id ??
-                results[0]
-                  ?.id ??
-                null;
-            }
+            googleBookId = canonicalIdentityBook(results, title, author)?.id ?? null;
           }
+        }
+
+        if (!googleBookId && mode === 'trending') {
+          // Google can miss a valid book when ISBN or quoted-author terms are
+          // overly restrictive. One bounded, shared-cache title search is enough.
+          const response = await googleSearch(googleApiKey, supabaseAdmin, user.id,
+            `intitle:"${title}"`, 40, true);
+          lastClaim = response.claim ?? lastClaim;
+          if (response.blocked || response.status === 429) {
+            if (staleAvailable) {
+              await recordCacheHit(supabaseAdmin, requestKey, true);
+              return jsonResponse({ ok: true, status: 200, data: cache?.response_json,
+                cache: { status: 'stale', googleRequestMade: Boolean(lastClaim?.allowed),
+                  reason: response.claim?.reason ?? 'rate_limited' } });
+            }
+            return jsonResponse({ ok: false, status: 429, error: 'Google Books rate limit reached.' });
+          }
+          if (!response.data) {
+            if (staleAvailable) {
+              await recordCacheHit(supabaseAdmin, requestKey, true);
+              return jsonResponse({ ok: true, status: 200, data: cache?.response_json,
+                cache: { status: 'stale', googleRequestMade: Boolean(lastClaim?.allowed), reason: 'provider_unavailable' } });
+            }
+            return jsonResponse({ ok: false, status: response.status, error: 'Book identity resolution is temporarily unavailable.' });
+          }
+          googleBookId = canonicalIdentityBook(response.data.items ?? [], title, author)?.id ?? null;
         }
 
         resultPayload = {
@@ -2423,6 +2382,10 @@ Deno.serve(
             mode,
           googleBookId,
         };
+      }
+
+      if (isNegativeMapping(resultPayload) && mode !== 'isbn') {
+        resultPayload.resolverVersion = NEGATIVE_RESOLVER_VERSION;
       }
 
       const {

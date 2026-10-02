@@ -8,6 +8,7 @@ import {
 
 type PublishReadingUpdateInput = {
   googleBookId: string;
+  clubId?: string | null;
   progress?: string;
   chapter?: string;
   thought?: string;
@@ -263,40 +264,29 @@ export async function publishReadingUpdate(
       parsed
     );
 
-  const {
-    data,
-    error,
-  } =
-    await supabase.rpc(
-      'publish_reading_update',
-      {
-        target_google_book_id:
-          input.googleBookId,
-        post_body:
-          body,
-        checkpoint_page_number:
-          parsed.pageNumber,
-        checkpoint_progress_percent:
-          parsed.progressPercent,
-        checkpoint_chapter:
-          chapter,
-        checkpoint_audio_position_seconds:
-          audioSeconds,
-        private_note_body:
-          thought ||
-          null,
-        source_note_id:
-          thought
-            ? input.sourceNoteId
-                ?.trim() ||
-              null
-            : null,
-      }
-    );
-
-  if (error) {
-    throw error;
+  const rpcInput = {
+    target_google_book_id: input.googleBookId,
+    post_body: body,
+    checkpoint_page_number: parsed.pageNumber,
+    checkpoint_progress_percent: parsed.progressPercent,
+    checkpoint_chapter: chapter,
+    checkpoint_audio_position_seconds: audioSeconds,
+    private_note_body: thought || null,
+    source_note_id: thought ? input.sourceNoteId?.trim() || null : null,
+  };
+  let { data, error } = await supabase.rpc('publish_reading_update_to_destination', {
+    ...rpcInput,
+    target_club_id: input.clubId ?? null,
+  });
+  // Older deployments can still publish to the feed. Never silently publish a
+  // club-bound draft to the feed if the destination-aware transaction is absent.
+  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+    if (input.clubId) {
+      throw new Error('Club publishing needs the Reading Update destination SQL update.');
+    }
+    ({ data, error } = await supabase.rpc('publish_reading_update', rpcInput));
   }
+  if (error) throw error;
 
   const postId =
     typeof data ===
@@ -437,6 +427,13 @@ export async function updateReadingUpdate(
     );
   }
 
+  if (input.clubId) {
+    const { data: membership, error: membershipError } = await supabase.from('club_members')
+      .select('club_id').eq('club_id', input.clubId).eq('user_id', user.id).maybeSingle();
+    if (membershipError) throw membershipError;
+    if (!membership) throw new Error('Join this club before posting a Reading Update there.');
+  }
+
   const {
     data,
     error,
@@ -447,6 +444,7 @@ export async function updateReadingUpdate(
       )
       .update({
         body,
+        ...('clubId' in input ? { club_id: input.clubId ?? null } : {}),
         updated_at:
           new Date()
             .toISOString(),

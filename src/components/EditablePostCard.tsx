@@ -8,6 +8,7 @@ import { ClubWithMembership, getMyClubs } from '../lib/clubs';
 import { FeedPostType } from '../lib/feed';
 import { supabase } from '../lib/supabase';
 import PostTypeIdentifier from './PostTypeIdentifier';
+import ClubDestinationImage from './ClubDestinationImage';
 
 type Props = {
   children: ReactNode;
@@ -60,9 +61,10 @@ export default function EditablePostCard({
   }, [canChooseAudience]);
 
   const displayName = author?.display_name?.trim() || author?.username?.trim() || 'You';
+  const selectedClub = clubs.find((club) => club.id === clubId);
   const audience = clubId
-    ? clubs.find((club) => club.id === clubId)?.name || clubName || 'Your club'
-    : 'Your profile';
+    ? selectedClub?.name || clubName || 'Your club'
+    : 'Your feed';
 
   return (
     <View style={styles.card}>
@@ -89,7 +91,7 @@ export default function EditablePostCard({
             onPress={() => setAudienceExpanded((current) => !current)}
             style={({ pressed }) => [styles.audience, pressed && styles.pressed]}
           >
-            <Ionicons name={clubId ? 'people-outline' : 'person-outline'} size={13} color={colors.gold} />
+            {selectedClub ? <ClubDestinationImage club={selectedClub} size={18} /> : <Ionicons name="person-outline" size={13} color={colors.gold} />}
             <Text style={styles.audienceText} numberOfLines={1}>{clubId ? `in ${audience}` : audience}</Text>
             {loadingClubs ? <ActivityIndicator size="small" color={colors.mutedText} /> : canChooseAudience ? (
               <Ionicons name={audienceExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={colors.mutedText} />
@@ -99,7 +101,7 @@ export default function EditablePostCard({
       </View>
       {audienceExpanded ? (
         <View style={styles.audienceMenu}>
-          {[{ id: null, name: 'Your profile' }, ...clubs].map((club) => (
+          {[{ id: null, name: 'Your feed', cover_url: null }, ...clubs].map((club) => (
             <Pressable
               key={club.id ?? 'profile'}
               accessibilityRole="button"
@@ -108,7 +110,7 @@ export default function EditablePostCard({
               onPress={() => { onClubIdChange?.(club.id); setAudienceExpanded(false); }}
               style={({ pressed }) => [styles.audienceOption, pressed && styles.pressed]}
             >
-              <Ionicons name={club.id ? 'people-outline' : 'person-outline'} size={18} color={colors.gold} />
+              {club.id ? <ClubDestinationImage club={club} /> : <Ionicons name="person-outline" size={18} color={colors.gold} />}
               <Text style={styles.audienceOptionText} numberOfLines={1}>{club.name}</Text>
               {clubId === club.id ? <Ionicons name="checkmark" size={18} color={colors.gold} /> : null}
             </Pressable>

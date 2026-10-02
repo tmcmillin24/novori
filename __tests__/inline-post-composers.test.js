@@ -27,6 +27,7 @@ jest.mock('react-native', () => ({
   Platform: { OS: 'ios', select: (options) => options.ios ?? options.default },
   useWindowDimensions: () => ({ width: 390, height: 844 }),
 }));
+jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
 jest.mock('react-native-keyboard-controller', () => ({ KeyboardAwareScrollView: 'KeyboardAwareScrollView' }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
@@ -46,7 +47,7 @@ jest.mock('../src/lib/book-search', () => ({
   getNovoriSearchBookCover: (book) => `https://covers/${book.id}.jpg`,
 }));
 jest.mock('../src/lib/canonical-book-covers', () => ({ resolveCanonicalBookCover: ({ googleBookId }) => Promise.resolve(`https://covers/${googleBookId}.jpg`) }));
-jest.mock('../src/lib/clubs', () => ({ getMyClubs: () => Promise.resolve([{ id: 'club-1', name: 'Our readers' }]) }));
+jest.mock('../src/lib/clubs', () => ({ getMyClubs: () => Promise.resolve([{ id: 'club-1', name: 'Our readers', cover_url: 'https://clubs/our-readers.jpg' }]) }));
 jest.mock('../src/lib/supabase', () => ({
   supabase: {
     auth: { getUser: () => Promise.resolve({ data: { user: { id: 'reader' } } }) },
@@ -119,7 +120,7 @@ test('Reading Update publishes directly with entered progress, thought and sourc
   const publish = button('Publish Reading Update').props.onPress;
   await act(async () => { publish(); publish(); });
   expect(publishReadingUpdate).toHaveBeenCalledTimes(1);
-  expect(publishReadingUpdate).toHaveBeenCalledWith({ googleBookId: 'book-a', progress: '245', chapter: '', audioPosition: '', thought: 'A great chapter', sourceNoteId: 'note-1' });
+  expect(publishReadingUpdate).toHaveBeenCalledWith({ googleBookId: 'book-a', progress: '245', chapter: '', audioPosition: '', thought: 'A great chapter', sourceNoteId: 'note-1', clubId: null });
   expect(mockRouter.replace).toHaveBeenCalledWith('/');
 });
 
@@ -140,14 +141,14 @@ test('editing an audiobook update preloads its original book and updates the exi
   await fill('Audiobook time', '2:10:05');
   await fill('Your reading update thoughts (optional)', 'Updated thought');
   await press('Save Reading Update changes');
-  expect(updateReadingUpdate).toHaveBeenCalledWith('update-1', { googleBookId: 'book-b', progress: '', chapter: '', audioPosition: '2:10:05', thought: 'Updated thought' });
+  expect(updateReadingUpdate).toHaveBeenCalledWith('update-1', { googleBookId: 'book-b', progress: '', chapter: '', audioPosition: '2:10:05', thought: 'Updated thought', clubId: null });
   expect(publishReadingUpdate).not.toHaveBeenCalled();
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
 
 test('stack Save & Post uses inline text, destination and reordered books without another screen', async () => {
   await buildNewStack('  Books I loved  ');
-  await press('Post to Your profile');
+  await press('Post to Your feed');
   const clubOption = view.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.props.children === 'Our readers'));
   await act(async () => clubOption.props.onPress());
   const firstRow = view.root.findAllByType('SortableBookStackRow')[0];
@@ -211,4 +212,19 @@ test('published stack showcases keep their read-only title and feed layout', asy
   await act(async () => { view = renderer.create(<BookStackShowcase name="Favorites" items={books} variant="feed" />); });
   expect(view.root.findAllByType('TextInput')).toHaveLength(0);
   expect(view.root.findByType('BookStackVisual').props.variant).toBe('feed');
+});
+
+
+test('Reading Update can choose a joined club and shows its cached photo', async () => {
+  getUserBooks.mockResolvedValue([books[0]]);
+  await renderScreen(CreateReadingUpdateScreen);
+  await press('Post to Your feed');
+  const photo = view.root.findByType('ExpoImage');
+  expect(photo.props.source.uri).toBe('https://clubs/our-readers.jpg');
+  expect(photo.props.cachePolicy).toBe('memory-disk');
+  const club = view.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.props.children === 'Our readers'));
+  await act(async () => club.props.onPress());
+  await fill('Current page', '123');
+  await press('Publish Reading Update');
+  expect(publishReadingUpdate).toHaveBeenCalledWith(expect.objectContaining({ clubId: 'club-1', progress: '123' }));
 });
