@@ -1850,21 +1850,28 @@ export default function ReadingRecapsScreen() {
                   showsHorizontalScrollIndicator={
                     false
                   }
-                  contentContainerStyle={
-                    styles.finishedRow
-                  }
+                  contentContainerStyle={[
+                    styles.finishedFan,
+                    finishedEvents.length <=
+                      5 &&
+                      styles.finishedFanCentered,
+                  ]}
                 >
                   {finishedEvents.map(
                     (
-                      event
+                      event,
+                      index
                     ) => (
                       <View
                         key={
                           event.id
                         }
-                        style={
-                          styles.finishedBook
-                        }
+                        style={[
+                          styles.finishedCoverWrap,
+                          index >
+                            0 &&
+                            styles.finishedCoverOverlap,
+                        ]}
                       >
                         {event.book.coverUrl ? (
                           <ExpoImage
@@ -1889,7 +1896,7 @@ export default function ReadingRecapsScreen() {
                             <Ionicons
                               name="book-outline"
                               size={
-                                22
+                                24
                               }
                               color={
                                 colors.mutedText
@@ -1898,36 +1905,38 @@ export default function ReadingRecapsScreen() {
                           </View>
                         )}
 
-                        <Text
+                        <View
                           style={
-                            styles.finishedTitle
-                          }
-                          numberOfLines={
-                            2
+                            styles.finishedBadge
                           }
                         >
-                          {
-                            event.book.title
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.finishedDate
-                          }
-                        >
-                          {
-                            formatStoryDate(
-                              localDateKeyFromIso(
-                                event.occurredAt
-                              )
-                            )
-                          }
-                        </Text>
+                          <Ionicons
+                            name="checkmark"
+                            size={
+                              11
+                            }
+                            color={
+                              colors.background
+                            }
+                          />
+                        </View>
                       </View>
                     )
                   )}
                 </ScrollView>
+
+                <Text
+                  style={
+                    styles.finishedSummary
+                  }
+                >
+                  {finishedEvents.length}{' '}
+                  {finishedEvents.length ===
+                  1
+                    ? 'book'
+                    : 'books'}{' '}
+                  completed this {mode}
+                </Text>
               </View>
             ) : null}
 
@@ -2750,27 +2759,59 @@ function createStyles(
         3,
     },
 
-    finishedRow: {
-      gap:
-        12,
+    finishedFan: {
+      minWidth:
+        '100%',
       paddingTop:
-        15,
-      paddingRight:
+        18,
+      paddingBottom:
         8,
+      paddingHorizontal:
+        18,
+      alignItems:
+        'center',
     },
 
-    finishedBook: {
-      width:
-        92,
+    finishedFanCentered: {
+      flexGrow:
+        1,
+      justifyContent:
+        'center',
+    },
+
+    finishedCoverWrap: {
+      position:
+        'relative',
+      borderRadius:
+        11,
+      shadowColor:
+        '#000000',
+      shadowOpacity:
+        0.16,
+      shadowRadius:
+        7,
+      shadowOffset: {
+        width:
+          0,
+        height:
+          4,
+      },
+      elevation:
+        3,
+    },
+
+    finishedCoverOverlap: {
+      marginLeft:
+        -22,
     },
 
     finishedCover: {
       width:
-        78,
+        82,
       height:
-        117,
+        123,
       borderRadius:
-        9,
+        10,
       backgroundColor:
         colors.elevated,
       borderWidth:
@@ -2781,11 +2822,11 @@ function createStyles(
 
     finishedCoverFallback: {
       width:
-        78,
+        82,
       height:
-        117,
+        123,
       borderRadius:
-        9,
+        10,
       backgroundColor:
         colors.elevated,
       borderWidth:
@@ -2798,28 +2839,42 @@ function createStyles(
         'center',
     },
 
-    finishedTitle: {
-      color:
-        colors.text,
-      fontSize:
+    finishedBadge: {
+      position:
+        'absolute',
+      right:
+        -5,
+      top:
+        -5,
+      width:
+        22,
+      height:
+        22,
+      borderRadius:
         11,
-      lineHeight:
-        15,
-      fontFamily:
-        'Inter_600SemiBold',
-      marginTop:
-        7,
+      backgroundColor:
+        colors.gold,
+      borderWidth:
+        2,
+      borderColor:
+        colors.background,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
     },
 
-    finishedDate: {
+    finishedSummary: {
       color:
         colors.mutedText,
       fontSize:
-        9,
+        10.5,
       fontFamily:
         'Inter_500Medium',
+      textAlign:
+        'center',
       marginTop:
-        3,
+        4,
     },
 
     continuingList: {
