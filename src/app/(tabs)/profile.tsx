@@ -2867,6 +2867,71 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
+      <Pressable
+        onPress={() =>
+          router.push(
+            '/my-reading'
+          )
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.readingHubCard,
+          pressed &&
+            styles.pressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Open My Reading"
+      >
+        <View
+          style={
+            styles.readingHubIcon
+          }
+        >
+          <Ionicons
+            name="book-outline"
+            size={
+              21
+            }
+            color={
+              colors.gold
+            }
+          />
+        </View>
+
+        <View
+          style={
+            styles.readingHubCopy
+          }
+        >
+          <Text
+            style={
+              styles.readingHubTitle
+            }
+          >
+            My Reading
+          </Text>
+
+          <Text
+            style={
+              styles.readingHubSubtitle
+            }
+          >
+            Activity · Recaps · Goals · Year
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={
+            20
+          }
+          color={
+            colors.mutedText
+          }
+        />
+      </Pressable>
+
       <View
         style={
           styles.divider
@@ -3300,6 +3365,58 @@ function createStyles(
       fontFamily:
         'Inter_600SemiBold',
       fontSize: 13,
+    },
+
+    readingHubCard: {
+      minHeight: 64,
+      marginTop: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+
+    readingHubIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        colors.elevated,
+      marginRight: 12,
+    },
+
+    readingHubCopy: {
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    readingHubTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 14,
+    },
+
+    readingHubSubtitle: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      marginTop: 3,
     },
 
     pressed: {
