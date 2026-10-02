@@ -408,6 +408,8 @@ async function resolveBookStackPreviewCover(
         'hardcover-series',
         {
           body: {
+            googleBookId:
+              detailBook.id,
             isbn:
               getStackBookPrimaryIsbn(
                 detailBook
