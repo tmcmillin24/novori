@@ -7,12 +7,14 @@ import {
 } from 'expo-router';
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   StyleSheet,
   Text,
@@ -31,8 +33,8 @@ import {
   ensureDailyReadingCheckin,
   getDailyReadingCheckinBookIds,
   getDailyReadingCheckinState,
+  getCenteredCheckinDates,
   getLocalDateKey,
-  getLocalWeekDates,
   replaceDailyReadingCheckinBooks,
 } from '../lib/reading-checkins';
 import {
@@ -120,6 +122,29 @@ export default function ProfileReadingModule({
       false
     );
 
+  const [localDate, setLocalDate] = useState(getLocalDateKey);
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout>;
+    function syncLocalDay() {
+      const now = new Date();
+      const dateKey = getLocalDateKey(now);
+      setCheckinState(previous => previous?.localDate === dateKey ? previous : null);
+      setLocalDate(dateKey);
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      clearTimeout(midnightTimer);
+      midnightTimer = setTimeout(syncLocalDay, midnight.getTime() - now.getTime() + 50);
+    }
+    syncLocalDay();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') syncLocalDay();
+    });
+    return () => {
+      clearTimeout(midnightTimer);
+      subscription.remove();
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(
       () => {
@@ -137,7 +162,7 @@ export default function ProfileReadingModule({
             );
 
             const next =
-              await getDailyReadingCheckinState();
+              await getDailyReadingCheckinState(localDate);
 
             if (
               active
@@ -179,7 +204,7 @@ export default function ProfileReadingModule({
             false;
         };
       },
-      []
+      [localDate]
     )
   );
 
@@ -231,14 +256,11 @@ export default function ProfileReadingModule({
       ]
     );
 
-  const checkinWeek =
+  const checkinDays =
     useMemo(
       () =>
-        getLocalWeekDates(),
-      [
-        checkinState
-          ?.localDate,
-      ]
+        getCenteredCheckinDates(new Date(`${localDate}T12:00:00`)),
+      [localDate]
     );
 
   const checkedDateSet =
@@ -256,9 +278,7 @@ export default function ProfileReadingModule({
     );
 
   const todayCheckinKey =
-    checkinState
-      ?.localDate ??
-    getLocalDateKey();
+    localDate;
 
   function toggleCheckinBook(
     googleBookId:
@@ -754,10 +774,9 @@ export default function ProfileReadingModule({
             styles.weekRow
           }
         >
-          {checkinWeek.map(
+          {checkinDays.map(
             (
-              item,
-              index
+              item
             ) => {
               const checked =
                 checkedDateSet.has(
@@ -786,14 +805,14 @@ export default function ProfileReadingModule({
                   >
                     {
                       [
+                        'S',
                         'M',
                         'T',
                         'W',
                         'T',
                         'F',
                         'S',
-                        'S',
-                      ][index]
+                      ][item.date.getDay()]
                     }
                   </Text>
 

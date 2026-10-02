@@ -78,6 +78,17 @@ export function getLocalWeekDates(
   );
 }
 
+export function getCenteredCheckinDates(reference = new Date()) {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(
+      reference.getFullYear(),
+      reference.getMonth(),
+      reference.getDate() + index - 3
+    );
+    return { key: getLocalDateKey(date), date };
+  });
+}
+
 function getClientTimezone() {
   try {
     return (
@@ -435,4 +446,3 @@ export async function replaceDailyReadingCheckinBooks(
     throw error;
   }
 }
-
