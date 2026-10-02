@@ -1873,9 +1873,11 @@ export default function LibraryScreen() {
           contentContainerStyle={
             styles.filterRow
           }
-          style={
-            styles.filterScroll
-          }
+          style={[
+            styles.filterScroll,
+            !searchOpen &&
+              styles.filterScrollTopSpacing,
+          ]}
           onScroll={(event) => {
             filterScrollOffsetRef.current =
               event.nativeEvent.contentOffset.x;
@@ -3445,6 +3447,11 @@ function createStyles(
 
     filterScroll: {
       marginHorizontal: -20,
+    },
+
+    filterScrollTopSpacing: {
+      marginTop:
+        12,
     },
 
     filterRow: {
