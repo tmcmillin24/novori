@@ -1966,15 +1966,29 @@ export default function ReadingRecapsScreen() {
                 >
                   {continuingJourneys.map(
                     (
-                      journey,
-                      index
-                    ) => (
-                      <View
-                        key={
-                          journey.id
-                        }
-                      >
+                      journey
+                    ) => {
+                      const motionBook =
+                        booksInMotion.find(
+                          (
+                            item
+                          ) =>
+                            item.identity ===
+                            bookIdentity(
+                              journey.book
+                            )
+                        );
+
+                      const readingDays =
+                        motionBook
+                          ?.dates.length ??
+                        0;
+
+                      return (
                         <View
+                          key={
+                            journey.id
+                          }
                           style={
                             styles.continuingBook
                           }
@@ -2002,7 +2016,7 @@ export default function ReadingRecapsScreen() {
                               <Ionicons
                                 name="book-outline"
                                 size={
-                                  19
+                                  21
                                 }
                                 color={
                                   colors.mutedText
@@ -2046,30 +2060,52 @@ export default function ReadingRecapsScreen() {
                                 }
                               </Text>
                             ) : null}
+
+                            <View
+                              style={
+                                styles.continuingMetaRow
+                              }
+                            >
+                              <View
+                                style={
+                                  styles.continuingStatus
+                                }
+                              >
+                                <View
+                                  style={
+                                    styles.continuingStatusDot
+                                  }
+                                />
+
+                                <Text
+                                  style={
+                                    styles.continuingStatusText
+                                  }
+                                >
+                                  IN MOTION
+                                </Text>
+                              </View>
+
+                              {readingDays >
+                              0 ? (
+                                <Text
+                                  style={
+                                    styles.continuingMetaText
+                                  }
+                                >
+                                  {readingDays}{' '}
+                                  {readingDays ===
+                                  1
+                                    ? 'reading day'
+                                    : 'reading days'}{' '}
+                                  this {mode}
+                                </Text>
+                              ) : null}
+                            </View>
                           </View>
-
-                          <Ionicons
-                            name="arrow-forward-outline"
-                            size={
-                              18
-                            }
-                            color={
-                              colors.gold
-                            }
-                          />
                         </View>
-
-                        {index <
-                        continuingJourneys.length -
-                          1 ? (
-                          <View
-                            style={
-                              styles.continuingDivider
-                            }
-                          />
-                        ) : null}
-                      </View>
-                    )
+                      );
+                    }
                   )}
                 </View>
               </View>
@@ -2789,6 +2825,17 @@ function createStyles(
     continuingList: {
       marginTop:
         15,
+      gap:
+        10,
+    },
+
+    continuingBook: {
+      minHeight:
+        102,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
       borderRadius:
         17,
       borderWidth:
@@ -2797,30 +2844,17 @@ function createStyles(
         colors.border,
       backgroundColor:
         colors.surface,
-      overflow:
-        'hidden',
-    },
-
-    continuingBook: {
-      minHeight:
-        86,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal:
-        13,
-      paddingVertical:
-        10,
+      padding:
+        12,
     },
 
     continuingCover: {
       width:
-        42,
+        52,
       height:
-        63,
+        78,
       borderRadius:
-        6,
+        8,
       backgroundColor:
         colors.elevated,
       borderWidth:
@@ -2831,11 +2865,11 @@ function createStyles(
 
     continuingCoverFallback: {
       width:
-        42,
+        52,
       height:
-        63,
+        78,
       borderRadius:
-        6,
+        8,
       backgroundColor:
         colors.elevated,
       borderWidth:
@@ -2851,17 +2885,19 @@ function createStyles(
     continuingCopy: {
       flex:
         1,
-      paddingHorizontal:
-        11,
+      paddingLeft:
+        13,
+      paddingRight:
+        4,
     },
 
     continuingTitle: {
       color:
         colors.text,
       fontSize:
-        14,
+        15.5,
       lineHeight:
-        19,
+        20,
       fontFamily:
         'PlayfairDisplay_700Bold',
     },
@@ -2871,19 +2907,73 @@ function createStyles(
         colors.mutedText,
       fontSize:
         10.5,
+      lineHeight:
+        15,
       fontFamily:
         'Inter_400Regular',
       marginTop:
         3,
     },
 
-    continuingDivider: {
-      height:
-        1,
+    continuingMetaRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      flexWrap:
+        'wrap',
+      gap:
+        8,
+      marginTop:
+        10,
+    },
+
+    continuingStatus: {
+      minHeight:
+        23,
+      borderRadius:
+        999,
       backgroundColor:
-        colors.border,
-      marginLeft:
-        66,
+        colors.elevated,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      paddingHorizontal:
+        8,
+    },
+
+    continuingStatusDot: {
+      width:
+        5,
+      height:
+        5,
+      borderRadius:
+        3,
+      backgroundColor:
+        colors.gold,
+    },
+
+    continuingStatusText: {
+      color:
+        colors.gold,
+      fontSize:
+        8.5,
+      letterSpacing:
+        0.7,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    continuingMetaText: {
+      color:
+        colors.secondaryText,
+      fontSize:
+        9.5,
+      fontFamily:
+        'Inter_500Medium',
     },
 
     activityLink: {
