@@ -182,6 +182,7 @@ type ProfileCacheSnapshot = {
   posts: FeedPost[];
   clubs: ClubWithMembership[];
   stacks: BookStack[];
+  postMutationVersion: number;
 };
 
 let profileSessionCache:
@@ -730,7 +731,9 @@ export default function ProfileScreen() {
             cached.followingCount
           );
           if (
-            !postsChanged
+            !postsChanged &&
+            cached.postMutationVersion ===
+              currentPostMutationVersion
           ) {
             setPosts(
               cached.posts
@@ -926,6 +929,8 @@ export default function ProfileScreen() {
                 publicClubs,
               stacks:
                 savedStacks,
+              postMutationVersion:
+                currentPostMutationVersion,
             };
 
           if (
@@ -1755,6 +1760,8 @@ export default function ProfileScreen() {
                   item.id !==
                   post.id
               ),
+            postMutationVersion:
+              currentPostMutationVersion,
           };
 
         profileSessionCache = {
