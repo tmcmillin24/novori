@@ -2348,7 +2348,7 @@ export default function ProfileScreen() {
                         </Text>
                       ) : null}
                     </>
-                  ) : (
+                  ) : post.body.trim() ? (
                     <Text
                       style={
                         styles.activityFeedBody
@@ -2356,7 +2356,7 @@ export default function ProfileScreen() {
                     >
                       {post.body}
                     </Text>
-                  )}
+                  ) : null}
 
                   {post.post_type ===
                     'book_stack' &&
@@ -2364,6 +2364,9 @@ export default function ProfileScreen() {
                     <BookStackPostAttachment
                       stackId={
                         post.book_stack_id
+                      }
+                      compactTopSpacing={
+                        !post.body.trim()
                       }
                     />
                   ) : null}
