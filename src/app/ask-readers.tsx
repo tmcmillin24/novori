@@ -1216,6 +1216,11 @@ export default function AskReadersScreen() {
                       existingCoverUrl={
                         canonicalCover
                       }
+                      preferExistingCover={
+                        Boolean(
+                          canonicalCover
+                        )
+                      }
                       style={
                         styles.resultCover
                       }
