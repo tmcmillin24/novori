@@ -26,6 +26,8 @@ import {
 
 import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
+import EditablePostCard from '../components/EditablePostCard';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import SortableBookStackRow, {
   StackDropEdge,
 } from '../components/SortableBookStackRow';
@@ -91,7 +93,7 @@ function getStackBookPrimaryIsbn(
   );
 }
 
-async function resolveBookStackPreviewCover(book: GoogleBookSearchItem, initialCover: string | null) {
+async function resolveBookStackCover(book: GoogleBookSearchItem, initialCover: string | null) {
   return resolveCanonicalBookCover({
     googleBookId: book.id,
     isbn: getStackBookPrimaryIsbn(book),
@@ -197,11 +199,9 @@ export default function CreateBookStackScreen() {
   ] =
     useState(false);
 
-  const [
-    previewing,
-    setPreviewing,
-  ] =
-    useState(false);
+  const [clubId, setClubId] = useState<string | null>(null);
+  const [clubName, setClubName] = useState<string | null>(null);
+  const saveInFlight = useRef(false);
 
   const [
     postText,
@@ -331,13 +331,8 @@ export default function CreateBookStackScreen() {
             ''
         );
 
-        if (
-          editPostId
-        ) {
-          setPreviewing(
-            true
-          );
-        }
+        setClubId(post?.club_id ?? null);
+        setClubName(post?.club_name ?? null);
       } catch (
         error
       ) {
@@ -623,7 +618,7 @@ export default function CreateBookStackScreen() {
 
     try {
       finalCover =
-        await resolveBookStackPreviewCover(
+        await resolveBookStackCover(
           book,
           initialCover
         );
@@ -921,25 +916,9 @@ export default function CreateBookStackScreen() {
     return true;
   }
 
-  async function saveStack(
-    openPreview:
-      boolean
-  ) {
-    if (
-      saving ||
-      !validateStack()
-    ) {
-      return;
-    }
-
-    if (
-      openPreview
-    ) {
-      setPreviewing(
-        true
-      );
-      return;
-    }
+  async function saveStack() {
+    if (saveInFlight.current || !validateStack()) return;
+    saveInFlight.current = true;
 
     try {
       setSaving(true);
@@ -963,6 +942,7 @@ export default function CreateBookStackScreen() {
                 postText.trim(),
               allowEmptyBody:
                 true,
+              clubId,
             }
           );
 
@@ -999,17 +979,14 @@ export default function CreateBookStackScreen() {
           : 'Please try again.'
       );
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   }
 
   async function publishStack() {
-    if (
-      publishing ||
-      !validateStack()
-    ) {
-      return;
-    }
+    if (saveInFlight.current || !validateStack()) return;
+    saveInFlight.current = true;
 
     let createdStackId:
       string | null =
@@ -1040,6 +1017,7 @@ export default function CreateBookStackScreen() {
                 postText.trim(),
               allowEmptyBody:
                 true,
+              clubId,
             }
           );
         } else {
@@ -1048,6 +1026,7 @@ export default function CreateBookStackScreen() {
               postText.trim(),
             postType:
               'book_stack',
+            clubId,
             bookStackId:
               stack.id,
           });
@@ -1067,6 +1046,7 @@ export default function CreateBookStackScreen() {
             postText.trim(),
           postType:
             'book_stack',
+          clubId,
           bookStackId:
             stack.id,
         });
@@ -1128,13 +1108,14 @@ export default function CreateBookStackScreen() {
           : message
       );
     } finally {
+      saveInFlight.current = false;
       setPublishing(
         false
       );
     }
   }
 
-  const previewDraftItems =
+  const arrangedItems =
     draggingBookId &&
     dragTargetIndex !==
       null
@@ -1179,7 +1160,7 @@ export default function CreateBookStackScreen() {
       : items;
 
   const visualItems =
-    previewDraftItems.map(
+    arrangedItems.map(
       (
         item,
         index
@@ -1232,307 +1213,6 @@ export default function CreateBookStackScreen() {
     );
   }
 
-  if (
-    previewing
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-      >
-        <View
-          style={
-            styles.header
-          }
-        >
-          <Pressable
-            onPress={() => {
-              if (
-                isEditing &&
-                editPostId
-              ) {
-                router.back();
-                return;
-              }
-
-              setPreviewing(
-                false
-              );
-            }}
-            hitSlop={10}
-            style={
-              styles.headerButton
-            }
-          >
-            <Ionicons
-              name="chevron-back"
-              size={24}
-              color={
-                colors.text
-              }
-            />
-          </Pressable>
-
-          <Text
-            style={
-              styles.headerTitle
-            }
-          >
-            {isEditing &&
-            editPostId
-              ? 'Edit Book Stack'
-              : isEditing
-              ? 'Edit Preview'
-              : 'Preview'}
-          </Text>
-
-          <View
-            style={
-              styles.headerButton
-            }
-          />
-        </View>
-
-        <ScrollView
-          contentContainerStyle={
-            styles.previewContent
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
-        >
-          <View
-            style={
-              styles.previewEyebrowRow
-            }
-          >
-            <View
-              style={
-                styles.previewAccent
-              }
-            />
-
-            <Ionicons
-              name="albums-outline"
-              size={14}
-              color={
-                colors.gold
-              }
-            />
-
-            <Text
-              style={
-                styles.previewEyebrow
-              }
-            >
-              BOOK STACK
-            </Text>
-          </View>
-
-          {isEditing &&
-          editPostId ? (
-            <TextInput
-              value={
-                name
-              }
-              onChangeText={
-                setName
-              }
-              placeholder="Name your stack"
-              placeholderTextColor={
-                colors.mutedText
-              }
-              maxLength={80}
-              style={[
-                styles.previewName,
-                styles.previewNameInput,
-              ]}
-            />
-          ) : (
-            <Text
-              style={
-                styles.previewName
-              }
-            >
-              Feed Preview
-            </Text>
-          )}
-
-          <TextInput
-            value={
-              postText
-            }
-            onChangeText={
-              setPostText
-            }
-            placeholder="Say something about this stack…"
-            placeholderTextColor={
-              colors.mutedText
-            }
-            multiline
-            maxLength={4000}
-            style={
-              styles.postInput
-            }
-          />
-
-          <BookStackShowcase
-            name={
-              name.trim() ||
-              'Untitled Book Stack'
-            }
-            items={
-              visualItems
-            }
-            variant="feed"
-          />
-
-          {isEditing &&
-          editPostId ? (
-            <Pressable
-              onPress={() =>
-                setPreviewing(
-                  false
-                )
-              }
-              style={({ pressed }) => [
-                styles.manageBooksButton,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="albums-outline"
-                size={17}
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.manageBooksButtonText
-                }
-              >
-                Manage books
-              </Text>
-
-              <Text
-                style={
-                  styles.manageBooksCount
-                }
-              >
-                {items.length}/{MAX_STACK_BOOKS}
-              </Text>
-
-              <Ionicons
-                name="chevron-forward"
-                size={17}
-                color={
-                  colors.mutedText
-                }
-              />
-            </Pressable>
-          ) : null}
-
-          <View
-            style={
-              styles.previewMeta
-            }
-          >
-            <Text
-              style={
-                styles.previewMetaText
-              }
-            >
-              {isEditing &&
-              editPostId
-                ? 'Edit the card above, then save your changes.'
-                : 'This stack will be saved to your profile when you publish.'}
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.previewHint
-            }
-          >
-            <Ionicons
-              name="eye-outline"
-              size={17}
-              color={
-                colors.gold
-              }
-            />
-
-            <Text
-              style={
-                styles.previewHintText
-              }
-            >
-              {isEditing &&
-              editPostId
-                ? 'The card above is the post readers will see.'
-                : 'This is how your Book Stack will be introduced in the feed.'}
-            </Text>
-          </View>
-        </ScrollView>
-
-        <View
-          style={
-            styles.previewFooter
-          }
-        >
-          <Pressable
-            disabled={
-              publishing
-            }
-            onPress={() =>
-              void publishStack()
-            }
-            style={({ pressed }) => [
-              styles.publishButton,
-              pressed &&
-                styles.pressed,
-              publishing &&
-                styles.disabled,
-            ]}
-          >
-            {publishing ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.background
-                }
-              />
-            ) : (
-              <>
-                <Text
-                  style={
-                    styles.publishButtonText
-                  }
-                >
-                  {isEditing
-                    ? 'Save Changes'
-                    : 'Publish'}
-                </Text>
-
-                <Ionicons
-                  name="arrow-up-circle"
-                  size={19}
-                  color={
-                    colors.background
-                  }
-                />
-              </>
-            )}
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView
       style={
@@ -1567,7 +1247,7 @@ export default function CreateBookStackScreen() {
             styles.headerTitle
           }
         >
-          Book Stack
+          {isEditing ? 'Edit Book Stack' : 'Book Stack'}
         </Text>
 
         <View
@@ -1577,425 +1257,106 @@ export default function CreateBookStackScreen() {
         />
       </View>
 
-      <ScrollView
-        contentContainerStyle={
-          styles.content
-        }
-        scrollEnabled={
-          !draggingBookId
-        }
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.content}
+        scrollEnabled={!draggingBookId}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={
-          false
-        }
+        bottomOffset={24}
+        showsVerticalScrollIndicator={false}
       >
-        <View
-          style={
-            styles.intro
-          }
+        <EditablePostCard
+          postType="book_stack"
+          disabled={saving || publishing}
+          clubId={clubId}
+          clubName={clubName}
+          onClubIdChange={setClubId}
         >
-          <Text
-            style={
-              styles.eyebrow
-            }
-          >
-            BUILD A STACK
-          </Text>
-
-          <Text
-            style={
-              styles.title
-            }
-          >
-            Put your books together your way.
-          </Text>
-
-          <Text
-            style={
-              styles.subtitle
-            }
-          >
-            Pick 2–10 books, arrange the order, then save it to your profile or turn it into a post.
-          </Text>
-        </View>
-
-        <View
-          style={
-            styles.nameSection
-          }
-        >
-          <Text
-            style={
-              styles.sectionLabel
-            }
-          >
-            STACK NAME
-          </Text>
-
           <TextInput
-            value={
-              name
-            }
-            onChangeText={
-              setName
-            }
-            placeholder="e.g. Books I'd read again for the first time"
-            placeholderTextColor={
-              colors.mutedText
-            }
-            maxLength={80}
-            style={
-              styles.nameInput
-            }
+            accessibilityLabel="Optional text about this stack"
+            editable={!saving && !publishing}
+            value={postText}
+            onChangeText={setPostText}
+            placeholder="Say something about this stack… (optional)"
+            placeholderTextColor={colors.mutedText}
+            multiline
+            maxLength={4000}
+            style={styles.postInput}
           />
-
-          <Text
-            style={
-              styles.characterCount
-            }
+          <BookStackShowcase
+            name={name}
+            onNameChange={setName}
+            disabled={saving || publishing}
+            items={visualItems}
+            variant="feed"
           >
-            {name.length}/80
-          </Text>
-        </View>
-
-        <View
-          style={
-            styles.visualSection
-          }
-        >
-          <View
-            style={
-              styles.sectionHeaderRow
-            }
-          >
-            <View>
-              <Text
-                style={
-                  styles.sectionLabel
-                }
+            <View style={styles.cardStackControls} pointerEvents={saving || publishing ? 'none' : 'auto'}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add books to stack"
+                disabled={items.length >= MAX_STACK_BOOKS || saving || publishing}
+                onPress={openBookSearch}
+                style={({ pressed }) => [styles.addBookButton, items.length >= MAX_STACK_BOOKS && styles.disabled, pressed && styles.pressed]}
               >
-                YOUR STACK
-              </Text>
-
-              <Text
-                style={
-                  styles.sectionSubtext
-                }
-              >
-                First book is the featured cover.
-              </Text>
+                <Ionicons name="add" size={18} color={colors.gold} />
+                <Text style={styles.addBookText}>Add Books</Text>
+                <Text style={styles.cardBookCount}>{items.length}/{MAX_STACK_BOOKS}</Text>
+              </Pressable>
+              {items.length > 0 ? (
+                <>
+                  <Text style={styles.sectionSubtext}>Hold the grip to rearrange. The first book is the featured cover.</Text>
+                  <View style={styles.arrangeList}>
+                    {items.map((item, index) => (
+                      <SortableBookStackRow
+                        key={item.googleBookId}
+                        item={item}
+                        index={index}
+                        isDragging={draggingBookId === item.googleBookId}
+                        dropEdge={dragTargetIndex === index ? dragTargetEdge : null}
+                        onDragStart={startBookDrag}
+                        onDragMove={moveBookDrag}
+                        onDragEnd={endBookDrag}
+                        onRemove={() => removeBook(index)}
+                        colors={colors}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : null}
             </View>
-
-            <Text
-              style={
-                styles.bookCount
-              }
-            >
-              {items.length}/
-              {MAX_STACK_BOOKS}
-            </Text>
-          </View>
-
-          {items.length >
-          0 ? (
-            <>
-              <BookStackShowcase
-                name={
-                  name.trim() ||
-                  'Untitled Book Stack'
-                }
-                items={
-                  visualItems
-                }
-                variant="builder"
-              />
-            </>
-          ) : (
+          </BookStackShowcase>
+        </EditablePostCard>
+        <View style={styles.actionSection}>
+          {editPostId ? null : (
             <Pressable
-              onPress={() =>
-                openBookSearch()
-              }
-              style={({ pressed }) => [
-                styles.emptyStack,
-                pressed &&
-                  styles.pressed,
-              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Save stack to profile without posting"
+              disabled={saving || publishing}
+              onPress={() => void saveStack()}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed, (saving || publishing) && styles.disabled]}
             >
-              <View
-                style={
-                  styles.emptyStackIcon
-                }
-              >
-                <Ionicons
-                  name="albums-outline"
-                  size={31}
-                  color={
-                    colors.gold
-                  }
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.emptyStackTitle
-                }
-              >
-                Start with a book
-              </Text>
-
-              <Text
-                style={
-                  styles.emptyStackText
-                }
-              >
-                Your covers will overlap here as the stack grows.
-              </Text>
+              {saving ? <ActivityIndicator size="small" color={colors.gold} /> : <Ionicons name="person-outline" size={18} color={colors.gold} />}
+              <Text style={styles.secondaryButtonText}>{isEditing ? 'Save Stack' : 'Save to Profile'}</Text>
             </Pressable>
           )}
-
           <Pressable
-            disabled={
-              items.length >=
-              MAX_STACK_BOOKS
-            }
-            onPress={
-              openBookSearch
-            }
-            style={({ pressed }) => [
-              styles.addBookButton,
-              items.length >=
-                MAX_STACK_BOOKS &&
-                styles.disabled,
-              pressed &&
-                styles.pressed,
-            ]}
+            accessibilityRole="button"
+            accessibilityLabel={editPostId ? 'Save Book Stack post changes' : 'Save and publish Book Stack'}
+            disabled={saving || publishing}
+            onPress={() => void publishStack()}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, (saving || publishing) && styles.disabled]}
           >
-            <Ionicons
-              name="add"
-              size={18}
-              color={
-                colors.gold
-              }
-            />
-
-            <Text
-              style={
-                styles.addBookText
-              }
-            >
-              Add Books
-            </Text>
-          </Pressable>
-        </View>
-
-        {items.length >
-        0 ? (
-          <View
-            style={
-              styles.arrangeSection
-            }
-          >
-            <Text
-              style={
-                styles.sectionLabel
-              }
-            >
-              ARRANGE
-            </Text>
-
-            <Text
-              style={
-                styles.sectionSubtext
-              }
-            >
-              Hold the grip, then drag up or down. The stack preview updates as you move.
-            </Text>
-
-            <View
-              style={
-                styles.arrangeList
-              }
-            >
-              {items.map(
-                (
-                  item,
-                  index
-                ) => (
-                  <SortableBookStackRow
-                    key={
-                      item.googleBookId
-                    }
-                    item={
-                      item
-                    }
-                    index={
-                      index
-                    }
-                    isDragging={
-                      draggingBookId ===
-                      item.googleBookId
-                    }
-                    dropEdge={
-                      dragTargetIndex ===
-                        index
-                        ? dragTargetEdge
-                        : null
-                    }
-                    onDragStart={
-                      startBookDrag
-                    }
-                    onDragMove={
-                      moveBookDrag
-                    }
-                    onDragEnd={
-                      endBookDrag
-                    }
-                    onRemove={() =>
-                      removeBook(
-                        index
-                      )
-                    }
-                    colors={
-                      colors
-                    }
-                  />
-                )
-              )}
-            </View>
-          </View>
-        ) : null}
-
-        {isEditing &&
-        editPostId ? (
-          <View
-            style={
-              styles.actionSection
-            }
-          >
-            <Pressable
-              onPress={() =>
-                setPreviewing(
-                  true
-                )
-              }
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Text
-                style={
-                  styles.primaryButtonText
-                }
-              >
-                Back to Post Card
-              </Text>
-
-              <Ionicons
-                name="arrow-forward"
-                size={18}
-                color={
-                  colors.background
-                }
-              />
-            </Pressable>
-          </View>
-        ) : (
-        <View
-          style={
-            styles.actionSection
-          }
-        >
-          <Pressable
-            disabled={
-              saving
-            }
-            onPress={() =>
-              void saveStack(
-                false
-              )
-            }
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed &&
-                styles.pressed,
-              saving &&
-                styles.disabled,
-            ]}
-          >
-            <Ionicons
-              name="person-outline"
-              size={18}
-              color={
-                colors.gold
-              }
-            />
-
-            <Text
-              style={
-                styles.secondaryButtonText
-              }
-            >
-              Save to Profile
-            </Text>
-          </Pressable>
-
-          <Pressable
-            disabled={
-              saving
-            }
-            onPress={() =>
-              void saveStack(
-                true
-              )
-            }
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed &&
-                styles.pressed,
-              saving &&
-                styles.disabled,
-            ]}
-          >
-            {saving ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.background
-                }
-              />
-            ) : (
+            {publishing ? <ActivityIndicator size="small" color={colors.background} /> : (
               <>
-                <Text
-                  style={
-                    styles.primaryButtonText
-                  }
-                >
-                  Save & Post
-                </Text>
-
-                <Ionicons
-                  name="arrow-forward"
-                  size={18}
-                  color={
-                    colors.background
-                  }
-                />
+                <Text style={styles.primaryButtonText}>{editPostId ? 'Save Changes' : 'Save & Post'}</Text>
+                <Ionicons name={editPostId ? 'checkmark' : 'send-outline'} size={18} color={colors.background} />
               </>
             )}
           </Pressable>
-
-          <Text
-            style={
-              styles.actionHint
-            }
-          >
-            Save to Profile skips the preview. Save & Post takes you to a feed preview before publishing.
-          </Text>
+          {editPostId ? null : (
+            <Text style={styles.actionHint}>Save to Profile keeps the stack without a post. Save & Post shares the card above.</Text>
+          )}
         </View>
-        )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal
         visible={
@@ -2364,6 +1725,8 @@ function createStyles(
   colors: NovoriColors
 ) {
   return StyleSheet.create({
+    cardStackControls: { paddingHorizontal: 14, paddingBottom: 14 },
+    cardBookCount: { marginLeft: 'auto', color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 11 },
     safeArea: {
       flex: 1,
       backgroundColor:
@@ -2413,52 +1776,6 @@ function createStyles(
       paddingBottom: 46,
     },
 
-    intro: {
-      marginBottom: 26,
-    },
-
-    eyebrow: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 10,
-      letterSpacing: 1.5,
-    },
-
-    title: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize: 29,
-      lineHeight: 35,
-      marginTop: 8,
-    },
-
-    subtitle: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 13,
-      lineHeight: 20,
-      marginTop: 8,
-    },
-
-    nameSection: {
-      marginBottom: 26,
-    },
-
-    sectionLabel: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 10,
-      letterSpacing: 1.15,
-    },
-
     sectionSubtext: {
       color:
         colors.mutedText,
@@ -2466,153 +1783,6 @@ function createStyles(
         'Inter_400Regular',
       fontSize: 11,
       marginTop: 4,
-    },
-
-    nameInput: {
-      minHeight: 52,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 14,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        colors.border,
-      paddingVertical: 12,
-      marginTop: 6,
-    },
-
-    characterCount: {
-      alignSelf:
-        'flex-end',
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 9,
-      marginTop: 5,
-    },
-
-    visualSection: {
-      marginBottom: 28,
-    },
-
-    sectionHeaderRow: {
-      flexDirection:
-        'row',
-      justifyContent:
-        'space-between',
-      alignItems:
-        'flex-start',
-    },
-
-    bookCount: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 11,
-    },
-
-    stackPreview: {
-      minHeight: 245,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginTop: 16,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-      paddingTop: 18,
-      paddingBottom: 10,
-    },
-
-    featuredSummary: {
-      alignItems:
-        'center',
-      paddingTop: 10,
-      paddingBottom: 7,
-    },
-
-    featuredSummaryLabel: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 5,
-    },
-
-    featuredSummaryEyebrow: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 8.5,
-      letterSpacing: 0.85,
-    },
-
-    featuredSummaryTitle: {
-      maxWidth: 250,
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 11,
-      marginTop: 5,
-      textAlign:
-        'center',
-    },
-
-    emptyStack: {
-      minHeight: 210,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginTop: 14,
-      borderWidth: 1,
-      borderStyle:
-        'dashed',
-      borderColor:
-        colors.border,
-      borderRadius: 18,
-      padding: 20,
-    },
-
-    emptyStackIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 18,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-
-    emptyStackTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_600SemiBold',
-      fontSize: 18,
-      marginTop: 13,
-    },
-
-    emptyStackText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 12,
-      textAlign:
-        'center',
-      marginTop: 6,
     },
 
     addBookButton: {
@@ -2641,90 +1811,12 @@ function createStyles(
       fontSize: 12,
     },
 
-    arrangeSection: {
-      marginBottom: 30,
-    },
-
     arrangeList: {
       marginTop: 12,
       borderTopWidth:
         StyleSheet.hairlineWidth,
       borderTopColor:
         colors.border,
-    },
-
-    arrangeRow: {
-      minHeight: 70,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomColor:
-        colors.border,
-      paddingVertical: 9,
-    },
-
-    arrangeCover: {
-      width: 36,
-      height: 54,
-      borderRadius: 5,
-      backgroundColor:
-        colors.elevated,
-      marginRight: 10,
-    },
-
-    arrangeCoverFallback: {
-      width: 36,
-      height: 54,
-      borderRadius: 5,
-      backgroundColor:
-        colors.elevated,
-      marginRight: 10,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-
-    arrangeCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-
-    arrangeTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 12,
-    },
-
-    arrangeAuthor: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 10,
-      marginTop: 4,
-    },
-
-    arrangeControls: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 3,
-    },
-
-    arrangeControl: {
-      width: 30,
-      height: 30,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
     },
 
     actionSection: {
@@ -2994,260 +2086,14 @@ function createStyles(
       marginTop: 7,
     },
 
-    previewContent: {
-      width: '100%',
-      maxWidth: 720,
-      alignSelf:
-        'center',
-      paddingHorizontal: 20,
-      paddingTop: 24,
-      paddingBottom: 110,
-    },
-
-    previewEyebrowRow: {
-      alignSelf:
-        'flex-start',
-      minHeight: 27,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 6,
-      borderWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
-      borderRadius: 999,
-      paddingRight: 10,
-      overflow:
-        'hidden',
-    },
-
-    previewAccent: {
-      width: 2,
-      alignSelf:
-        'stretch',
-      backgroundColor:
-        colors.gold,
-    },
-
-    previewEyebrow: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 9.5,
-      letterSpacing: 0.9,
-    },
-
-    previewName: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize: 25,
-      lineHeight: 31,
-      marginTop: 14,
-    },
-
-    previewNameInput: {
-      padding: 0,
-      paddingVertical: 0,
-      borderWidth: 0,
-      backgroundColor:
-        'transparent',
-    },
-
-    manageBooksButton: {
-      minHeight: 46,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 8,
-      marginTop: 12,
-      paddingHorizontal: 12,
-      borderWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-      borderRadius: 14,
-      backgroundColor:
-        colors.elevated,
-    },
-
-    manageBooksButtonText: {
-      flex: 1,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 12,
-    },
-
-    manageBooksCount: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 10.5,
-    },
-
     postInput: {
-      minHeight: 76,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 21,
-      marginTop: 16,
-      paddingVertical: 11,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-      textAlignVertical:
-        'top',
-    },
-
-    previewStackBlock: {
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginTop: 14,
-      paddingTop: 20,
-      paddingBottom: 16,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderColor:
-        colors.border,
-    },
-
-    previewStackCaption: {
-      alignItems:
-        'center',
-      marginTop: 5,
-      paddingHorizontal: 12,
-    },
-
-    previewStackTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_600SemiBold',
-      fontSize: 20,
-      lineHeight: 25,
-      textAlign:
-        'center',
-    },
-
-    previewStackCount: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 10.5,
-      marginTop: 4,
-    },
-
-    previewMeta: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 6,
-      marginTop: 10,
-    },
-
-    previewMetaText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize: 10.5,
-    },
-
-    previewMetaDot: {
-      color:
-        colors.mutedText,
-      fontSize: 11,
-    },
-
-    previewHint: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 9,
-      marginTop: 24,
-      paddingTop: 14,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-    },
-
-    previewHintText: {
-      flex: 1,
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 11.5,
-      lineHeight: 17,
-    },
-
-    previewFooter: {
-      position:
-        'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      paddingHorizontal: 20,
-      paddingTop: 10,
-      paddingBottom: 18,
-      backgroundColor:
-        colors.background,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-    },
-
-    publishButton: {
-      width: '100%',
-      maxWidth: 680,
-      minHeight: 52,
-      alignSelf:
-        'center',
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 8,
-      borderRadius: 14,
-      backgroundColor:
-        colors.gold,
-    },
-
-    publishButtonText: {
-      color:
-        colors.background,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 13,
+      minHeight: 56,
+      color: colors.text,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      padding: 0,
+      textAlignVertical: 'top',
     },
 
     pressed: {

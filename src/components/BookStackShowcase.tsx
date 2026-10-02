@@ -4,9 +4,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import {
+  ReactNode,
   useEffect,
   useState,
 } from 'react';
@@ -34,6 +36,9 @@ export type BookStackShowcaseItem = {
 
 type Props = {
   name: string;
+  onNameChange?: (name: string) => void;
+  disabled?: boolean;
+  children?: ReactNode;
   items: BookStackShowcaseItem[];
   variant?: BookStackVisualVariant;
   interactive?: boolean;
@@ -49,6 +54,9 @@ type Props = {
 
 export default function BookStackShowcase({
   name,
+  onNameChange,
+  disabled = false,
+  children,
   items,
   variant = 'feed',
   interactive = false,
@@ -254,14 +262,28 @@ export default function BookStackShowcase({
           </View>
         </View>
 
-        <Text
-          style={
-            styles.title
-          }
-          numberOfLines={2}
-        >
-          {name}
-        </Text>
+        {onNameChange ? (
+          <TextInput
+            accessibilityLabel="Stack name"
+            value={name}
+            onChangeText={onNameChange}
+            editable={!disabled}
+            placeholder="Name your stack"
+            placeholderTextColor={colors.mutedText}
+            maxLength={80}
+            multiline
+            style={[styles.title, styles.titleInput]}
+          />
+        ) : (
+          <Text
+            style={
+              styles.title
+            }
+            numberOfLines={2}
+          >
+            {name}
+          </Text>
+        )}
 
       </View>
 
@@ -293,6 +315,8 @@ export default function BookStackShowcase({
           }
         />
       </View>
+
+      {children}
 
       {selected ? (
         <View
@@ -554,6 +578,11 @@ function createStyles(
       fontSize: 20,
       lineHeight: 25,
       marginTop: 8,
+    },
+
+    titleInput: {
+      padding: 0,
+      textAlignVertical: 'top',
     },
 
     visual: {
