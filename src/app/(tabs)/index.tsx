@@ -5601,6 +5601,9 @@ export default function HomeScreen() {
                 : post
           )
       );
+
+      lastSeenPostMutationRef.current =
+        getPostMutationVersion();
     } catch (
       error
     ) {
