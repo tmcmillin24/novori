@@ -16,12 +16,15 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import BookCoverImage from '../components/BookCoverImage';
 import CanonicalBookRating from '../components/CanonicalBookRating';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import {
-  getBestSearchCover,
+  getNovoriSearchBookCover,
+  getNovoriSearchBookIsbn,
   GoogleBookSearchItem,
+  resolveNovoriSearchBookCover,
   searchNovoriBooks,
 } from '../lib/book-search';
 import { ClubWithMembership, getMyClubs } from '../lib/clubs';
@@ -360,12 +363,59 @@ export default function AskReadersScreen() {
   }
 
   function chooseBook(item: GoogleBookSearchItem) {
+    const initialCover =
+      getNovoriSearchBookCover(
+        item
+      );
+
     setAttachedBook({
       id: item.id,
       title: item.volumeInfo.title?.trim() || 'Untitled book',
       authors: item.volumeInfo.authors ?? [],
-      coverUrl: getBestSearchCover(item.volumeInfo.imageLinks) ?? null,
+      coverUrl:
+        initialCover,
     });
+
+    void resolveNovoriSearchBookCover(
+      item
+    )
+      .then(
+        (
+          resolvedCover
+        ) => {
+          if (
+            !resolvedCover ||
+            resolvedCover ===
+              initialCover
+          ) {
+            return;
+          }
+
+          setAttachedBook(
+            (
+              current
+            ) =>
+              current?.id ===
+              item.id
+                ? {
+                    ...current,
+                    coverUrl:
+                      resolvedCover,
+                  }
+                : current
+          );
+        }
+      )
+      .catch(
+        (
+          error
+        ) => {
+          console.warn(
+            'Could not refine Ask Readers cover:',
+            error
+          );
+        }
+      );
 
     setBookPickerVisible(false);
     setBookQuery('');
@@ -1132,7 +1182,18 @@ export default function AskReadersScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {bookResults.map((item) => {
-              const cover = getBestSearchCover(item.volumeInfo.imageLinks);
+              const cover =
+                getNovoriSearchBookCover(
+                  item
+                );
+              const isbn =
+                getNovoriSearchBookIsbn(
+                  item
+                );
+              const canonicalCover =
+                item.novoriWork
+                  ?.canonicalCoverUrl ??
+                null;
 
               return (
                 <Pressable
@@ -1144,9 +1205,22 @@ export default function AskReadersScreen() {
                   ]}
                 >
                   {cover ? (
-                    <Image
-                      source={{ uri: cover }}
-                      style={styles.resultCover}                    />
+                    <BookCoverImage
+                      imageLinks={
+                        item.volumeInfo
+                          .imageLinks
+                      }
+                      isbn={
+                        isbn
+                      }
+                      existingCoverUrl={
+                        canonicalCover
+                      }
+                      style={
+                        styles.resultCover
+                      }
+                      resizeMode="cover"
+                    />
                   ) : (
                     <View style={styles.resultCoverFallback}>
                       <Ionicons
