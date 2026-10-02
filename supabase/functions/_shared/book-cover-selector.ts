@@ -163,7 +163,7 @@ function candidateScore(
       HARDCOVER_PROVIDER &&
     variant ===
       'series_verified'
-      ? 700
+      ? 575
       : VARIANT_SCORE[
           variant
         ] ??
