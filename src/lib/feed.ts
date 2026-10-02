@@ -1,5 +1,15 @@
 import { supabase } from './supabase';
 
+let postMutationVersion = 0;
+
+export function getPostMutationVersion() {
+  return postMutationVersion;
+}
+
+function bumpPostMutationVersion() {
+  postMutationVersion += 1;
+}
+
 export type FeedPostType =
   | 'post'
   | 'reading_update'
@@ -717,6 +727,8 @@ export async function deletePost(
   if (error) {
     throw error;
   }
+
+  bumpPostMutationVersion();
 
   return data.id as string;
 }
