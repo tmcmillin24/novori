@@ -95,6 +95,204 @@ function normalizeQuery(
     .trim();
 }
 
+type CatalogFuzzyRow = {
+  provider_book_id?:
+    string | null;
+  metadata?:
+    unknown;
+  similarity_score?:
+    number | null;
+};
+
+function isGoogleBookPayload(
+  value: unknown
+) {
+  return Boolean(
+    value &&
+    typeof value ===
+      'object' &&
+    !Array.isArray(
+      value
+    ) &&
+    typeof (
+      value as
+        Record<
+          string,
+          unknown
+        >
+    ).id ===
+      'string'
+  );
+}
+
+async function tryCatalogFuzzySearch(
+  supabaseAdmin:
+    ReturnType<
+      typeof createClient
+    >,
+  query:
+    string
+) {
+  const normalized =
+    normalizeQuery(
+      query
+    )
+      .replace(
+        /[^a-z0-9]+/g,
+        ' '
+      )
+      .trim();
+
+  if (
+    normalized.length <
+      4
+  ) {
+    return null;
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin.rpc(
+      'novori_search_book_catalog_fuzzy',
+      {
+        p_query:
+          normalized,
+        p_limit:
+          32,
+      }
+    );
+
+  if (
+    error
+  ) {
+    console.info(
+      `google-books-search catalog-fuzzy unavailable: ${error.message}`
+    );
+
+    return null;
+  }
+
+  const rows =
+    (
+      Array.isArray(
+        data
+      )
+        ? data
+        : []
+    ) as
+      CatalogFuzzyRow[];
+
+  const valid =
+    rows
+      .filter(
+        (
+          row
+        ) =>
+          isGoogleBookPayload(
+            row.metadata
+          ) &&
+          Number.isFinite(
+            Number(
+              row.similarity_score ??
+              0
+            )
+          )
+      )
+      .map(
+        (
+          row
+        ) => ({
+          metadata:
+            row.metadata as
+              Record<
+                string,
+                unknown
+              >,
+          score:
+            Number(
+              row.similarity_score ??
+              0
+            ),
+        })
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.score -
+          a.score
+      );
+
+  const topScore =
+    valid[0]?.score ??
+    0;
+
+  const queryWordCount =
+    normalized
+      .split(' ')
+      .filter(
+        Boolean
+      )
+      .length;
+
+  const strongEnough =
+    topScore >=
+      (
+        queryWordCount <=
+          1
+          ? 0.82
+          : 0.68
+      );
+
+  if (
+    !strongEnough
+  ) {
+    return null;
+  }
+
+  const floor =
+    Math.max(
+      0.42,
+      topScore -
+        0.24
+    );
+
+  const items =
+    valid
+      .filter(
+        (
+          row
+        ) =>
+          row.score >=
+          floor
+      )
+      .slice(
+        0,
+        24
+      )
+      .map(
+        (
+          row
+        ) =>
+          row.metadata
+      );
+
+  if (
+    items.length ===
+      0
+  ) {
+    return null;
+  }
+
+  return {
+    items,
+    topScore,
+  };
+}
+
 function buildCacheKey(
   query:
     string
@@ -321,6 +519,41 @@ Deno.serve(
             status: 400,
             error:
               'Search query must be between 2 and 200 characters.',
+          }
+        );
+      }
+
+      const catalogMatch =
+        await tryCatalogFuzzySearch(
+          supabaseAdmin,
+          query
+        );
+
+      if (
+        catalogMatch
+      ) {
+        console.info(
+          `google-books-search cache=catalog score=${catalogMatch.topScore.toFixed(
+            3
+          )}`
+        );
+
+        return jsonResponse(
+          {
+            ok: true,
+            status: 200,
+            data: {
+              items:
+                catalogMatch.items,
+              totalItems:
+                catalogMatch.items.length,
+            },
+            cache: {
+              status:
+                'catalog',
+              googleRequestMade:
+                false,
+            },
           }
         );
       }
