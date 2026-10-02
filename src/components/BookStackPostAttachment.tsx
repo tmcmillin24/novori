@@ -27,10 +27,12 @@ export default function BookStackPostAttachment({
   stackId,
   variant = 'feed',
   interactive = true,
+  compactTopSpacing = false,
 }: {
   stackId: string;
   variant?: 'feed' | 'profile' | 'detail' | 'builder';
   interactive?: boolean;
+  compactTopSpacing?: boolean;
 }) {
   const router =
     useRouter();
@@ -158,6 +160,9 @@ export default function BookStackPostAttachment({
         }
         onSelectedIdChange={
           setSelectedId
+        }
+        compactTopSpacing={
+          compactTopSpacing
         }
         onOpenBook={(
           item
