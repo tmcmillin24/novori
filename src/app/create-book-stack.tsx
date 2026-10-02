@@ -35,7 +35,6 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
-  getBestSearchCover,
   getNovoriSearchBookCover,
   GoogleBookSearchItem,
   searchNovoriBooks,
@@ -454,6 +453,14 @@ export default function CreateBookStackScreen() {
     useState('');
 
   const [
+    resolvingBookIds,
+    setResolvingBookIds,
+  ] =
+    useState<string[]>(
+      []
+    );
+
+  const [
     saving,
     setSaving,
   ] =
@@ -761,7 +768,7 @@ export default function CreateBookStackScreen() {
     );
   }
 
-  function toggleBookSelection(
+  async function toggleBookSelection(
     book:
       GoogleBookSearchItem
   ) {
@@ -789,6 +796,14 @@ export default function CreateBookStackScreen() {
     }
 
     if (
+      resolvingBookIds.includes(
+        book.id
+      )
+    ) {
+      return;
+    }
+
+    if (
       items.length >=
       MAX_STACK_BOOKS
     ) {
@@ -804,76 +819,90 @@ export default function CreateBookStackScreen() {
         book
       );
 
-    const next:
-      BookStackDraftItem = {
-        googleBookId:
-          book.id,
-        title:
-          book.volumeInfo.title
-            ?.trim() ||
-          'Untitled',
-        authors:
-          book.volumeInfo.authors ??
-          [],
-        coverUrl:
-          initialCover,
-      };
+    setResolvingBookIds(
+      (
+        current
+      ) =>
+        current.includes(
+          book.id
+        )
+          ? current
+          : [
+              ...current,
+              book.id,
+            ]
+    );
+
+    let finalCover =
+      initialCover;
+
+    try {
+      finalCover =
+        await resolveBookStackPreviewCover(
+          book,
+          initialCover
+        );
+    } catch (
+      error
+    ) {
+      console.warn(
+        'Could not refine Book Stack cover:',
+        error
+      );
+    } finally {
+      setResolvingBookIds(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              id
+            ) =>
+              id !==
+              book.id
+          )
+      );
+    }
 
     setItems(
       (
         current
-      ) => [
-        ...current,
-        next,
-      ]
-    );
-
-    void resolveBookStackPreviewCover(
-      book,
-      initialCover
-    )
-      .then(
-        (
-          resolvedCover
-        ) => {
-          if (
-            !resolvedCover ||
-            resolvedCover ===
-              initialCover
-          ) {
-            return;
-          }
-
-          setItems(
+      ) => {
+        if (
+          current.some(
             (
-              current
+              item
             ) =>
-              current.map(
-                (
-                  item
-                ) =>
-                  item.googleBookId ===
-                  book.id
-                    ? {
-                        ...item,
-                        coverUrl:
-                          resolvedCover,
-                      }
-                    : item
-              )
-          );
+              item.googleBookId ===
+              book.id
+          ) ||
+          current.length >=
+            MAX_STACK_BOOKS
+        ) {
+          return current;
         }
-      )
-      .catch(
-        (
-          error
-        ) => {
-          console.warn(
-            'Could not refine Book Stack cover:',
-            error
-          );
-        }
-      );
+
+        const next:
+          BookStackDraftItem = {
+            googleBookId:
+              book.id,
+            title:
+              book.volumeInfo.title
+                ?.trim() ||
+              'Untitled',
+            authors:
+              book.volumeInfo.authors ??
+              [],
+            coverUrl:
+              finalCover,
+          };
+
+        return [
+          ...current,
+          next,
+        ];
+      }
+    );
   }
 
   function removeBook(
@@ -2199,12 +2228,13 @@ export default function CreateBookStackScreen() {
                   );
 
                 const cover =
-                  getBestSearchCover(
-                    book.volumeInfo
-                      .imageLinks
-                  ) ??
                   getNovoriSearchBookCover(
                     book
+                  );
+
+                const resolving =
+                  resolvingBookIds.includes(
+                    book.id
                   );
 
                 return (
@@ -2213,7 +2243,7 @@ export default function CreateBookStackScreen() {
                       book.id
                     }
                     onPress={() =>
-                      toggleBookSelection(
+                      void toggleBookSelection(
                         book
                       )
                     }
@@ -2281,19 +2311,28 @@ export default function CreateBookStackScreen() {
                       </Text>
                     </View>
 
-                    <Ionicons
-                      name={
-                        added
-                          ? 'checkmark-circle'
-                          : 'add-circle-outline'
-                      }
-                      size={24}
-                      color={
-                        added
-                          ? colors.secondaryText
-                          : colors.gold
-                      }
-                    />
+                    {resolving ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          colors.gold
+                        }
+                      />
+                    ) : (
+                      <Ionicons
+                        name={
+                          added
+                            ? 'checkmark-circle'
+                            : 'add-circle-outline'
+                        }
+                        size={24}
+                        color={
+                          added
+                            ? colors.secondaryText
+                            : colors.gold
+                        }
+                      />
+                    )}
                   </Pressable>
                 );
               }
