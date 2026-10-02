@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 import {
+  markPostMutation,
+} from './feed';
+import {
   ensureDailyReadingCheckin,
 } from './reading-checkins';
 
@@ -482,6 +485,8 @@ export async function updateReadingUpdate(
       'Could not update this Reading Update.'
     );
   }
+
+  markPostMutation();
 
   return data.id as string;
 }
