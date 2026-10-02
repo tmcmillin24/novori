@@ -274,6 +274,194 @@ function normalizeTitle(value?: string) {
     .trim();
 }
 
+function getTrigramSimilarity(
+  left: string,
+  right: string
+) {
+  if (
+    !left ||
+    !right
+  ) {
+    return 0;
+  }
+
+  if (
+    left === right
+  ) {
+    return 1;
+  }
+
+  const makeTrigrams = (
+    value: string
+  ) => {
+    const padded =
+      `  ${value} `;
+
+    const trigrams:
+      string[] = [];
+
+    for (
+      let index = 0;
+      index <=
+      padded.length -
+        3;
+      index += 1
+    ) {
+      trigrams.push(
+        padded.slice(
+          index,
+          index + 3
+        )
+      );
+    }
+
+    return trigrams;
+  };
+
+  const leftTrigrams =
+    makeTrigrams(
+      left
+    );
+  const rightTrigrams =
+    makeTrigrams(
+      right
+    );
+
+  const rightCounts =
+    new Map<
+      string,
+      number
+    >();
+
+  for (
+    const trigram of
+      rightTrigrams
+  ) {
+    rightCounts.set(
+      trigram,
+      (
+        rightCounts.get(
+          trigram
+        ) ??
+        0
+      ) + 1
+    );
+  }
+
+  let overlap =
+    0;
+
+  for (
+    const trigram of
+      leftTrigrams
+  ) {
+    const count =
+      rightCounts.get(
+        trigram
+      ) ??
+      0;
+
+    if (
+      count <=
+      0
+    ) {
+      continue;
+    }
+
+    overlap += 1;
+    rightCounts.set(
+      trigram,
+      count - 1
+    );
+  }
+
+  return (
+    2 *
+    overlap
+  ) /
+    (
+      leftTrigrams.length +
+      rightTrigrams.length
+    );
+}
+
+function getFuzzyTextSimilarity(
+  query: string,
+  candidate: string
+) {
+  if (
+    !query ||
+    !candidate
+  ) {
+    return 0;
+  }
+
+  const trigram =
+    getTrigramSimilarity(
+      query,
+      candidate
+    );
+
+  const queryWords =
+    query
+      .split(' ')
+      .filter(Boolean);
+
+  const candidateWords =
+    candidate
+      .split(' ')
+      .filter(Boolean);
+
+  if (
+    queryWords.length ===
+      0 ||
+    candidateWords.length ===
+      0
+  ) {
+    return trigram;
+  }
+
+  let matchedWords =
+    0;
+
+  for (
+    const queryWord of
+      queryWords
+  ) {
+    const bestWordMatch =
+      Math.max(
+        0,
+        ...candidateWords.map(
+          (
+            candidateWord
+          ) =>
+            getTrigramSimilarity(
+              queryWord,
+              candidateWord
+            )
+        )
+      );
+
+    if (
+      bestWordMatch >=
+      0.72
+    ) {
+      matchedWords +=
+        1;
+    }
+  }
+
+  const wordCoverage =
+    matchedWords /
+    queryWords.length;
+
+  return Math.max(
+    trigram,
+    wordCoverage *
+      0.92
+  );
+}
+
 const DERIVATIVE_TITLE_PREFIXES = [
   'summary of ',
   'summary for ',
@@ -930,6 +1118,39 @@ function getTitleSearchRelevance(
     return 100;
   }
 
+  const fuzzySimilarity =
+    Math.max(
+      getFuzzyTextSimilarity(
+        normalizedQuery,
+        title
+      ),
+      getFuzzyTextSimilarity(
+        normalizedQuery,
+        canonicalTitle
+      )
+    );
+
+  if (
+    fuzzySimilarity >=
+      0.82
+  ) {
+    return 90;
+  }
+
+  if (
+    fuzzySimilarity >=
+      0.70
+  ) {
+    return 70;
+  }
+
+  if (
+    fuzzySimilarity >=
+      0.58
+  ) {
+    return 50;
+  }
+
   return 0;
 }
 
@@ -1020,6 +1241,42 @@ function getAuthorSearchRelevance(
         Math.max(
           best,
           100
+        );
+      continue;
+    }
+
+    const fuzzySimilarity =
+      getFuzzyTextSimilarity(
+        normalizedQuery,
+        normalizedAuthor
+      );
+
+    if (
+      fuzzySimilarity >=
+        0.82
+    ) {
+      best =
+        Math.max(
+          best,
+          90
+        );
+    } else if (
+      fuzzySimilarity >=
+        0.70
+    ) {
+      best =
+        Math.max(
+          best,
+          70
+        );
+    } else if (
+      fuzzySimilarity >=
+        0.58
+    ) {
+      best =
+        Math.max(
+          best,
+          50
         );
     }
   }
@@ -2625,80 +2882,6 @@ export async function searchNovoriBooks(
   let looksLikeAuthorSearch =
     strongestAuthorMatch >
     strongestTitleMatch;
-
-  if (
-    !looksLikeIsbnSearch &&
-    !looksLikeAuthorSearch &&
-    strongestTitleMatch ===
-      0
-  ) {
-    const targetedResponse =
-      await fetchSharedGoogleBooksSearch(
-        `intitle:"${searchTerm.trim()}"`
-      );
-
-    if (
-      targetedResponse.ok &&
-      targetedResponse.data
-    ) {
-      const targetedResults =
-        targetedResponse.data
-          .items ??
-        [];
-
-      const targetedRelevant =
-        targetedResults.filter(
-          (
-            book
-          ) =>
-            getTitleSearchRelevance(
-              book,
-              normalizedQuery
-            ) >
-            0
-        );
-
-      if (
-        targetedRelevant.length >
-        0
-      ) {
-        initialResults =
-          targetedRelevant;
-
-        strongestTitleMatch =
-          Math.max(
-            0,
-            ...initialResults.map(
-              (
-                book
-              ) =>
-                getTitleSearchRelevance(
-                  book,
-                  normalizedQuery
-                )
-            )
-          );
-
-        strongestAuthorMatch =
-          Math.max(
-            0,
-            ...initialResults.map(
-              (
-                book
-              ) =>
-                getAuthorSearchRelevance(
-                  book,
-                  normalizedQuery
-                )
-            )
-          );
-
-        looksLikeAuthorSearch =
-          strongestAuthorMatch >
-          strongestTitleMatch;
-      }
-    }
-  }
 
   if (
     initialResults.length ===
