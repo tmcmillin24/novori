@@ -44,6 +44,7 @@ type Props = {
   onOpenBook?: (
     item: BookStackShowcaseItem
   ) => void;
+  compactTopSpacing?: boolean;
  };
 
 export default function BookStackShowcase({
@@ -54,6 +55,7 @@ export default function BookStackShowcase({
   selectedId = null,
   onSelectedIdChange,
   onOpenBook,
+  compactTopSpacing = false,
  }: Props) {
   const {
     colors,
@@ -191,9 +193,11 @@ export default function BookStackShowcase({
 
   return (
     <View
-      style={
-        styles.card
-      }
+      style={[
+        styles.card,
+        compactTopSpacing &&
+          styles.cardCompactTop,
+      ]}
     >
       <View
         style={
@@ -474,6 +478,10 @@ function createStyles(
       borderRadius: 18,
       overflow:
         'hidden',
+    },
+
+    cardCompactTop: {
+      marginTop: 0,
     },
 
     goldLine: {
