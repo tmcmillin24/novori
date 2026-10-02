@@ -3426,7 +3426,7 @@ export default function PostDetailScreen() {
                   </>
                 );
               })()
-            ) : (
+            ) : post.body.trim() ? (
               renderExplicitContentWarning(
                 post.body,
                 'post',
@@ -3438,7 +3438,7 @@ export default function PostDetailScreen() {
                     currentUserId
                 )
               )
-            )}
+            ) : null}
 
             {post.post_type ===
               'book_stack' &&
@@ -3446,6 +3446,9 @@ export default function PostDetailScreen() {
               <BookStackPostAttachment
                 stackId={
                   post.book_stack_id
+                }
+                compactTopSpacing={
+                  !post.body.trim()
                 }
               />
             ) : null}
