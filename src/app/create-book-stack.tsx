@@ -1482,7 +1482,7 @@ export default function CreateBookStackScreen() {
               setPreviewing(
                 false
               );
-            }
+            }}
             hitSlop={10}
             style={
               styles.headerButton
