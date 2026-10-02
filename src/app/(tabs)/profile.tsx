@@ -3309,58 +3309,6 @@ function createStyles(
       fontSize: 13,
     },
 
-    readingHubCard: {
-      minHeight: 64,
-      marginTop: 12,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-
-    readingHubIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      backgroundColor:
-        colors.elevated,
-      marginRight: 12,
-    },
-
-    readingHubCopy: {
-      flex: 1,
-      paddingRight: 10,
-    },
-
-    readingHubTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 14,
-    },
-
-    readingHubSubtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 11,
-      marginTop: 3,
-    },
-
     pressed: {
       opacity: 0.68,
     },
