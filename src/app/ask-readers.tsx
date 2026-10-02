@@ -1190,6 +1190,11 @@ export default function AskReadersScreen() {
                 getNovoriSearchBookIsbn(
                   item
                 );
+              const canonicalCover =
+                item.novoriWork
+                  ?.canonicalCoverUrl ??
+                null;
+
               return (
                 <Pressable
                   key={item.id}
@@ -1209,9 +1214,8 @@ export default function AskReadersScreen() {
                         isbn
                       }
                       existingCoverUrl={
-                        cover
+                        canonicalCover
                       }
-                      preferExistingCover
                       style={
                         styles.resultCover
                       }
