@@ -30,6 +30,7 @@ import FeedPostImage from '../../components/FeedPostImage';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import ProfileReadingModule from '../../components/ProfileReadingModule';
 import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import {
   TabScreen,
@@ -49,8 +50,10 @@ import {
   ClubWithMembership,
 } from '../../lib/clubs';
 import {
+  deletePost,
   FeedPost,
   getHomeFeed,
+  getPostMutationVersion,
   splitQuestionPostBody,
 } from '../../lib/feed';
 import {
@@ -187,6 +190,7 @@ let profileSessionCache:
       snapshot: ProfileCacheSnapshot;
       refreshedAt: number;
       libraryMutationVersion: number;
+      postMutationVersion: number;
     }
   | null =
   null;
@@ -289,6 +293,13 @@ export default function ProfileScreen() {
       getLibraryMutationVersion()
     );
 
+  const lastSeenPostMutationRef =
+    useRef(
+      profileSessionCache
+        ?.postMutationVersion ??
+      getPostMutationVersion()
+    );
+
   const [
     activeTab,
     setActiveTab,
@@ -369,6 +380,22 @@ export default function ProfileScreen() {
       []
     );
 
+
+  const [
+    deletePostTarget,
+    setDeletePostTarget,
+  ] =
+    useState<FeedPost | null>(
+      null
+    );
+
+  const [
+    deletingPostId,
+    setDeletingPostId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
   const [
     deleteStackTarget,
@@ -496,9 +523,16 @@ export default function ProfileScreen() {
       const currentLibraryMutationVersion =
         getLibraryMutationVersion();
 
+      const currentPostMutationVersion =
+        getPostMutationVersion();
+
       const libraryChanged =
         currentLibraryMutationVersion !==
         lastSeenLibraryMutationRef.current;
+
+      const postsChanged =
+        currentPostMutationVersion !==
+        lastSeenPostMutationRef.current;
 
       const profileIsFresh =
         hasLoadedProfileRef.current &&
@@ -508,7 +542,8 @@ export default function ProfileScreen() {
 
       if (
         profileIsFresh &&
-        !libraryChanged
+        !libraryChanged &&
+        !postsChanged
       ) {
         return () => {
           isMounted =
@@ -520,7 +555,8 @@ export default function ProfileScreen() {
 
       if (
         profileIsFresh &&
-        libraryChanged
+        libraryChanged &&
+        !postsChanged
       ) {
         void getUserBooks()
           .then(
@@ -622,7 +658,8 @@ export default function ProfileScreen() {
           Date.now() -
             memoryCache.refreshedAt <
             PROFILE_STALE_MS &&
-          !libraryChanged
+          !libraryChanged &&
+          !postsChanged
         ) {
           const snapshot =
             memoryCache.snapshot;
@@ -662,6 +699,8 @@ export default function ProfileScreen() {
             memoryCache.refreshedAt;
           lastSeenLibraryMutationRef.current =
             memoryCache.libraryMutationVersion;
+          lastSeenPostMutationRef.current =
+            memoryCache.postMutationVersion;
           return;
         }
 
@@ -690,9 +729,13 @@ export default function ProfileScreen() {
           setFollowingCount(
             cached.followingCount
           );
-          setPosts(
-            cached.posts
-          );
+          if (
+            !postsChanged
+          ) {
+            setPosts(
+              cached.posts
+            );
+          }
           setClubs(
             cached.clubs
           );
@@ -915,6 +958,8 @@ export default function ProfileScreen() {
             true;
           lastSeenLibraryMutationRef.current =
             currentLibraryMutationVersion;
+          lastSeenPostMutationRef.current =
+            currentPostMutationVersion;
           lastProfileRefreshRef.current =
             refreshedAt;
 
@@ -925,6 +970,8 @@ export default function ProfileScreen() {
             refreshedAt,
             libraryMutationVersion:
               currentLibraryMutationVersion,
+            postMutationVersion:
+              currentPostMutationVersion,
           };
 
           void writeProfileCache(
