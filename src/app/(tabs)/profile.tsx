@@ -28,6 +28,7 @@ import BookStackVisual from '../../components/BookStackVisual';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
 import FeedPostImage from '../../components/FeedPostImage';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
+import ProfileReadingModule from '../../components/ProfileReadingModule';
 import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import {
@@ -2867,70 +2868,11 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <Pressable
-        onPress={() =>
-          router.push(
-            '/my-reading'
-          )
+      <ProfileReadingModule
+        books={
+          books
         }
-        style={({
-          pressed,
-        }) => [
-          styles.readingHubCard,
-          pressed &&
-            styles.pressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Open My Reading"
-      >
-        <View
-          style={
-            styles.readingHubIcon
-          }
-        >
-          <Ionicons
-            name="book-outline"
-            size={
-              21
-            }
-            color={
-              colors.gold
-            }
-          />
-        </View>
-
-        <View
-          style={
-            styles.readingHubCopy
-          }
-        >
-          <Text
-            style={
-              styles.readingHubTitle
-            }
-          >
-            My Reading
-          </Text>
-
-          <Text
-            style={
-              styles.readingHubSubtitle
-            }
-          >
-            Activity · Recaps · More
-          </Text>
-        </View>
-
-        <Ionicons
-          name="chevron-forward"
-          size={
-            20
-          }
-          color={
-            colors.mutedText
-          }
-        />
-      </Pressable>
+      />
 
       <View
         style={
