@@ -167,14 +167,12 @@ function candidateScore(
   if (
     isVerifiedHardcoverSeries
   ) {
-    return (
-      575 +
-      (
-        edition.detail_complete
-          ? 20
-          : 0
-      )
-    );
+    // Verified Hardcover series artwork is trusted ahead of
+    // Google large/medium renditions for the same work, while
+    // Google extraLarge remains the highest-priority automatic
+    // source. Google large can score as high as 600 after locale
+    // and detail bonuses; the lowest eligible extraLarge is 640.
+    return 620;
   }
 
   const qualityScore =
