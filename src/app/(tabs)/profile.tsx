@@ -4251,7 +4251,7 @@ function createStyles(
 
     activityFeedContent: {
       paddingHorizontal: 16,
-      paddingTop: 11,
+      paddingTop: 14,
     },
 
     activityFeedBody: {
@@ -4259,9 +4259,8 @@ function createStyles(
         colors.text,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 21,
-      marginTop: 9,
+      fontSize: 15,
+      lineHeight: 22,
     },
 
     activityFeedQuestionTitle: {
@@ -4269,9 +4268,8 @@ function createStyles(
         colors.text,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
-      fontSize: 18,
-      lineHeight: 25,
-      marginTop: 9,
+      fontSize: 19,
+      lineHeight: 26,
     },
 
     activityFeedQuestionContext: {
@@ -4279,23 +4277,45 @@ function createStyles(
         colors.secondaryText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 13.5,
-      lineHeight: 20,
-      marginTop: 7,
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: 8,
     },
 
     activityFeedCompactBook: {
+      minHeight: 42,
       flexDirection:
         'row',
       alignItems:
         'center',
       gap: 8,
-      marginTop: 12,
+      marginTop: 7,
+      paddingHorizontal: 2,
+      paddingVertical: 7,
     },
 
     activityFeedCompactBookCopy: {
       flex: 1,
       minWidth: 0,
+    },
+
+    activityFeedCompactBookTitle: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
+    activityFeedCompactBookMeta: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10.5,
+      fontStyle:
+        'italic',
+      marginTop: 2,
     },
 
     activityFeedBookCard: {
@@ -4305,44 +4325,72 @@ function createStyles(
         'center',
       backgroundColor:
         colors.elevated,
-      borderRadius: 14,
-      padding: 10,
-      marginTop: 12,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      padding: 11,
+      marginTop: 15,
     },
 
     activityFeedBookCover: {
-      width: 48,
-      height: 70,
-      borderRadius: 6,
-      marginRight: 11,
+      width: 52,
+      height: 76,
+      borderRadius: 8,
       backgroundColor:
         colors.surface,
+      marginRight: 12,
     },
 
     activityFeedBookCoverFallback: {
-      width: 48,
-      height: 70,
-      borderRadius: 6,
-      marginRight: 11,
+      width: 52,
+      height: 76,
+      borderRadius: 8,
       backgroundColor:
         colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
       alignItems:
         'center',
       justifyContent:
         'center',
+      marginRight: 12,
     },
 
     activityFeedBookCopy: {
       flex: 1,
       minWidth: 0,
+      paddingRight: 8,
+    },
+
+    activityFeedBookEyebrow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      marginBottom: 5,
+    },
+
+    activityFeedBookEyebrowText: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+      fontSize: 9,
+      textTransform:
+        'uppercase',
+      letterSpacing: 0.8,
     },
 
     activityFeedBookTitle: {
       color:
         colors.text,
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
       fontSize: 13,
+      lineHeight: 18,
     },
 
     activityFeedBookAuthor: {
@@ -4350,8 +4398,25 @@ function createStyles(
         colors.mutedText,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 11,
-      marginTop: 3,
+      fontSize: 10.5,
+      marginTop: 4,
+    },
+
+    activityFeedBookRatingRow: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 4,
+      marginTop: 7,
+    },
+
+    activityFeedBookRating: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 11.5,
     },
 
     activityFeedFooter: {
@@ -4359,10 +4424,16 @@ function createStyles(
         'row',
       alignItems:
         'center',
-      gap: 18,
+      justifyContent:
+        'space-between',
+      gap: 10,
+      marginTop: 15,
       paddingHorizontal: 16,
       paddingTop: 12,
-      paddingBottom: 15,
+      paddingBottom: 14,
+      borderTopWidth: 1,
+      borderTopColor:
+        colors.border,
     },
 
     activityVoteControl: {
@@ -4415,20 +4486,30 @@ function createStyles(
         colors.gold,
     },
 
-    activityFeedMetric: {
+    activityCommentAction: {
+      minHeight: 36,
       flexDirection:
         'row',
       alignItems:
         'center',
+      justifyContent:
+        'center',
       gap: 6,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 18,
+      paddingHorizontal: 12,
     },
 
-    activityFeedMetricText: {
+    activityCommentActionText: {
       color:
         colors.mutedText,
       fontFamily:
-        'Inter_500Medium',
-      fontSize: 11.5,
+        'Inter_600SemiBold',
+      fontSize: 11,
     },
 
     activityList: {
