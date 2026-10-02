@@ -2426,6 +2426,11 @@ export default function CreatePostScreen() {
                     getNovoriSearchBookIsbn(
                       item
                     );
+                  const canonicalCover =
+                    item.novoriWork
+                      ?.canonicalCoverUrl ??
+                    null;
+
                   return (
                     <Pressable
                       key={
@@ -2453,9 +2458,8 @@ export default function CreatePostScreen() {
                             isbn
                           }
                           existingCoverUrl={
-                            cover
+                            canonicalCover
                           }
-                          preferExistingCover
                           style={
                             styles.bookResultCover
                           }
