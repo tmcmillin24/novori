@@ -792,6 +792,481 @@ export default function CreateReadingUpdateScreen() {
   }
 
   if (
+    isEditing &&
+    selectedBook &&
+    !loading &&
+    !loadingEditPost &&
+    !loadError
+  ) {
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+        edges={[
+          'top',
+        ]}
+      >
+        <View
+          style={
+            styles.flex
+          }
+        >
+          <View
+            style={
+              styles.header
+            }
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close reading update editor"
+              onPress={() =>
+                router.back()
+              }
+              hitSlop={8}
+              style={({
+                pressed,
+              }) => [
+                styles.headerButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="close"
+                size={24}
+                color={
+                  colors.text
+                }
+              />
+            </Pressable>
+
+            <Text
+              style={
+                styles.headerTitle
+              }
+            >
+              Edit Reading Update
+            </Text>
+
+            <View
+              style={
+                styles.headerSpacer
+              }
+            />
+          </View>
+
+          <KeyboardAwareScrollView
+            style={
+              styles.screen
+            }
+            contentContainerStyle={[
+              styles.editCardScroll,
+              tablet &&
+                styles.contentTablet,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={
+              Platform.OS ===
+              'ios'
+                ? 'interactive'
+                : 'on-drag'
+            }
+            bottomOffset={20}
+            showsVerticalScrollIndicator={
+              false
+            }
+          >
+            <View
+              style={
+                styles.previewCard
+              }
+            >
+              <View
+                style={
+                  styles.previewBookRow
+                }
+              >
+                {selectedBook.cover_url ? (
+                  <Image
+                    source={{
+                      uri:
+                        selectedBook.cover_url,
+                    }}
+                    style={
+                      styles.previewCover
+                    }
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.previewCover,
+                      styles.coverPlaceholder,
+                    ]}
+                  >
+                    <Ionicons
+                      name="book-outline"
+                      size={24}
+                      color={
+                        colors.mutedText
+                      }
+                    />
+                  </View>
+                )}
+
+                <View
+                  style={
+                    styles.previewBookCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.previewBookTitle
+                    }
+                    numberOfLines={2}
+                  >
+                    {selectedBook.title}
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.previewAuthor
+                    }
+                    numberOfLines={2}
+                  >
+                    {formatAuthors(
+                      selectedBook.authors
+                    )}
+                  </Text>
+
+                  <CanonicalBookRating
+                    googleBookId={
+                      selectedBook.google_book_id
+                    }
+                    title={
+                      selectedBook.title
+                    }
+                    authors={
+                      selectedBook.authors
+                    }
+                  />
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.editCardDivider
+                }
+              />
+
+              <View
+                style={
+                  styles.progressModeRow
+                }
+              >
+                {(
+                  [
+                    'page',
+                    'percent',
+                    'audio',
+                  ] as const
+                ).map(
+                  (
+                    modeChoice
+                  ) => (
+                    <Pressable
+                      key={
+                        modeChoice
+                      }
+                      onPress={() => {
+                        if (
+                          modeChoice !==
+                          progressMode
+                        ) {
+                          setProgress('');
+                          setChapter('');
+                          setAudioPosition('');
+                          setProgressMode(
+                            modeChoice
+                          );
+                        }
+                      }}
+                      style={[
+                        styles.progressModeButton,
+                        progressMode ===
+                          modeChoice &&
+                          styles.progressModeButtonSelected,
+                      ]}
+                    >
+                      {modeChoice ===
+                      'audio' ? (
+                        <Ionicons
+                          name="headset-outline"
+                          size={13}
+                          color={
+                            progressMode ===
+                            modeChoice
+                              ? colors.gold
+                              : colors.mutedText
+                          }
+                        />
+                      ) : null}
+
+                      <Text
+                        style={[
+                          styles.progressModeText,
+                          progressMode ===
+                            modeChoice &&
+                            styles.progressModeTextSelected,
+                        ]}
+                      >
+                        {modeChoice ===
+                        'page'
+                          ? 'Page'
+                          : modeChoice ===
+                            'percent'
+                          ? 'Percent'
+                          : 'Audiobook'}
+                      </Text>
+                    </Pressable>
+                  )
+                )}
+              </View>
+
+              {progressMode ===
+              'audio' ? (
+                <View
+                  style={
+                    styles.editInlineField
+                  }
+                >
+                  <Text
+                    style={
+                      styles.editInlineLabel
+                    }
+                  >
+                    Audiobook time
+                  </Text>
+
+                  <TextInput
+                    value={
+                      audioPosition
+                    }
+                    onChangeText={
+                      setAudioPosition
+                    }
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="1:23:45 or 23:45"
+                    placeholderTextColor={
+                      colors.mutedText
+                    }
+                    style={
+                      styles.editInlineInput
+                    }
+                  />
+                </View>
+              ) : (
+                <View
+                  style={
+                    styles.editProgressRow
+                  }
+                >
+                  <View
+                    style={
+                      styles.editProgressColumn
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.editInlineLabel
+                      }
+                    >
+                      {progressMode ===
+                      'page'
+                        ? 'Page'
+                        : 'Percent'}
+                    </Text>
+
+                    <TextInput
+                      value={
+                        progressMode ===
+                        'percent'
+                          ? progress.replace(
+                              /%/g,
+                              ''
+                            )
+                          : progress
+                      }
+                      onChangeText={(
+                        value
+                      ) => {
+                        const numeric =
+                          value.replace(
+                            /%/g,
+                            ''
+                          );
+                        setProgress(
+                          numeric.trim() &&
+                          progressMode ===
+                            'percent'
+                            ? `${numeric}%`
+                            : numeric
+                        );
+                      }}
+                      keyboardType="number-pad"
+                      placeholder={
+                        progressMode ===
+                        'percent'
+                          ? '63'
+                          : '245'
+                      }
+                      placeholderTextColor={
+                        colors.mutedText
+                      }
+                      style={
+                        styles.editInlineInput
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.editProgressColumn
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.editInlineLabel
+                      }
+                    >
+                      Chapter
+                    </Text>
+
+                    <TextInput
+                      value={
+                        chapter
+                      }
+                      onChangeText={
+                        setChapter
+                      }
+                      placeholder="Optional"
+                      placeholderTextColor={
+                        colors.mutedText
+                      }
+                      style={
+                        styles.editInlineInput
+                      }
+                    />
+                  </View>
+                </View>
+              )}
+
+              <View
+                style={
+                  styles.editCardDivider
+                }
+              />
+
+              <TextInput
+                value={
+                  thought
+                }
+                onChangeText={
+                  setThought
+                }
+                placeholder="Add a thought…"
+                placeholderTextColor={
+                  colors.mutedText
+                }
+                multiline
+                textAlignVertical="top"
+                maxLength={500}
+                style={
+                  styles.editThoughtInput
+                }
+              />
+
+              <Text
+                style={
+                  styles.editCharacterCount
+                }
+              >
+                {thought.length}/500
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save Reading Update changes"
+              disabled={
+                !canPreview ||
+                publishing
+              }
+              onPress={() =>
+                void handleSaveChanges()
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.primaryButton,
+                (
+                  !canPreview ||
+                  publishing
+                ) &&
+                  styles.primaryButtonDisabled,
+                pressed &&
+                  canPreview &&
+                  !publishing &&
+                  styles.primaryButtonPressed,
+              ]}
+            >
+              {publishing ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    colors.background
+                  }
+                />
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      !canPreview &&
+                        styles.primaryButtonTextDisabled,
+                    ]}
+                  >
+                    Save Changes
+                  </Text>
+
+                  <Ionicons
+                    name="checkmark"
+                    size={18}
+                    color={
+                      canPreview
+                        ? colors.background
+                        : colors.mutedText
+                    }
+                  />
+                </>
+              )}
+            </Pressable>
+
+            <Text
+              style={
+                styles.foundationNote
+              }
+            >
+              Editing this card changes the public Reading Update. Your original private Reading Details note stays unchanged.
+            </Text>
+          </KeyboardAwareScrollView>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (
     !isEditing &&
     mode ===
       'preview' &&
@@ -2542,6 +3017,67 @@ function createStyles(
       paddingHorizontal:
         12,
     },
+    editCardScroll: {
+      width: '100%',
+      maxWidth: 720,
+      alignSelf: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 18,
+      paddingBottom: 36,
+    },
+    editCardDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginVertical: 14,
+    },
+    editProgressRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 12,
+    },
+    editProgressColumn: {
+      flex: 1,
+      minWidth: 0,
+    },
+    editInlineField: {
+      marginTop: 12,
+    },
+    editInlineLabel: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 0.7,
+      marginBottom: 5,
+    },
+    editInlineInput: {
+      minHeight: 42,
+      color: colors.text,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      backgroundColor: colors.elevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+    },
+    editThoughtInput: {
+      minHeight: 82,
+      color: colors.text,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 21,
+      padding: 0,
+    },
+    editCharacterCount: {
+      alignSelf: 'flex-end',
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10,
+      marginTop: 6,
+    },
+
     previewCard: {
       backgroundColor:
         colors.surface,
