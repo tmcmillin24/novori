@@ -89,13 +89,6 @@ export function getNovoriSearchBookCover(
       ?.canonicalCoverUrl ??
     null;
 
-  const validatedGoogleCover =
-    getBestSearchCover(
-      book.volumeInfo
-        .imageLinks
-    ) ??
-    null;
-
   const plan =
     getBookCoverPlan({
       imageLinks:
@@ -110,7 +103,6 @@ export function getNovoriSearchBookCover(
     });
 
   return (
-    validatedGoogleCover ??
     canonicalCover ??
     plan.primaryUrl ??
     plan.fallbackUrl ??
@@ -121,10 +113,10 @@ export function getNovoriSearchBookCover(
 export async function resolveNovoriSearchBookCover(
   book: GoogleBookSearchItem
 ) {
-  const initialCover =
-    getNovoriSearchBookCover(
-      book
-    );
+  const canonicalCover =
+    book.novoriWork
+      ?.canonicalCoverUrl ??
+    null;
 
   return (
     await resolveBookCoverUrl({
@@ -136,10 +128,12 @@ export async function resolveNovoriSearchBookCover(
           book
         ),
       existingCoverUrl:
-        initialCover,
+        canonicalCover,
     })
   ) ??
-    initialCover;
+    getNovoriSearchBookCover(
+      book
+    );
 }
 
 async function fetchSharedGoogleBooksSearch(
@@ -2409,6 +2403,20 @@ export function getBestSearchCover(
       ]['imageLinks']
     | undefined
 ) {
+  const thumbnail =
+    secureGoogleBooksImageUrl(
+      imageLinks?.thumbnail
+    ) ||
+    secureGoogleBooksImageUrl(
+      imageLinks?.smallThumbnail
+    );
+
+  if (
+    !thumbnail
+  ) {
+    return undefined;
+  }
+
   const higherResolutionCandidates = [
     imageLinks?.extraLarge,
     imageLinks?.large,
@@ -2426,25 +2434,6 @@ export function getBestSearchCover(
           candidate
         )
     );
-
-  const thumbnail =
-    secureGoogleBooksImageUrl(
-      imageLinks?.thumbnail
-    ) ||
-    secureGoogleBooksImageUrl(
-      imageLinks?.smallThumbnail
-    );
-
-  if (
-    !thumbnail
-  ) {
-    return (
-      higherResolutionCandidates[
-        0
-      ] ??
-      undefined
-    );
-  }
 
   const matchingCandidate =
     higherResolutionCandidates.find(
