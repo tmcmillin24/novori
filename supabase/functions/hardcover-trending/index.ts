@@ -1,3 +1,7 @@
+import {
+  applyCanonicalDiscoveryCovers,
+} from "../_shared/discovery-canonical-covers.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -418,9 +422,14 @@ Deno.serve(async (req) => {
         forceRefreshIsCoolingDown
       )
     ) {
+      const responsePayload =
+        await applyCanonicalDiscoveryCovers(
+          cachedRow.payload
+        );
+
       return jsonResponse(
         withCacheMeta(
-          cachedRow.payload,
+          responsePayload,
           forceRefreshIsCoolingDown
             ? "manual-cooldown-hit"
             : "hit",
@@ -847,9 +856,14 @@ Deno.serve(async (req) => {
       payload
     );
 
+    const responsePayload =
+      await applyCanonicalDiscoveryCovers(
+        payload
+      );
+
     return jsonResponse(
       withCacheMeta(
-        payload,
+        responsePayload,
         "refreshed",
         new Date().toISOString(),
         CACHE_TTL_MS
@@ -862,9 +876,14 @@ Deno.serve(async (req) => {
     );
 
     if (cachedRow) {
+      const responsePayload =
+        await applyCanonicalDiscoveryCovers(
+          cachedRow.payload
+        );
+
       return jsonResponse(
         withCacheMeta(
-          cachedRow.payload,
+          responsePayload,
           "stale-fallback",
           cachedRow.refreshed_at,
           CACHE_TTL_MS
