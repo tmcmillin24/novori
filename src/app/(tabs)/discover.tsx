@@ -1715,11 +1715,6 @@ const DiscoverBookCard = memo(
         )
         ?.identifier;
 
-    const canonicalCover =
-      item.novoriWork
-        ?.canonicalCoverUrl ??
-      null;
-
     const cover =
       getNovoriSearchBookCover(
         item
@@ -1761,8 +1756,9 @@ const DiscoverBookCard = memo(
               isbn
             }
             existingCoverUrl={
-              canonicalCover
+              cover
             }
+            preferExistingCover
             style={
               styles.cover
             }
