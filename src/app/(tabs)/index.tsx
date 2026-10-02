@@ -5959,7 +5959,7 @@ export default function HomeScreen() {
                 </View>
               ) : null}
             </>
-          ) : (
+          ) : post.body.trim() ? (
             renderExplicitContentWarning(
               post.body,
               'post',
@@ -5971,7 +5971,7 @@ export default function HomeScreen() {
                   currentUserId
               )
             )
-          )}
+          ) : null}
 
           {post.post_type ===
             'book_stack' &&
@@ -5980,6 +5980,9 @@ export default function HomeScreen() {
               <BookStackPostAttachment
                 stackId={
                   post.book_stack_id
+                }
+                compactTopSpacing={
+                  !post.body.trim()
                 }
               />
             </View>
