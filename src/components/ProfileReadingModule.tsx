@@ -856,7 +856,7 @@ export default function ProfileReadingModule({
               styles.pressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel="Open Reading Activity"
+          accessibilityLabel="Open Reading Tracker"
         >
           <View
             style={
@@ -884,7 +884,7 @@ export default function ProfileReadingModule({
                 styles.destinationTitle
               }
             >
-              Reading Activity
+              Reading Tracker
             </Text>
 
             <Text
