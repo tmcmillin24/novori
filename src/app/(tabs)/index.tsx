@@ -100,6 +100,9 @@ import {
 import {
   sharePostLink,
 } from '../../lib/share-links';
+import {
+  getPostEditRoute,
+} from '../../lib/post-edit-route';
 
 type HomeSection =
   | 'feed'
@@ -5234,49 +5237,11 @@ export default function HomeScreen() {
   function editOwnPost(
     post: FeedPost
   ) {
-    if (
-      post.post_type ===
-      'question'
-    ) {
-      router.push({
-        pathname:
-          '/ask-readers',
-        params: {
-          editPostId:
-            post.id,
-        },
-      });
-
-      return;
-    }
-
-    if (
-      post.post_type ===
-        'book_stack' &&
-      post.book_stack_id
-    ) {
-      router.push({
-        pathname:
-          '/create-book-stack',
-        params: {
-          editPostId:
-            post.id,
-          stackId:
-            post.book_stack_id,
-        },
-      });
-
-      return;
-    }
-
-    router.push({
-      pathname:
-        '/create-post',
-      params: {
-        editPostId:
-          post.id,
-      },
-    });
+    router.push(
+      getPostEditRoute(
+        post
+      )
+    );
   }
 
   function confirmDeleteOwnPost(
