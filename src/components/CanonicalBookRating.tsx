@@ -163,6 +163,8 @@ export default function CanonicalBookRating({
           authors:
             authors ??
             [],
+          allowGoogleLookup:
+            false,
         })
           .then(
             (
