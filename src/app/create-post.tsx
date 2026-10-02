@@ -2460,6 +2460,11 @@ export default function CreatePostScreen() {
                           existingCoverUrl={
                             canonicalCover
                           }
+                          preferExistingCover={
+                            Boolean(
+                              canonicalCover
+                            )
+                          }
                           style={
                             styles.bookResultCover
                           }
