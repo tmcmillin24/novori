@@ -24,6 +24,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -35,8 +36,10 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
-  getBestSearchCover,
+  getNovoriSearchBookCover,
+  getNovoriSearchBookIsbn,
   GoogleBookSearchItem,
+  resolveNovoriSearchBookCover,
   searchNovoriBooks,
 } from '../lib/book-search';
 import {
@@ -484,6 +487,11 @@ export default function CreateBookStackScreen() {
       return;
     }
 
+    const initialCover =
+      getNovoriSearchBookCover(
+        book
+      );
+
     const next:
       BookStackDraftItem = {
         googleBookId:
@@ -496,9 +504,7 @@ export default function CreateBookStackScreen() {
           book.volumeInfo.authors ??
           [],
         coverUrl:
-          getBestSearchCover(
-            book.volumeInfo.imageLinks
-          ) ?? null,
+          initialCover,
       };
 
     setItems(
@@ -509,6 +515,52 @@ export default function CreateBookStackScreen() {
         next,
       ]
     );
+
+    void resolveNovoriSearchBookCover(
+      book
+    )
+      .then(
+        (
+          resolvedCover
+        ) => {
+          if (
+            !resolvedCover ||
+            resolvedCover ===
+              initialCover
+          ) {
+            return;
+          }
+
+          setItems(
+            (
+              current
+            ) =>
+              current.map(
+                (
+                  item
+                ) =>
+                  item.googleBookId ===
+                  book.id
+                    ? {
+                        ...item,
+                        coverUrl:
+                          resolvedCover,
+                      }
+                    : item
+              )
+          );
+        }
+      )
+      .catch(
+        (
+          error
+        ) => {
+          console.warn(
+            'Could not refine Book Stack cover:',
+            error
+          );
+        }
+      );
   }
 
   function removeBook(
@@ -1834,9 +1886,19 @@ export default function CreateBookStackScreen() {
                   );
 
                 const cover =
-                  getBestSearchCover(
-                    book.volumeInfo.imageLinks
+                  getNovoriSearchBookCover(
+                    book
                   );
+
+                const isbn =
+                  getNovoriSearchBookIsbn(
+                    book
+                  );
+
+                const canonicalCover =
+                  book.novoriWork
+                    ?.canonicalCoverUrl ??
+                  null;
 
                 return (
                   <Pressable
@@ -1857,14 +1919,21 @@ export default function CreateBookStackScreen() {
                     ]}
                   >
                     {cover ? (
-                      <Image
-                        source={{
-                          uri:
-                            cover,
-                        }}
+                      <BookCoverImage
+                        imageLinks={
+                          book.volumeInfo
+                            .imageLinks
+                        }
+                        isbn={
+                          isbn
+                        }
+                        existingCoverUrl={
+                          canonicalCover
+                        }
                         style={
                           styles.resultCover
                         }
+                        resizeMode="cover"
                       />
                     ) : (
                       <View
