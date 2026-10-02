@@ -38,9 +38,7 @@ import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-nati
 import { NovoriColors } from '../../constants/novori-theme';
 import BookCoverImage from '../../components/BookCoverImage';
 import {
-  getBookCoverPlan,
-} from '../../lib/book-covers';
-import {
+  getNovoriSearchBookCover,
   searchNovoriBooks,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -1722,19 +1720,10 @@ const DiscoverBookCard = memo(
         ?.canonicalCoverUrl ??
       null;
 
-    const coverPlan =
-      getBookCoverPlan({
-        imageLinks:
-          info.imageLinks,
-        isbn,
-        existingCoverUrl:
-          canonicalCover,
-      });
-
     const cover =
-      canonicalCover ??
-      coverPlan.primaryUrl ??
-      coverPlan.fallbackUrl ??
+      getNovoriSearchBookCover(
+        item
+      ) ??
       undefined;
 
     return (
