@@ -3785,11 +3785,11 @@ async function findHardcoverDiscoveryMatch(
               'hardcover-trending'
                 ? {
                     days: 90,
-                    poolSize: 150,
+                    poolSize: 100,
                   }
                 : {
-                    months: 24,
-                    poolSize: 200,
+                    months: 18,
+                    poolSize: 150,
                   },
           }
         );

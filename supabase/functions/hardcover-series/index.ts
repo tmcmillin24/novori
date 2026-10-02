@@ -1,3 +1,4 @@
+import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectCanonicalGoogleCoversForWorkIds } from "../_shared/book-cover-selector.ts";
 
@@ -54,15 +55,15 @@ Deno.serve(async (req) => {
         ? body.title.trim()
         : "";
 
-    const requestedAuthors =
+    const requestedAuthors: string[] =
       Array.isArray(body?.authors)
         ? body.authors
             .filter(
-              (author) =>
+              (author: string) =>
                 typeof author === "string" &&
                 author.trim()
             )
-            .map((author) =>
+            .map((author: string) =>
               author.trim()
             )
         : [];
@@ -196,7 +197,7 @@ Deno.serve(async (req) => {
 
         .replace(
 
-          /^Bearer\\s+/i,
+          /^Bearer\s+/i,
 
           ""
 
@@ -206,40 +207,13 @@ Deno.serve(async (req) => {
 
 
 
-    const supabaseAdmin =
-
-      supabaseUrl &&
-
-      serviceRoleKey
-
-        ? createClient(
-
-            supabaseUrl,
-
-            serviceRoleKey,
-
-            {
-
-              auth: {
-
-                autoRefreshToken:
-
-                  false,
-
-                persistSession:
-
-                  false,
-
-              },
-
-            }
-
-          )
-
-        : null;
-
-
-
+    const supabaseAdmin = createCacheAdmin();
+    await requireReader(supabaseAdmin, req);
+    let sourceExpiresAt = Infinity;
+    const fetchHardcover = (url: string, init: RequestInit) => cachedHardcoverFetch(
+      supabaseAdmin, url, init, 14 * 86400000, 90 * 86400000, 'hardcover_series',
+      row => { sourceExpiresAt = Math.min(sourceExpiresAt, Date.parse(row.expires_at)); }
+    );
     const HARDCOVER_SERIES_CACHE_PROVIDER =
 
       "hardcover_series";
@@ -323,233 +297,6 @@ Deno.serve(async (req) => {
           .join("|"),
 
       ].join("::");
-
-
-
-    async function readHardcoverSeriesCache() {
-
-      if (!supabaseAdmin) {
-
-        return null;
-
-      }
-
-
-
-      const {
-
-        data,
-
-        error,
-
-      } =
-
-        await supabaseAdmin
-
-          .from(
-
-            "book_api_cache"
-
-          )
-
-          .select(
-
-            "response_json, expires_at"
-
-          )
-
-          .eq(
-
-            "provider",
-
-            HARDCOVER_SERIES_CACHE_PROVIDER
-
-          )
-
-          .eq(
-
-            "request_key",
-
-            hardcoverSeriesCacheKey
-
-          )
-
-          .maybeSingle();
-
-
-
-      if (error) {
-
-        console.warn(
-
-          "Could not read Hardcover series cache:",
-
-          error.message
-
-        );
-
-        return null;
-
-      }
-
-
-
-      if (
-
-        !data ||
-
-        !data.expires_at ||
-
-        Date.parse(
-
-          data.expires_at
-
-        ) <= Date.now()
-
-      ) {
-
-        return null;
-
-      }
-
-
-
-      return data.response_json ?? null;
-
-    }
-
-
-
-    async function writeHardcoverSeriesCache(
-
-      payload: unknown
-
-    ) {
-
-      if (!supabaseAdmin) {
-
-        return;
-
-      }
-
-
-
-      const fetchedAt =
-
-        new Date();
-
-
-
-      const expiresAt =
-
-        new Date(
-
-          fetchedAt.getTime() +
-
-            HARDCOVER_SERIES_CACHE_TTL_MS
-
-        );
-
-
-
-      const staleUntil =
-
-        new Date(
-
-          fetchedAt.getTime() +
-
-            HARDCOVER_SERIES_STALE_TTL_MS
-
-        );
-
-
-
-      const {
-
-        error,
-
-      } =
-
-        await supabaseAdmin
-
-          .from(
-
-            "book_api_cache"
-
-          )
-
-          .upsert(
-
-            {
-
-              provider:
-
-                HARDCOVER_SERIES_CACHE_PROVIDER,
-
-              request_key:
-
-                hardcoverSeriesCacheKey,
-
-              response_json:
-
-                payload,
-
-              status_code:
-
-                200,
-
-              fetched_at:
-
-                fetchedAt.toISOString(),
-
-              expires_at:
-
-                expiresAt.toISOString(),
-
-              stale_until:
-
-                staleUntil.toISOString(),
-
-              schema_version:
-
-                1,
-
-              hit_count:
-
-                0,
-
-              last_hit_at:
-
-                null,
-
-            },
-
-            {
-
-              onConflict:
-
-                "provider,request_key",
-
-            }
-
-          );
-
-
-
-      if (error) {
-
-        console.warn(
-
-          "Could not write Hardcover series cache:",
-
-          error.message
-
-        );
-
-      }
-
-    }
-
 
 
 
@@ -841,60 +588,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const cachedHardcoverSeries =
-
-      await readHardcoverSeriesCache();
-
-
-
-    if (
-
-      cachedHardcoverSeries
-
-    ) {
-
-      console.info(
-
-        "hardcover-series cache=hit"
-
-      );
-
-      await promoteVerifiedSeriesCover(
-        cachedHardcoverSeries
-      );
-
-
-
-      return new Response(
-
-        JSON.stringify(
-
-          cachedHardcoverSeries
-
-        ),
-
-        {
-
-          status: 200,
-
-          headers: {
-
-            ...corsHeaders,
-
-            "Content-Type":
-
-              "application/json",
-
-          },
-
-        }
-
-      );
-
-    }
-
-
-
+    const responsePayload = await cachedProviderValue({
+      admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,
+      key: hardcoverSeriesCacheKey, freshMs: HARDCOVER_SERIES_CACHE_TTL_MS,
+      staleMs: HARDCOVER_SERIES_STALE_TTL_MS, leaseSeconds: 600, sourceExpiresAt: () => sourceExpiresAt,
+      load: async () => {
     let quotaUserId:
 
       string | null | undefined =
@@ -1063,25 +761,8 @@ Deno.serve(async (req) => {
 
     ) {
 
-      const allowed =
-
-        await claimGoogleBooksRequest();
-
-
-
-      if (!allowed) {
-
-        return null;
-
-      }
-
-
-
-      return fetch(url);
-
+      return cachedGoogleQuery(supabaseAdmin, url, claimGoogleBooksRequest);
     }
-
-
 
     // Normalize common 2-letter, 3-letter, and name
 
@@ -1449,8 +1130,7 @@ Deno.serve(async (req) => {
         requestedIsbns
     ) {
       const bookResponse =
-        await fetch(
-          "https://api.hardcover.app/v1/graphql",
+        await fetchHardcover("https://api.hardcover.app/v1/graphql",
           {
             method: "POST",
             headers: {
@@ -1539,8 +1219,7 @@ Deno.serve(async (req) => {
         requestedAuthors[0] ?? "";
 
       const searchResponse =
-        await fetch(
-          "https://api.hardcover.app/v1/graphql",
+        await fetchHardcover("https://api.hardcover.app/v1/graphql",
           {
             method: "POST",
             headers: {
@@ -1653,7 +1332,7 @@ Deno.serve(async (req) => {
                   120;
               }
 
-              const actualAuthors =
+              const actualAuthors: string[] =
                 Array.isArray(
                   document.author_names
                 )
@@ -1698,7 +1377,7 @@ Deno.serve(async (req) => {
           )
           .filter(
             (
-              item
+              item: { id: number; score: number }
             ) =>
               item.id >
                 0 &&
@@ -1707,8 +1386,8 @@ Deno.serve(async (req) => {
           )
           .sort(
             (
-              a,
-              b
+              a: { id: number; score: number },
+              b: { id: number; score: number }
             ) =>
               b.score -
               a.score
@@ -1772,8 +1451,7 @@ Deno.serve(async (req) => {
         `;
 
         const fullBookResponse =
-          await fetch(
-            "https://api.hardcover.app/v1/graphql",
+          await fetchHardcover("https://api.hardcover.app/v1/graphql",
             {
               method: "POST",
               headers: {
@@ -1848,6 +1526,33 @@ Deno.serve(async (req) => {
 
 
 
+    const membership =
+
+      currentBook?.book_series?.[0];
+
+
+
+    const series =
+
+      membership?.series;
+
+
+
+    if (!series) {
+
+      const emptySeriesPayload = {
+
+        series: null,
+
+        books: [],
+
+      };
+
+
+
+      return emptySeriesPayload;
+    }
+
     // Hardcover sometimes leaves the exact edition's
 
     // language blank even when the ISBN is known.
@@ -1881,66 +1586,6 @@ Deno.serve(async (req) => {
           isbnLanguages
 
         );
-
-    }
-
-
-
-    const membership =
-
-      currentBook?.book_series?.[0];
-
-
-
-    const series =
-
-      membership?.series;
-
-
-
-    if (!series) {
-
-      const emptySeriesPayload = {
-
-        series: null,
-
-        books: [],
-
-      };
-
-
-
-      await writeHardcoverSeriesCache(
-
-        emptySeriesPayload
-
-      );
-
-
-
-      return new Response(
-
-        JSON.stringify(
-
-          emptySeriesPayload
-
-        ),
-
-        {
-
-          status: 200,
-
-          headers: {
-
-            ...corsHeaders,
-
-            "Content-Type": "application/json",
-
-          },
-
-        }
-
-      );
 
     }
 
@@ -2048,9 +1693,7 @@ Deno.serve(async (req) => {
 
 
 
-    const seriesResponse = await fetch(
-
-      "https://api.hardcover.app/v1/graphql",
+    const seriesResponse = await fetchHardcover("https://api.hardcover.app/v1/graphql",
 
       {
 
@@ -2271,7 +1914,7 @@ Deno.serve(async (req) => {
 
         Array.from(
 
-          new Set(languageKeys)
+          new Set<string>(languageKeys)
 
         );
 
@@ -3710,42 +3353,13 @@ Deno.serve(async (req) => {
 
 
 
-    await writeHardcoverSeriesCache(
-
-      seriesPayload
-
-    );
-
-    await promoteVerifiedSeriesCover(
-      seriesPayload
-    );
-
-
-
-    return new Response(
-
-      JSON.stringify(
-
-        seriesPayload
-
-      ),
-
-      {
-
-        status: 200,
-
-        headers: {
-
-          ...corsHeaders,
-
-          "Content-Type": "application/json",
-
-        },
-
-      }
-
-    );
-
+    return seriesPayload;
+      },
+    });
+    await promoteVerifiedSeriesCover(responsePayload);
+    return new Response(JSON.stringify(responsePayload), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
 
     return new Response(

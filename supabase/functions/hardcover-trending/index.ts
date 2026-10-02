@@ -1,3 +1,4 @@
+import { cachedProviderValue, fetchHardcoverUpstream, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import {
   applyCanonicalDiscoveryCovers,
 } from "../_shared/discovery-canonical-covers.ts";
@@ -10,9 +11,6 @@ const corsHeaders = {
 
 const CACHE_TTL_MS =
   6 * 60 * 60 * 1000;
-
-const FORCE_REFRESH_COOLDOWN_MS =
-  10 * 60 * 1000;
 
 type CacheRow = {
   payload: Record<string, unknown>;
@@ -92,7 +90,7 @@ async function readCache(
     !supabaseUrl ||
     !serviceRoleKey
   ) {
-    return null;
+    throw new Error("Discover cache is not configured.");
   }
 
   const response = await fetch(
@@ -109,12 +107,7 @@ async function readCache(
   );
 
   if (!response.ok) {
-    console.error(
-      "Discover cache read failed:",
-      response.status,
-      await response.text()
-    );
-    return null;
+    throw new Error("Discover cache read failed (" + response.status + ").");
   }
 
   const rows =
@@ -322,6 +315,11 @@ Deno.serve(async (req) => {
     CacheRow | null = null;
 
   try {
+    const supabaseAdmin = createCacheAdmin();
+    await requireReader(supabaseAdmin, req);
+    const fetchHardcover = (url: string, init: RequestInit) => fetchHardcoverUpstream(
+      supabaseAdmin, url, init
+    );
     const token =
       Deno.env.get(
         "HARDCOVER_API_TOKEN"
@@ -339,9 +337,7 @@ Deno.serve(async (req) => {
 
     let days = 90;
     let poolSize = 100;
-    let forceRefresh = false;
-
-    if (
+if (
       req.method === "POST"
     ) {
       try {
@@ -384,10 +380,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        forceRefresh =
-          body?.forceRefresh ===
-          true;
-      } catch {
+} catch {
         // Defaults are fine.
       }
     }
@@ -409,18 +402,10 @@ Deno.serve(async (req) => {
       cachedAge <
       CACHE_TTL_MS;
 
-    const forceRefreshIsCoolingDown =
-      forceRefresh &&
-      cachedAge <
-        FORCE_REFRESH_COOLDOWN_MS;
 
     if (
       cachedRow &&
-      (
-        (!forceRefresh &&
-          cacheIsFresh) ||
-        forceRefreshIsCoolingDown
-      )
+      (cacheIsFresh)
     ) {
       const responsePayload =
         await applyCanonicalDiscoveryCovers(
@@ -430,15 +415,17 @@ Deno.serve(async (req) => {
       return jsonResponse(
         withCacheMeta(
           responsePayload,
-          forceRefreshIsCoolingDown
-            ? "manual-cooldown-hit"
-            : "hit",
+          "hit",
           cachedRow.refreshed_at,
           CACHE_TTL_MS
         )
       );
     }
 
+    const refreshedPayload = await cachedProviderValue({
+      admin: supabaseAdmin, provider: 'hardcover_popularity', key: 'discover:' + cacheKey,
+      freshMs: CACHE_TTL_MS, staleMs: 3 * 86400000, leaseSeconds: 60,
+      load: async () => {
     const today =
       new Date();
 
@@ -508,8 +495,7 @@ Deno.serve(async (req) => {
     `;
 
     const trendingResponse =
-      await fetch(
-        "https://api.hardcover.app/v1/graphql",
+      await fetchHardcover("https://api.hardcover.app/v1/graphql",
         {
           method: "POST",
           headers: {
@@ -636,14 +622,7 @@ Deno.serve(async (req) => {
         emptyPayload
       );
 
-      return jsonResponse(
-        withCacheMeta(
-          emptyPayload,
-          "refreshed",
-          new Date().toISOString(),
-          CACHE_TTL_MS
-        )
-      );
+      return emptyPayload;
     }
 
     const booksQuery = `
@@ -691,8 +670,7 @@ Deno.serve(async (req) => {
     `;
 
     const booksResponse =
-      await fetch(
-        "https://api.hardcover.app/v1/graphql",
+      await fetchHardcover("https://api.hardcover.app/v1/graphql",
         {
           method: "POST",
           headers: {
@@ -856,26 +834,18 @@ Deno.serve(async (req) => {
       payload
     );
 
-    const responsePayload =
-      await applyCanonicalDiscoveryCovers(
-        payload
-      );
-
-    return jsonResponse(
-      withCacheMeta(
-        responsePayload,
-        "refreshed",
-        new Date().toISOString(),
-        CACHE_TTL_MS
-      )
-    );
+    return payload;
+      },
+    });
+    const responsePayload = await applyCanonicalDiscoveryCovers(refreshedPayload);
+    return jsonResponse(withCacheMeta(responsePayload, "shared", new Date().toISOString(), CACHE_TTL_MS));
   } catch (error) {
     console.error(
       "hardcover-trending error:",
       error
     );
 
-    if (cachedRow) {
+    if (cachedRow && cacheAgeMs(cachedRow) < 3 * 86400000) {
       const responsePayload =
         await applyCanonicalDiscoveryCovers(
           cachedRow.payload

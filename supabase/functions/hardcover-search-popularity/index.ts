@@ -1,3 +1,5 @@
+import { cacheDigest, cachedHardcoverFetch, cachedProviderValue, createCacheAdmin, readProviderCache, requireReader, writeProviderCache } from '../_shared/provider-cache.ts';
+import { claimApiCacheRefresh, waitForApiCacheFill } from '../_shared/api-cache-guard.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -288,10 +290,10 @@ function chooseBestBook(
       books
   ) {
     if (
-      !titlesMatch(
+      (title && !titlesMatch(
         title,
         book.title
-      ) ||
+      )) ||
       !authorsMatch(
         authors,
         book
@@ -306,7 +308,7 @@ function chooseBestBook(
       );
 
     if (
-      !titlesMatch(
+      title && !titlesMatch(
         title,
         resolved.title
       ) &&
@@ -373,74 +375,36 @@ function chooseBestBook(
   )[0];
 }
 
-async function hardcoverRequest(
-  token: string,
-  query: string,
-  variables: Record<
-    string,
-    unknown
-  >
-) {
-  const response =
-    await fetch(
-      'https://api.hardcover.app/v1/graphql',
-      {
-        method:
-          'POST',
-        headers: {
-          Authorization:
-            `Bearer ${token}`,
-          'Content-Type':
-            'application/json',
-        },
-        body:
-          JSON.stringify({
-            query,
-            variables,
-          }),
-      }
-    );
+async function hardcoverRequest(admin: ReturnType<typeof createCacheAdmin>, token: string, query: string, variables: Record<string, unknown>, onCacheRead?: (row: any) => void) {
+  const response = await cachedHardcoverFetch(admin, 'https://api.hardcover.app/v1/graphql', {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  }, 86400000, 3 * 86400000, 'hardcover_popularity', onCacheRead);
+  return response.json();
+}
 
-  if (
-    !response.ok
-  ) {
-    const details =
-      await response.text();
+function parseSearchBooks(results: any): HardcoverBook[] {
+  return (Array.isArray(results?.hits) ? results.hits : []).map((hit: any) => {
+    const result = hit?.document;
+    if (!result?.id || !result.title) return null;
+    return {
+      id: Number(result.id), title: String(result.title), rating: result.rating == null ? null : Number(result.rating),
+      ratings_count: Number(result.ratings_count ?? 0), reviews_count: Number(result.reviews_count ?? 0),
+      users_count: Number(result.users_count ?? 0), canonical_id: result.canonical_id == null ? null : Number(result.canonical_id),
+      contributions: (Array.isArray(result.author_names) ? result.author_names : []).map((name: string) => ({ author: { name, canonical: null } })),
+    };
+  }).filter(Boolean);
+}
 
-    throw new Error(
-      `Hardcover API request failed (${response.status}): ${details}`
-    );
-  }
-
-  const payload =
-    await response.json();
-
-  if (
-    Array.isArray(
-      payload?.errors
-    ) &&
-    payload.errors.length >
-      0
-  ) {
-    throw new Error(
-      payload.errors
-        .map(
-          (
-            error:
-              {
-                message?: string;
-              }
-          ) =>
-            error.message ??
-            'Unknown Hardcover error'
-        )
-        .join(
-          '; '
-        )
-    );
-  }
-
-  return payload;
+type Popularity = { usersCount: number; rating: number | null; ratingsCount: number; reviewsCount: number; hardcoverBookId: number };
+function cachedPopularity(row: any): Popularity | null {
+  const value = row?.response_json;
+  return value?.kind === 'book_popularity' ? value.value : value;
+}
+function toPopularity(best: HardcoverBookCore): Popularity {
+  const rating = best.rating == null ? null : Number(best.rating);
+  return { usersCount: Number(best.users_count ?? 0), rating: rating !== null && Number.isFinite(rating) ? rating : null,
+    ratingsCount: Number(best.ratings_count ?? 0), reviewsCount: Number(best.reviews_count ?? 0), hardcoverBookId: best.id };
 }
 
 const bookFields = `
@@ -478,776 +442,116 @@ const bookFields = `
   }
 `;
 
-Deno.serve(
-  async (
-    request
-  ) => {
-    if (
-      request.method ===
-      'OPTIONS'
-    ) {
-      return new Response(
-        'ok',
-        {
-          headers:
-            corsHeaders,
-        }
-      );
-    }
-
-    try {
-      const token =
-        Deno.env.get(
-          'HARDCOVER_API_TOKEN'
-        ) ??
-        Deno.env.get(
-          'HARDCOVER_API_KEY'
-        ) ??
-        Deno.env.get(
-          'HARDCOVER_TOKEN'
-        );
-
-      if (
-        !token
-      ) {
-        throw new Error(
-          'Hardcover API token is not configured.'
-        );
-      }
-
-      const body =
-        await request.json();
-
-      const allowTitleFallback =
-        body?.allowTitleFallback ===
-        true;
-
-      const books =
-        Array.isArray(
-          body?.books
-        )
-          ? (
-              body.books as
-                InputBook[]
-            )
-          : [];
-
-      const normalizedBooks =
-        books
-          .map(
-            (
-              book
-            ) => ({
-              googleBookId:
-                String(
-                  book.googleBookId ??
-                    ''
-                ),
-              title:
-                String(
-                  book.title ??
-                    ''
-                ).trim(),
-              authors:
-                Array.isArray(
-                  book.authors
-                )
-                  ? book.authors
-                      .filter(
-                        (
-                          author
-                        ): author is string =>
-                          typeof author ===
-                          'string' &&
-                          author.trim()
-                            .length >
-                            0
-                      )
-                      .map(
-                        (
-                          author
-                        ) =>
-                          author.trim()
-                      )
-                  : [],
-              isbns:
-                Array.from(
-                  new Set(
-                    (
-                      book.isbns ??
-                      []
-                    )
-                      .map(
-                        normalizeIsbn
-                      )
-                      .filter(
-                        Boolean
-                      )
-                  )
-                ),
-            })
-          )
-          .filter(
-            (
-              book
-            ) =>
-              book.googleBookId &&
-              (
-                book.isbns.length >
-                  0 ||
-                (
-                  allowTitleFallback &&
-                  book.title
-                )
-              )
-          )
-          .slice(
-            0,
-            40
-          );
-
-      if (
-        normalizedBooks.length ===
-        0
-      ) {
-        return new Response(
-          JSON.stringify({
-            popularity: {},
-          }),
-          {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              'Content-Type':
-                'application/json',
-            },
-          }
-        );
-      }
-
-      const supabaseUrl =
-        Deno.env.get(
-          'SUPABASE_URL'
-        ) ?? '';
-
-      const serviceRoleKey =
-        Deno.env.get(
-          'SUPABASE_SERVICE_ROLE_KEY'
-        ) ?? '';
-
-      const supabaseAdmin =
-        supabaseUrl &&
-        serviceRoleKey
-          ? createClient(
-              supabaseUrl,
-              serviceRoleKey,
-              {
-                auth: {
-                  autoRefreshToken:
-                    false,
-                  persistSession:
-                    false,
-                },
-              }
-            )
-          : null;
-
-      const cacheSignature =
-        JSON.stringify({
-          allowTitleFallback,
-          books:
-            normalizedBooks,
-        });
-
-      const cacheDigest =
-        await crypto.subtle.digest(
-          'SHA-256',
-          new TextEncoder().encode(
-            cacheSignature
-          )
-        );
-
-      const cacheHash =
-        Array.from(
-          new Uint8Array(
-            cacheDigest
-          )
-        )
-          .map(
-            (
-              value
-            ) =>
-              value
-                .toString(16)
-                .padStart(
-                  2,
-                  '0'
-                )
-          )
-          .join('');
-
-      const cacheProvider =
-        'hardcover_popularity';
-
-      const cacheKey =
-        `popularity:v1:${cacheHash}`;
-
-      const cacheTtlMs =
-        24 * 60 * 60 * 1000;
-
-      const cacheStaleTtlMs =
-        3 * 24 * 60 * 60 * 1000;
-
-      if (
-        supabaseAdmin
-      ) {
-        const {
-          data:
-            cachedData,
-          error:
-            cacheError,
-        } =
-          await supabaseAdmin
-            .from(
-              'book_api_cache'
-            )
-            .select(
-              'response_json, expires_at'
-            )
-            .eq(
-              'provider',
-              cacheProvider
-            )
-            .eq(
-              'request_key',
-              cacheKey
-            )
-            .maybeSingle();
-
-        if (
-          cacheError
-        ) {
-          console.warn(
-            'Could not read Hardcover popularity cache:',
-            cacheError.message
-          );
-        } else if (
-          cachedData &&
-          cachedData.expires_at &&
-          Date.parse(
-            cachedData.expires_at
-          ) > Date.now() &&
-          cachedData.response_json
-        ) {
-          console.info(
-            'hardcover-search-popularity cache=hit'
-          );
-
-          return new Response(
-            JSON.stringify(
-              cachedData.response_json
-            ),
-            {
-              status: 200,
-              headers: {
-                ...corsHeaders,
-                'Content-Type':
-                  'application/json',
-              },
-            }
-          );
-        }
-      }
-
-      async function writePopularityCache(
-        payload: unknown
-      ) {
-        if (
-          !supabaseAdmin
-        ) {
-          return;
-        }
-
-        const fetchedAt =
-          new Date();
-
-        const expiresAt =
-          new Date(
-            fetchedAt.getTime() +
-              cacheTtlMs
-          );
-
-        const staleUntil =
-          new Date(
-            fetchedAt.getTime() +
-              cacheStaleTtlMs
-          );
-
-        const {
-          error,
-        } =
-          await supabaseAdmin
-            .from(
-              'book_api_cache'
-            )
-            .upsert(
-              {
-                provider:
-                  cacheProvider,
-                request_key:
-                  cacheKey,
-                response_json:
-                  payload,
-                status_code:
-                  200,
-                fetched_at:
-                  fetchedAt.toISOString(),
-                expires_at:
-                  expiresAt.toISOString(),
-                stale_until:
-                  staleUntil.toISOString(),
-                schema_version:
-                  1,
-                hit_count:
-                  0,
-                last_hit_at:
-                  null,
-              },
-              {
-                onConflict:
-                  'provider,request_key',
-              }
-            );
-
-        if (
-          error
-        ) {
-          console.warn(
-            'Could not write Hardcover popularity cache:',
-            error.message
-          );
-        }
-      }
-
-      const allIsbns =
-        Array.from(
-          new Set(
-            normalizedBooks.flatMap(
-              (
-                book
-              ) =>
-                book.isbns
-            )
-          )
-        );
-
-      let isbnBooks:
-        HardcoverBook[] =
-        [];
-
-      if (
-        allIsbns.length >
-        0
-      ) {
-        const isbnQuery = `
-          query HardcoverByIsbn(
-            $isbns: [String!]!
-          ) {
-            books(
-              where: {
-                editions: {
-                  _or: [
-                    {
-                      isbn_10: {
-                        _in: $isbns
-                      }
-                    },
-                    {
-                      isbn_13: {
-                        _in: $isbns
-                      }
-                    }
-                  ]
-                }
-              }
-            ) {
-              ${bookFields}
-              editions {
-                isbn_10
-                isbn_13
-              }
-            }
-          }
-        `;
-
-        const payload =
-          await hardcoverRequest(
-            token,
-            isbnQuery,
-            {
-              isbns:
-                allIsbns,
-            }
-          );
-
-        isbnBooks =
-          Array.isArray(
-            payload?.data?.books
-          )
-            ? payload.data.books
-            : [];
-      }
-
-      const popularity:
-        Record<
-          string,
-          {
-            usersCount: number;
-            rating:
-              number | null;
-            ratingsCount: number;
-            reviewsCount: number;
-            hardcoverBookId: number;
-          }
-        > = {};
-
-      for (
-        const inputBook of
-        normalizedBooks
-      ) {
-        const wantedIsbns =
-          new Set(
-            inputBook.isbns
-          );
-
-        const isbnMatches =
-          isbnBooks.filter(
-            (
-              book
-            ) =>
-              (
-                book.editions ??
-                []
-              ).some(
-                (
-                  edition
-                ) => {
-                  const isbn10 =
-                    normalizeIsbn(
-                      edition.isbn_10
-                    );
-
-                  const isbn13 =
-                    normalizeIsbn(
-                      edition.isbn_13
-                    );
-
-                  return (
-                    (
-                      isbn10 &&
-                      wantedIsbns.has(
-                        isbn10
-                      )
-                    ) ||
-                    (
-                      isbn13 &&
-                      wantedIsbns.has(
-                        isbn13
-                      )
-                    )
-                  );
-                }
-              )
-          );
-
-        let best =
-          chooseBestBook(
-            isbnMatches,
-            inputBook.title,
-            inputBook.authors
-          );
-
-        if (
-          !best &&
-          allowTitleFallback &&
-          inputBook.title
-        ) {
-          const primaryAuthor =
-            inputBook.authors[0]
-              ?.trim() ??
-            '';
-
-          const searchQuery = `
-            query HardcoverSearch(
-              $query: String!
-            ) {
-              search(
-                query: $query
-                query_type: "Book"
-                per_page: 50
-                page: 1
-                fields: "title,author_names,isbns,alternative_titles"
-                weights: "5,4,5,1"
-                typos: "2,2,0,2"
-                sort: "_text_match:desc,ratings_count:desc"
-              ) {
-                results
-              }
-            }
-          `;
-
-          const payload =
-            await hardcoverRequest(
-              token,
-              searchQuery,
-              {
-                query:
-                  primaryAuthor
-                    ? `${inputBook.title} ${primaryAuthor}`
-                    : inputBook.title,
-              }
-            );
-
-          const searchResults =
-            payload?.data?.search?.results;
-
-          const rawHits =
-            searchResults &&
-            typeof searchResults ===
-              'object' &&
-            !Array.isArray(
-              searchResults
-            ) &&
-            Array.isArray(
-              (
-                searchResults as {
-                  hits?: unknown[];
-                }
-              ).hits
-            )
-              ? (
-                  searchResults as {
-                    hits: unknown[];
-                  }
-                ).hits
-              : [];
-
-          const searchMatches:
-            HardcoverBook[] =
-            rawHits
-              .map(
-                (
-                  hit
-                ) => {
-                  const result =
-                    hit &&
-                    typeof hit ===
-                      'object' &&
-                    !Array.isArray(
-                      hit
-                    )
-                      ? (
-                          hit as {
-                            document?: Record<
-                              string,
-                              unknown
-                            >;
-                          }
-                        ).document
-                      : null;
-
-                  if (
-                    !result
-                  ) {
-                    return null;
-                  }
-
-                  const authorNames =
-                    Array.isArray(
-                      result.author_names
-                    )
-                      ? result.author_names
-                          .filter(
-                            (
-                              name
-                            ): name is string =>
-                              typeof name ===
-                              'string'
-                          )
-                      : [];
-
-                  const searchBook:
-                    HardcoverBook = {
-                    id:
-                      Number(
-                        result.id ??
-                          0
-                      ),
-                    title:
-                      String(
-                        result.title ??
-                          ''
-                      ),
-                    rating:
-                      result.rating ===
-                        null ||
-                      result.rating ===
-                        undefined
-                        ? null
-                        : Number(
-                            result.rating
-                          ),
-                    ratings_count:
-                      Number(
-                        result.ratings_count ??
-                          0
-                      ),
-                    reviews_count:
-                      Number(
-                        result.reviews_count ??
-                          0
-                      ),
-                    users_count:
-                      Number(
-                        result.users_count ??
-                          0
-                      ),
-                    canonical_id:
-                      result.canonical_id ===
-                        null ||
-                      result.canonical_id ===
-                        undefined
-                        ? null
-                        : Number(
-                            result.canonical_id
-                          ),
-                    contributions:
-                      authorNames.map(
-                        (
-                          name
-                        ) => ({
-                          author: {
-                            name,
-                            canonical:
-                              null,
-                          },
-                        })
-                      ),
-                  };
-
-                  return searchBook;
-                }
-              )
-              .filter(
-                (
-                  book
-                ): book is HardcoverBook =>
-                  Boolean(
-                    book?.id &&
-                    book.title
-                  )
-              );
-
-          best =
-            chooseBestBook(
-              searchMatches,
-              inputBook.title,
-              inputBook.authors
-            );
-        }
-        if (
-          !best
-        ) {
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const respond = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
+    status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+  try {
+    const admin = createCacheAdmin();
+    await requireReader(admin, request);
+    const token = Deno.env.get('HARDCOVER_API_TOKEN') ?? Deno.env.get('HARDCOVER_API_KEY') ?? Deno.env.get('HARDCOVER_TOKEN');
+    if (!token) throw new Error('Hardcover API token is not configured.');
+    const body = await request.json();
+    const allowTitleFallback = body?.allowTitleFallback === true;
+    const books = (Array.isArray(body?.books) ? body.books : []).slice(0, 40).map((book: any) => ({
+      googleBookId: String(book?.googleBookId ?? ''), title: String(book?.title ?? '').trim(),
+      authors: (Array.isArray(book?.authors) ? book.authors : []).filter((author: any) => typeof author === 'string' && author.trim()).map((author: string) => author.trim()),
+      isbns: Array.from(new Set<string>((Array.isArray(book?.isbns) ? book.isbns : []).map(normalizeIsbn).filter(Boolean))),
+    })).filter((book: InputBook) => book.googleBookId && (book.isbns.length || (allowTitleFallback && book.title)));
+    if (!books.length) return respond({ popularity: {} });
+    const provider = 'hardcover_popularity';
+    let sourceExpiresAt = Infinity;
+    const noteSource = (row: any) => { sourceExpiresAt = Math.min(sourceExpiresAt, Date.parse(row.expires_at)); };
+    const freshMs = 86400000, staleMs = 3 * freshMs;
+    // Keep prior batches readable; new batches are also insensitive to book order.
+    const legacyKey = 'popularity:v1:' + await cacheDigest({ allowTitleFallback, books });
+    const legacy = await readProviderCache(admin, provider, legacyKey);
+    if (legacy && Date.parse(legacy.expires_at) > Date.now()) return respond(legacy.response_json);
+    const prepared = await Promise.all(books.map(async (book: InputBook) => {
+      const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
+      return { book, key: 'book:v1:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? 'work:v1:' + await cacheDigest(identity) : null };
+    }));
+    const batchKey = 'popularity:v2:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
+    const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
+      const popularity: Record<string, Popularity> = {};
+      const pending: typeof prepared = [], waiting: typeof prepared = [];
+      for (const item of prepared) {
+        const work = item.workKey ? await readProviderCache(admin, provider, item.workKey) : null;
+        const cached = work && Date.parse(work.expires_at) > Date.now() ? work : await readProviderCache(admin, provider, item.key);
+        if (cached && Date.parse(cached.expires_at) > Date.now()) {
+          noteSource(cached);
+          const result = cachedPopularity(cached);
+          if (result) popularity[item.book.googleBookId] = result;
           continue;
         }
-
-        const rating =
-          best.rating ===
-            null ||
-          best.rating ===
-            undefined
-            ? null
-            : Number(
-                best.rating
-              );
-
-        popularity[
-          inputBook.googleBookId
-        ] = {
-          usersCount:
-            Number(
-              best.users_count ??
-                0
-            ),
-          rating:
-            rating !==
-              null &&
-            Number.isFinite(
-              rating
-            )
-              ? rating
-              : null,
-          ratingsCount:
-            Number(
-              best.ratings_count ??
-                0
-            ),
-          reviewsCount:
-            Number(
-              best.reviews_count ??
-                0
-            ),
-          hardcoverBookId:
-            best.id,
-        };
+        const claim = await claimApiCacheRefresh(admin, provider, item.key, crypto.randomUUID(), 60);
+        (claim.acquired ? pending : waiting).push(item);
       }
-
-      const responsePayload = {
-        popularity,
-      };
-
-      await writePopularityCache(
-        responsePayload
-      );
-
-      return new Response(
-        JSON.stringify(
-          responsePayload
-        ),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type':
-              'application/json',
-          },
+      const allIsbns = Array.from(new Set<string>(pending.flatMap(item => item.book.isbns))).sort();
+      let isbnBooks: HardcoverBook[] = [];
+      if (allIsbns.length) {
+        const response = await hardcoverRequest(admin, token, `query HardcoverByIsbn($isbns: [String!]!) {
+          books(where: { editions: { _or: [{ isbn_10: { _in: $isbns } }, { isbn_13: { _in: $isbns } }] } }) {
+            ${bookFields} editions { isbn_10 isbn_13 }
+          }
+        }`, { isbns: allIsbns }, noteSource);
+        isbnBooks = Array.isArray(response?.data?.books) ? response.data.books : [];
+      }
+      const matches = new Map<string, HardcoverBookCore>();
+      for (const item of pending) {
+        const wanted = new Set(item.book.isbns);
+        const best = chooseBestBook(isbnBooks.filter(book => book.editions?.some(edition =>
+          wanted.has(normalizeIsbn(edition.isbn_10)) || wanted.has(normalizeIsbn(edition.isbn_13))
+        )), item.book.title ?? '', item.book.authors ?? []);
+        if (best) matches.set(item.key, best);
+      }
+      const titleMisses = pending.filter(item => !matches.has(item.key) && allowTitleFallback && item.book.title);
+      if (titleMisses.length) {
+        // Up to forty title searches travel in one GraphQL request, rather than forty API pulls.
+        const variables: Record<string, string> = {};
+        const definitions: string[] = [], fields: string[] = [];
+        titleMisses.forEach((item, index) => {
+          const variable = 'query' + index;
+          variables[variable] = [item.book.title, item.book.authors?.[0]].filter(Boolean).join(' ');
+          definitions.push('$' + variable + ': String!');
+          fields.push(`book${index}: search(query: $${variable}, query_type: "Book", per_page: 50, page: 1,
+            fields: "title,author_names,isbns,alternative_titles", weights: "5,4,5,1", typos: "2,2,0,2",
+            sort: "_text_match:desc,ratings_count:desc") { results }`);
+        });
+        const response = await hardcoverRequest(admin, token, `query HardcoverSearchBatch(${definitions.join(',')}) { ${fields.join('\n')} }`, variables, noteSource);
+        titleMisses.forEach((item, index) => {
+          const best = chooseBestBook(parseSearchBooks(response?.data?.['book' + index]?.results), item.book.title ?? '', item.book.authors ?? []);
+          if (best) matches.set(item.key, best);
+        });
+      }
+      for (const item of pending) {
+        const best = matches.get(item.key);
+        const result = best ? toPopularity(best) : null;
+        // Null is a confirmed no-match and is cached too. Errors never become no-matches.
+        await writeProviderCache(admin, provider, item.key, { kind: 'book_popularity', value: result }, freshMs, staleMs, sourceExpiresAt);
+        if (result) {
+          popularity[item.book.googleBookId] = result;
+          if (item.workKey) await writeProviderCache(admin, provider, item.workKey, result, freshMs, staleMs, sourceExpiresAt);
         }
-      );
-    } catch (
-      error
-    ) {
-      console.error(
-        'hardcover-search-popularity failed:',
-        error
-      );
-
-      return new Response(
-        JSON.stringify({
-          error:
-            error instanceof
-            Error
-              ? error.message
-              : 'Could not load Hardcover popularity.',
-        }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            'Content-Type':
-              'application/json',
-          },
+      }
+      for (const item of waiting) {
+        const cached = await waitForApiCacheFill(admin, provider, item.key);
+        if (!cached) {
+          const busy = new Error('Provider refresh is already in progress.');
+          busy.name = 'CacheRefreshBusy';
+          throw busy;
         }
-      );
-    }
+        noteSource(cached);
+        const result = cachedPopularity(cached);
+        if (result) popularity[item.book.googleBookId] = result;
+      }
+      return { popularity };
+    } });
+    return respond(payload);
+  } catch (error) {
+    console.error('hardcover-search-popularity failed:', error);
+    return respond({ error: error instanceof Error ? error.message : 'Could not load Hardcover popularity.' }, 503);
   }
-);
+});

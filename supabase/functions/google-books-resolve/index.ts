@@ -1,5 +1,6 @@
+import { cachedGoogleQuery } from '../_shared/provider-cache.ts';
 import {
-  createClient,
+  createClient, type SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
@@ -67,7 +68,24 @@ type CacheRow = {
   response_json: unknown;
   expires_at: string;
   stale_until: string;
+  fetched_at?: string;
 };
+
+// A missing mapping can become available soon (especially for upcoming books).
+const NEGATIVE_FRESH_MS = 6 * 60 * 60 * 1000;
+const NEGATIVE_STALE_MS = 7 * 86400000;
+function isNegativeMapping(payload: unknown) {
+  const value = payload as { kind?: string; book?: unknown; googleBookId?: unknown } | null;
+  return Boolean(value && (value.kind === 'isbn' ? !value.book : value.kind && !value.googleBookId));
+}
+function boundedResolverCache(row: CacheRow): CacheRow {
+  if (!isNegativeMapping(row.response_json)) return row;
+  const fetched = Date.parse(row.fetched_at ?? '') || 0;
+  return { ...row,
+    expires_at: new Date(Math.min(Date.parse(row.expires_at), fetched + NEGATIVE_FRESH_MS)).toISOString(),
+    stale_until: new Date(Math.min(Date.parse(row.stale_until), fetched + NEGATIVE_STALE_MS)).toISOString(),
+  };
+}
 
 type ClaimResult = {
   allowed: boolean;
@@ -671,9 +689,7 @@ function canonicalWorkTitleForInput(
 
 async function findCanonicalCatalogGoogleBookId(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   title: string,
   author: string
 ) {
@@ -924,9 +940,7 @@ async function findCanonicalCatalogGoogleBookId(
 
 async function recordCacheHit(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   requestKey: string,
   stale: boolean
 ) {
@@ -955,9 +969,7 @@ async function recordCacheHit(
 
 async function getUpstreamToday(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >
+    SupabaseClient
 ) {
   const today =
     new Date()
@@ -1003,9 +1015,7 @@ async function getUpstreamToday(
 
 async function claimGoogleRequest(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   userId: string
 ) {
   const {
@@ -1039,29 +1049,13 @@ async function claimGoogleRequest(
 async function googleSearch(
   googleApiKey: string,
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   userId: string,
   query: string,
   maxResults: number,
   projectionFull: boolean
 ) {
-  const claim =
-    await claimGoogleRequest(
-      supabaseAdmin,
-      userId
-    );
-
-  if (!claim?.allowed) {
-    return {
-      blocked: true,
-      claim,
-      status: 429,
-      data: null,
-    };
-  }
-
+  const quotaState: { claim: ClaimResult | null } = { claim: null };
   const googleUrl =
     new URL(
       'https://www.googleapis.com/books/v1/volumes'
@@ -1094,14 +1088,15 @@ async function googleSearch(
     googleApiKey
   );
 
-  const response =
-    await fetch(
-      googleUrl.toString()
-    );
+  const response = await cachedGoogleQuery(supabaseAdmin, googleUrl.toString(), async () => {
+    quotaState.claim = await claimGoogleRequest(supabaseAdmin, userId);
+    return quotaState.claim?.allowed === true;
+  });
 
+  const claim = quotaState.claim;
   if (!response.ok) {
     return {
-      blocked: false,
+      blocked: claim !== null && !claim.allowed,
       claim,
       status:
         response.status,
@@ -1121,7 +1116,7 @@ async function googleSearch(
   );
 
   return {
-    blocked: false,
+    blocked: claim !== null && !claim.allowed,
     claim,
     status: 200,
     data,
@@ -1130,9 +1125,7 @@ async function googleSearch(
 
 async function readCache(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   requestKey: string
 ) {
   const {
@@ -1144,7 +1137,7 @@ async function readCache(
         'book_api_cache'
       )
       .select(
-        'response_json, expires_at, stale_until'
+        'response_json, expires_at, stale_until, fetched_at'
       )
       .eq(
         'provider',
@@ -1163,15 +1156,12 @@ async function readCache(
     );
   }
 
-  return data as
-    CacheRow | null;
+  return data ? boundedResolverCache(data as CacheRow) : null;
 }
 
 async function writeCache(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   requestKey: string,
   payload: unknown,
   freshMs: number,
@@ -1670,7 +1660,8 @@ Deno.serve(
           supabaseAdmin,
           PROVIDER,
           requestKey,
-          refreshOwnerToken
+          refreshOwnerToken,
+          90
         );
 
       if (
@@ -1708,7 +1699,8 @@ Deno.serve(
           await waitForApiCacheFill(
             supabaseAdmin,
             PROVIDER,
-            requestKey
+            requestKey,
+            boundedResolverCache
           );
 
         if (
@@ -2069,7 +2061,15 @@ Deno.serve(
                   'Google Books rate limit reached.',
               }
             );
+          }        if (!response.data) {
+          if (staleAvailable) {
+            await recordCacheHit(supabaseAdmin, requestKey, true);
+            return jsonResponse({ ok: true, status: 200, data: cache?.response_json,
+              cache: { status: 'stale', googleRequestMade: Boolean(lastClaim?.allowed), reason: 'provider_unavailable' } });
           }
+          return jsonResponse({ ok: false, status: response.status, error: 'Google Books identity resolution is temporarily unavailable.' });
+        }
+
 
           if (
             response.data
@@ -2432,8 +2432,8 @@ Deno.serve(
           supabaseAdmin,
           requestKey,
           resultPayload,
-          freshMs,
-          staleMs
+          isNegativeMapping(resultPayload) ? NEGATIVE_FRESH_MS : freshMs,
+          isNegativeMapping(resultPayload) ? NEGATIVE_STALE_MS : staleMs
         );
 
       return jsonResponse(
@@ -2445,8 +2445,7 @@ Deno.serve(
           cache: {
             status:
               'miss',
-            googleRequestMade:
-              true,
+            googleRequestMade: Boolean(lastClaim?.allowed),
             expiresAt,
           },
           quota: {

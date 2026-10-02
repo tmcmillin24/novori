@@ -114,140 +114,39 @@ function detailKey(
   return `novori:google-books:detail:v3:${id}`;
 }
 
-async function readPersistentDetail<T>(
-  id: string
-): Promise<T | null> {
+async function readPersistentDetail<T>(id: string): Promise<{ data: T; expiresAt: number } | null> {
   try {
-    const raw =
-      await AsyncStorage.getItem(
-        detailKey(
-          id
-        )
-      );
-
-    if (!raw) {
+    const raw = await AsyncStorage.getItem(detailKey(id));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistentBookEntry;
+    const expiresAt = parsed.savedAt + DETAIL_CACHE_MS;
+    if (parsed.id !== id || !Number.isFinite(parsed.savedAt) || parsed.savedAt > Date.now() || expiresAt <= Date.now() || !parsed.data) {
+      await AsyncStorage.removeItem(detailKey(id));
       return null;
     }
-
-    const parsed =
-      JSON.parse(
-        raw
-      ) as PersistentBookEntry;
-
-    if (
-      Date.now() -
-        parsed.savedAt >
-      DETAIL_CACHE_MS
-    ) {
-      await AsyncStorage.removeItem(
-        detailKey(
-          id
-        )
-      );
-      return null;
-    }
-
-    return parsed.data as T;
-  } catch {
-    return null;
-  }
+    return { data: parsed.data as T, expiresAt };
+  } catch { return null; }
 }
 
-async function persistDetail(
-  id: string,
-  data: unknown
-) {
-  try {
-    const rawIndex =
-      await AsyncStorage.getItem(
-        PERSISTED_INDEX_KEY
-      );
-
-    const index =
-      rawIndex
-        ? (
-            JSON.parse(
-              rawIndex
-            ) as {
-              id: string;
-              savedAt: number;
-            }[]
-          )
-        : [];
-
-    const now =
-      Date.now();
-
-    const nextIndex = [
-      {
-        id,
-        savedAt:
-          now,
-      },
-      ...index.filter(
-        (
-          entry
-        ) =>
-          entry.id !==
-          id
-      ),
-    ].slice(
-      0,
-      MAX_PERSISTED_BOOKS
-    );
-
-    const removed =
-      index.filter(
-        (
-          entry
-        ) =>
-          !nextIndex.some(
-            (
-              kept
-            ) =>
-              kept.id ===
-              entry.id
-          )
-      );
-
-    await AsyncStorage.multiSet([
-      [
-        detailKey(
-          id
-        ),
-        JSON.stringify({
-          id,
-          savedAt:
-            now,
-          data,
-        } satisfies PersistentBookEntry),
-      ],
-      [
-        PERSISTED_INDEX_KEY,
-        JSON.stringify(
-          nextIndex
-        ),
-      ],
-    ]);
-
-    if (
-      removed.length >
-      0
-    ) {
-      await AsyncStorage.multiRemove(
-        removed.map(
-          (
-            entry
-          ) =>
-            detailKey(
-              entry.id
-            )
-        )
-      );
-    }
-  } catch {
-    // Cache failures should never block book loading.
-  }
+let persistenceQueue: Promise<void> = Promise.resolve();
+function persistDetail(id: string, data: unknown) {
+  // Serialize the read/modify/write index so parallel book loads cannot lose entries.
+  persistenceQueue = persistenceQueue.then(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(PERSISTED_INDEX_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const index: { id: string; savedAt: number }[] = Array.isArray(parsed) ? parsed : [];
+      const savedAt = Date.now();
+      const nextIndex = [{ id, savedAt }, ...index.filter(entry => entry.id !== id)].slice(0, MAX_PERSISTED_BOOKS);
+      const removed = index.filter(entry => !nextIndex.some(kept => kept.id === entry.id));
+      await AsyncStorage.multiSet([
+        [detailKey(id), JSON.stringify({ id, savedAt, data } satisfies PersistentBookEntry)],
+        [PERSISTED_INDEX_KEY, JSON.stringify(nextIndex)],
+      ]);
+      if (removed.length) await AsyncStorage.multiRemove(removed.map(entry => detailKey(entry.id)));
+    } catch { /* Device storage failures must not block book loading. */ }
+  });
+  return persistenceQueue;
 }
 
 async function readCatalogBook<T>(
@@ -263,7 +162,7 @@ async function readCatalogBook<T>(
           'google_books_catalog'
         )
         .select(
-          'metadata, detail_complete'
+          'metadata, detail_complete, fetched_at'
         )
         .eq(
           'google_book_id',
@@ -276,9 +175,7 @@ async function readCatalogBook<T>(
       !data?.metadata ||
       data.detail_complete !==
         true ||
-      !hasUsablePageCount(
-        data.metadata
-      )
+      Date.parse(data.fetched_at ?? '') + 90 * 86400000 <= Date.now() || !Number.isFinite(Date.parse(data.fetched_at ?? ''))
     ) {
       return null;
     }
@@ -578,7 +475,7 @@ async function fetchSharedGoogleBooksDetail(
 }
 
 async function fetchSharedGoogleBooksSearch(
-  query: string
+  query: string, startIndex = 0
 ): Promise<
   GoogleBooksJsonResult<unknown>
 > {
@@ -592,6 +489,7 @@ async function fetchSharedGoogleBooksSearch(
         {
           body: {
             query,
+            startIndex,
           },
         }
       );
@@ -841,265 +739,54 @@ export async function resolveGoogleBooksIdentity(
   }
 }
 
-export async function fetchGoogleBooksJson<T>(
-  url: string
-): Promise<GoogleBooksJsonResult<T>> {
-  const now =
-    Date.now();
-
-  const memory =
-    memoryCache.get(
-      url
-    );
-
-  if (
-    memory &&
-    memory.expiresAt >
-      now
-  ) {
-    return {
-      ok:
-        memory.status >=
-          200 &&
-        memory.status <
-          300,
-      status:
-        memory.status,
-      data:
-        memory.data as T,
-      fromCache:
-        true,
-    };
-  }
-
-  const detailId =
-    isVolumeDetailUrl(
-      url
-    )
-      ? getVolumeId(
-          url
-        )
-      : null;
-
-  const searchQuery =
-    detailId
-      ? null
-      : getSearchQuery(
-          url
-        );
-
-  if (detailId) {
-    const primedVolume =
-      volumeMemoryCache.get(
-        detailId
-      );
-
-    if (
-      primedVolume &&
-      primedVolume.expiresAt >
-        now
-    ) {
-      void persistDetail(
-        detailId,
-        primedVolume.data
-      );
-
-      return {
-        ok: true,
-        status: 200,
-        data:
-          primedVolume.data as T,
-        fromCache:
-          true,
-      };
+export async function fetchGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResult<T>> {
+  const detailId = isVolumeDetailUrl(url) ? getVolumeId(url) : null;
+  const searchQuery = detailId ? null : getSearchQuery(url);
+  const startIndex = searchQuery ? Math.max(0, Number(new URL(url).searchParams.get('startIndex') ?? 0) || 0) : 0;
+  const key = detailId ? 'detail:' + detailId : 'search:' + (searchQuery ?? '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim() + ':' + startIndex;
+  const memory = memoryCache.get(key);
+  if (memory && memory.expiresAt > Date.now()) return { ok: memory.status >= 200 && memory.status < 300, status: memory.status, data: memory.data as T, fromCache: true };
+  const existing = inFlight.get(key);
+  if (existing) return existing as Promise<GoogleBooksJsonResult<T>>;
+  const request = (async () => {
+    if (detailId) {
+      const primed = volumeMemoryCache.get(detailId);
+      if (primed && primed.expiresAt > Date.now()) return { ok: true, status: 200, data: primed.data, fromCache: true };
+      const persisted = await readPersistentDetail<unknown>(detailId);
+      if (persisted) {
+        volumeMemoryCache.set(detailId, persisted);
+        memoryCache.set(key, { ...persisted, status: 200 });
+        return { ok: true, status: 200, data: persisted.data, fromCache: true };
+      }
+      const catalog = await readCatalogBook<unknown>(detailId);
+      if (catalog) {
+        const expiresAt = Date.now() + DETAIL_CACHE_MS;
+        volumeMemoryCache.set(detailId, { data: catalog, expiresAt });
+        memoryCache.set(key, { data: catalog, expiresAt, status: 200 });
+        void persistDetail(detailId, catalog);
+        return { ok: true, status: 200, data: catalog, fromCache: true };
+      }
     }
-
-    const persisted =
-      await readPersistentDetail<T>(
-        detailId
-      );
-
-    if (persisted) {
-      memoryCache.set(
-        url,
-        {
-          expiresAt:
-            now +
-            DETAIL_CACHE_MS,
-          status:
-            200,
-          data:
-            persisted,
-        }
-      );
-
-      return {
-        ok: true,
-        status: 200,
-        data:
-          persisted,
-        fromCache:
-          true,
-      };
+    const result = detailId ? await fetchSharedGoogleBooksDetail(detailId)
+      : searchQuery ? await fetchSharedGoogleBooksSearch(searchQuery, startIndex)
+      : { ok: false, status: 400, data: null, fromCache: false };
+    if (!result.ok || !result.data) {
+      // Short local backoff avoids repeated edge-function calls during provider outages.
+      memoryCache.set(key, { data: null, status: result.status, expiresAt: Date.now() + 30_000 });
+      return result;
     }
-
-
-  }
-
-  const existing =
-    inFlight.get(
-      url
-    );
-
-  if (existing) {
-    return existing as Promise<
-      GoogleBooksJsonResult<T>
-    >;
-  }
-
-  const request =
-    (async () => {
-      let data:
-        unknown = null;
-      let responseStatus =
-        200;
-      let responseFromCache =
-        false;
-
-      if (
-        detailId
-      ) {
-        const sharedDetail =
-          await fetchSharedGoogleBooksDetail(
-            detailId
-          );
-
-        if (
-          !sharedDetail.ok ||
-          !sharedDetail.data
-        ) {
-          return sharedDetail;
-        }
-
-        data =
-          sharedDetail.data;
-        responseStatus =
-          sharedDetail.status;
-        responseFromCache =
-          sharedDetail.fromCache;
-      } else if (
-        searchQuery
-      ) {
-        const sharedSearch =
-          await fetchSharedGoogleBooksSearch(
-            searchQuery
-          );
-
-        if (
-          !sharedSearch.ok ||
-          !sharedSearch.data
-        ) {
-          return sharedSearch;
-        }
-
-        data =
-          sharedSearch.data;
-        responseStatus =
-          sharedSearch.status;
-        responseFromCache =
-          sharedSearch.fromCache;
-      } else {
-        console.warn(
-          'Blocked unsupported Google Books client request:',
-          url
-        );
-
-        return {
-          ok: false,
-          status: 400,
-          data: null,
-          fromCache: false,
-        } satisfies GoogleBooksJsonResult<unknown>;
-      }
-
-      const catalogBooks =
-        catalogBooksFromPayload(
-          data,
-          detailId
-        );
-
-      if (
-        catalogBooks.length >
-        0
-      ) {
-        if (
-          detailId
-        ) {
-          void upsertCatalogBooks(
-            catalogBooks,
-            true
-          );
-        } else {
-          void upsertCatalogBooks(
-            catalogBooks,
-            false
-          );
-        }
-      }
-
-      memoryCache.set(
-        url,
-        {
-          expiresAt:
-            Date.now() +
-            (
-              detailId
-                ? DETAIL_CACHE_MS
-                : SEARCH_CACHE_MS
-            ),
-          status:
-            responseStatus,
-          data,
-        }
-      );
-
-      if (detailId) {
-        volumeMemoryCache.set(
-          detailId,
-          {
-            expiresAt:
-              Date.now() +
-              DETAIL_CACHE_MS,
-            data,
-          }
-        );
-
-        void persistDetail(
-          detailId,
-          data
-        );
-      }
-
-      return {
-        ok: true,
-        status:
-          responseStatus,
-        data,
-        fromCache:
-          responseFromCache,
-      } satisfies GoogleBooksJsonResult<unknown>;
-    })();
-
-  inFlight.set(
-    url,
-    request
-  );
-
-  try {
-    return await request as GoogleBooksJsonResult<T>;
-  } finally {
-    inFlight.delete(
-      url
-    );
-  }
+    const catalogBooks = catalogBooksFromPayload(result.data, detailId);
+    if (catalogBooks.length && !result.fromCache) void upsertCatalogBooks(catalogBooks, Boolean(detailId));
+    const expiresAt = Date.now() + (detailId ? DETAIL_CACHE_MS : SEARCH_CACHE_MS);
+    memoryCache.set(key, { data: result.data, status: result.status, expiresAt });
+    if (memoryCache.size > 300) memoryCache.delete(memoryCache.keys().next().value!);
+    if (detailId) {
+      volumeMemoryCache.set(detailId, { data: result.data, expiresAt });
+      void persistDetail(detailId, result.data);
+    }
+    return result;
+  })();
+  inFlight.set(key, request);
+  try { return await request as GoogleBooksJsonResult<T>; }
+  finally { inFlight.delete(key); }
 }

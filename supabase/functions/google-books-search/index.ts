@@ -1,5 +1,6 @@
+import { fetchJsonWithTimeout, readProviderCache, rememberGoogleFailure } from '../_shared/provider-cache.ts';
 import {
-  createClient,
+  createClient, type SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
@@ -131,9 +132,7 @@ function isGoogleBookPayload(
 
 async function tryCatalogFuzzySearch(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   query:
     string
 ) {
@@ -355,9 +354,7 @@ function isFuture(
 
 async function recordCacheHit(
   supabaseAdmin:
-    ReturnType<
-      typeof createClient
-    >,
+    SupabaseClient,
   requestKey:
     string,
   stale:
@@ -531,6 +528,8 @@ Deno.serve(
           ? body.query
               .trim()
           : '';
+      const startIndex = Math.max(0, Math.min(1000, Math.floor(Number(body?.startIndex) || 0)));
+
 
       if (
         query.length <
@@ -549,10 +548,10 @@ Deno.serve(
       }
 
       const catalogMatch =
-        await tryCatalogFuzzySearch(
+        startIndex === 0 ? await tryCatalogFuzzySearch(
           supabaseAdmin,
           query
-        );
+        ) : null;
 
       if (
         catalogMatch
@@ -584,9 +583,7 @@ Deno.serve(
       }
 
       const requestKey =
-        buildCacheKey(
-          query
-        );
+        buildCacheKey(query) + (startIndex ? ':start:' + startIndex : '');
 
       const now =
         Date.now();
@@ -676,6 +673,18 @@ Deno.serve(
             now
           )
         );
+      const failure = await readProviderCache(supabaseAdmin, PROVIDER, requestKey + ':failure');
+      if (failure && Date.parse(failure.expires_at) > Date.now()) {
+        if (staleAvailable) {
+          await recordCacheHit(supabaseAdmin, requestKey, true);
+          return jsonResponse({ ok: true, status: 200, data: cache?.response_json,
+            cache: { status: 'stale', googleRequestMade: false, reason: 'provider_cooldown' } });
+        }
+        return jsonResponse({ ok: false, status: failure.response_json.status ?? 503,
+          error: 'Google Books request is temporarily cached as unavailable.',
+          cache: { status: 'hit', googleRequestMade: false, reason: 'provider_cooldown' } });
+      }
+
 
       const today =
         new Date()
@@ -1043,19 +1052,21 @@ Deno.serve(
         'projection',
         'full'
       );
+      googleUrl.searchParams.set('startIndex', String(startIndex));
       googleUrl.searchParams.set(
         'key',
         googleApiKey
       );
 
-      const googleResponse =
-        await fetch(
+      const googleResponse = await fetchJsonWithTimeout(
           googleUrl.toString()
         );
 
       if (
         !googleResponse.ok
       ) {
+        await rememberGoogleFailure(supabaseAdmin, requestKey, googleResponse.status);
+
         if (
           staleAvailable
         ) {

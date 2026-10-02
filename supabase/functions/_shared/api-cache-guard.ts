@@ -6,6 +6,7 @@ export type SharedApiCacheRow = {
   response_json: unknown;
   expires_at: string;
   stale_until: string;
+  fetched_at?: string;
 };
 
 type RefreshClaimRow = {
@@ -134,7 +135,7 @@ async function readApiCacheRow(
         'book_api_cache'
       )
       .select(
-        'response_json, expires_at, stale_until'
+        'response_json, expires_at, stale_until, fetched_at'
       )
       .eq(
         'provider',
@@ -175,7 +176,8 @@ function sleep(
 export async function waitForApiCacheFill(
   supabaseAdmin: SupabaseClient,
   provider: string,
-  requestKey: string
+  requestKey: string,
+  transform: (row: SharedApiCacheRow) => SharedApiCacheRow = row => row
 ) {
   for (
     let attempt = 0;
@@ -192,12 +194,14 @@ export async function waitForApiCacheFill(
       );
     }
 
-    const cache =
+    const storedCache =
       await readApiCacheRow(
         supabaseAdmin,
         provider,
         requestKey
       );
+
+    const cache = storedCache ? transform(storedCache) : null;
 
     const now =
       Date.now();
