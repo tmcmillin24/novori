@@ -261,7 +261,8 @@ export default function AskReadersScreen() {
     question.trim().length >= 4 &&
     question.trim().length <= 280 &&
     context.length <= 1200 &&
-    !publishing;
+    !publishing &&
+    !loadingClubs;
 
   useEffect(() => {
     if (
@@ -424,6 +425,8 @@ export default function AskReadersScreen() {
   }
 
   async function publishQuestion() {
+    if (publishing || loadingClubs) return;
+
     const cleanedQuestion = question.trim();
     const cleanedContext = context.trim();
 
@@ -542,233 +545,85 @@ export default function AskReadersScreen() {
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
-        {!isEditing ? (
-          <>
-        <View style={styles.questionCard}>
-          <View style={styles.questionIcon}>
-            <Ionicons
-              name="help"
-              size={20}
-              color={colors.gold}
-            />
-          </View>
-
-          <Text style={styles.sectionLabel}>
-            YOUR QUESTION
-          </Text>
-
-          <TextInput
-            value={question}
-            onChangeText={setQuestion}
-            placeholder="What do you want to ask readers?"
-            placeholderTextColor={colors.mutedText}
-            multiline
-            maxLength={280}
-            autoFocus={!isEditing}
-            style={styles.questionInput}
-          />
-
-          <Text style={styles.characterCount}>
-            {question.length}/280
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderCopy}>
-              <Text style={styles.sectionTitle}>
-                Add context
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Optional details that help readers answer.
-              </Text>
-            </View>
-
-            <Text style={styles.smallCount}>
-              {context.length}/1200
-            </Text>
-          </View>
-
-          <TextInput
-            value={context}
-            onChangeText={setContext}
-            placeholder="Add preferences, background, or anything readers should know."
-            placeholderTextColor={colors.mutedText}
-            multiline
-            maxLength={1200}
-            style={styles.contextInput}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderCopy}>
-              <Text style={styles.sectionTitle}>
-                Connect a book
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Optional. Give the question book context.
-              </Text>
-            </View>
-          </View>
-
-          {attachedBook ? (
-            <View style={styles.attachedBook}>
-              {(attachedBook.id || attachedBook.coverUrl) ? (
-                <BookCoverImage
-                  googleBookId={attachedBook.id}
-                  existingCoverUrl={attachedBook.coverUrl}
-                  style={styles.bookCover}
-                />
-              ) : (
-                <View style={styles.bookCoverFallback}>
-                  <Ionicons
-                    name="book-outline"
-                    size={20}
-                    color={colors.gold}
-                  />
-                </View>
-              )}
-
-              <View style={styles.bookCopy}>
-                <Text
-                  style={styles.bookTitle}
-                  numberOfLines={2}
-                >
-                  {attachedBook.title}
+        <View style={styles.feedPreviewCard}>
+          <View style={styles.feedPreviewHeader}>
+            {viewerProfile?.avatar_url ? (
+              <Image
+                source={{
+                  uri:
+                    viewerProfile.avatar_url,
+                }}
+                style={styles.feedPreviewAvatar}
+              />
+            ) : (
+              <View style={styles.feedPreviewAvatarFallback}>
+                <Text style={styles.feedPreviewAvatarText}>
+                  {previewInitial}
                 </Text>
+              </View>
+            )}
 
+            <View style={styles.feedPreviewAuthorCopy}>
+              <View style={styles.feedPreviewIdentity}>
                 <Text
-                  style={styles.bookMeta}
+                  style={styles.feedPreviewAuthorName}
                   numberOfLines={1}
                 >
-                  {attachedBook.authors.length
-                    ? attachedBook.authors.join(', ')
-                    : 'Unknown author'}
+                  {previewDisplayName}
                 </Text>
 
-                <CanonicalBookRating
-                  googleBookId={
-                    attachedBook.id
-                  }
-                  title={
-                    attachedBook.title
-                  }
-                  authors={
-                    attachedBook.authors
-                  }
-                  compact
-                />
+                {previewUsername ? (
+                  <Text
+                    style={styles.feedPreviewUsername}
+                    numberOfLines={1}
+                  >
+                    {previewUsername}
+                  </Text>
+                ) : null}
               </View>
 
               <Pressable
-                onPress={() => setAttachedBook(null)}
-                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Post to ${selectedClub?.name ?? 'your profile'}`}
+                accessibilityHint={isEditing ? undefined : 'Choose your profile or a club.'}
+                accessibilityState={{
+                  expanded: destinationExpanded,
+                  disabled: loadingClubs || isEditing || publishing,
+                }}
+                disabled={loadingClubs || isEditing || publishing}
+                onPress={() => setDestinationExpanded((current) => !current)}
                 style={({ pressed }) => [
-                  styles.removeBook,
+                  styles.feedPreviewAudienceRow,
                   pressed && styles.pressed,
                 ]}
               >
                 <Ionicons
-                  name="close"
-                  size={18}
-                  color={colors.secondaryText}
-                />
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              onPress={() => setBookPickerVisible(true)}
-              style={({ pressed }) => [
-                styles.actionRow,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.actionIcon}>
-                <Ionicons
-                  name="book-outline"
-                  size={20}
+                  name={selectedClub ? 'people-outline' : 'person-outline'}
+                  size={13}
                   color={colors.gold}
                 />
-              </View>
-
-              <View style={styles.actionCopy}>
-                <Text style={styles.actionTitle}>
-                  Choose a book
+                <Text
+                  style={
+                    selectedClub
+                      ? styles.feedPreviewClubText
+                      : styles.feedPreviewAudienceText
+                  }
+                  numberOfLines={1}
+                >
+                  {selectedClub ? `in ${selectedClub.name}` : 'Your profile'}
                 </Text>
-
-                <Text style={styles.actionSubtitle}>
-                  Search the Novori book catalog
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.mutedText}
-              />
-            </Pressable>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Ask in
-          </Text>
-
-          <Pressable
-            disabled={loadingClubs}
-            onPress={() =>
-              setDestinationExpanded((current) => !current)
-            }
-            style={({ pressed }) => [
-              styles.destinationRow,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={styles.destinationIcon}>
-              <Ionicons
-                name={
-                  selectedClub
-                    ? 'people-outline'
-                    : 'person-outline'
-                }
-                size={20}
-                color={colors.gold}
-              />
+                {loadingClubs ? (
+                  <ActivityIndicator size="small" color={colors.mutedText} />
+                ) : !isEditing ? (
+                  <Ionicons
+                    name={destinationExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={13}
+                    color={colors.mutedText}
+                  />
+                ) : null}
+              </Pressable>
             </View>
-
-            <View style={styles.destinationCopy}>
-              <Text style={styles.destinationTitle}>
-                {selectedClub?.name ?? 'Your profile'}
-              </Text>
-
-              <Text style={styles.destinationSubtitle}>
-                {selectedClub
-                  ? 'Club members will see this question.'
-                  : 'Readers who follow you can see this question.'}
-              </Text>
-            </View>
-
-            {loadingClubs ? (
-              <ActivityIndicator
-                size="small"
-                color={colors.mutedText}
-              />
-            ) : (
-              <Ionicons
-                name={
-                  destinationExpanded
-                    ? 'chevron-up'
-                    : 'chevron-down'
-                }
-                size={18}
-                color={colors.mutedText}
-              />
-            )}
-          </Pressable>
+          </View>
 
           {destinationExpanded ? (
             <View style={styles.destinationMenu}>
@@ -844,169 +699,65 @@ export default function AskReadersScreen() {
               ))}
             </View>
           ) : null}
-        </View>
 
-          </>
-        ) : null}
+          <View style={styles.feedPreviewContent}>
+            <View style={styles.askReadersBadge}>
+              <Ionicons
+                name="help-circle-outline"
+                size={13}
+                color={colors.gold}
+              />
 
-        <View>
-          {!isEditing ? (
-            <Text style={styles.previewLabel}>
-              PREVIEW
-            </Text>
-          ) : null}
-
-          <View style={styles.feedPreviewCard}>
-            <View style={styles.feedPreviewHeader}>
-              {viewerProfile?.avatar_url ? (
-                <Image
-                  source={{
-                    uri:
-                      viewerProfile.avatar_url,
-                  }}
-                  style={styles.feedPreviewAvatar}
-                />
-              ) : (
-                <View style={styles.feedPreviewAvatarFallback}>
-                  <Text style={styles.feedPreviewAvatarText}>
-                    {previewInitial}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.feedPreviewAuthorCopy}>
-                <View style={styles.feedPreviewIdentity}>
-                  <Text
-                    style={styles.feedPreviewAuthorName}
-                    numberOfLines={1}
-                  >
-                    {previewDisplayName}
-                  </Text>
-
-                  {previewUsername ? (
-                    <Text
-                      style={styles.feedPreviewUsername}
-                      numberOfLines={1}
-                    >
-                      {previewUsername}
-                    </Text>
-                  ) : null}
-                </View>
-
-                <View style={styles.feedPreviewAudienceRow}>
-                  {selectedClub ? (
-                    <>
-                      <View style={styles.feedPreviewClubIcon}>
-                        <Text style={styles.feedPreviewClubIconText}>
-                          {selectedClub.name
-                            .charAt(0)
-                            .toUpperCase()}
-                        </Text>
-                      </View>
-
-                      <Text
-                        style={styles.feedPreviewClubText}
-                        numberOfLines={1}
-                      >
-                        in {selectedClub.name}{' '}
-                        <Text style={styles.feedPreviewTime}>
-                          · now
-                        </Text>
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={styles.feedPreviewAudienceText}>
-                      posted to your profile{' '}
-                      <Text style={styles.feedPreviewTime}>
-                        · now
-                      </Text>
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.feedPreviewMore}>
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={20}
-                  color={colors.mutedText}
-                />
-              </View>
+              <Text style={styles.askReadersBadgeText}>
+                ASK READERS
+              </Text>
             </View>
 
-            <View style={styles.feedPreviewContent}>
-              <View style={styles.askReadersBadge}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={13}
-                  color={colors.gold}
-                />
+            <TextInput
+              accessibilityLabel="Your question"
+              editable={!publishing}
+              value={question}
+              onChangeText={setQuestion}
+              placeholder="What do you want to ask readers?"
+              placeholderTextColor={colors.mutedText}
+              multiline
+              maxLength={280}
+              style={[
+                styles.feedPreviewQuestion,
+                styles.feedPreviewQuestionInput,
+              ]}
+            />
 
-                <Text style={styles.askReadersBadgeText}>
-                  ASK READERS
-                </Text>
-              </View>
+            <TextInput
+              accessibilityLabel="Optional context"
+              editable={!publishing}
+              value={context}
+              onChangeText={setContext}
+              placeholder="Add optional context…"
+              placeholderTextColor={colors.mutedText}
+              multiline
+              maxLength={1200}
+              style={[
+                styles.feedPreviewContext,
+                styles.feedPreviewContextInput,
+              ]}
+            />
 
-              {isEditing ? (
-                <>
-                  <TextInput
-                    value={question}
-                    onChangeText={setQuestion}
-                    placeholder="What do you want to ask readers?"
-                    placeholderTextColor={colors.mutedText}
-                    multiline
-                    maxLength={280}
-                    style={[
-                      styles.feedPreviewQuestion,
-                      styles.feedPreviewQuestionInput,
-                    ]}
-                  />
-
-                  <TextInput
-                    value={context}
-                    onChangeText={setContext}
-                    placeholder="Add optional context…"
-                    placeholderTextColor={colors.mutedText}
-                    multiline
-                    maxLength={1200}
-                    style={[
-                      styles.feedPreviewContext,
-                      styles.feedPreviewContextInput,
-                    ]}
-                  />
-
-                  <View style={styles.editCountRow}>
-                    <Text style={styles.editCountText}>
-                      {question.length}/280 · {context.length}/1200
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.feedPreviewQuestion}>
-                    {question.trim() ||
-                      'Your question will appear here.'}
-                  </Text>
-
-                  {context.trim() ? (
-                    <Text style={styles.feedPreviewContext}>
-                      {context.trim()}
-                    </Text>
-                  ) : null}
-                </>
-              )}
-
-              {attachedBook ? (
+            <View style={styles.editCountRow}>
+              <Text style={styles.editCountText}>
+                {question.length}/280 · {context.length}/1200
+              </Text>
+            </View>
+            {attachedBook ? (
+              <View style={styles.feedPreviewBookCard}>
                 <Pressable
-                  disabled={!isEditing}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Change attached book: ${attachedBook.title}`}
+                  disabled={publishing}
                   onPress={() => setBookPickerVisible(true)}
                   style={({ pressed }) => [
-                    styles.feedPreviewBookCard,
-                    isEditing &&
-                      styles.feedPreviewBookCardEditable,
-                    pressed &&
-                      isEditing &&
-                      styles.pressed,
+                    styles.feedPreviewBookSelect,
+                    pressed && styles.pressed,
                   ]}
                 >
                   {(attachedBook.id || attachedBook.coverUrl) ? (
@@ -1073,66 +824,88 @@ export default function AskReadersScreen() {
                     color={colors.mutedText}
                   />
                 </Pressable>
-              ) : isEditing ? (
                 <Pressable
-                  onPress={() => setBookPickerVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove attached book"
+                  disabled={publishing}
+                  onPress={() => setAttachedBook(null)}
+                  hitSlop={8}
                   style={({ pressed }) => [
-                    styles.feedPreviewAddBook,
+                    styles.removeBook,
                     pressed && styles.pressed,
                   ]}
                 >
                   <Ionicons
-                    name="book-outline"
+                    name="close"
                     size={18}
-                    color={colors.gold}
-                  />
-                  <Text style={styles.feedPreviewAddBookText}>
-                    Add a book
-                  </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color={colors.mutedText}
+                    color={colors.secondaryText}
                   />
                 </Pressable>
-              ) : null}
-            </View>
-
-            <View style={styles.feedPreviewFooter}>
-              <View style={styles.feedPreviewVoteControl}>
-                <Ionicons
-                  name="arrow-up-circle-outline"
-                  size={20}
-                  color={colors.mutedText}
-                />
-
-                <Text style={styles.feedPreviewVoteScore}>
-                  0
-                </Text>
-
-                <Ionicons
-                  name="arrow-down-circle-outline"
-                  size={20}
-                  color={colors.mutedText}
-                />
               </View>
-
-              <View style={styles.feedPreviewCommentCount}>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add a book (optional)"
+                disabled={publishing}
+                onPress={() => setBookPickerVisible(true)}
+                style={({ pressed }) => [
+                  styles.feedPreviewAddBook,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Ionicons
-                  name="chatbubble-outline"
+                  name="book-outline"
+                  size={18}
+                  color={colors.gold}
+                />
+                <Text style={styles.feedPreviewAddBookText}>
+                  Add a book (optional)
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
                   size={17}
                   color={colors.mutedText}
                 />
+              </Pressable>
+            )}
+          </View>
 
-                <Text style={styles.feedPreviewCommentCountText}>
-                  0
-                </Text>
-              </View>
+          <View style={styles.feedPreviewFooter}>
+            <View style={styles.feedPreviewVoteControl}>
+              <Ionicons
+                name="arrow-up-circle-outline"
+                size={20}
+                color={colors.mutedText}
+              />
+
+              <Text style={styles.feedPreviewVoteScore}>
+                0
+              </Text>
+
+              <Ionicons
+                name="arrow-down-circle-outline"
+                size={20}
+                color={colors.mutedText}
+              />
+            </View>
+
+            <View style={styles.feedPreviewCommentCount}>
+              <Ionicons
+                name="chatbubble-outline"
+                size={17}
+                color={colors.mutedText}
+              />
+
+              <Text style={styles.feedPreviewCommentCountText}>
+                0
+              </Text>
             </View>
           </View>
         </View>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? 'Save changes' : 'Publish Ask Readers post'}
           disabled={!canPublish}
           onPress={() => void publishQuestion()}
           style={({ pressed }) => [
@@ -1403,163 +1176,6 @@ function createStyles(colors: NovoriColors) {
       paddingBottom: 40,
       gap: 16,
     },
-    questionCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 20,
-      padding: 16,
-    },
-    questionIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.elevated,
-      marginBottom: 14,
-    },
-    sectionLabel: {
-      color: colors.gold,
-      fontFamily: 'Inter_700Bold',
-      fontSize: 10,
-      letterSpacing: 1.3,
-    },
-    questionInput: {
-      minHeight: 96,
-      color: colors.text,
-      fontFamily: 'PlayfairDisplay_600SemiBold',
-      fontSize: 24,
-      lineHeight: 31,
-      paddingTop: 10,
-      paddingBottom: 8,
-      textAlignVertical: 'top',
-    },
-    characterCount: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_500Medium',
-      fontSize: 10.5,
-      textAlign: 'right',
-    },
-    section: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 18,
-      padding: 15,
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      gap: 12,
-    },
-    sectionHeaderCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    sectionTitle: {
-      color: colors.text,
-      fontFamily: 'Inter_700Bold',
-      fontSize: 14,
-    },
-    sectionSubtitle: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 11.5,
-      lineHeight: 16,
-      marginTop: 3,
-    },
-    smallCount: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_500Medium',
-      fontSize: 10,
-    },
-    contextInput: {
-      minHeight: 96,
-      color: colors.text,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 13.5,
-      lineHeight: 20,
-      marginTop: 12,
-      padding: 12,
-      borderRadius: 14,
-      backgroundColor: colors.background,
-      textAlignVertical: 'top',
-    },
-    actionRow: {
-      minHeight: 64,
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 12,
-      borderRadius: 14,
-      backgroundColor: colors.background,
-      paddingHorizontal: 12,
-    },
-    actionIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.elevated,
-      marginRight: 11,
-    },
-    actionCopy: {
-      flex: 1,
-    },
-    actionTitle: {
-      color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 13,
-    },
-    actionSubtitle: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 10.5,
-      marginTop: 2,
-    },
-    attachedBook: {
-      minHeight: 78,
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 12,
-      padding: 10,
-      borderRadius: 14,
-      backgroundColor: colors.background,
-    },
-    bookCover: {
-      width: 42,
-      height: 62,
-      borderRadius: 6,
-      backgroundColor: colors.elevated,
-      marginRight: 10,
-    },
-    bookCoverFallback: {
-      width: 42,
-      height: 62,
-      borderRadius: 6,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.elevated,
-      marginRight: 10,
-    },
-    bookCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    bookTitle: {
-      color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    bookMeta: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 10.5,
-      marginTop: 4,
-    },
     removeBook: {
       width: 32,
       height: 32,
@@ -1568,42 +1184,9 @@ function createStyles(colors: NovoriColors) {
       justifyContent: 'center',
       marginLeft: 8,
     },
-    destinationRow: {
-      minHeight: 68,
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 12,
-      borderRadius: 14,
-      backgroundColor: colors.background,
-      paddingHorizontal: 12,
-    },
-    destinationIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.elevated,
-      marginRight: 11,
-    },
-    destinationCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    destinationTitle: {
-      color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 13,
-    },
-    destinationSubtitle: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 10.5,
-      lineHeight: 15,
-      marginTop: 2,
-    },
     destinationMenu: {
-      marginTop: 8,
+      marginHorizontal: 16,
+      marginTop: 12,
       borderRadius: 14,
       overflow: 'hidden',
       borderWidth: 1,
@@ -1628,14 +1211,6 @@ function createStyles(colors: NovoriColors) {
       color: colors.text,
       fontFamily: 'Inter_500Medium',
       fontSize: 12.5,
-    },
-    previewLabel: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_700Bold',
-      fontSize: 10,
-      letterSpacing: 1.1,
-      marginBottom: 8,
-      paddingHorizontal: 2,
     },
     feedPreviewCard: {
       backgroundColor: colors.surface,
@@ -1721,40 +1296,11 @@ function createStyles(colors: NovoriColors) {
       fontFamily: 'Inter_400Regular',
       fontSize: 10.5,
     },
-    feedPreviewClubIcon: {
-      width: 18,
-      height: 18,
-      borderRadius: 6,
-      backgroundColor: colors.elevated,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    feedPreviewClubIconText: {
-      color: colors.gold,
-      fontFamily: 'PlayfairDisplay_700Bold',
-      fontSize: 8,
-    },
     feedPreviewClubText: {
       color: colors.softGold,
       fontFamily: 'Inter_600SemiBold',
       fontSize: 10.5,
       flexShrink: 1,
-    },
-    feedPreviewTime: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 10.5,
-    },
-    feedPreviewMore: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 4,
-      marginTop: -2,
     },
     feedPreviewContent: {
       paddingHorizontal: 16,
@@ -1800,6 +1346,12 @@ function createStyles(colors: NovoriColors) {
       borderRadius: 13,
       padding: 10,
       marginTop: 13,
+    },
+    feedPreviewBookSelect: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     feedPreviewBookCover: {
       width: 42,
@@ -1852,7 +1404,7 @@ function createStyles(colors: NovoriColors) {
       textAlignVertical: 'top',
     },
     feedPreviewContextInput: {
-      minHeight: 56,
+      minHeight: 42,
       padding: 0,
       textAlignVertical: 'top',
     },
@@ -1864,9 +1416,6 @@ function createStyles(colors: NovoriColors) {
       color: colors.mutedText,
       fontFamily: 'Inter_400Regular',
       fontSize: 10,
-    },
-    feedPreviewBookCardEditable: {
-      borderColor: colors.gold,
     },
     feedPreviewAddBook: {
       minHeight: 54,
