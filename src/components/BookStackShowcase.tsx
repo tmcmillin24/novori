@@ -140,6 +140,8 @@ export default function BookStackShowcase({
               selected.title,
             authors:
               selected.authors,
+            allowGoogleLookup:
+              false,
           });
 
         if (
