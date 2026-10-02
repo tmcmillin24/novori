@@ -2123,7 +2123,7 @@ export default function ReadingRecapsScreen() {
                     styles.activityLinkSubtitle
                   }
                 >
-                  Explore this period in Reading Activity.
+                  Explore this period in Reading Tracker.
                 </Text>
               </View>
 
