@@ -11,7 +11,6 @@ import {
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -24,6 +23,7 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -63,6 +63,9 @@ import {
 
 const MAX_STACK_BOOKS = 10;
 const MIN_STACK_BOOKS = 2;
+const MIN_BOOK_SEARCH_LENGTH = 2;
+const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
+const BOOK_SEARCH_DELAY_MS = 700;
 
 const BOOK_STACK_DETAIL_MIN_WIDTH =
   400;
@@ -793,14 +796,32 @@ export default function CreateBookStackScreen() {
       query.trim();
 
     if (
-      !searchOpen ||
+      !searchOpen
+    ) {
+      requestRef.current +=
+        1;
+      setSearching(false);
+      return;
+    }
+
+    if (
       searchTerm.length <
-        2
+        MIN_BOOK_SEARCH_LENGTH
     ) {
       requestRef.current +=
         1;
       setResults([]);
       setSearchError('');
+      setSearching(false);
+      return;
+    }
+
+    if (
+      searchTerm.length <
+        AUTO_BOOK_SEARCH_MIN_LENGTH
+    ) {
+      requestRef.current +=
+        1;
       setSearching(false);
       return;
     }
@@ -814,7 +835,7 @@ export default function CreateBookStackScreen() {
           searchTerm,
           requestId
         );
-      }, 350);
+      }, BOOK_SEARCH_DELAY_MS);
 
     return () => {
       if (
@@ -881,6 +902,34 @@ export default function CreateBookStackScreen() {
         setSearching(false);
       }
     }
+  }
+
+  function searchImmediately() {
+    if (
+      timerRef.current
+    ) {
+      clearTimeout(
+        timerRef.current
+      );
+    }
+
+    const searchTerm =
+      query.trim();
+
+    if (
+      searchTerm.length <
+        MIN_BOOK_SEARCH_LENGTH
+    ) {
+      return;
+    }
+
+    const requestId =
+      ++requestRef.current;
+
+    void performSearch(
+      searchTerm,
+      requestId
+    );
   }
 
   function openBookSearch() {
@@ -2429,8 +2478,14 @@ export default function CreateBookStackScreen() {
                 colors.mutedText
               }
               autoFocus
+              returnKeyType="search"
+              onSubmitEditing={
+                searchImmediately
+              }
               autoCapitalize="none"
               autoCorrect={false}
+              spellCheck={false}
+              blurOnSubmit={false}
               style={
                 styles.searchInput
               }
@@ -2488,6 +2543,36 @@ export default function CreateBookStackScreen() {
                     book.id
                   );
 
+                const info =
+                  book.volumeInfo;
+
+                const isbn =
+                  info
+                    .industryIdentifiers
+                    ?.find(
+                      (
+                        identifier
+                      ) =>
+                        identifier.type ===
+                          'ISBN_13'
+                    )
+                    ?.identifier ??
+                  info
+                    .industryIdentifiers
+                    ?.find(
+                      (
+                        identifier
+                      ) =>
+                        identifier.type ===
+                          'ISBN_10'
+                    )
+                    ?.identifier;
+
+                const canonicalCover =
+                  book.novoriWork
+                    ?.canonicalCoverUrl ??
+                  null;
+
                 const cover =
                   getNovoriSearchBookCover(
                     book
@@ -2513,18 +2598,29 @@ export default function CreateBookStackScreen() {
                       added &&
                         styles.searchResultSelected,
                       pressed &&
-                        styles.pressed,
+                        styles.searchResultPressed,
                     ]}
                   >
                     {cover ? (
-                      <Image
-                        source={{
-                          uri:
-                            cover,
-                        }}
+                      <BookCoverImage
+                        imageLinks={
+                          info.imageLinks
+                        }
+                        isbn={
+                          isbn
+                        }
+                        existingCoverUrl={
+                          canonicalCover
+                        }
+                        preferExistingCover={
+                          Boolean(
+                            canonicalCover
+                          )
+                        }
                         style={
                           styles.resultCover
                         }
+                        resizeMode="cover"
                       />
                     ) : (
                       <View
@@ -2532,13 +2628,13 @@ export default function CreateBookStackScreen() {
                           styles.resultCoverFallback
                         }
                       >
-                        <Ionicons
-                          name="book-outline"
-                          size={20}
-                          color={
-                            colors.gold
+                        <Text
+                          style={
+                            styles.resultCoverFallbackText
                           }
-                        />
+                        >
+                          No Cover
+                        </Text>
                       </View>
                     )}
 
@@ -2553,10 +2649,8 @@ export default function CreateBookStackScreen() {
                         }
                         numberOfLines={2}
                       >
-                        {
-                          book.volumeInfo.title ||
-                          'Untitled'
-                        }
+                        {info.title ||
+                          'Untitled'}
                       </Text>
 
                       <Text
@@ -2565,10 +2659,75 @@ export default function CreateBookStackScreen() {
                         }
                         numberOfLines={1}
                       >
-                        {book.volumeInfo.authors?.join(
+                        {info.authors?.join(
                           ', '
                         ) ||
                           'Unknown author'}
+                      </Text>
+
+                      {typeof book.novoriWork
+                        ?.hardcoverRating ===
+                      'number' ? (
+                        <View
+                          style={
+                            styles.resultRatingStars
+                          }
+                        >
+                          {[1,2,3,4,5].map(
+                            (
+                              star
+                            ) => {
+                              const rating =
+                                book.novoriWork
+                                  ?.hardcoverRating ??
+                                0;
+
+                              return (
+                                <Ionicons
+                                  key={
+                                    star
+                                  }
+                                  name={
+                                    rating >=
+                                    star
+                                      ? 'star'
+                                      : rating >=
+                                        star -
+                                          0.5
+                                        ? 'star-half'
+                                        : 'star-outline'
+                                  }
+                                  size={14}
+                                  color={
+                                    colors.gold
+                                  }
+                                />
+                              );
+                            }
+                          )}
+                        </View>
+                      ) : null}
+
+                      {info.publishedDate ? (
+                        <Text
+                          style={
+                            styles.resultMeta
+                          }
+                        >
+                          {
+                            info.publishedDate
+                          }
+                        </Text>
+                      ) : null}
+
+                      <Text
+                        style={
+                          styles.resultActionText
+                        }
+                      >
+                        {added
+                          ? 'Added to stack'
+                          : 'Add to stack'}
                       </Text>
                     </View>
 
@@ -3131,75 +3290,113 @@ function createStyles(
     },
 
     searchResult: {
-      minHeight: 82,
       flexDirection:
         'row',
+      width: '100%',
       alignItems:
         'center',
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-      borderBottomColor:
+      backgroundColor:
+        colors.surface,
+      borderRadius: 16,
+      padding: 12,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor:
         colors.border,
-      paddingVertical: 10,
+    },
+
+    searchResultPressed: {
+      opacity: 0.72,
     },
 
     searchResultSelected: {
       backgroundColor:
         colors.elevated,
+      borderColor:
+        colors.gold,
     },
 
-
-
-
-
-
-
-
-
     resultCover: {
-      width: 43,
-      height: 64,
-      borderRadius: 6,
+      width: 75,
+      height: 112,
+      borderRadius: 8,
       backgroundColor:
         colors.elevated,
-      marginRight: 11,
     },
 
     resultCoverFallback: {
-      width: 43,
-      height: 64,
-      borderRadius: 6,
+      width: 75,
+      height: 112,
+      borderRadius: 8,
       backgroundColor:
         colors.elevated,
-      marginRight: 11,
       alignItems:
         'center',
       justifyContent:
         'center',
     },
 
+    resultCoverFallbackText: {
+      color:
+        colors.mutedText,
+      fontSize: 11,
+      fontFamily:
+        'Inter_400Regular',
+    },
+
     resultCopy: {
       flex: 1,
       minWidth: 0,
+      marginLeft: 14,
       paddingRight: 10,
+      justifyContent:
+        'center',
     },
 
     resultTitle: {
       color:
         colors.text,
       fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 13,
-      lineHeight: 18,
+        'PlayfairDisplay_600SemiBold',
+      fontSize: 18,
+      marginBottom: 5,
     },
 
     resultAuthor: {
       color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 13,
+      marginBottom: 7,
+    },
+
+    resultRatingStars: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 2,
+      marginTop: 7,
+      marginBottom: 1,
+    },
+
+    resultMeta: {
+      color:
         colors.mutedText,
+      fontSize: 12,
       fontFamily:
         'Inter_400Regular',
-      fontSize: 10.5,
-      marginTop: 4,
+      marginBottom: 2,
+    },
+
+    resultActionText: {
+      color:
+        colors.softGold,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 7,
     },
 
     previewContent: {
