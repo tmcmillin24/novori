@@ -28,6 +28,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
+import BookCoverImage from '../components/BookCoverImage';
 import PhotoSourceSheet from '../components/PhotoSourceSheet';
 import PostPhotoCropper, { PostCropAsset } from '../components/PostPhotoCropper';
 import {
@@ -47,6 +48,13 @@ import {
   updatePost,
   uploadPostImage,
 } from '../lib/feed';
+import {
+  getNovoriSearchBookCover,
+  getNovoriSearchBookIsbn,
+  GoogleBookSearchItem,
+  resolveNovoriSearchBookCover,
+  searchNovoriBooks,
+} from '../lib/book-search';
 import {
   supabase,
 } from '../lib/supabase';
@@ -76,28 +84,6 @@ type AttachedBook = {
   seriesPosition: number | null;
 };
 
-type GoogleBookSearchItem = {
-  id: string;
-  volumeInfo: {
-    title?: string;
-    authors?: string[];
-    industryIdentifiers?: {
-      type: string;
-      identifier: string;
-    }[];
-    imageLinks?: {
-      smallThumbnail?: string;
-      thumbnail?: string;
-      small?: string;
-      medium?: string;
-    };
-  };
-};
-
-type GoogleBooksResponse = {
-  items?: GoogleBookSearchItem[];
-};
-
 type HardcoverSeriesResponse = {
   series: {
     name: string;
@@ -106,34 +92,11 @@ type HardcoverSeriesResponse = {
   error?: string;
 };
 
-function getSearchBookISBN(
-  item: GoogleBookSearchItem
-) {
-  const identifiers =
-    item.volumeInfo
-      .industryIdentifiers ??
-    [];
-
-  return (
-    identifiers.find(
-      (identifier) =>
-        identifier.type ===
-        'ISBN_13'
-    )?.identifier ??
-    identifiers.find(
-      (identifier) =>
-        identifier.type ===
-        'ISBN_10'
-    )?.identifier ??
-    null
-  );
-}
-
 async function getSeriesMetadata(
   item: GoogleBookSearchItem
 ) {
   const isbn =
-    getSearchBookISBN(
+    getNovoriSearchBookIsbn(
       item
     );
 
@@ -197,41 +160,6 @@ async function getSeriesMetadata(
       position: null,
     };
   }
-}
-
-function secureImageUrl(
-  url?: string
-) {
-  return (
-    url?.replace(
-      'http://',
-      'https://'
-    ) ??
-    null
-  );
-}
-
-function getSearchBookCover(
-  item: GoogleBookSearchItem
-) {
-  const links =
-    item.volumeInfo
-      .imageLinks;
-
-  return (
-    secureImageUrl(
-      links?.medium
-    ) ||
-    secureImageUrl(
-      links?.small
-    ) ||
-    secureImageUrl(
-      links?.thumbnail
-    ) ||
-    secureImageUrl(
-      links?.smallThumbnail
-    )
-  );
 }
 
 export default function CreatePostScreen() {
@@ -667,41 +595,16 @@ export default function CreatePostScreen() {
               ''
             );
 
-            const apiKey =
-              process.env
-                .EXPO_PUBLIC_GOOGLE_BOOKS_API_KEY;
-
-            if (!apiKey) {
-              throw new Error(
-                'Google Books API key is missing.'
+            const results =
+              await searchNovoriBooks(
+                query
               );
-            }
-
-            const response =
-              await fetch(
-                `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-                  query
-                )}&maxResults=16&printType=books&projection=full&key=${apiKey}`
-              );
-
-            if (
-              !response.ok
-            ) {
-              throw new Error(
-                `Google Books request failed: ${response.status}`
-              );
-            }
-
-            const data:
-              GoogleBooksResponse =
-              await response.json();
 
             if (
               active
             ) {
               setBookResults(
-                data.items ??
-                []
+                results
               );
             }
           } catch (
@@ -983,7 +886,7 @@ export default function CreatePostScreen() {
           .authors ??
         [],
       coverUrl:
-        getSearchBookCover(
+        getNovoriSearchBookCover(
           item
         ),
       seriesName:
@@ -1010,10 +913,28 @@ export default function CreatePostScreen() {
       []
     );
 
-    const series =
-      await getSeriesMetadata(
-        item
-      );
+    const [
+      series,
+      resolvedCover,
+    ] =
+      await Promise.all([
+        getSeriesMetadata(
+          item
+        ),
+        resolveNovoriSearchBookCover(
+          item
+        ).catch(
+          (
+            error
+          ) => {
+            console.warn(
+              'Could not refine Post book cover:',
+              error
+            );
+            return null;
+          }
+        ),
+      ]);
 
     setAttachedBook(
       (current) =>
@@ -1021,6 +942,9 @@ export default function CreatePostScreen() {
         item.id
           ? {
               ...current,
+              coverUrl:
+                resolvedCover ??
+                current.coverUrl,
               seriesName:
                 series.name,
               seriesPosition:
@@ -2495,9 +2419,17 @@ export default function CreatePostScreen() {
                   const info =
                     item.volumeInfo;
                   const cover =
-                    getSearchBookCover(
+                    getNovoriSearchBookCover(
                       item
                     );
+                  const isbn =
+                    getNovoriSearchBookIsbn(
+                      item
+                    );
+                  const canonicalCover =
+                    item.novoriWork
+                      ?.canonicalCoverUrl ??
+                    null;
 
                   return (
                     <Pressable
@@ -2518,14 +2450,20 @@ export default function CreatePostScreen() {
                       ]}
                     >
                       {cover ? (
-                        <Image
-                          source={{
-                            uri:
-                              cover,
-                          }}
+                        <BookCoverImage
+                          imageLinks={
+                            info.imageLinks
+                          }
+                          isbn={
+                            isbn
+                          }
+                          existingCoverUrl={
+                            canonicalCover
+                          }
                           style={
                             styles.bookResultCover
                           }
+                          resizeMode="cover"
                         />
                       ) : (
                         <View
