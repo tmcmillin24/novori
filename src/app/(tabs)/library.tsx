@@ -3585,12 +3585,11 @@ function createStyles(
     gridRow: {
       justifyContent:
         'space-between',
-      gap: 14,
     },
 
     bookCard: {
-      width: '48%',
-      marginBottom: 24,
+      width: '49%',
+      marginBottom: 18,
     },
 
     coverWrap: {
@@ -3645,6 +3644,7 @@ function createStyles(
     },
 
     titleRow: {
+      minHeight: 38,
       flexDirection: 'row',
       alignItems: 'flex-start',
       marginTop: 8,
@@ -3677,6 +3677,7 @@ function createStyles(
     },
 
     authorRow: {
+      minHeight: 15,
       flexDirection:
         'row',
       alignItems:
