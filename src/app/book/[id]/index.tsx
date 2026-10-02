@@ -2084,6 +2084,8 @@ export default function BookDetailsScreen() {
           'hardcover-series',
           {
             body: {
+              googleBookId:
+                currentBook.id,
               isbn:
                 exactIsbn ??
                 isbns[0] ??
