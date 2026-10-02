@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { selectCanonicalGoogleCoversForWorkIds } from "../_shared/book-cover-selector.ts";
 
 Deno.serve(async (req) => {
 
@@ -65,6 +66,11 @@ Deno.serve(async (req) => {
               author.trim()
             )
         : [];
+
+    const requestedGoogleBookId =
+      typeof body?.googleBookId === "string"
+        ? body.googleBookId.trim()
+        : "";
 
     if (
       requestedIsbns.length === 0 &&
@@ -546,6 +552,147 @@ Deno.serve(async (req) => {
 
 
 
+
+    async function promoteVerifiedSeriesCover(
+      payload: any
+    ) {
+      if (
+        !supabaseAdmin ||
+        !requestedGoogleBookId ||
+        !payload?.series ||
+        !Array.isArray(payload?.books)
+      ) {
+        return;
+      }
+
+      const currentPosition =
+        payload.series.currentPosition;
+
+      if (
+        currentPosition === null ||
+        currentPosition === undefined
+      ) {
+        return;
+      }
+
+      const currentSeriesBook =
+        payload.books.find(
+          (book: any) =>
+            book?.position ===
+            currentPosition
+        );
+
+      const imageUrl =
+        typeof currentSeriesBook?.imageUrl === "string"
+          ? currentSeriesBook.imageUrl
+              .replace(/^http:\/\//i, "https://")
+              .trim()
+          : "";
+
+      if (!imageUrl) {
+        return;
+      }
+
+      const {
+        data: edition,
+        error: editionError,
+      } =
+        await supabaseAdmin
+          .from("book_editions")
+          .select("id, work_id")
+          .eq("provider", "google_books")
+          .eq(
+            "provider_book_id",
+            requestedGoogleBookId
+          )
+          .maybeSingle();
+
+      if (
+        editionError ||
+        !edition?.id ||
+        !edition?.work_id
+      ) {
+        if (editionError) {
+          console.warn(
+            "Could not resolve Novori edition for verified Hardcover cover:",
+            editionError.message
+          );
+        }
+
+        return;
+      }
+
+      const hardcoverBookId =
+        currentSeriesBook?.id !== null &&
+        currentSeriesBook?.id !== undefined
+          ? String(currentSeriesBook.id)
+          : String(currentPosition);
+
+      const now =
+        new Date().toISOString();
+
+      const {
+        error: candidateError,
+      } =
+        await supabaseAdmin
+          .from("book_cover_candidates")
+          .upsert(
+            {
+              candidate_key:
+                `hardcover:${hardcoverBookId}:series_verified`,
+              work_id:
+                edition.work_id,
+              edition_id:
+                edition.id,
+              scope:
+                "edition",
+              provider:
+                "hardcover",
+              source_kind:
+                "series_cover",
+              source_variant:
+                "series_verified",
+              external_id:
+                hardcoverBookId,
+              url:
+                imageUrl,
+              discovery_source:
+                "hardcover_series_verified",
+              source_metadata: {
+                googleBookId:
+                  requestedGoogleBookId,
+                hardcoverBookId,
+                seriesId:
+                  payload.series.id ?? null,
+                seriesPosition:
+                  currentPosition,
+              },
+              last_seen_at:
+                now,
+            },
+            {
+              onConflict:
+                "candidate_key",
+            }
+          );
+
+      if (candidateError) {
+        console.warn(
+          "Could not save verified Hardcover series cover:",
+          candidateError.message
+        );
+        return;
+      }
+
+      await selectCanonicalGoogleCoversForWorkIds(
+        supabaseAdmin,
+        [
+          edition.work_id,
+        ]
+      );
+    }
+
+
     const cachedHardcoverSeries =
 
       await readHardcoverSeriesCache();
@@ -562,6 +709,10 @@ Deno.serve(async (req) => {
 
         "hardcover-series cache=hit"
 
+      );
+
+      await promoteVerifiedSeriesCover(
+        cachedHardcoverSeries
       );
 
 
@@ -3415,6 +3566,10 @@ Deno.serve(async (req) => {
 
       seriesPayload
 
+    );
+
+    await promoteVerifiedSeriesCover(
+      seriesPayload
     );
 
 
