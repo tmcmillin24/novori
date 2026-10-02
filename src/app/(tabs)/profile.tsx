@@ -84,6 +84,9 @@ import {
   shareBookStackLink,
   sharePostLink,
 } from '../../lib/share-links';
+import {
+  getPostEditRoute,
+} from '../../lib/post-edit-route';
 
 function formatActivityTime(
   value: string
@@ -1626,62 +1629,11 @@ export default function ProfileScreen() {
   function editActivityPost(
     post: FeedPost
   ) {
-    if (
-      post.post_type ===
-      'question'
-    ) {
-      router.push({
-        pathname:
-          '/ask-readers',
-        params: {
-          editPostId:
-            post.id,
-        },
-      });
-      return;
-    }
-
-    if (
-      post.post_type ===
-      'reading_update'
-    ) {
-      router.push({
-        pathname:
-          '/create-reading-update',
-        params: {
-          editPostId:
-            post.id,
-        },
-      });
-      return;
-    }
-
-    if (
-      post.post_type ===
-        'book_stack' &&
-      post.book_stack_id
-    ) {
-      router.push({
-        pathname:
-          '/create-book-stack',
-        params: {
-          editPostId:
-            post.id,
-          stackId:
-            post.book_stack_id,
-        },
-      });
-      return;
-    }
-
-    router.push({
-      pathname:
-        '/create-post',
-      params: {
-        editPostId:
-          post.id,
-      },
-    });
+    router.push(
+      getPostEditRoute(
+        post
+      )
+    );
   }
 
   function openActivityPostOptions(
