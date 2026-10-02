@@ -1175,8 +1175,9 @@ export default function CreateBookStackScreen() {
             editPostId,
             {
               body:
-                postText.trim() ||
-                name.trim(),
+                postText.trim(),
+              allowEmptyBody:
+                true,
             }
           );
 
@@ -1251,15 +1252,15 @@ export default function CreateBookStackScreen() {
             editPostId,
             {
               body:
-                postText.trim() ||
-                stack.name,
+                postText.trim(),
+              allowEmptyBody:
+                true,
             }
           );
         } else {
           await createPost({
             body:
-              postText.trim() ||
-              stack.name,
+              postText.trim(),
             postType:
               'book_stack',
             bookStackId:
@@ -1278,8 +1279,7 @@ export default function CreateBookStackScreen() {
 
         await createPost({
           body:
-            postText.trim() ||
-            stack.name,
+            postText.trim(),
           postType:
             'book_stack',
           bookStackId:
