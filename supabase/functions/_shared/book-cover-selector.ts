@@ -158,16 +158,30 @@ function candidateScore(
       .source_variant ??
     '';
 
-  const qualityScore =
+  const isVerifiedHardcoverSeries =
     candidate.provider ===
       HARDCOVER_PROVIDER &&
     variant ===
-      'series_verified'
-      ? 575
-      : VARIANT_SCORE[
-          variant
-        ] ??
-        0;
+      'series_verified';
+
+  if (
+    isVerifiedHardcoverSeries
+  ) {
+    return (
+      575 +
+      (
+        edition.detail_complete
+          ? 20
+          : 0
+      )
+    );
+  }
+
+  const qualityScore =
+    VARIANT_SCORE[
+      variant
+    ] ??
+    0;
 
   const editionLocaleScore =
     localeScore(
