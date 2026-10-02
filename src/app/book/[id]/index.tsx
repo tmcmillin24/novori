@@ -4568,8 +4568,12 @@ export default function BookDetailsScreen() {
         ) : null}
 
         {!isSavedBookContext ? (
-          source ===
-            'discover' &&
+          (
+            source ===
+              'discover' ||
+            source ===
+              'stack'
+          ) &&
           readingStatus &&
           selectedStatusLabel ? (
             <View
