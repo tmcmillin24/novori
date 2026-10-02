@@ -2257,9 +2257,9 @@ function createStyles(
       paddingHorizontal:
         20,
       paddingTop:
-        18,
+        14,
       paddingBottom:
-        56,
+        42,
     },
 
     modeSwitch: {
@@ -2323,9 +2323,9 @@ function createStyles(
       justifyContent:
         'center',
       marginTop:
-        15,
+        11,
       marginBottom:
-        18,
+        14,
     },
 
     periodArrow: {
@@ -2434,9 +2434,9 @@ function createStyles(
       alignItems:
         'center',
       paddingTop:
-        8,
+        4,
       paddingBottom:
-        30,
+        22,
     },
 
     heroEyebrow: {
@@ -2462,9 +2462,9 @@ function createStyles(
       justifyContent:
         'center',
       marginTop:
-        20,
+        16,
       marginBottom:
-        18,
+        14,
       paddingHorizontal:
         18,
     },
@@ -2572,7 +2572,7 @@ function createStyles(
       gap:
         8,
       marginTop:
-        14,
+        10,
     },
 
     supportingStat: {
@@ -2611,9 +2611,9 @@ function createStyles(
       borderTopColor:
         colors.border,
       paddingTop:
-        24,
+        20,
       marginBottom:
-        27,
+        22,
     },
 
     sectionEyebrow: {
@@ -2668,14 +2668,14 @@ function createStyles(
 
     timeline: {
       marginTop:
-        19,
+        15,
     },
 
     timelineItem: {
       flexDirection:
         'row',
       minHeight:
-        76,
+        68,
     },
 
     timelineRail: {
@@ -2765,9 +2765,9 @@ function createStyles(
       minWidth:
         '100%',
       paddingTop:
-        18,
+        14,
       paddingBottom:
-        8,
+        6,
       paddingHorizontal:
         18,
       alignItems:
@@ -2881,14 +2881,14 @@ function createStyles(
 
     continuingList: {
       marginTop:
-        15,
+        12,
       gap:
-        10,
+        8,
     },
 
     continuingBook: {
       minHeight:
-        102,
+        96,
       flexDirection:
         'row',
       alignItems:
@@ -2902,7 +2902,7 @@ function createStyles(
       backgroundColor:
         colors.surface,
       padding:
-        12,
+        11,
     },
 
     continuingCover: {
@@ -3035,7 +3035,7 @@ function createStyles(
 
     activityLink: {
       minHeight:
-        72,
+        68,
       borderRadius:
         16,
       borderWidth:
