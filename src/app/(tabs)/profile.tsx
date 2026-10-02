@@ -1608,6 +1608,195 @@ export default function ProfileScreen() {
     );
   }
 
+  function editActivityPost(
+    post: FeedPost
+  ) {
+    if (
+      post.post_type ===
+      'question'
+    ) {
+      router.push({
+        pathname:
+          '/ask-readers',
+        params: {
+          editPostId:
+            post.id,
+        },
+      });
+      return;
+    }
+
+    if (
+      post.post_type ===
+      'reading_update'
+    ) {
+      router.push({
+        pathname:
+          '/create-reading-update',
+        params: {
+          editPostId:
+            post.id,
+        },
+      });
+      return;
+    }
+
+    if (
+      post.post_type ===
+        'book_stack' &&
+      post.book_stack_id
+    ) {
+      router.push({
+        pathname:
+          '/create-book-stack',
+        params: {
+          editPostId:
+            post.id,
+          stackId:
+            post.book_stack_id,
+        },
+      });
+      return;
+    }
+
+    router.push({
+      pathname:
+        '/create-post',
+      params: {
+        editPostId:
+          post.id,
+      },
+    });
+  }
+
+  function openActivityPostOptions(
+    post: FeedPost
+  ) {
+    Alert.alert(
+      'Post options',
+      'Manage your post.',
+      [
+        {
+          text:
+            'Edit Post',
+          onPress: () =>
+            editActivityPost(
+              post
+            ),
+        },
+        {
+          text:
+            'Delete Post',
+          style:
+            'destructive',
+          onPress: () =>
+            setDeletePostTarget(
+              post
+            ),
+        },
+        {
+          text:
+            'Cancel',
+          style:
+            'cancel',
+        },
+      ]
+    );
+  }
+
+  async function removeActivityPost(
+    post: FeedPost
+  ) {
+    if (
+      deletingPostId
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingPostId(
+        post.id
+      );
+
+      await deletePost(
+        post.id
+      );
+
+      setPosts(
+        (
+          current
+        ) =>
+          current.filter(
+            (
+              item
+            ) =>
+              item.id !==
+              post.id
+          )
+      );
+
+      const currentPostMutationVersion =
+        getPostMutationVersion();
+
+      lastSeenPostMutationRef.current =
+        currentPostMutationVersion;
+
+      if (
+        profileSessionCache
+      ) {
+        const nextSnapshot:
+          ProfileCacheSnapshot = {
+            ...profileSessionCache.snapshot,
+            posts:
+              profileSessionCache.snapshot.posts.filter(
+                (
+                  item
+                ) =>
+                  item.id !==
+                  post.id
+              ),
+          };
+
+        profileSessionCache = {
+          ...profileSessionCache,
+          snapshot:
+            nextSnapshot,
+          postMutationVersion:
+            currentPostMutationVersion,
+        };
+
+        void writeProfileCache(
+          profileSessionCache.userId,
+          nextSnapshot
+        );
+      }
+
+      setDeletePostTarget(
+        null
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        'Could not delete post:',
+        error
+      );
+
+      Alert.alert(
+        'Could not delete post',
+        error instanceof Error
+          ? error.message
+          : 'Please try again.'
+      );
+
+      throw error;
+    } finally {
+      setDeletingPostId(
+        null
+      );
+    }
+  }
+
   function renderActivityTab() {
     if (
       posts.length ===
@@ -1777,47 +1966,80 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
 
-                  <Pressable
-                    onPress={(
-                      event
-                    ) => {
-                      event.stopPropagation();
-
-                      void sharePostLink(
-                        post.id
-                      ).catch(
-                        (
-                          shareError
-                        ) => {
-                          console.error(
-                            'Could not share post:',
-                            shareError
-                          );
-
-                          Alert.alert(
-                            'Could not share post',
-                            'Please try again.'
-                          );
-                        }
-                      );
-                    }}
-                    hitSlop={10}
-                    accessibilityRole="button"
-                    accessibilityLabel="Share post"
-                    style={({ pressed }) => [
-                      styles.activityFeedHeaderAction,
-                      pressed &&
-                        styles.pressed,
-                    ]}
+                  <View
+                    style={
+                      styles.activityFeedHeaderActions
+                    }
                   >
-                    <Ionicons
-                      name="share-social-outline"
-                      size={18}
-                      color={
-                        colors.mutedText
-                      }
-                    />
-                  </Pressable>
+                    <Pressable
+                      onPress={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+
+                        void sharePostLink(
+                          post.id
+                        ).catch(
+                          (
+                            shareError
+                          ) => {
+                            console.error(
+                              'Could not share post:',
+                              shareError
+                            );
+
+                            Alert.alert(
+                              'Could not share post',
+                              'Please try again.'
+                            );
+                          }
+                        );
+                      }}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel="Share post"
+                      style={({ pressed }) => [
+                        styles.activityFeedHeaderAction,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="share-social-outline"
+                        size={18}
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      onPress={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+                        openActivityPostOptions(
+                          post
+                        );
+                      }}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel="Post options"
+                      style={({ pressed }) => [
+                        styles.activityFeedHeaderAction,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="ellipsis-horizontal"
+                        size={19}
+                        color={
+                          colors.mutedText
+                        }
+                      />
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View
@@ -3046,6 +3268,35 @@ export default function ProfileScreen() {
         renderTabContent()
       }
 
+      <DeletePostConfirmSheet
+        visible={
+          Boolean(
+            deletePostTarget
+          )
+        }
+        busy={
+          Boolean(
+            deletingPostId
+          )
+        }
+        onConfirm={async () => {
+          if (
+            !deletePostTarget
+          ) {
+            return;
+          }
+
+          await removeActivityPost(
+            deletePostTarget
+          );
+        }}
+        onDismiss={() =>
+          setDeletePostTarget(
+            null
+          )
+        }
+      />
+
       <BookStackActionsSheet
         visible={
           Boolean(
@@ -3656,6 +3907,15 @@ function createStyles(
       marginTop: 5,
     },
 
+    activityFeedHeaderActions: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      marginLeft: 4,
+      marginTop: -2,
+    },
+
     activityFeedHeaderAction: {
       width: 34,
       height: 34,
@@ -3663,8 +3923,6 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-      marginLeft: 4,
-      marginTop: -2,
     },
 
     activityFeedContent: {
