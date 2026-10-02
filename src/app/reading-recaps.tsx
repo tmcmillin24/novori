@@ -2453,6 +2453,8 @@ function createStyles(
     },
 
     coverFan: {
+      alignSelf:
+        'stretch',
       flexDirection:
         'row',
       alignItems:
@@ -2463,8 +2465,8 @@ function createStyles(
         20,
       marginBottom:
         18,
-      paddingLeft:
-        22,
+      paddingHorizontal:
+        18,
     },
 
     heroCoverWrap: {
