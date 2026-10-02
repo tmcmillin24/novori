@@ -102,6 +102,10 @@ type CatalogFuzzyRow = {
     unknown;
   similarity_score?:
     number | null;
+  title_similarity?:
+    number | null;
+  author_similarity?:
+    number | null;
 };
 
 function isGoogleBookPayload(
@@ -215,6 +219,16 @@ async function tryCatalogFuzzySearch(
               row.similarity_score ??
               0
             ),
+          titleScore:
+            Number(
+              row.title_similarity ??
+              0
+            ),
+          authorScore:
+            Number(
+              row.author_similarity ??
+              0
+            ),
         })
       )
       .sort(
@@ -230,6 +244,17 @@ async function tryCatalogFuzzySearch(
     valid[0]?.score ??
     0;
 
+  const topTitleScore =
+    Math.max(
+      0,
+      ...valid.map(
+        (
+          row
+        ) =>
+          row.titleScore
+      )
+    );
+
   const queryWordCount =
     normalized
       .split(' ')
@@ -239,7 +264,7 @@ async function tryCatalogFuzzySearch(
       .length;
 
   const strongEnough =
-    topScore >=
+    topTitleScore >=
       (
         queryWordCount <=
           1
