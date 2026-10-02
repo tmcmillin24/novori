@@ -1895,6 +1895,11 @@ export default function CreateBookStackScreen() {
                     book
                   );
 
+                const canonicalCover =
+                  book.novoriWork
+                    ?.canonicalCoverUrl ??
+                  null;
+
                 return (
                   <Pressable
                     key={
@@ -1923,9 +1928,8 @@ export default function CreateBookStackScreen() {
                           isbn
                         }
                         existingCoverUrl={
-                          cover
+                          canonicalCover
                         }
-                        preferExistingCover
                         style={
                           styles.resultCover
                         }
