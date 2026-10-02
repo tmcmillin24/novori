@@ -6029,6 +6029,8 @@ export default function HomeScreen() {
                     params: {
                       id:
                         post.google_book_id,
+                      source:
+                        'feed',
                     },
                   });
                 }}
@@ -6154,6 +6156,8 @@ export default function HomeScreen() {
                     params: {
                       id:
                         post.google_book_id,
+                      source:
+                        'feed',
                     },
                   });
                 }}
