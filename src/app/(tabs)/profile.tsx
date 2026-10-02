@@ -14,6 +14,9 @@ import {
 } from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
+  Modal,
   Pressable,
   ScrollView,
   Share,
@@ -32,6 +35,10 @@ import ProfileReadingModule from '../../components/ProfileReadingModule';
 import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
+import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+
 import {
   TabScreen,
 } from '../../components/tab-screen';
@@ -272,6 +279,8 @@ export default function ProfileScreen() {
     );
 
   const router = useRouter();
+  const insets =
+    useSafeAreaInsets();
   const navigation =
     useNavigation();
 
@@ -394,6 +403,35 @@ export default function ProfileScreen() {
     useState<FeedPost | null>(
       null
     );
+
+  const [
+    activityPostOptionsTarget,
+    setActivityPostOptionsTarget,
+  ] =
+    useState<FeedPost | null>(
+      null
+    );
+
+  const activityPostOptionsTranslateY =
+    useRef(
+      new Animated.Value(
+        12
+      )
+    ).current;
+
+  const activityPostOptionsSheetOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
+
+  const activityPostOptionsBackdropOpacity =
+    useRef(
+      new Animated.Value(
+        0
+      )
+    ).current;
 
   const [
     deletingPostId,
@@ -1639,35 +1677,196 @@ export default function ProfileScreen() {
   function openActivityPostOptions(
     post: FeedPost
   ) {
-    Alert.alert(
-      'Post options',
-      'Manage your post.',
-      [
+    if (
+      deletingPostId ||
+      activityPostOptionsTarget
+    ) {
+      return;
+    }
+
+    activityPostOptionsTranslateY.stopAnimation();
+    activityPostOptionsSheetOpacity.stopAnimation();
+    activityPostOptionsBackdropOpacity.stopAnimation();
+
+    activityPostOptionsTranslateY.setValue(
+      12
+    );
+    activityPostOptionsSheetOpacity.setValue(
+      0
+    );
+    activityPostOptionsBackdropOpacity.setValue(
+      0
+    );
+
+    setActivityPostOptionsTarget(
+      post
+    );
+  }
+
+  function animateActivityPostOptionsIn() {
+    activityPostOptionsTranslateY.stopAnimation();
+    activityPostOptionsSheetOpacity.stopAnimation();
+    activityPostOptionsBackdropOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        activityPostOptionsTranslateY,
         {
-          text:
-            'Edit Post',
-          onPress: () =>
-            editActivityPost(
-              post
+          toValue:
+            0,
+          duration:
+            135,
+          easing:
+            Easing.out(
+              Easing.cubic
             ),
-        },
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        activityPostOptionsSheetOpacity,
         {
-          text:
-            'Delete Post',
-          style:
-            'destructive',
-          onPress: () =>
-            setDeletePostTarget(
-              post
+          toValue:
+            1,
+          duration:
+            105,
+          easing:
+            Easing.out(
+              Easing.cubic
             ),
-        },
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        activityPostOptionsBackdropOpacity,
         {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-      ]
+          toValue:
+            1,
+          duration:
+            125,
+          easing:
+            Easing.out(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start();
+  }
+
+  function closeActivityPostOptions(
+    afterClose?: () => void
+  ) {
+    activityPostOptionsTranslateY.stopAnimation();
+    activityPostOptionsSheetOpacity.stopAnimation();
+    activityPostOptionsBackdropOpacity.stopAnimation();
+
+    Animated.parallel([
+      Animated.timing(
+        activityPostOptionsTranslateY,
+        {
+          toValue:
+            12,
+          duration:
+            115,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        activityPostOptionsSheetOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+      Animated.timing(
+        activityPostOptionsBackdropOpacity,
+        {
+          toValue:
+            0,
+          duration:
+            100,
+          easing:
+            Easing.in(
+              Easing.cubic
+            ),
+          useNativeDriver:
+            true,
+        }
+      ),
+    ]).start(({
+      finished,
+    }) => {
+      if (
+        !finished
+      ) {
+        return;
+      }
+
+      activityPostOptionsTranslateY.setValue(
+        12
+      );
+      activityPostOptionsSheetOpacity.setValue(
+        0
+      );
+
+      setActivityPostOptionsTarget(
+        null
+      );
+
+      afterClose?.();
+    });
+  }
+
+  function editSelectedActivityPost() {
+    if (
+      !activityPostOptionsTarget
+    ) {
+      return;
+    }
+
+    const post =
+      activityPostOptionsTarget;
+
+    closeActivityPostOptions(
+      () =>
+        editActivityPost(
+          post
+        )
+    );
+  }
+
+  function deleteSelectedActivityPost() {
+    if (
+      !activityPostOptionsTarget
+    ) {
+      return;
+    }
+
+    const post =
+      activityPostOptionsTarget;
+
+    closeActivityPostOptions(
+      () =>
+        setDeletePostTarget(
+          post
+        )
     );
   }
 
@@ -3544,6 +3743,241 @@ export default function ProfileScreen() {
         renderTabContent()
       }
 
+      <Modal
+        visible={
+          Boolean(
+            activityPostOptionsTarget
+          )
+        }
+        transparent
+        animationType="none"
+        onShow={
+          animateActivityPostOptionsIn
+        }
+        onRequestClose={() =>
+          closeActivityPostOptions()
+        }
+      >
+        <Pressable
+          style={
+            styles.activityPostOptionsBackdrop
+          }
+          onPress={() =>
+            closeActivityPostOptions()
+          }
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activityPostOptionsBackdropVisual,
+              {
+                opacity:
+                  activityPostOptionsBackdropOpacity,
+              },
+            ]}
+          />
+
+          <Animated.View
+            style={[
+              styles.activityPostOptionsSheet,
+              {
+                paddingBottom:
+                  Math.max(
+                    18,
+                    insets.bottom +
+                      12
+                  ),
+                opacity:
+                  activityPostOptionsSheetOpacity,
+                transform: [
+                  {
+                    translateY:
+                      activityPostOptionsTranslateY,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) =>
+                event.stopPropagation()
+              }
+            >
+              <View
+                style={
+                  styles.activityPostOptionsHandle
+                }
+              />
+
+              <View
+                style={
+                  styles.activityPostOptionsHeader
+                }
+              >
+                <View
+                  style={
+                    styles.activityPostOptionsHeaderIcon
+                  }
+                >
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={19}
+                    color={
+                      colors.gold
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.activityPostOptionsHeaderCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.activityPostOptionsTitle
+                    }
+                  >
+                    Post options
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.activityPostOptionsSubtitle
+                    }
+                  >
+                    Manage your post.
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.activityPostOptionsList
+                }
+              >
+                <Pressable
+                  onPress={
+                    editSelectedActivityPost
+                  }
+                  style={({ pressed }) => [
+                    styles.activityPostOptionsRow,
+                    pressed &&
+                      styles.activityPostOptionsRowPressed,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.activityPostOptionsRowIcon
+                    }
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={20}
+                      color={
+                        colors.gold
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.activityPostOptionsRowCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.activityPostOptionsRowTitle
+                      }
+                    >
+                      Edit Post
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.activityPostOptionsRowSubtitle
+                      }
+                    >
+                      Update what you shared.
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={
+                      colors.mutedText
+                    }
+                  />
+                </Pressable>
+
+                <View
+                  style={
+                    styles.activityPostOptionsDivider
+                  }
+                />
+
+                <Pressable
+                  onPress={
+                    deleteSelectedActivityPost
+                  }
+                  style={({ pressed }) => [
+                    styles.activityPostOptionsRow,
+                    pressed &&
+                      styles.activityPostOptionsRowPressed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.activityPostOptionsRowIcon,
+                      styles.activityPostOptionsDangerIcon,
+                    ]}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color={
+                        colors.danger
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={
+                      styles.activityPostOptionsRowCopy
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.activityPostOptionsDangerTitle
+                      }
+                    >
+                      Delete Post
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.activityPostOptionsRowSubtitle
+                      }
+                    >
+                      Permanently remove this post.
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+
+              <Text
+                style={
+                  styles.activityPostOptionsHint
+                }
+              >
+                Tap outside to cancel
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
       <DeletePostConfirmSheet
         visible={
           Boolean(
@@ -4059,6 +4493,185 @@ function createStyles(
       fontFamily:
         'Inter_500Medium',
       fontSize: 10,
+    },
+
+    activityPostOptionsBackdrop: {
+      flex: 1,
+      backgroundColor:
+        'transparent',
+      justifyContent:
+        'flex-end',
+    },
+
+    activityPostOptionsBackdropVisual: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor:
+        'rgba(0,0,0,0.48)',
+    },
+
+    activityPostOptionsSheet: {
+      width: '100%',
+      alignSelf:
+        'center',
+      backgroundColor:
+        colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 18,
+      overflow:
+        'hidden',
+    },
+
+    activityPostOptionsHandle: {
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor:
+        colors.border,
+      alignSelf:
+        'center',
+      marginBottom: 16,
+    },
+
+    activityPostOptionsHeader: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      marginBottom: 14,
+      paddingHorizontal: 2,
+    },
+
+    activityPostOptionsHeaderIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+
+    activityPostOptionsHeaderCopy: {
+      flex: 1,
+    },
+
+    activityPostOptionsTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      fontSize: 20,
+    },
+
+    activityPostOptionsSubtitle: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 2,
+    },
+
+    activityPostOptionsList: {
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 16,
+      overflow:
+        'hidden',
+      backgroundColor:
+        colors.background,
+    },
+
+    activityPostOptionsRow: {
+      minHeight: 66,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      backgroundColor:
+        colors.background,
+    },
+
+    activityPostOptionsRowPressed: {
+      backgroundColor:
+        colors.elevated,
+    },
+
+    activityPostOptionsRowIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 12,
+    },
+
+    activityPostOptionsDangerIcon: {
+      backgroundColor:
+        'rgba(220, 80, 80, 0.10)',
+    },
+
+    activityPostOptionsRowCopy: {
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    activityPostOptionsRowTitle: {
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 14,
+    },
+
+    activityPostOptionsDangerTitle: {
+      color:
+        colors.danger,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 14,
+    },
+
+    activityPostOptionsRowSubtitle: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 16,
+      marginTop: 2,
+    },
+
+    activityPostOptionsDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+      backgroundColor:
+        colors.border,
+      marginLeft: 61,
+    },
+
+    activityPostOptionsHint: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      textAlign:
+        'center',
+      marginTop: 11,
     },
 
     activityFeedCard: {
