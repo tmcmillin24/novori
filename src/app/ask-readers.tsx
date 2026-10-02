@@ -542,6 +542,8 @@ export default function AskReadersScreen() {
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
+        {!isEditing ? (
+          <>
         <View style={styles.questionCard}>
           <View style={styles.questionIcon}>
             <Ionicons
@@ -843,10 +845,15 @@ export default function AskReadersScreen() {
           ) : null}
         </View>
 
+          </>
+        ) : null}
+
         <View>
-          <Text style={styles.previewLabel}>
-            PREVIEW
-          </Text>
+          {!isEditing ? (
+            <Text style={styles.previewLabel}>
+              PREVIEW
+            </Text>
+          ) : null}
 
           <View style={styles.feedPreviewCard}>
             <View style={styles.feedPreviewHeader}>
@@ -939,19 +946,68 @@ export default function AskReadersScreen() {
                 </Text>
               </View>
 
-              <Text style={styles.feedPreviewQuestion}>
-                {question.trim() ||
-                  'Your question will appear here.'}
-              </Text>
+              {isEditing ? (
+                <>
+                  <TextInput
+                    value={question}
+                    onChangeText={setQuestion}
+                    placeholder="What do you want to ask readers?"
+                    placeholderTextColor={colors.mutedText}
+                    multiline
+                    maxLength={280}
+                    style={[
+                      styles.feedPreviewQuestion,
+                      styles.feedPreviewQuestionInput,
+                    ]}
+                  />
 
-              {context.trim() ? (
-                <Text style={styles.feedPreviewContext}>
-                  {context.trim()}
-                </Text>
-              ) : null}
+                  <TextInput
+                    value={context}
+                    onChangeText={setContext}
+                    placeholder="Add optional context…"
+                    placeholderTextColor={colors.mutedText}
+                    multiline
+                    maxLength={1200}
+                    style={[
+                      styles.feedPreviewContext,
+                      styles.feedPreviewContextInput,
+                    ]}
+                  />
+
+                  <View style={styles.editCountRow}>
+                    <Text style={styles.editCountText}>
+                      {question.length}/280 · {context.length}/1200
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.feedPreviewQuestion}>
+                    {question.trim() ||
+                      'Your question will appear here.'}
+                  </Text>
+
+                  {context.trim() ? (
+                    <Text style={styles.feedPreviewContext}>
+                      {context.trim()}
+                    </Text>
+                  ) : null}
+                </>
+              )}
 
               {attachedBook ? (
-                <View style={styles.feedPreviewBookCard}>
+                <Pressable
+                  disabled={!isEditing}
+                  onPress={() => setBookPickerVisible(true)}
+                  style={({ pressed }) => [
+                    styles.feedPreviewBookCard,
+                    isEditing &&
+                      styles.feedPreviewBookCardEditable,
+                    pressed &&
+                      isEditing &&
+                      styles.pressed,
+                  ]}
+                >
                   {attachedBook.coverUrl ? (
                     <Image
                       source={{
@@ -1017,7 +1073,29 @@ export default function AskReadersScreen() {
                     size={17}
                     color={colors.mutedText}
                   />
-                </View>
+                </Pressable>
+              ) : isEditing ? (
+                <Pressable
+                  onPress={() => setBookPickerVisible(true)}
+                  style={({ pressed }) => [
+                    styles.feedPreviewAddBook,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="book-outline"
+                    size={18}
+                    color={colors.gold}
+                  />
+                  <Text style={styles.feedPreviewAddBookText}>
+                    Add a book
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={17}
+                    color={colors.mutedText}
+                  />
+                </Pressable>
               ) : null}
             </View>
 
@@ -1773,6 +1851,47 @@ function createStyles(colors: NovoriColors) {
       fontSize: 10.5,
       marginTop: 3,
     },
+    feedPreviewQuestionInput: {
+      padding: 0,
+      margin: 0,
+      textAlignVertical: 'top',
+    },
+    feedPreviewContextInput: {
+      minHeight: 56,
+      padding: 0,
+      textAlignVertical: 'top',
+    },
+    editCountRow: {
+      alignItems: 'flex-end',
+      marginTop: 6,
+    },
+    editCountText: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 10,
+    },
+    feedPreviewBookCardEditable: {
+      borderColor: colors.gold,
+    },
+    feedPreviewAddBook: {
+      minHeight: 54,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 14,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      backgroundColor: colors.elevated,
+    },
+    feedPreviewAddBookText: {
+      flex: 1,
+      color: colors.text,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12.5,
+    },
+
     feedPreviewFooter: {
       flexDirection: 'row',
       alignItems: 'center',
