@@ -1870,19 +1870,6 @@ const DiscoverBookCard = memo(
             </Text>
           ) : null}
 
-          {info.pageCount ? (
-            <Text
-              style={
-                styles.meta
-              }
-            >
-              {
-                info.pageCount
-              }{' '}
-              pages
-            </Text>
-          ) : null}
-
           <Text
             style={
               styles.viewDetails
