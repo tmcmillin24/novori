@@ -2917,7 +2917,7 @@ export default function ProfileScreen() {
               styles.readingHubSubtitle
             }
           >
-            Activity · Recaps · Goals · Year
+            Activity · Recaps · More
           </Text>
         </View>
 
