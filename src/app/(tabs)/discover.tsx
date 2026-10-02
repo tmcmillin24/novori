@@ -1763,6 +1763,11 @@ const DiscoverBookCard = memo(
             existingCoverUrl={
               canonicalCover
             }
+            preferExistingCover={
+              Boolean(
+                canonicalCover
+              )
+            }
             style={
               styles.cover
             }
