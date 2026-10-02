@@ -10,6 +10,10 @@ function bumpPostMutationVersion() {
   postMutationVersion += 1;
 }
 
+export function markPostMutation() {
+  bumpPostMutationVersion();
+}
+
 export type FeedPostType =
   | 'post'
   | 'reading_update'
@@ -698,6 +702,8 @@ export async function updatePost(
   if (error) {
     throw error;
   }
+
+  bumpPostMutationVersion();
 
   return data;
 }
