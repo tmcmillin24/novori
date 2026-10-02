@@ -1212,6 +1212,8 @@ export default function CreatePostScreen() {
               styles.content
             }
           >
+            {!isEditing ? (
+              <>
             <Pressable
               onPress={() =>
                 setDestinationExpanded(
@@ -1532,6 +1534,9 @@ export default function CreatePostScreen() {
                   }
                 )}
               </View>
+            ) : null}
+
+              </>
             ) : null}
 
             <View
@@ -1948,8 +1953,162 @@ export default function CreatePostScreen() {
                 ) : null}
               </View>
 
+              {isEditing ? (
+                <View
+                  style={
+                    styles.editCardToolbar
+                  }
+                >
+                  <Text
+                    style={
+                      styles.editCardCount
+                    }
+                  >
+                    {body.length}/4000
+                  </Text>
+
+                  <View
+                    style={
+                      styles.editCardActions
+                    }
+                  >
+                    <Pressable
+                      onPress={() =>
+                        setPhotoSourceVisible(
+                          true
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.editCardAction,
+                        visibleImageUrl &&
+                          styles.editCardActionActive,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          visibleImageUrl
+                            ? 'image'
+                            : 'image-outline'
+                        }
+                        size={18}
+                        color={
+                          colors.gold
+                        }
+                      />
+                      <Text
+                        style={
+                          styles.editCardActionText
+                        }
+                      >
+                        {visibleImageUrl
+                          ? 'Replace'
+                          : 'Photo'}
+                      </Text>
+                    </Pressable>
+
+                    {visibleImageUrl ? (
+                      <Pressable
+                        onPress={
+                          removePhoto
+                        }
+                        style={({ pressed }) => [
+                          styles.editCardAction,
+                          pressed &&
+                            styles.pressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={17}
+                          color={
+                            colors.mutedText
+                          }
+                        />
+                        <Text
+                          style={
+                            styles.editCardActionText
+                          }
+                        >
+                          Remove photo
+                        </Text>
+                      </Pressable>
+                    ) : null}
+
+                    <Pressable
+                      onPress={() =>
+                        setBookPickerVisible(
+                          true
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.editCardAction,
+                        attachedBook &&
+                          styles.editCardActionActive,
+                        pressed &&
+                          styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          attachedBook
+                            ? 'book'
+                            : 'book-outline'
+                        }
+                        size={18}
+                        color={
+                          colors.gold
+                        }
+                      />
+                      <Text
+                        style={
+                          styles.editCardActionText
+                        }
+                      >
+                        {attachedBook
+                          ? 'Change book'
+                          : 'Book'}
+                      </Text>
+                    </Pressable>
+
+                    {attachedBook ? (
+                      <Pressable
+                        onPress={() =>
+                          setAttachedBook(
+                            null
+                          )
+                        }
+                        style={({ pressed }) => [
+                          styles.editCardAction,
+                          pressed &&
+                            styles.pressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={17}
+                          color={
+                            colors.mutedText
+                          }
+                        />
+                        <Text
+                          style={
+                            styles.editCardActionText
+                          }
+                        >
+                          Remove book
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+
             </View>
 
+            {!isEditing ? (
+              <>
             <View
               style={
                 styles.previewAttachmentManagement
@@ -2124,6 +2283,10 @@ export default function CreatePostScreen() {
               </View>
             </View>
 
+              </>
+            ) : null}
+
+            {!isEditing ? (
             <View
               style={
                 styles.footerNote
@@ -2148,6 +2311,7 @@ export default function CreatePostScreen() {
                   : `This will be shared with ${selectedClub?.name ?? 'this club'}.`}
               </Text>
             </View>
+            ) : null}
           </KeyboardAwareScrollView>
         </View>
       </SafeAreaView>
@@ -3545,6 +3709,58 @@ function createStyles(
       fontSize:
         10.5,
     },
+    editCardToolbar: {
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+      borderTopColor:
+        colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      gap: 10,
+    },
+    editCardCount: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 10,
+      textAlign:
+        'right',
+    },
+    editCardActions: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      gap: 8,
+    },
+    editCardAction: {
+      minHeight: 34,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 6,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.elevated,
+      borderRadius: 17,
+      paddingHorizontal: 10,
+    },
+    editCardActionActive: {
+      borderColor:
+        colors.gold,
+    },
+    editCardActionText: {
+      color:
+        colors.secondaryText,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 10.5,
+    },
+
     previewAttachmentManagement: {
       flexDirection:
         'row',
