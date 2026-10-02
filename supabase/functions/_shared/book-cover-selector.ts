@@ -8,6 +8,9 @@ const SELECTOR_VERSION =
 const GOOGLE_PROVIDER =
   'google_books';
 
+const HARDCOVER_PROVIDER =
+  'hardcover';
+
 const STRONG_VARIANTS =
   new Set([
     'medium',
@@ -156,10 +159,15 @@ function candidateScore(
     '';
 
   const qualityScore =
-    VARIANT_SCORE[
-      variant
-    ] ??
-    0;
+    candidate.provider ===
+      HARDCOVER_PROVIDER &&
+    variant ===
+      'series_verified'
+      ? 700
+      : VARIANT_SCORE[
+          variant
+        ] ??
+        0;
 
   const editionLocaleScore =
     localeScore(
@@ -291,9 +299,12 @@ export async function selectCanonicalGoogleCoversForWorkIds(
         .select(
           'id, work_id, edition_id, provider, source_variant, url'
         )
-        .eq(
+        .in(
           'provider',
-          GOOGLE_PROVIDER
+          [
+            GOOGLE_PROVIDER,
+            HARDCOVER_PROVIDER,
+          ]
         )
         .eq(
           'scope',
@@ -479,6 +490,13 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                     edition,
                     score,
                     strong:
+                      (
+                        candidate.provider ===
+                          HARDCOVER_PROVIDER &&
+                        candidate
+                          .source_variant ===
+                          'series_verified'
+                      ) ||
                       STRONG_VARIANTS.has(
                         candidate
                           .source_variant ??
@@ -549,17 +567,24 @@ export async function selectCanonicalGoogleCoversForWorkIds(
               null,
             decision_json: {
               mode:
-                'shadow',
-              provider:
+                'canonical',
+              providers: [
                 GOOGLE_PROVIDER,
-              requiredMinimumVariant:
+                HARDCOVER_PROVIDER,
+              ],
+              requiredMinimumGoogleVariant:
                 'medium',
-              totalGoogleCandidates:
+              totalCandidates:
                 workCandidates.length,
-              eligibleGoogleCandidates:
+              eligibleCandidates:
                 ranked.length,
-              strongGoogleCandidates:
+              strongCandidates:
                 strongRanked.length,
+              selectedProvider:
+                selected
+                  ?.candidate
+                  .provider ??
+                null,
               selectedVariant:
                 selected
                   ?.candidate
@@ -571,7 +596,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                   .detail_complete ??
                 null,
               rule:
-                'Strong eligible Google candidates only; no UI authority.',
+                'Prefer exact verified Hardcover series artwork when available; otherwise use strong eligible Google candidates. Locked selections are never changed.',
             },
             selected_at:
               selected
@@ -619,7 +644,6 @@ export async function selectCanonicalGoogleCoversForWorkIds(
   } catch (
     error
   ) {
-    // Phase 7 remains best effort and has no UI authority.
     console.warn(
       'Novori cover selection failed:',
       error
