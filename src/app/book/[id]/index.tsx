@@ -4572,7 +4572,9 @@ export default function BookDetailsScreen() {
             source ===
               'discover' ||
             source ===
-              'stack'
+              'stack' ||
+            source ===
+              'feed'
           ) &&
           readingStatus &&
           selectedStatusLabel ? (
