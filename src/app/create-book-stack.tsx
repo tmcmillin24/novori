@@ -38,9 +38,15 @@ import {
   getBestSearchCover,
   getNovoriSearchBookCover,
   GoogleBookSearchItem,
-  resolveNovoriSearchBookCover,
   searchNovoriBooks,
 } from '../lib/book-search';
+import {
+  resolveBookCoverUrl,
+} from '../lib/book-covers';
+import {
+  fetchGoogleBooksJson,
+  resolveGoogleBooksIdentity,
+} from '../lib/google-books';
 import {
   BookStackDraftItem,
   createBookStack,
@@ -53,9 +59,316 @@ import {
   getPostDetail,
   updatePost,
 } from '../lib/feed';
+import {
+  supabase,
+} from '../lib/supabase';
 
 const MAX_STACK_BOOKS = 10;
 const MIN_STACK_BOOKS = 2;
+
+type BookStackSeriesResponse = {
+  series?: {
+    currentPosition?:
+      | number
+      | null;
+  } | null;
+  books?: {
+    position: number;
+    imageUrl?:
+      | string
+      | null;
+  }[];
+};
+
+function secureStackCoverUrl(
+  value?:
+    | string
+    | null
+) {
+  return (
+    value
+      ?.replace(
+        'http://',
+        'https://'
+      )
+      .trim() ||
+    null
+  );
+}
+
+function getStackBookIsbns(
+  book: GoogleBookSearchItem
+) {
+  return Array.from(
+    new Set(
+      (
+        book.volumeInfo
+          .industryIdentifiers ??
+        []
+      )
+        .map(
+          (
+            identifier
+          ) =>
+            identifier.identifier
+              ?.replace(
+                /[^0-9Xx]/g,
+                ''
+              )
+              .toUpperCase()
+        )
+        .filter(
+          (
+            isbn
+          ): isbn is string =>
+            Boolean(
+              isbn
+            )
+        )
+    )
+  );
+}
+
+function getStackBookPrimaryIsbn(
+  book: GoogleBookSearchItem
+) {
+  const identifiers =
+    book.volumeInfo
+      .industryIdentifiers ??
+    [];
+
+  return (
+    identifiers.find(
+      (
+        identifier
+      ) =>
+        identifier.type ===
+        'ISBN_13'
+    )?.identifier ??
+    identifiers.find(
+      (
+        identifier
+      ) =>
+        identifier.type ===
+        'ISBN_10'
+    )?.identifier ??
+    book.novoriWork
+      ?.isbns?.[0] ??
+    null
+  );
+}
+
+async function resolveBookStackPreviewCover(
+  book: GoogleBookSearchItem,
+  initialCover:
+    | string
+    | null
+) {
+  let detailBook =
+    book;
+
+  try {
+    const identity =
+      await resolveGoogleBooksIdentity({
+        title:
+          book.volumeInfo
+            .title,
+        author:
+          book.volumeInfo
+            .authors?.[0],
+        isbn:
+          getStackBookPrimaryIsbn(
+            book
+          ) ??
+          undefined,
+      });
+
+    const detailId =
+      identity.ok &&
+      identity.googleBookId
+        ? identity.googleBookId
+        : book.id;
+
+    const detail =
+      await fetchGoogleBooksJson<
+        GoogleBookSearchItem
+      >(
+        `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
+          detailId
+        )}`
+      );
+
+    if (
+      detail.ok &&
+      detail.data
+    ) {
+      detailBook =
+        detail.data;
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not resolve Book Stack detail metadata:',
+      error
+    );
+  }
+
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'book-cover-selection',
+        {
+          body: {
+            volumeId:
+              detailBook.id,
+          },
+        }
+      );
+
+    if (!error) {
+      const selection =
+        data as
+          | {
+              ok?: boolean;
+              data?: {
+                locked?: boolean;
+                authoritative?: boolean;
+                url?:
+                  | string
+                  | null;
+              };
+            }
+          | null;
+
+      const verifiedCover =
+        selection?.ok ===
+          true &&
+        selection.data
+          ?.locked ===
+          true &&
+        selection.data
+          ?.authoritative ===
+          true
+          ? secureStackCoverUrl(
+              selection.data
+                ?.url
+            )
+          : null;
+
+      if (
+        verifiedCover
+      ) {
+        return verifiedCover;
+      }
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not load verified Book Stack cover:',
+      error
+    );
+  }
+
+  try {
+    const isbns =
+      getStackBookIsbns(
+        detailBook
+      );
+
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'hardcover-series',
+        {
+          body: {
+            isbn:
+              getStackBookPrimaryIsbn(
+                detailBook
+              ) ??
+              isbns[0] ??
+              null,
+            isbns,
+            title:
+              detailBook.volumeInfo
+                .title ??
+              '',
+            authors:
+              detailBook.volumeInfo
+                .authors ??
+              [],
+          },
+        }
+      );
+
+    if (!error) {
+      const response =
+        data as
+          BookStackSeriesResponse;
+
+      const currentPosition =
+        response.series
+          ?.currentPosition;
+
+      const currentSeriesBook =
+        currentPosition !==
+          null &&
+        currentPosition !==
+          undefined
+          ? (
+              response.books ??
+              []
+            ).find(
+              (
+                seriesBook
+              ) =>
+                seriesBook.position ===
+                currentPosition
+            )
+          : null;
+
+      const seriesCover =
+        secureStackCoverUrl(
+          currentSeriesBook
+            ?.imageUrl
+        );
+
+      if (
+        seriesCover
+      ) {
+        return seriesCover;
+      }
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Could not load Book Stack series cover:',
+      error
+    );
+  }
+
+  return (
+    await resolveBookCoverUrl({
+      imageLinks:
+        detailBook.volumeInfo
+          .imageLinks,
+      isbn:
+        getStackBookPrimaryIsbn(
+          detailBook
+        ),
+      existingCoverUrl:
+        initialCover,
+    })
+  ) ??
+    initialCover;
+}
 
 export default function CreateBookStackScreen() {
   const router =
@@ -515,8 +828,9 @@ export default function CreateBookStackScreen() {
       ]
     );
 
-    void resolveNovoriSearchBookCover(
-      book
+    void resolveBookStackPreviewCover(
+      book,
+      initialCover
     )
       .then(
         (
