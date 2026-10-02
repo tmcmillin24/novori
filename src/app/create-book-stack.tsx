@@ -599,6 +599,14 @@ export default function CreateBookStackScreen() {
           post?.body ??
             ''
         );
+
+        if (
+          editPostId
+        ) {
+          setPreviewing(
+            true
+          );
+        }
       } catch (
         error
       ) {
@@ -1462,10 +1470,18 @@ export default function CreateBookStackScreen() {
           }
         >
           <Pressable
-            onPress={() =>
+            onPress={() => {
+              if (
+                isEditing &&
+                editPostId
+              ) {
+                router.back();
+                return;
+              }
+
               setPreviewing(
                 false
-              )
+              );
             }
             hitSlop={10}
             style={
@@ -1486,7 +1502,10 @@ export default function CreateBookStackScreen() {
               styles.headerTitle
             }
           >
-            {isEditing
+            {isEditing &&
+            editPostId
+              ? 'Edit Book Stack'
+              : isEditing
               ? 'Edit Preview'
               : 'Preview'}
           </Text>
@@ -1534,13 +1553,34 @@ export default function CreateBookStackScreen() {
             </Text>
           </View>
 
-          <Text
-            style={
-              styles.previewName
-            }
-          >
-            Feed Preview
-          </Text>
+          {isEditing &&
+          editPostId ? (
+            <TextInput
+              value={
+                name
+              }
+              onChangeText={
+                setName
+              }
+              placeholder="Name your stack"
+              placeholderTextColor={
+                colors.mutedText
+              }
+              maxLength={80}
+              style={[
+                styles.previewName,
+                styles.previewNameInput,
+              ]}
+            />
+          ) : (
+            <Text
+              style={
+                styles.previewName
+              }
+            >
+              Feed Preview
+            </Text>
+          )}
 
           <TextInput
             value={
@@ -1571,6 +1611,54 @@ export default function CreateBookStackScreen() {
             variant="feed"
           />
 
+          {isEditing &&
+          editPostId ? (
+            <Pressable
+              onPress={() =>
+                setPreviewing(
+                  false
+                )
+              }
+              style={({ pressed }) => [
+                styles.manageBooksButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="albums-outline"
+                size={17}
+                color={
+                  colors.gold
+                }
+              />
+
+              <Text
+                style={
+                  styles.manageBooksButtonText
+                }
+              >
+                Manage books
+              </Text>
+
+              <Text
+                style={
+                  styles.manageBooksCount
+                }
+              >
+                {items.length}/{MAX_STACK_BOOKS}
+              </Text>
+
+              <Ionicons
+                name="chevron-forward"
+                size={17}
+                color={
+                  colors.mutedText
+                }
+              />
+            </Pressable>
+          ) : null}
+
           <View
             style={
               styles.previewMeta
@@ -1581,7 +1669,10 @@ export default function CreateBookStackScreen() {
                 styles.previewMetaText
               }
             >
-              This stack will be saved to your profile when you publish.
+              {isEditing &&
+              editPostId
+                ? 'Edit the card above, then save your changes.'
+                : 'This stack will be saved to your profile when you publish.'}
             </Text>
           </View>
 
@@ -1603,7 +1694,10 @@ export default function CreateBookStackScreen() {
                 styles.previewHintText
               }
             >
-              This is how your Book Stack will be introduced in the feed.
+              {isEditing &&
+              editPostId
+                ? 'The card above is the post readers will see.'
+                : 'This is how your Book Stack will be introduced in the feed.'}
             </Text>
           </View>
         </ScrollView>
@@ -1994,6 +2088,43 @@ export default function CreateBookStackScreen() {
           </View>
         ) : null}
 
+        {isEditing &&
+        editPostId ? (
+          <View
+            style={
+              styles.actionSection
+            }
+          >
+            <Pressable
+              onPress={() =>
+                setPreviewing(
+                  true
+                )
+              }
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.primaryButtonText
+                }
+              >
+                Back to Post Card
+              </Text>
+
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={
+                  colors.background
+                }
+              />
+            </Pressable>
+          </View>
+        ) : (
         <View
           style={
             styles.actionSection
@@ -2086,6 +2217,7 @@ export default function CreateBookStackScreen() {
             Save to Profile skips the preview. Save & Post takes you to a feed preview before publishing.
           </Text>
         </View>
+        )}
       </ScrollView>
 
       <Modal
@@ -2997,6 +3129,49 @@ function createStyles(
       fontSize: 25,
       lineHeight: 31,
       marginTop: 14,
+    },
+
+    previewNameInput: {
+      padding: 0,
+      paddingVertical: 0,
+      borderWidth: 0,
+      backgroundColor:
+        'transparent',
+    },
+
+    manageBooksButton: {
+      minHeight: 46,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 8,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        colors.border,
+      borderRadius: 14,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    manageBooksButtonText: {
+      flex: 1,
+      color:
+        colors.text,
+      fontFamily:
+        'Inter_600SemiBold',
+      fontSize: 12,
+    },
+
+    manageBooksCount: {
+      color:
+        colors.mutedText,
+      fontFamily:
+        'Inter_500Medium',
+      fontSize: 10.5,
     },
 
     postInput: {
