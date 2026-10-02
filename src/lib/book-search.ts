@@ -484,6 +484,10 @@ const DERIVATIVE_TITLE_PREFIXES = [
   'guided journal for ',
   'companion journal for ',
   'planner for ',
+  'coloring book for ',
+  'official coloring book for ',
+  'activity book for ',
+  'puzzle book for ',
 ];
 
 function stripLeadingTitleArticle(
@@ -503,13 +507,18 @@ function hasDerivativeSearchIntent(
       normalizedQuery
     );
 
-  return DERIVATIVE_TITLE_PREFIXES.some(
-    (
-      prefix
-    ) =>
-      queryWithoutArticle.startsWith(
-        prefix.trim()
-      )
+  return (
+    DERIVATIVE_TITLE_PREFIXES.some(
+      (
+        prefix
+      ) =>
+        queryWithoutArticle.startsWith(
+          prefix.trim()
+        )
+    ) ||
+    /\b(?:coloring book|activity book|puzzle book|workbook|study guide|book summary|companion journal|guided journal|planner)\b/.test(
+      normalizedQuery
+    )
   );
 }
 
@@ -550,6 +559,10 @@ function isLikelyDerivativeTitle(
     ' planner',
     ' key takeaways',
     ' review and analysis',
+    ' coloring book',
+    ' official coloring book',
+    ' activity book',
+    ' puzzle book',
   ];
 
   if (
@@ -597,6 +610,194 @@ function isLikelyDerivativeTitle(
         'journal'
       )
     )
+  );
+}
+
+function isLikelyExactTitleExpansionNoise(
+  book: GoogleBookSearchItem,
+  normalizedQuery: string
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  const canonicalTitle =
+    getCanonicalWorkTitleForBook(
+      book
+    );
+
+  const candidates =
+    Array.from(
+      new Set([
+        title,
+        canonicalTitle,
+      ])
+    ).filter(Boolean);
+
+  for (
+    const candidateTitle of
+      candidates
+  ) {
+    if (
+      candidateTitle ===
+        normalizedQuery ||
+      !candidateTitle.startsWith(
+        `${normalizedQuery} `
+      )
+    ) {
+      continue;
+    }
+
+    const suffix =
+      candidateTitle
+        .slice(
+          normalizedQuery.length
+        )
+        .trim();
+
+    if (
+      /^(?:(?:the\s+)?official\s+)?(?:coloring|activity|puzzle)\s+book\b/.test(
+        suffix
+      ) ||
+      /^part\s+(?:\d+|[ivxlcdm]+)\b/.test(
+        suffix
+      ) ||
+      /^(?:book|volume|vol)\s+(?:\d+|[ivxlcdm]+)\b/.test(
+        suffix
+      ) ||
+      /^(?:ii|iii|iv|v|vi|vii|viii|ix|x)\b/.test(
+        suffix
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function filterExactTitleSearchNoise(
+  books: GoogleBookSearchItem[],
+  normalizedQuery: string
+) {
+  if (
+    !normalizedQuery ||
+    hasDerivativeSearchIntent(
+      normalizedQuery
+    ) ||
+    hasCollectionSearchIntent(
+      normalizedQuery
+    ) ||
+    hasEditionSearchIntent(
+      normalizedQuery
+    )
+  ) {
+    return books;
+  }
+
+  const exactMatches =
+    books.filter(
+      (
+        book
+      ) =>
+        getTitleSearchRelevance(
+          book,
+          normalizedQuery
+        ) === 400
+    );
+
+  if (
+    exactMatches.length ===
+      0
+  ) {
+    return books;
+  }
+
+  const exactAuthor =
+    normalizeTitle(
+      exactMatches.find(
+        (
+          book
+        ) =>
+          Boolean(
+            book.volumeInfo
+              .authors?.[0]
+          )
+      )?.volumeInfo
+        .authors?.[0]
+    );
+
+  return books.filter(
+    (
+      book
+    ) => {
+      const relevance =
+        getTitleSearchRelevance(
+          book,
+          normalizedQuery
+        );
+
+      if (
+        relevance < 100
+      ) {
+        return false;
+      }
+
+      if (
+        relevance === 400
+      ) {
+        return true;
+      }
+
+      if (
+        isLikelyExactTitleExpansionNoise(
+          book,
+          normalizedQuery
+        )
+      ) {
+        return false;
+      }
+
+      const title =
+        normalizeTitle(
+          book.volumeInfo.title
+        );
+
+      const canonicalTitle =
+        getCanonicalWorkTitleForBook(
+          book
+        );
+
+      const expandsExactTitle =
+        title.startsWith(
+          `${normalizedQuery} `
+        ) ||
+        canonicalTitle.startsWith(
+          `${normalizedQuery} `
+        );
+
+      if (
+        expandsExactTitle &&
+        exactAuthor
+      ) {
+        const candidateAuthor =
+          normalizeTitle(
+            book.volumeInfo
+              .authors?.[0]
+          );
+
+        if (
+          !candidateAuthor ||
+          candidateAuthor !==
+            exactAuthor
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    }
   );
 }
 
@@ -2905,16 +3106,25 @@ export async function searchNovoriBooks(
             0
         );
 
-  const qualityFilteredResults =
+  const exactTitleFilteredResults =
     looksLikeAuthorSearch ||
     looksLikeIsbnSearch
       ? relevantResults
+      : filterExactTitleSearchNoise(
+          relevantResults,
+          normalizedQuery
+        );
+
+  const qualityFilteredResults =
+    looksLikeAuthorSearch ||
+    looksLikeIsbnSearch
+      ? exactTitleFilteredResults
       : filterNearCopySearchResults(
           filterEditionSearchResults(
             filterCollectionSearchResults(
               filterDerivativeSearchResults(
                 filterLocaleNoise(
-                  relevantResults,
+                  exactTitleFilteredResults,
                   searchTerm
                 ),
                 normalizedQuery
