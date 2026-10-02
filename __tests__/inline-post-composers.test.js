@@ -3,12 +3,16 @@ import renderer, { act } from 'react-test-renderer';
 import { Alert } from 'react-native';
 import CreateReadingUpdateScreen from '../src/app/create-reading-update';
 import CreateBookStackScreen from '../src/app/create-book-stack';
+import AskReadersScreen from '../src/app/ask-readers';
+import EditablePostCard from '../src/components/EditablePostCard';
+import PostDestinationPicker from '../src/components/PostDestinationPicker';
 import BookStackShowcase from '../src/components/BookStackShowcase';
 import { getUserBooks } from '../src/lib/user-books';
 import { publishReadingUpdate, updateReadingUpdate } from '../src/lib/reading-updates';
 import { createBookStack, updateBookStack, deleteBookStack, getBookStack } from '../src/lib/book-stacks';
 import { createPost, updatePost, getPostDetail } from '../src/lib/feed';
 import { searchNovoriBooks } from '../src/lib/book-search';
+import { getMyClubs } from '../src/lib/clubs';
 
 let mockParams = {};
 const mockRouter = { replace: jest.fn(), back: jest.fn(), push: jest.fn() };
@@ -47,7 +51,7 @@ jest.mock('../src/lib/book-search', () => ({
   getNovoriSearchBookCover: (book) => `https://covers/${book.id}.jpg`,
 }));
 jest.mock('../src/lib/canonical-book-covers', () => ({ resolveCanonicalBookCover: ({ googleBookId }) => Promise.resolve(`https://covers/${googleBookId}.jpg`) }));
-jest.mock('../src/lib/clubs', () => ({ getMyClubs: () => Promise.resolve([{ id: 'club-1', name: 'Our readers', cover_url: 'https://clubs/our-readers.jpg' }]) }));
+jest.mock('../src/lib/clubs', () => ({ getMyClubs: jest.fn() }));
 jest.mock('../src/lib/supabase', () => ({
   supabase: {
     auth: { getUser: () => Promise.resolve({ data: { user: { id: 'reader' } } }) },
@@ -71,6 +75,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockParams = {};
+  getMyClubs.mockResolvedValue([{ id: 'club-1', name: 'Our readers', cover_url: 'https://clubs/our-readers.jpg' }]);
   getUserBooks.mockResolvedValue(books);
   getBookStack.mockResolvedValue(stack);
   createBookStack.mockResolvedValue(stack);
@@ -151,6 +156,10 @@ test('stack Save & Post uses inline text, destination and reordered books withou
   await press('Post to Your feed');
   const clubOption = view.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.props.children === 'Our readers'));
   await act(async () => clubOption.props.onPress());
+  const card = view.root.findByType(EditablePostCard);
+  expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
+  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(getMyClubs).toHaveBeenCalledTimes(1);
   const firstRow = view.root.findAllByType('SortableBookStackRow')[0];
   await act(async () => firstRow.props.onDragStart('book-a', 0));
   await act(async () => firstRow.props.onDragMove('book-a', 80));
@@ -165,8 +174,15 @@ test('stack Save & Post uses inline text, destination and reordered books withou
   expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
 });
 
-test('stack text remains optional when publishing', async () => {
+test('stack text starts compact, grows and shrinks with its content, and remains optional', async () => {
   await buildNewStack();
+  expect(field('Optional text about this stack').props.style[1].height).toBe(22);
+  await fill('Optional text about this stack', 'First line\nSecond line\nThird line');
+  await act(async () => field('Optional text about this stack').props.onContentSizeChange({ nativeEvent: { contentSize: { height: 66 } } }));
+  expect(field('Optional text about this stack').props.style[1].height).toBe(66);
+  await fill('Optional text about this stack', '');
+  await act(async () => field('Optional text about this stack').props.onContentSizeChange({ nativeEvent: { contentSize: { height: 22 } } }));
+  expect(field('Optional text about this stack').props.style[1].height).toBe(22);
   await press('Save and publish Book Stack');
   expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: '', postType: 'book_stack' }));
 });
@@ -224,7 +240,23 @@ test('Reading Update can choose a joined club and shows its cached photo', async
   expect(photo.props.cachePolicy).toBe('memory-disk');
   const club = view.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.props.children === 'Our readers'));
   await act(async () => club.props.onPress());
+  const card = view.root.findByType(EditablePostCard);
+  expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
+  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(getMyClubs).toHaveBeenCalledTimes(1);
   await fill('Current page', '123');
   await press('Publish Reading Update');
   expect(publishReadingUpdate).toHaveBeenCalledWith(expect.objectContaining({ clubId: 'club-1', progress: '123' }));
+});
+
+test('Ask Readers chooses a destination above the card and publishes the displayed choice', async () => {
+  await renderScreen(AskReadersScreen);
+  await fill('Your question', 'What should I read next?');
+  await press('Post to Your feed');
+  await press('Choose Our readers');
+  expect(view.root.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(button('Post to Our readers')).toBeDefined();
+  await press('Publish Ask Readers post');
+  expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: 'What should I read next?', clubId: 'club-1', postType: 'question' }));
+  expect(getMyClubs).toHaveBeenCalledTimes(1);
 });

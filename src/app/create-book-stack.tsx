@@ -27,6 +27,8 @@ import {
 import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import EditablePostCard from '../components/EditablePostCard';
+import PostDestinationPicker from '../components/PostDestinationPicker';
+import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -201,6 +203,9 @@ export default function CreateBookStackScreen() {
 
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubName, setClubName] = useState<string | null>(null);
+  const { clubs, loadingClubs } = usePostDestinationClubs();
+  const selectedClub = clubs.find((club) => club.id === clubId);
+  const [postTextHeight, setPostTextHeight] = useState(22);
   const saveInFlight = useRef(false);
 
   const [
@@ -1264,12 +1269,13 @@ export default function CreateBookStackScreen() {
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
+        <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={saving || publishing}
+          clubId={clubId} clubName={clubName} onClubIdChange={setClubId} />
         <EditablePostCard
           postType="book_stack"
-          disabled={saving || publishing}
           clubId={clubId}
-          clubName={clubName}
-          onClubIdChange={setClubId}
+          clubName={selectedClub?.name ?? clubName}
+          clubCoverUrl={selectedClub?.cover_url}
         >
           <TextInput
             accessibilityLabel="Optional text about this stack"
@@ -1279,8 +1285,10 @@ export default function CreateBookStackScreen() {
             placeholder="Say something about this stack… (optional)"
             placeholderTextColor={colors.mutedText}
             multiline
+            scrollEnabled={false}
+            onContentSizeChange={({ nativeEvent }) => setPostTextHeight(Math.max(22, Math.ceil(nativeEvent.contentSize.height)))}
             maxLength={4000}
-            style={styles.postInput}
+            style={[styles.postInput, { height: postTextHeight }]}
           />
           <BookStackShowcase
             name={name}
@@ -1288,6 +1296,7 @@ export default function CreateBookStackScreen() {
             disabled={saving || publishing}
             items={visualItems}
             variant="feed"
+            compactTopSpacing
           >
             <View style={styles.cardStackControls} pointerEvents={saving || publishing ? 'none' : 'auto'}>
               <Pressable
@@ -2087,7 +2096,8 @@ function createStyles(
     },
 
     postInput: {
-      minHeight: 56,
+      minHeight: 22,
+      marginBottom: 8,
       color: colors.text,
       fontFamily: 'Inter_400Regular',
       fontSize: 15,

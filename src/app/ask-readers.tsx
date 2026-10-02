@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import BookCoverImage from '../components/BookCoverImage';
 import ClubDestinationImage from '../components/ClubDestinationImage';
+import PostDestinationPicker from '../components/PostDestinationPicker';
 import CanonicalBookRating from '../components/CanonicalBookRating';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
@@ -86,7 +87,7 @@ export default function AskReadersScreen() {
     useState<ViewerProfile | null>(null);
   const [clubs, setClubs] = useState<ClubWithMembership[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(true);
-  const [destinationExpanded, setDestinationExpanded] = useState(false);
+  const [clubName, setClubName] = useState<string | null>(null);
   const [destination, setDestination] = useState<Destination>({
     type: 'profile',
     clubId: null,
@@ -165,6 +166,7 @@ export default function AskReadersScreen() {
                   clubId: null,
                 }
           );
+          setClubName(editingPost.club_name);
 
           if (
             editingPost.google_book_id &&
@@ -546,6 +548,8 @@ export default function AskReadersScreen() {
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
+        <PostDestinationPicker clubs={clubs} clubId={destination.clubId} clubName={clubName} loading={loadingClubs} disabled={publishing}
+          onClubIdChange={(clubId) => setDestination(clubId ? { type: 'club', clubId } : { type: 'profile', clubId: null })} />
         <View style={styles.feedPreviewCard}>
           <View style={styles.feedPreviewHeader}>
             {viewerProfile?.avatar_url ? (
@@ -583,117 +587,23 @@ export default function AskReadersScreen() {
                 ) : null}
               </View>
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Post to ${selectedClub?.name ?? 'your feed'}`}
-                accessibilityHint="Choose your feed or a club."
-                accessibilityState={{
-                  expanded: destinationExpanded,
-                  disabled: loadingClubs || publishing,
-                }}
-                disabled={loadingClubs || publishing}
-                onPress={() => setDestinationExpanded((current) => !current)}
-                style={({ pressed }) => [
-                  styles.feedPreviewAudienceRow,
-                  pressed && styles.pressed,
-                ]}
-              >
-                {selectedClub ? <ClubDestinationImage club={selectedClub} size={18} /> : (
+              <View style={styles.feedPreviewAudienceRow}>
+                {destination.clubId ? <ClubDestinationImage club={selectedClub ?? { name: clubName || 'Your club', cover_url: null }} size={18} /> : (
                   <Ionicons name="person-outline" size={13} color={colors.gold} />
                 )}
                 <Text
                   style={
-                    selectedClub
+                    destination.clubId
                       ? styles.feedPreviewClubText
                       : styles.feedPreviewAudienceText
                   }
                   numberOfLines={1}
                 >
-                  {selectedClub ? `in ${selectedClub.name}` : 'Your feed'}
+                  {destination.clubId ? `in ${selectedClub?.name || clubName || 'Your club'}` : 'Your feed'}
                 </Text>
-                {loadingClubs ? (
-                  <ActivityIndicator size="small" color={colors.mutedText} />
-                ) : (
-                  <Ionicons
-                    name={destinationExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={13}
-                    color={colors.mutedText}
-                  />
-                )}
-              </Pressable>
+              </View>
             </View>
           </View>
-
-          {destinationExpanded ? (
-            <View style={styles.destinationMenu}>
-              <Pressable
-                onPress={() => {
-                  setDestination({
-                    type: 'profile',
-                    clubId: null,
-                  });
-                  setDestinationExpanded(false);
-                }}
-                style={({ pressed }) => [
-                  styles.destinationOption,
-                  pressed && styles.destinationOptionPressed,
-                ]}
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={18}
-                  color={colors.gold}
-                />
-
-                <Text style={styles.destinationOptionText}>
-                  Your feed
-                </Text>
-
-                {destination.type === 'profile' ? (
-                  <Ionicons
-                    name="checkmark"
-                    size={18}
-                    color={colors.gold}
-                  />
-                ) : null}
-              </Pressable>
-
-              {clubs.map((club) => (
-                <Pressable
-                  key={club.id}
-                  onPress={() => {
-                    setDestination({
-                      type: 'club',
-                      clubId: club.id,
-                    });
-                    setDestinationExpanded(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.destinationOption,
-                    pressed && styles.destinationOptionPressed,
-                  ]}
-                >
-                  <ClubDestinationImage club={club} />
-
-                  <Text
-                    style={styles.destinationOptionText}
-                    numberOfLines={1}
-                  >
-                    {club.name}
-                  </Text>
-
-                  {destination.type === 'club' &&
-                  destination.clubId === club.id ? (
-                    <Ionicons
-                      name="checkmark"
-                      size={18}
-                      color={colors.gold}
-                    />
-                  ) : null}
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
 
           <View style={styles.feedPreviewContent}>
             <View style={styles.askReadersBadge}>
@@ -1169,7 +1079,6 @@ function createStyles(colors: NovoriColors) {
       paddingHorizontal: 18,
       paddingTop: 18,
       paddingBottom: 40,
-      gap: 16,
     },
     removeBook: {
       width: 32,
@@ -1179,33 +1088,8 @@ function createStyles(colors: NovoriColors) {
       justifyContent: 'center',
       marginLeft: 8,
     },
-    destinationMenu: {
-      marginHorizontal: 16,
-      marginTop: 12,
-      borderRadius: 14,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    destinationOption: {
-      minHeight: 50,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      paddingHorizontal: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
     destinationOptionPressed: {
       backgroundColor: colors.elevated,
-    },
-    destinationOptionText: {
-      flex: 1,
-      minWidth: 0,
-      color: colors.text,
-      fontFamily: 'Inter_500Medium',
-      fontSize: 12.5,
     },
     feedPreviewCard: {
       backgroundColor: colors.surface,
@@ -1472,7 +1356,7 @@ function createStyles(colors: NovoriColors) {
       justifyContent: 'center',
       gap: 8,
       backgroundColor: colors.gold,
-      marginTop: 2,
+      marginTop: 18,
     },
     publishButtonDisabled: {
       opacity: 0.38,

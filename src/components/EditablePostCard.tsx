@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
-import { ClubWithMembership, getMyClubs } from '../lib/clubs';
 import { FeedPostType } from '../lib/feed';
 import { supabase } from '../lib/supabase';
 import PostTypeIdentifier from './PostTypeIdentifier';
@@ -13,10 +12,9 @@ import ClubDestinationImage from './ClubDestinationImage';
 type Props = {
   children: ReactNode;
   postType: FeedPostType;
-  disabled?: boolean;
   clubId?: string | null;
   clubName?: string | null;
-  onClubIdChange?: (clubId: string | null) => void;
+  clubCoverUrl?: string | null;
 };
 
 type Author = {
@@ -27,43 +25,33 @@ type Author = {
 
 // The feed's outer post card, with composition controls in place of post actions.
 export default function EditablePostCard({
-  children, postType, disabled = false, clubId = null, clubName, onClubIdChange,
+  children, postType, clubId = null, clubName, clubCoverUrl,
 }: Props) {
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [author, setAuthor] = useState<Author | null>(null);
-  const [clubs, setClubs] = useState<ClubWithMembership[]>([]);
-  const [loadingClubs, setLoadingClubs] = useState(Boolean(onClubIdChange));
-  const [audienceExpanded, setAudienceExpanded] = useState(false);
-  const canChooseAudience = Boolean(onClubIdChange);
 
   useEffect(() => {
     let active = true;
     async function loadHeader() {
-      const results = await Promise.allSettled([
-        (async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return null;
-          const { data, error } = await supabase.from('profiles')
-            .select('display_name, username, avatar_url').eq('id', user.id).single();
-          if (error) throw error;
-          return data as Author;
-        })(),
-        canChooseAudience ? getMyClubs() : Promise.resolve([]),
-      ]);
-      if (!active) return;
-      if (results[0].status === 'fulfilled') setAuthor(results[0].value);
-      if (results[1].status === 'fulfilled') setClubs(results[1].value);
-      setLoadingClubs(false);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data, error } = await supabase.from('profiles')
+          .select('display_name, username, avatar_url').eq('id', user.id).single();
+        if (error) throw error;
+        if (active) setAuthor(data as Author);
+      } catch (error) {
+        console.warn('Could not load post author:', error);
+      }
     }
     void loadHeader();
     return () => { active = false; };
-  }, [canChooseAudience]);
+  }, []);
 
   const displayName = author?.display_name?.trim() || author?.username?.trim() || 'You';
-  const selectedClub = clubs.find((club) => club.id === clubId);
   const audience = clubId
-    ? selectedClub?.name || clubName || 'Your club'
+    ? clubName || 'Your club'
     : 'Your feed';
 
   return (
@@ -83,40 +71,12 @@ export default function EditablePostCard({
               <Text style={styles.username} numberOfLines={1}>@{author.username}</Text>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole={canChooseAudience ? 'button' : undefined}
-            accessibilityLabel={`Post to ${audience}`}
-            accessibilityState={{ expanded: audienceExpanded, disabled: disabled || loadingClubs || !canChooseAudience }}
-            disabled={disabled || loadingClubs || !canChooseAudience}
-            onPress={() => setAudienceExpanded((current) => !current)}
-            style={({ pressed }) => [styles.audience, pressed && styles.pressed]}
-          >
-            {selectedClub ? <ClubDestinationImage club={selectedClub} size={18} /> : <Ionicons name="person-outline" size={13} color={colors.gold} />}
+          <View style={styles.audience}>
+            {clubId ? <ClubDestinationImage club={{ name: audience, cover_url: clubCoverUrl ?? null }} size={18} /> : <Ionicons name="person-outline" size={13} color={colors.gold} />}
             <Text style={styles.audienceText} numberOfLines={1}>{clubId ? `in ${audience}` : audience}</Text>
-            {loadingClubs ? <ActivityIndicator size="small" color={colors.mutedText} /> : canChooseAudience ? (
-              <Ionicons name={audienceExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={colors.mutedText} />
-            ) : null}
-          </Pressable>
+          </View>
         </View>
       </View>
-      {audienceExpanded ? (
-        <View style={styles.audienceMenu}>
-          {[{ id: null, name: 'Your feed', cover_url: null }, ...clubs].map((club) => (
-            <Pressable
-              key={club.id ?? 'profile'}
-              accessibilityRole="button"
-              accessibilityState={{ selected: clubId === club.id }}
-              disabled={disabled}
-              onPress={() => { onClubIdChange?.(club.id); setAudienceExpanded(false); }}
-              style={({ pressed }) => [styles.audienceOption, pressed && styles.pressed]}
-            >
-              {club.id ? <ClubDestinationImage club={club} /> : <Ionicons name="person-outline" size={18} color={colors.gold} />}
-              <Text style={styles.audienceOptionText} numberOfLines={1}>{club.name}</Text>
-              {clubId === club.id ? <Ionicons name="checkmark" size={18} color={colors.gold} /> : null}
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
       <View style={styles.content}>
         <PostTypeIdentifier postType={postType} colors={colors} />
         {children}
@@ -149,13 +109,9 @@ function createStyles(colors: NovoriColors) {
     username: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11.5, flexShrink: 1 },
     audience: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5, maxWidth: '100%' },
     audienceText: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, flexShrink: 1 },
-    audienceMenu: { marginHorizontal: 16, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, overflow: 'hidden' },
-    audienceOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-    audienceOptionText: { flex: 1, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 12.5 },
     content: { paddingHorizontal: 16, paddingTop: 14 },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, marginTop: 15, paddingHorizontal: 14, paddingVertical: 12 },
     votes: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     count: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-    pressed: { opacity: 0.7 },
   });
 }
