@@ -38,6 +38,11 @@ import {
   ReadingActivityDay,
   ReadingActivityMonth,
 } from '../lib/reading-activity';
+import {
+  getReadingRecapJourneyData,
+  ReadingRecapJourneyData,
+  ReadingRecapJourneyEvent,
+} from '../lib/reading-recaps';
 
 type RecapMode =
   | 'week'
@@ -50,7 +55,18 @@ type RecapBook = {
     ReadingActivityBook;
   dates:
     string[];
-  finishedDate:
+};
+
+type StoryItem = {
+  id:
+    string;
+  dateKey:
+    string;
+  icon:
+    keyof typeof Ionicons.glyphMap;
+  title:
+    string;
+  subtitle:
     string | null;
 };
 
@@ -94,6 +110,17 @@ function dateFromKey(
   );
 }
 
+function localDateKeyFromIso(
+  value:
+    string
+) {
+  return dateKey(
+    new Date(
+      value
+    )
+  );
+}
+
 function getWeekStart(
   reference:
     Date
@@ -112,71 +139,112 @@ function getWeekStart(
     reference.getMonth(),
     reference.getDate() +
       offset,
-    12
+    0,
+    0,
+    0,
+    0
   );
 }
 
-function getWeekKeys(
+function getPeriodBounds(
+  mode:
+    RecapMode,
   reference:
     Date
 ) {
+  if (
+    mode ===
+    'month'
+  ) {
+    return {
+      start:
+        new Date(
+          reference.getFullYear(),
+          reference.getMonth(),
+          1,
+          0,
+          0,
+          0,
+          0
+        ),
+      endExclusive:
+        new Date(
+          reference.getFullYear(),
+          reference.getMonth() +
+            1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ),
+    };
+  }
+
   const start =
     getWeekStart(
       reference
     );
 
-  return Array.from(
-    {
-      length:
-        7,
-    },
-    (
-      _,
-      index
-    ) =>
-      dateKey(
-        new Date(
-          start.getFullYear(),
-          start.getMonth(),
-          start.getDate() +
-            index,
-          12
-        )
-      )
-  );
+  return {
+    start,
+    endExclusive:
+      new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() +
+          7,
+        0,
+        0,
+        0,
+        0
+      ),
+  };
 }
 
-function getMonthKeys(
+function getPeriodKeys(
+  mode:
+    RecapMode,
   reference:
     Date
 ) {
-  const total =
-    new Date(
-      reference.getFullYear(),
-      reference.getMonth() +
-        1,
-      0
-    ).getDate();
+  const {
+    start,
+    endExclusive,
+  } =
+    getPeriodBounds(
+      mode,
+      reference
+    );
 
-  return Array.from(
-    {
-      length:
-        total,
-    },
-    (
-      _,
-      index
-    ) =>
-      dateKey(
-        new Date(
-          reference.getFullYear(),
-          reference.getMonth(),
-          index +
-            1,
-          12
-        )
+  const keys:
+    string[] =
+    [];
+
+  for (
+    let current =
+      new Date(
+        start
+      );
+    current <
+    endExclusive;
+    current =
+      new Date(
+        current.getFullYear(),
+        current.getMonth(),
+        current.getDate() +
+          1,
+        12
       )
-  );
+  ) {
+    keys.push(
+      dateKey(
+        current
+      )
+    );
+  }
+
+  return keys;
 }
 
 function getPeriodLabel(
@@ -201,7 +269,8 @@ function getPeriodLabel(
   }
 
   const keys =
-    getWeekKeys(
+    getPeriodKeys(
+      mode,
       reference
     );
 
@@ -244,99 +313,6 @@ function getPeriodLabel(
     day: 'numeric',
     year: 'numeric',
   })}`;
-}
-
-function getBestStreak(
-  keys:
-    string[]
-) {
-  const times =
-    Array.from(
-      new Set(
-        keys.map(
-          (
-            key
-          ) =>
-            dateFromKey(
-              key
-            ).getTime()
-        )
-      )
-    ).sort(
-      (
-        a,
-        b
-      ) =>
-        a - b
-    );
-
-  let best =
-    0;
-
-  let current =
-    0;
-
-  let previous:
-    number | null =
-    null;
-
-  for (
-    const time
-    of times
-  ) {
-    if (
-      previous !==
-        null &&
-      time -
-        previous ===
-        86400000
-    ) {
-      current +=
-        1;
-    } else {
-      current =
-        1;
-    }
-
-    best =
-      Math.max(
-        best,
-        current
-      );
-
-    previous =
-      time;
-  }
-
-  return best;
-}
-
-function formatCompactDate(
-  key:
-    string
-) {
-  return dateFromKey(
-    key
-  ).toLocaleDateString(
-    undefined,
-    {
-      month:
-        'short',
-      day:
-        'numeric',
-    }
-  );
-}
-
-function bookIdentity(
-  book:
-    ReadingActivityBook
-) {
-  return (
-    book.userBookId ??
-    book.googleBookId ??
-    `${book.title}:${book.authors.join('|')}`
-  );
 }
 
 function getRequiredMonths(
@@ -382,14 +358,94 @@ function getRequiredMonths(
   );
 }
 
-function buildBookRecaps(
+function bookIdentity(
+  book:
+    ReadingActivityBook
+) {
+  return (
+    book.userBookId ??
+    book.googleBookId ??
+    `${book.title}:${book.authors.join('|')}`
+  );
+}
+
+function getBestStreak(
+  keys:
+    string[]
+) {
+  const sorted =
+    Array.from(
+      new Set(
+        keys
+      )
+    ).sort();
+
+  let best =
+    0;
+  let bestEndKey:
+    string | null =
+    null;
+  let current =
+    0;
+  let previous:
+    number | null =
+    null;
+
+  for (
+    const key
+    of sorted
+  ) {
+    const time =
+      dateFromKey(
+        key
+      ).getTime();
+
+    if (
+      previous !==
+        null &&
+      time -
+        previous ===
+        86400000
+    ) {
+      current +=
+        1;
+    } else {
+      current =
+        1;
+    }
+
+    if (
+      current >
+      best
+    ) {
+      best =
+        current;
+      bestEndKey =
+        key;
+    }
+
+    previous =
+      time;
+  }
+
+  return {
+    length:
+      best,
+    endKey:
+      bestEndKey,
+  };
+}
+
+function buildBooksInMotion(
   dayMap:
     Record<
       string,
       ReadingActivityDay
     >,
-  keys:
-    string[]
+  periodKeys:
+    string[],
+  journeyEvents:
+    ReadingRecapJourneyEvent[]
 ) {
   const books =
     new Map<
@@ -397,9 +453,54 @@ function buildBookRecaps(
       RecapBook
     >();
 
+  function addBook(
+    book:
+      ReadingActivityBook,
+    key:
+      string
+  ) {
+    const identity =
+      bookIdentity(
+        book
+      );
+
+    const existing =
+      books.get(
+        identity
+      );
+
+    if (
+      existing
+    ) {
+      if (
+        !existing.dates.includes(
+          key
+        )
+      ) {
+        existing.dates.push(
+          key
+        );
+      }
+
+      return;
+    }
+
+    books.set(
+      identity,
+      {
+        identity,
+        book,
+        dates:
+          [
+            key,
+          ],
+      }
+    );
+  }
+
   for (
     const key
-    of keys
+    of periodKeys
   ) {
     const day =
       dayMap[
@@ -416,89 +517,23 @@ function buildBookRecaps(
       const book
       of day.books
     ) {
-      const identity =
-        bookIdentity(
-          book
-        );
-
-      const existing =
-        books.get(
-          identity
-        );
-
-      if (
-        existing
-      ) {
-        if (
-          !existing.dates.includes(
-            key
-          )
-        ) {
-          existing.dates.push(
-            key
-          );
-        }
-      } else {
-        books.set(
-          identity,
-          {
-            identity,
-            book,
-            dates:
-              [
-                key,
-              ],
-            finishedDate:
-              null,
-          }
-        );
-      }
+      addBook(
+        book,
+        key
+      );
     }
+  }
 
-    for (
-      const event
-      of day.journeyEvents
-    ) {
-      if (
-        event.type !==
-          'finished' ||
-        !event.book
-      ) {
-        continue;
-      }
-
-      const identity =
-        bookIdentity(
-          event.book
-        );
-
-      const existing =
-        books.get(
-          identity
-        );
-
-      if (
-        existing
-      ) {
-        existing.finishedDate =
-          key;
-      } else {
-        books.set(
-          identity,
-          {
-            identity,
-            book:
-              event.book,
-            dates:
-              [
-                key,
-              ],
-            finishedDate:
-              key,
-          }
-        );
-      }
-    }
+  for (
+    const event
+    of journeyEvents
+  ) {
+    addBook(
+      event.book,
+      localDateKeyFromIso(
+        event.occurredAt
+      )
+    );
   }
 
   return Array.from(
@@ -522,6 +557,227 @@ function buildBookRecaps(
           b.dates[0]
         )
     );
+}
+
+function getLoggedPageMovement(
+  dayMap:
+    Record<
+      string,
+      ReadingActivityDay
+    >,
+  periodKeys:
+    string[]
+) {
+  const pageUpdates =
+    new Map<
+      string,
+      {
+        page:
+          number;
+        createdAt:
+          string;
+      }[]
+    >();
+
+  for (
+    const key
+    of periodKeys
+  ) {
+    const day =
+      dayMap[
+        key
+      ];
+
+    if (
+      !day
+    ) {
+      continue;
+    }
+
+    for (
+      const update
+      of day.readingUpdates
+    ) {
+      if (
+        !update.book
+      ) {
+        continue;
+      }
+
+      const firstLine =
+        update.body
+          .split(
+            '\n'
+          )[0] ??
+        '';
+
+      const match =
+        firstLine.match(
+          /(?:^|·\s*)Page\s+(\d+)(?:\s*·|$)/i
+        );
+
+      if (
+        !match
+      ) {
+        continue;
+      }
+
+      const page =
+        Number(
+          match[1]
+        );
+
+      if (
+        !Number.isInteger(
+          page
+        ) ||
+        page <
+          1
+      ) {
+        continue;
+      }
+
+      const identity =
+        bookIdentity(
+          update.book
+        );
+
+      const current =
+        pageUpdates.get(
+          identity
+        ) ??
+        [];
+
+      current.push({
+        page,
+        createdAt:
+          update.createdAt,
+      });
+
+      pageUpdates.set(
+        identity,
+        current
+      );
+    }
+  }
+
+  let total =
+    0;
+
+  for (
+    const updates
+    of pageUpdates.values()
+  ) {
+    updates.sort(
+      (
+        a,
+        b
+      ) =>
+        new Date(
+          a.createdAt
+        ).getTime() -
+        new Date(
+          b.createdAt
+        ).getTime()
+    );
+
+    for (
+      let index =
+        1;
+      index <
+      updates.length;
+      index +=
+        1
+    ) {
+      const delta =
+        updates[
+          index
+        ].page -
+        updates[
+          index -
+            1
+        ].page;
+
+      if (
+        delta >
+        0
+      ) {
+        total +=
+          delta;
+      }
+    }
+  }
+
+  return total;
+}
+
+function formatStoryDate(
+  key:
+    string
+) {
+  return dateFromKey(
+    key
+  ).toLocaleDateString(
+    undefined,
+    {
+      month:
+        'short',
+      day:
+        'numeric',
+    }
+  );
+}
+
+function getStoryTitle(
+  mode:
+    RecapMode,
+  reference:
+    Date
+) {
+  if (
+    mode ===
+    'week'
+  ) {
+    return 'This Week’s Story';
+  }
+
+  return `${reference.toLocaleDateString(
+    undefined,
+    {
+      month:
+        'long',
+    }
+  )}’s Story`;
+}
+
+function getContinuingSubtitle(
+  mode:
+    RecapMode,
+  reference:
+    Date
+) {
+  if (
+    mode ===
+    'week'
+  ) {
+    return 'Continuing beyond this week';
+  }
+
+  const nextMonth =
+    new Date(
+      reference.getFullYear(),
+      reference.getMonth() +
+        1,
+      1
+    ).toLocaleDateString(
+      undefined,
+      {
+        month:
+          'long',
+      }
+    );
+
+  return `Continuing into ${nextMonth}`;
 }
 
 export default function ReadingRecapsScreen() {
@@ -566,6 +822,19 @@ export default function ReadingRecapsScreen() {
     );
 
   const [
+    journeyData,
+    setJourneyData,
+  ] =
+    useState<
+      ReadingRecapJourneyData
+    >({
+      events:
+        [],
+      continuing:
+        [],
+    });
+
+  const [
     loading,
     setLoading,
   ] =
@@ -594,14 +863,10 @@ export default function ReadingRecapsScreen() {
   const periodKeys =
     useMemo(
       () =>
-        mode ===
-        'month'
-          ? getMonthKeys(
-              referenceDate
-            )
-          : getWeekKeys(
-              referenceDate
-            ),
+        getPeriodKeys(
+          mode,
+          referenceDate
+        ),
       [
         mode,
         referenceDate,
@@ -633,31 +898,49 @@ export default function ReadingRecapsScreen() {
         try {
           const required =
             getRequiredMonths(
-              mode ===
-              'month'
-                ? getMonthKeys(
-                    referenceDate
-                  )
-                : getWeekKeys(
-                    referenceDate
-                  )
-            );
-
-          const loaded =
-            await Promise.all(
-              required.map(
-                (
-                  item
-                ) =>
-                  getReadingActivityMonth(
-                    item.year,
-                    item.monthIndex
-                  )
+              getPeriodKeys(
+                mode,
+                referenceDate
               )
             );
 
+          const {
+            start,
+            endExclusive,
+          } =
+            getPeriodBounds(
+              mode,
+              referenceDate
+            );
+
+          const [
+            loadedMonths,
+            loadedJourneyData,
+          ] =
+            await Promise.all([
+              Promise.all(
+                required.map(
+                  (
+                    item
+                  ) =>
+                    getReadingActivityMonth(
+                      item.year,
+                      item.monthIndex
+                    )
+                )
+              ),
+              getReadingRecapJourneyData(
+                start,
+                endExclusive
+              ),
+            ]);
+
           setMonths(
-            loaded
+            loadedMonths
+          );
+
+          setJourneyData(
+            loadedJourneyData
           );
         } catch (
           loadError
@@ -743,10 +1026,36 @@ export default function ReadingRecapsScreen() {
       ]
     );
 
-  const books =
+  const streak =
     useMemo(
       () =>
-        buildBookRecaps(
+        getBestStreak(
+          checkedKeys
+        ),
+      [
+        checkedKeys,
+      ]
+    );
+
+  const booksInMotion =
+    useMemo(
+      () =>
+        buildBooksInMotion(
+          dayMap,
+          periodKeys,
+          journeyData.events
+        ),
+      [
+        dayMap,
+        periodKeys,
+        journeyData.events,
+      ]
+    );
+
+  const pagesLogged =
+    useMemo(
+      () =>
+        getLoggedPageMovement(
           dayMap,
           periodKeys
         ),
@@ -756,31 +1065,135 @@ export default function ReadingRecapsScreen() {
       ]
     );
 
-  const finishedBooks =
+  const finishedEvents =
     useMemo(
       () =>
-        books.filter(
+        journeyData.events.filter(
           (
-            item
+            event
           ) =>
-            Boolean(
-              item.finishedDate
-            )
+            event.type ===
+            'finished'
         ),
       [
-        books,
+        journeyData.events,
       ]
     );
 
-  const bestStreak =
+  const booksInMotionIds =
     useMemo(
       () =>
-        getBestStreak(
-          checkedKeys
+        new Set(
+          booksInMotion.map(
+            (
+              item
+            ) =>
+              item.identity
+          )
         ),
       [
-        checkedKeys,
+        booksInMotion,
       ]
+    );
+
+  const continuingJourneys =
+    useMemo(
+      () =>
+        journeyData.continuing.filter(
+          (
+            journey
+          ) =>
+            booksInMotionIds.has(
+              bookIdentity(
+                journey.book
+              )
+            )
+        ),
+      [
+        booksInMotionIds,
+        journeyData.continuing,
+      ]
+    );
+
+  const storyItems =
+    useMemo(
+      () => {
+        const items:
+          StoryItem[] =
+          journeyData.events.map(
+            (
+              event
+            ) => ({
+              id:
+                event.id,
+              dateKey:
+                localDateKeyFromIso(
+                  event.occurredAt
+                ),
+              icon:
+                event.type ===
+                'started'
+                  ? 'book-outline'
+                  : 'checkmark-circle-outline',
+              title:
+                event.type ===
+                'started'
+                  ? `Started ${event.book.title}`
+                  : `Finished ${event.book.title}`,
+              subtitle:
+                event.book.authors.length >
+                0
+                  ? event.book.authors.join(
+                      ', '
+                    )
+                  : null,
+            })
+          );
+
+        if (
+          streak.length >=
+            2 &&
+          streak.endKey
+        ) {
+          items.push({
+            id:
+              `streak-${streak.endKey}`,
+            dateKey:
+              streak.endKey,
+            icon:
+              'flame-outline',
+            title:
+              `${streak.length}-day reading streak`,
+            subtitle:
+              mode ===
+              'month'
+                ? 'Longest streak this month'
+                : 'Longest streak this week',
+          });
+        }
+
+        return items.sort(
+          (
+            a,
+            b
+          ) =>
+            a.dateKey.localeCompare(
+              b.dateKey
+            )
+        );
+      },
+      [
+        journeyData.events,
+        mode,
+        streak.endKey,
+        streak.length,
+      ]
+    );
+
+  const heroBooks =
+    booksInMotion.slice(
+      0,
+      5
     );
 
   function movePeriod(
@@ -815,12 +1228,6 @@ export default function ReadingRecapsScreen() {
       }
     );
   }
-
-  const heroBooks =
-    books.slice(
-      0,
-      5
-    );
 
   return (
     <SafeAreaView
@@ -909,7 +1316,8 @@ export default function ReadingRecapsScreen() {
             [
               'week',
               'month',
-            ] as RecapMode[]
+            ] as
+              RecapMode[]
           ).map(
             (
               item
@@ -1096,7 +1504,9 @@ export default function ReadingRecapsScreen() {
               >
                 {mode ===
                 'month'
-                  ? 'YOUR MONTH IN MOTION'
+                  ? `YOUR ${referenceDate.toLocaleDateString(undefined, {
+                      month: 'long',
+                    }).toUpperCase()} IN MOTION`
                   : 'YOUR WEEK IN MOTION'}
               </Text>
 
@@ -1186,215 +1596,86 @@ export default function ReadingRecapsScreen() {
                   styles.heroSummary
                 }
               >
-                {books.length}{' '}
-                {books.length ===
+                {booksInMotion.length}{' '}
+                {booksInMotion.length ===
                 1
                   ? 'book'
                   : 'books'}{' '}
                 in motion
-                {finishedBooks.length >
+                {finishedEvents.length >
                 0
-                  ? ` · ${finishedBooks.length} finished`
+                  ? ` · ${finishedEvents.length} finished`
                   : ''}
               </Text>
-            </View>
 
-            <View
-              style={
-                styles.section
-              }
-            >
-              <View
-                style={
-                  styles.sectionHeadingRow
-                }
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.sectionEyebrow
-                    }
-                  >
-                    RHYTHM
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.sectionTitle
-                    }
-                  >
-                    Your reading rhythm
-                  </Text>
-                </View>
-
-                {bestStreak >
-                0 ? (
-                  <Text
-                    style={
-                      styles.streakText
-                    }
-                  >
-                    {bestStreak}-day best
-                  </Text>
-                ) : null}
-              </View>
-
-              <View
-                style={
-                  styles.weekdayRow
-                }
-              >
-                {[
-                  'M',
-                  'T',
-                  'W',
-                  'T',
-                  'F',
-                  'S',
-                  'S',
-                ].map(
-                  (
-                    label,
-                    index
-                  ) => (
-                    <Text
-                      key={
-                        `${label}-${index}`
-                      }
+              {(streak.length >
+                1 ||
+                pagesLogged >
+                  0) ? (
+                <View
+                  style={
+                    styles.supportingStats
+                  }
+                >
+                  {streak.length >
+                  1 ? (
+                    <View
                       style={
-                        styles.weekdayLabel
+                        styles.supportingStat
                       }
                     >
-                      {label}
-                    </Text>
-                  )
-                )}
-              </View>
-
-              {mode ===
-              'week' ? (
-                <View
-                  style={
-                    styles.rhythmWeek
-                  }
-                >
-                  {periodKeys.map(
-                    (
-                      key
-                    ) => (
-                      <View
-                        key={
-                          key
+                      <Ionicons
+                        name="flame-outline"
+                        size={
+                          14
                         }
-                        style={
-                          styles.rhythmCell
-                        }
-                      >
-                        <View
-                          style={[
-                            styles.rhythmDot,
-                            dayMap[
-                              key
-                            ]?.checkedIn &&
-                              styles.rhythmDotRead,
-                          ]}
-                        />
-
-                        <Text
-                          style={[
-                            styles.rhythmDayNumber,
-                            dayMap[
-                              key
-                            ]?.checkedIn &&
-                              styles.rhythmDayNumberRead,
-                          ]}
-                        >
-                          {
-                            dateFromKey(
-                              key
-                            ).getDate()
-                          }
-                        </Text>
-                      </View>
-                    )
-                  )}
-                </View>
-              ) : (
-                <View
-                  style={
-                    styles.monthRhythm
-                  }
-                >
-                  {Array.from(
-                    {
-                      length:
-                        (
-                          (
-                            dateFromKey(
-                              periodKeys[0]
-                            ).getDay() +
-                            6
-                          ) %
-                            7
-                        ),
-                    },
-                    (
-                      _,
-                      index
-                    ) => (
-                      <View
-                        key={
-                          `blank-${index}`
-                        }
-                        style={
-                          styles.rhythmCell
+                        color={
+                          colors.gold
                         }
                       />
-                    )
-                  )}
 
-                  {periodKeys.map(
-                    (
-                      key
-                    ) => (
-                      <View
-                        key={
-                          key
-                        }
+                      <Text
                         style={
-                          styles.rhythmCell
+                          styles.supportingStatText
                         }
                       >
-                        <View
-                          style={[
-                            styles.rhythmDot,
-                            dayMap[
-                              key
-                            ]?.checkedIn &&
-                              styles.rhythmDotRead,
-                          ]}
-                        />
+                        {
+                          streak.length
+                        }-day best streak
+                      </Text>
+                    </View>
+                  ) : null}
 
-                        <Text
-                          style={[
-                            styles.rhythmDayNumber,
-                            dayMap[
-                              key
-                            ]?.checkedIn &&
-                              styles.rhythmDayNumberRead,
-                          ]}
-                        >
-                          {
-                            dateFromKey(
-                              key
-                            ).getDate()
-                          }
-                        </Text>
-                      </View>
-                    )
-                  )}
+                  {pagesLogged >
+                  0 ? (
+                    <View
+                      style={
+                        styles.supportingStat
+                      }
+                    >
+                      <Ionicons
+                        name="document-text-outline"
+                        size={
+                          14
+                        }
+                        color={
+                          colors.gold
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.supportingStatText
+                        }
+                      >
+                        {
+                          pagesLogged.toLocaleString()
+                        } pages logged
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              )}
+              ) : null}
             </View>
 
             <View
@@ -1407,7 +1688,7 @@ export default function ReadingRecapsScreen() {
                   styles.sectionEyebrow
                 }
               >
-                BOOKS
+                THE STORY
               </Text>
 
               <Text
@@ -1415,201 +1696,125 @@ export default function ReadingRecapsScreen() {
                   styles.sectionTitle
                 }
               >
-                Books in motion
+                {
+                  getStoryTitle(
+                    mode,
+                    referenceDate
+                  )
+                }
               </Text>
 
-              {books.length ===
+              {storyItems.length ===
               0 ? (
                 <View
                   style={
-                    styles.emptyCard
+                    styles.emptyStory
                   }
                 >
-                  <Ionicons
-                    name="book-outline"
-                    size={
-                      24
-                    }
-                    color={
-                      colors.mutedText
-                    }
-                  />
-
                   <Text
                     style={
-                      styles.emptyTitle
+                      styles.emptyStoryText
                     }
                   >
-                    Nothing in motion yet.
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.emptyText
-                    }
-                  >
-                    Reading check-ins
-                    and updates from
-                    this period will
-                    build your recap
-                    here.
+                    Check-ins and
+                    reading milestones
+                    from this period
+                    will build your
+                    story here.
                   </Text>
                 </View>
               ) : (
                 <View
                   style={
-                    styles.bookList
+                    styles.timeline
                   }
                 >
-                  {books.map(
+                  {storyItems.map(
                     (
                       item,
                       index
                     ) => (
                       <View
                         key={
-                          item.identity
+                          item.id
+                        }
+                        style={
+                          styles.timelineItem
                         }
                       >
                         <View
                           style={
-                            styles.bookRow
+                            styles.timelineRail
                           }
                         >
-                          {item.book.coverUrl ? (
-                            <ExpoImage
-                              source={
-                                item.book.coverUrl
-                              }
-                              style={
-                                styles.bookCover
-                              }
-                              contentFit="cover"
-                              cachePolicy="memory-disk"
-                              transition={
-                                0
-                              }
-                            />
-                          ) : (
-                            <View
-                              style={
-                                styles.bookCoverFallback
-                              }
-                            >
-                              <Ionicons
-                                name="book-outline"
-                                size={
-                                  20
-                                }
-                                color={
-                                  colors.mutedText
-                                }
-                              />
-                            </View>
-                          )}
-
                           <View
                             style={
-                              styles.bookCopy
+                              styles.timelineIcon
                             }
                           >
-                            <Text
-                              style={
-                                styles.bookTitle
+                            <Ionicons
+                              name={
+                                item.icon
                               }
-                              numberOfLines={
-                                2
+                              size={
+                                15
                               }
-                            >
-                              {
-                                item.book.title
+                              color={
+                                colors.gold
                               }
-                            </Text>
-
-                            {item.book.authors.length >
-                            0 ? (
-                              <Text
-                                style={
-                                  styles.bookAuthor
-                                }
-                                numberOfLines={
-                                  1
-                                }
-                              >
-                                {
-                                  item.book.authors.join(
-                                    ', '
-                                  )
-                                }
-                              </Text>
-                            ) : null}
-
-                            <Text
-                              style={
-                                styles.bookMeta
-                              }
-                            >
-                              {
-                                item.dates.length
-                              }{' '}
-                              {item.dates.length ===
-                              1
-                                ? 'reading day'
-                                : 'reading days'}
-                              {' · '}
-                              {
-                                formatCompactDate(
-                                  item.dates[0]
-                                )
-                              }
-                              {item.dates.length >
-                              1
-                                ? ` – ${formatCompactDate(
-                                    item.dates[
-                                      item.dates.length -
-                                        1
-                                    ]
-                                  )}`
-                                : ''}
-                            </Text>
+                            />
                           </View>
 
-                          {item.finishedDate ? (
+                          {index <
+                          storyItems.length -
+                            1 ? (
                             <View
                               style={
-                                styles.finishedBadge
+                                styles.timelineLine
                               }
-                            >
-                              <Ionicons
-                                name="checkmark"
-                                size={
-                                  13
-                                }
-                                color={
-                                  colors.gold
-                                }
-                              />
-
-                              <Text
-                                style={
-                                  styles.finishedBadgeText
-                                }
-                              >
-                                Finished
-                              </Text>
-                            </View>
+                            />
                           ) : null}
                         </View>
 
-                        {index <
-                        books.length -
-                          1 ? (
-                          <View
+                        <View
+                          style={
+                            styles.timelineCopy
+                          }
+                        >
+                          <Text
                             style={
-                              styles.bookDivider
+                              styles.timelineDate
                             }
-                          />
-                        ) : null}
+                          >
+                            {
+                              formatStoryDate(
+                                item.dateKey
+                              )
+                            }
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.timelineTitle
+                            }
+                          >
+                            {
+                              item.title
+                            }
+                          </Text>
+
+                          {item.subtitle ? (
+                            <Text
+                              style={
+                                styles.timelineSubtitle
+                              }
+                            >
+                              {
+                                item.subtitle
+                              }
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
                     )
                   )}
@@ -1617,7 +1822,7 @@ export default function ReadingRecapsScreen() {
               )}
             </View>
 
-            {finishedBooks.length >
+            {finishedEvents.length >
             0 ? (
               <View
                 style={
@@ -1649,22 +1854,22 @@ export default function ReadingRecapsScreen() {
                     styles.finishedRow
                   }
                 >
-                  {finishedBooks.map(
+                  {finishedEvents.map(
                     (
-                      item
+                      event
                     ) => (
                       <View
                         key={
-                          item.identity
+                          event.id
                         }
                         style={
                           styles.finishedBook
                         }
                       >
-                        {item.book.coverUrl ? (
+                        {event.book.coverUrl ? (
                           <ExpoImage
                             source={
-                              item.book.coverUrl
+                              event.book.coverUrl
                             }
                             style={
                               styles.finishedCover
@@ -1702,29 +1907,236 @@ export default function ReadingRecapsScreen() {
                           }
                         >
                           {
-                            item.book.title
+                            event.book.title
                           }
                         </Text>
 
-                        {item.finishedDate ? (
-                          <Text
-                            style={
-                              styles.finishedDate
-                            }
-                          >
-                            {
-                              formatCompactDate(
-                                item.finishedDate
+                        <Text
+                          style={
+                            styles.finishedDate
+                          }
+                        >
+                          {
+                            formatStoryDate(
+                              localDateKeyFromIso(
+                                event.occurredAt
                               )
-                            }
-                          </Text>
-                        ) : null}
+                            )
+                          }
+                        </Text>
                       </View>
                     )
                   )}
                 </ScrollView>
               </View>
             ) : null}
+
+            {continuingJourneys.length >
+            0 ? (
+              <View
+                style={
+                  styles.section
+                }
+              >
+                <Text
+                  style={
+                    styles.sectionEyebrow
+                  }
+                >
+                  STILL IN MOTION
+                </Text>
+
+                <Text
+                  style={
+                    styles.sectionTitle
+                  }
+                >
+                  {
+                    getContinuingSubtitle(
+                      mode,
+                      referenceDate
+                    )
+                  }
+                </Text>
+
+                <View
+                  style={
+                    styles.continuingList
+                  }
+                >
+                  {continuingJourneys.map(
+                    (
+                      journey,
+                      index
+                    ) => (
+                      <View
+                        key={
+                          journey.id
+                        }
+                      >
+                        <View
+                          style={
+                            styles.continuingBook
+                          }
+                        >
+                          {journey.book.coverUrl ? (
+                            <ExpoImage
+                              source={
+                                journey.book.coverUrl
+                              }
+                              style={
+                                styles.continuingCover
+                              }
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                              transition={
+                                0
+                              }
+                            />
+                          ) : (
+                            <View
+                              style={
+                                styles.continuingCoverFallback
+                              }
+                            >
+                              <Ionicons
+                                name="book-outline"
+                                size={
+                                  19
+                                }
+                                color={
+                                  colors.mutedText
+                                }
+                              />
+                            </View>
+                          )}
+
+                          <View
+                            style={
+                              styles.continuingCopy
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.continuingTitle
+                              }
+                              numberOfLines={
+                                2
+                              }
+                            >
+                              {
+                                journey.book.title
+                              }
+                            </Text>
+
+                            {journey.book.authors.length >
+                            0 ? (
+                              <Text
+                                style={
+                                  styles.continuingAuthor
+                                }
+                                numberOfLines={
+                                  1
+                                }
+                              >
+                                {
+                                  journey.book.authors.join(
+                                    ', '
+                                  )
+                                }
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <Ionicons
+                            name="arrow-forward-outline"
+                            size={
+                              18
+                            }
+                            color={
+                              colors.gold
+                            }
+                          />
+                        </View>
+
+                        {index <
+                        continuingJourneys.length -
+                          1 ? (
+                          <View
+                            style={
+                              styles.continuingDivider
+                            }
+                          />
+                        ) : null}
+                      </View>
+                    )
+                  )}
+                </View>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() =>
+                router.push(
+                  '/reading-activity'
+                )
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.activityLink,
+                pressed &&
+                  styles.pressed,
+              ]}
+            >
+              <View
+                style={
+                  styles.activityLinkIcon
+                }
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={
+                    18
+                  }
+                  color={
+                    colors.gold
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.activityLinkCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.activityLinkTitle
+                  }
+                >
+                  Want the day-by-day view?
+                </Text>
+
+                <Text
+                  style={
+                    styles.activityLinkSubtitle
+                  }
+                >
+                  Explore this period in Reading Activity.
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={
+                  19
+                }
+                color={
+                  colors.mutedText
+                }
+              />
+            </Pressable>
           </>
         )}
       </ScrollView>
@@ -1991,6 +2403,8 @@ function createStyles(
         1.8,
       fontFamily:
         'Inter_700Bold',
+      textAlign:
+        'center',
     },
 
     coverFan: {
@@ -2097,6 +2511,51 @@ function createStyles(
         'Inter_400Regular',
       marginTop:
         7,
+      textAlign:
+        'center',
+    },
+
+    supportingStats: {
+      flexDirection:
+        'row',
+      flexWrap:
+        'wrap',
+      justifyContent:
+        'center',
+      gap:
+        8,
+      marginTop:
+        14,
+    },
+
+    supportingStat: {
+      minHeight:
+        31,
+      borderRadius:
+        999,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap:
+        5,
+      paddingHorizontal:
+        10,
+    },
+
+    supportingStatText: {
+      color:
+        colors.secondaryText,
+      fontSize:
+        10.5,
+      fontFamily:
+        'Inter_600SemiBold',
     },
 
     section: {
@@ -2106,21 +2565,8 @@ function createStyles(
         colors.border,
       paddingTop:
         24,
-      marginTop:
-        4,
       marginBottom:
-        26,
-    },
-
-    sectionHeadingRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-end',
-      justifyContent:
-        'space-between',
-      gap:
-        14,
+        27,
     },
 
     sectionEyebrow: {
@@ -2147,105 +2593,56 @@ function createStyles(
         'PlayfairDisplay_700Bold',
     },
 
-    streakText: {
-      color:
-        colors.mutedText,
-      fontSize:
-        11,
-      fontFamily:
-        'Inter_600SemiBold',
-      paddingBottom:
-        3,
-    },
-
-    weekdayRow: {
-      flexDirection:
-        'row',
+    emptyStory: {
       marginTop:
-        20,
-    },
-
-    weekdayLabel: {
-      width:
-        '14.2857%',
-      textAlign:
-        'center',
-      color:
-        colors.mutedText,
-      fontSize:
-        9,
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    rhythmWeek: {
-      flexDirection:
-        'row',
-      marginTop:
-        10,
-    },
-
-    monthRhythm: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      marginTop:
-        10,
-    },
-
-    rhythmCell: {
-      width:
-        '14.2857%',
-      height:
-        42,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-
-    rhythmDot: {
-      width:
-        8,
-      height:
-        8,
+        16,
       borderRadius:
-        4,
+        15,
       borderWidth:
         1,
       borderColor:
         colors.border,
       backgroundColor:
-        'transparent',
+        colors.surface,
+      padding:
+        18,
     },
 
-    rhythmDotRead: {
-      borderColor:
-        colors.gold,
-      backgroundColor:
-        colors.gold,
-    },
-
-    rhythmDayNumber: {
+    emptyStoryText: {
       color:
         colors.mutedText,
       fontSize:
-        9,
+        11.5,
+      lineHeight:
+        18,
       fontFamily:
-        'Inter_500Medium',
-      marginTop:
-        4,
+        'Inter_400Regular',
     },
 
-    rhythmDayNumberRead: {
-      color:
-        colors.secondaryText,
+    timeline: {
+      marginTop:
+        19,
     },
 
-    emptyCard: {
-      marginTop:
-        16,
+    timelineItem: {
+      flexDirection:
+        'row',
+      minHeight:
+        76,
+    },
+
+    timelineRail: {
+      width:
+        42,
+      alignItems:
+        'center',
+    },
+
+    timelineIcon: {
+      width:
+        31,
+      height:
+        31,
       borderRadius:
         16,
       borderWidth:
@@ -2256,177 +2653,65 @@ function createStyles(
         colors.surface,
       alignItems:
         'center',
-      paddingHorizontal:
-        24,
-      paddingVertical:
-        28,
+      justifyContent:
+        'center',
+      zIndex:
+        2,
     },
 
-    emptyTitle: {
+    timelineLine: {
+      width:
+        1,
+      flex:
+        1,
+      backgroundColor:
+        colors.border,
+    },
+
+    timelineCopy: {
+      flex:
+        1,
+      paddingLeft:
+        10,
+      paddingBottom:
+        20,
+    },
+
+    timelineDate: {
+      color:
+        colors.gold,
+      fontSize:
+        9.5,
+      fontFamily:
+        'Inter_700Bold',
+      letterSpacing:
+        0.4,
+    },
+
+    timelineTitle: {
       color:
         colors.text,
       fontSize:
         14,
+      lineHeight:
+        19,
       fontFamily:
-        'Inter_700Bold',
+        'Inter_600SemiBold',
       marginTop:
-        9,
+        4,
     },
 
-    emptyText: {
+    timelineSubtitle: {
       color:
         colors.mutedText,
       fontSize:
-        11,
+        10.5,
       lineHeight:
-        17,
-      textAlign:
-        'center',
-      fontFamily:
-        'Inter_400Regular',
-      marginTop:
-        4,
-      maxWidth:
-        320,
-    },
-
-    bookList: {
-      marginTop:
         15,
-      borderRadius:
-        18,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
-      overflow:
-        'hidden',
-    },
-
-    bookRow: {
-      minHeight:
-        104,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      padding:
-        13,
-    },
-
-    bookCover: {
-      width:
-        48,
-      height:
-        72,
-      borderRadius:
-        7,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-    },
-
-    bookCoverFallback: {
-      width:
-        48,
-      height:
-        72,
-      borderRadius:
-        7,
-      backgroundColor:
-        colors.elevated,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-
-    bookCopy: {
-      flex:
-        1,
-      paddingHorizontal:
-        12,
-    },
-
-    bookTitle: {
-      color:
-        colors.text,
-      fontSize:
-        15,
-      lineHeight:
-        20,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-    },
-
-    bookAuthor: {
-      color:
-        colors.secondaryText,
-      fontSize:
-        11,
       fontFamily:
         'Inter_400Regular',
       marginTop:
         3,
-    },
-
-    bookMeta: {
-      color:
-        colors.mutedText,
-      fontSize:
-        10,
-      fontFamily:
-        'Inter_500Medium',
-      marginTop:
-        7,
-    },
-
-    finishedBadge: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        4,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        999,
-      paddingHorizontal:
-        8,
-      paddingVertical:
-        5,
-      backgroundColor:
-        colors.elevated,
-    },
-
-    finishedBadgeText: {
-      color:
-        colors.gold,
-      fontSize:
-        9,
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    bookDivider: {
-      height:
-        1,
-      backgroundColor:
-        colors.border,
-      marginLeft:
-        73,
     },
 
     finishedRow: {
@@ -2499,6 +2784,173 @@ function createStyles(
         'Inter_500Medium',
       marginTop:
         3,
+    },
+
+    continuingList: {
+      marginTop:
+        15,
+      borderRadius:
+        17,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      overflow:
+        'hidden',
+    },
+
+    continuingBook: {
+      minHeight:
+        86,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        13,
+      paddingVertical:
+        10,
+    },
+
+    continuingCover: {
+      width:
+        42,
+      height:
+        63,
+      borderRadius:
+        6,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+    },
+
+    continuingCoverFallback: {
+      width:
+        42,
+      height:
+        63,
+      borderRadius:
+        6,
+      backgroundColor:
+        colors.elevated,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    continuingCopy: {
+      flex:
+        1,
+      paddingHorizontal:
+        11,
+    },
+
+    continuingTitle: {
+      color:
+        colors.text,
+      fontSize:
+        14,
+      lineHeight:
+        19,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+    },
+
+    continuingAuthor: {
+      color:
+        colors.mutedText,
+      fontSize:
+        10.5,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop:
+        3,
+    },
+
+    continuingDivider: {
+      height:
+        1,
+      backgroundColor:
+        colors.border,
+      marginLeft:
+        66,
+    },
+
+    activityLink: {
+      minHeight:
+        72,
+      borderRadius:
+        16,
+      borderWidth:
+        1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      paddingHorizontal:
+        14,
+      marginTop:
+        -2,
+    },
+
+    activityLinkIcon: {
+      width:
+        38,
+      height:
+        38,
+      borderRadius:
+        12,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight:
+        11,
+    },
+
+    activityLinkCopy: {
+      flex:
+        1,
+      paddingRight:
+        8,
+    },
+
+    activityLinkTitle: {
+      color:
+        colors.text,
+      fontSize:
+        12.5,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    activityLinkSubtitle: {
+      color:
+        colors.mutedText,
+      fontSize:
+        10.5,
+      lineHeight:
+        15,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop:
+        2,
     },
 
     pressed: {
