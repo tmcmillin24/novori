@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
+import {
+  getBookCoverPlan,
+  resolveBookCoverUrl,
+} from './book-covers';
 
 export type GoogleBookSearchItem = {
   id: string;
@@ -47,6 +51,90 @@ type GoogleBooksResponse = {
   totalItems?: number;
   items?: GoogleBookSearchItem[];
 };
+
+export function getNovoriSearchBookIsbn(
+  book: GoogleBookSearchItem
+) {
+  const identifiers =
+    book.volumeInfo
+      .industryIdentifiers ??
+    [];
+
+  return (
+    identifiers.find(
+      (
+        identifier
+      ) =>
+        identifier.type ===
+        'ISBN_13'
+    )?.identifier ??
+    identifiers.find(
+      (
+        identifier
+      ) =>
+        identifier.type ===
+        'ISBN_10'
+    )?.identifier ??
+    book.novoriWork
+      ?.isbns?.[0] ??
+    null
+  );
+}
+
+export function getNovoriSearchBookCover(
+  book: GoogleBookSearchItem
+) {
+  const canonicalCover =
+    book.novoriWork
+      ?.canonicalCoverUrl ??
+    null;
+
+  const plan =
+    getBookCoverPlan({
+      imageLinks:
+        book.volumeInfo
+          .imageLinks,
+      isbn:
+        getNovoriSearchBookIsbn(
+          book
+        ),
+      existingCoverUrl:
+        canonicalCover,
+    });
+
+  return (
+    canonicalCover ??
+    plan.primaryUrl ??
+    plan.fallbackUrl ??
+    null
+  );
+}
+
+export async function resolveNovoriSearchBookCover(
+  book: GoogleBookSearchItem
+) {
+  const canonicalCover =
+    book.novoriWork
+      ?.canonicalCoverUrl ??
+    null;
+
+  return (
+    await resolveBookCoverUrl({
+      imageLinks:
+        book.volumeInfo
+          .imageLinks,
+      isbn:
+        getNovoriSearchBookIsbn(
+          book
+        ),
+      existingCoverUrl:
+        canonicalCover,
+    })
+  ) ??
+    getNovoriSearchBookCover(
+      book
+    );
+}
 
 async function fetchSharedGoogleBooksSearch(
   searchTerm: string
