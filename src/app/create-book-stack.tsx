@@ -24,7 +24,6 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import SortableBookStackRow, {
   StackDropEdge,
@@ -36,8 +35,8 @@ import {
   useNovoriTheme,
 } from '../context/theme-context';
 import {
+  getBestSearchCover,
   getNovoriSearchBookCover,
-  getNovoriSearchBookIsbn,
   GoogleBookSearchItem,
   resolveNovoriSearchBookCover,
   searchNovoriBooks,
@@ -1886,19 +1885,13 @@ export default function CreateBookStackScreen() {
                   );
 
                 const cover =
+                  getBestSearchCover(
+                    book.volumeInfo
+                      .imageLinks
+                  ) ??
                   getNovoriSearchBookCover(
                     book
                   );
-
-                const isbn =
-                  getNovoriSearchBookIsbn(
-                    book
-                  );
-
-                const canonicalCover =
-                  book.novoriWork
-                    ?.canonicalCoverUrl ??
-                  null;
 
                 return (
                   <Pressable
@@ -1919,21 +1912,14 @@ export default function CreateBookStackScreen() {
                     ]}
                   >
                     {cover ? (
-                      <BookCoverImage
-                        imageLinks={
-                          book.volumeInfo
-                            .imageLinks
-                        }
-                        isbn={
-                          isbn
-                        }
-                        existingCoverUrl={
-                          canonicalCover
-                        }
+                      <Image
+                        source={{
+                          uri:
+                            cover,
+                        }}
                         style={
                           styles.resultCover
                         }
-                        resizeMode="cover"
                       />
                     ) : (
                       <View
