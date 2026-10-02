@@ -78,6 +78,7 @@ import {
   deletePost,
   FeedPost,
   getHomeFeed,
+  getPostMutationVersion,
   PostVoteValue,
   splitQuestionPostBody,
   togglePostVote,
@@ -749,6 +750,11 @@ export default function HomeScreen() {
   const lastHomeDataLoadAt =
     useRef(0);
 
+  const lastSeenPostMutationRef =
+    useRef(
+      getPostMutationVersion()
+    );
+
   const [
     clubSearch,
     setClubSearch,
@@ -950,6 +956,9 @@ export default function HomeScreen() {
 
         lastHomeDataLoadAt.current =
           Date.now();
+
+        lastSeenPostMutationRef.current =
+          getPostMutationVersion();
       },
       []
     );
@@ -1167,6 +1176,13 @@ export default function HomeScreen() {
       const now =
         Date.now();
 
+      const currentPostMutationVersion =
+        getPostMutationVersion();
+
+      const postsChanged =
+        currentPostMutationVersion !==
+        lastSeenPostMutationRef.current;
+
       const homeDataIsStale =
         !hasLoadedHomeData.current ||
         now -
@@ -1180,10 +1196,11 @@ export default function HomeScreen() {
           true
         );
       } else if (
+        postsChanged ||
         homeDataIsStale
       ) {
         // Keep the existing Home/Clubs UI visible and
-        // quietly refresh stale data in the background.
+        // quietly refresh stale or post-mutated data in the background.
         void loadHomeData(
           false
         );
@@ -5300,6 +5317,9 @@ export default function HomeScreen() {
               post.id
           )
       );
+
+      lastSeenPostMutationRef.current =
+        getPostMutationVersion();
     } catch (
       error
     ) {
