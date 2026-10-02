@@ -2723,6 +2723,30 @@ export default function ReaderProfileScreen() {
             styles.statsRow
           }
         >
+          <View
+            style={
+              styles.stat
+            }
+          >
+            <Text
+              style={
+                styles.statNumber
+              }
+            >
+              {
+                books.length
+              }
+            </Text>
+
+            <Text
+              style={
+                styles.statLabel
+              }
+            >
+              Books
+            </Text>
+          </View>
+
           <Pressable
             onPress={() =>
               openConnections(
@@ -2784,30 +2808,6 @@ export default function ReaderProfileScreen() {
               Following
             </Text>
           </Pressable>
-
-          <View
-            style={
-              styles.stat
-            }
-          >
-            <Text
-              style={
-                styles.statNumber
-              }
-            >
-              {
-                books.length
-              }
-            </Text>
-
-            <Text
-              style={
-                styles.statLabel
-              }
-            >
-              Books
-            </Text>
-          </View>
         </View>
 
         {profile.is_self ? (
