@@ -1,12 +1,6 @@
+import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   useEffect,
 } from 'react';
@@ -33,7 +27,7 @@ type StackBook = Pick<
   | 'title'
   | 'authors'
   | 'cover_url'
->;
+> & { google_book_id?: string };
 
 export type BookStackVisualVariant =
   | 'builder'
@@ -257,12 +251,10 @@ function StackCover({
               .bookPressed,
         ]}
       >
-        {item.cover_url ? (
-          <Image
-            source={{
-              uri:
-                item.cover_url,
-            }}
+        {(item.google_book_id || item.cover_url) ? (
+          <BookCoverImage
+            googleBookId={item.google_book_id}
+            existingCoverUrl={item.cover_url}
             style={
               stylesForCover(
                 colors,

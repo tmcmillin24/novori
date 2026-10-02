@@ -1,7 +1,6 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
+
 import {
   useFocusEffect,
   useLocalSearchParams,
@@ -1855,12 +1854,10 @@ export default function ReaderProfileScreen() {
               styles.bookCard
             }
           >
-            {post.book_cover_url ? (
-              <Image
-                source={{
-                  uri:
-                    post.book_cover_url,
-                }}
+            {(post.google_book_id || post.book_cover_url) ? (
+              <BookCoverImage
+                googleBookId={post.google_book_id}
+                existingCoverUrl={post.book_cover_url}
                 style={
                   styles.bookCover
                 }
@@ -2065,19 +2062,12 @@ export default function ReaderProfileScreen() {
             styles.publicBookCoverWrap
           }
         >
-          {book.cover_url ? (
-            <ExpoImage
-              source={
-                book.cover_url
-              }
+          {(book.google_book_id || book.cover_url) ? (
+            <BookCoverImage
+              googleBookId={book.google_book_id}
+              existingCoverUrl={book.cover_url}
               style={
                 styles.publicBookCover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                book.cover_url
               }
             />
           ) : (
@@ -2164,19 +2154,12 @@ export default function ReaderProfileScreen() {
             styles.reviewHeader
           }
         >
-          {review.cover_url ? (
-            <ExpoImage
-              source={
-                review.cover_url
-              }
+          {(review.google_book_id || review.cover_url) ? (
+            <BookCoverImage
+              googleBookId={review.google_book_id}
+              existingCoverUrl={review.cover_url}
               style={
                 styles.reviewCover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                review.cover_url
               }
             />
           ) : (

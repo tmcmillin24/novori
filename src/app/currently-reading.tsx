@@ -1,3 +1,4 @@
+import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
     useFocusEffect,
@@ -7,15 +8,7 @@ import {
     useCallback,
     useState,
 } from 'react';
-import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
     SafeAreaView,
 } from 'react-native-safe-area-context';
@@ -188,12 +181,10 @@ export default function CurrentlyReadingScreen() {
             styles.coverWrap
           }
         >
-          {item.cover_url ? (
-            <Image
-              source={{
-                uri:
-                  item.cover_url,
-              }}
+          {(item.google_book_id || item.cover_url) ? (
+            <BookCoverImage
+              googleBookId={item.google_book_id}
+              existingCoverUrl={item.cover_url}
               style={
                 styles.cover
               }

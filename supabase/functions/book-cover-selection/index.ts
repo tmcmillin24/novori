@@ -2,6 +2,8 @@ import {
   createClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { selectCanonicalGoogleCoversForWorkIds } from '../_shared/book-cover-selector.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin':
     '*',
@@ -174,6 +176,14 @@ Deno.serve(
               )
           : [];
 
+      const requestedIsbns = Array.isArray(body?.isbns)
+        ? Array.from(new Set(body.isbns.filter((value: unknown): value is string => typeof value === 'string')
+            .map((value: string) => value.replace(/[^0-9Xx]/g, '').toUpperCase()))) as string[]
+        : [];
+      if (requestedIsbns.length > 400 || requestedIsbns.some(value => !/^(?:[0-9]{13}|[0-9]{9}[0-9X])$/.test(value))) {
+        return jsonResponse({ ok: false, status: 400, error: 'Invalid ISBN request.' });
+      }
+
       const volumeIds =
         Array.from(
           new Set(
@@ -191,8 +201,7 @@ Deno.serve(
         );
 
       if (
-        volumeIds.length ===
-          0 ||
+        (volumeIds.length === 0 && requestedIsbns.length === 0) ||
         volumeIds.length >
           200 ||
         volumeIds.some(
@@ -227,7 +236,7 @@ Deno.serve(
             'book_editions'
           )
           .select(
-            'provider_book_id, work_id'
+            'provider_book_id, work_id, isbn_10, isbn_13'
           )
           .eq(
             'provider',
@@ -244,11 +253,22 @@ Deno.serve(
         );
       }
 
-      const editionRows =
-        editions ??
-        [];
+      const editionRows = editions ?? [];
+      const isbnWorkIds = new Map<string, string>();
+      for (const column of ['isbn_10', 'isbn_13'] as const) {
+        const wanted = requestedIsbns.filter(value => value.length === (column === 'isbn_10' ? 10 : 13));
+        if (!wanted.length) continue;
+        const { data: isbnEditions, error: isbnError } = await supabaseAdmin
+          .from('book_editions').select('provider_book_id, work_id, isbn_10, isbn_13')
+          .eq('provider', 'google_books').in(column, wanted);
+        if (isbnError) throw new Error(`Could not read ISBN cover identities: ${isbnError.message}`);
+        for (const edition of isbnEditions ?? []) {
+          if (edition[column] && edition.work_id) isbnWorkIds.set(`isbn:${edition[column]}`, edition.work_id);
+          editionRows.push(edition);
+        }
+      }
 
-      const workIds =
+      const workIds: string[] =
         Array.from(
           new Set(
             editionRows
@@ -270,6 +290,10 @@ Deno.serve(
               )
           )
         );
+
+      // Re-evaluate existing catalog candidates only. No provider requests or
+      // cache invalidation; manual/locked selections remain protected.
+      await selectCanonicalGoogleCoversForWorkIds(supabaseAdmin, workIds);
 
       const selectionsByWork =
         new Map<
@@ -478,14 +502,10 @@ Deno.serve(
         }
       }
 
-      for (
-        const volumeId of
-          volumeIds
-      ) {
+      const requestKeys = [...volumeIds, ...requestedIsbns.map(isbn => `isbn:${isbn}`)];
+      for (const volumeId of requestKeys) {
         const workId =
-          workByVolumeId.get(
-            volumeId
-          );
+          workByVolumeId.get(volumeId) ?? isbnWorkIds.get(volumeId);
 
         const selection =
           workId
@@ -513,6 +533,7 @@ Deno.serve(
         details[
           volumeId
         ] = {
+          workId: workId ?? null,
           selectionStatus:
             selectedUrl
               ? 'selected'
@@ -531,12 +552,7 @@ Deno.serve(
               selection
                 ?.locked
             ),
-          authoritative:
-            Boolean(
-              selectedUrl &&
-              selection
-                ?.locked
-            ),
+          authoritative: Boolean(selectedUrl),
           url:
             selectedUrl,
           provider:
@@ -557,7 +573,7 @@ Deno.serve(
       if (
         singleVolumeId &&
         requestedVolumeIds.length ===
-          0
+          0 && requestedIsbns.length === 0
       ) {
         return jsonResponse(
           {

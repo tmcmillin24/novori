@@ -1,3 +1,4 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import {
@@ -6163,12 +6164,10 @@ export default function HomeScreen() {
                     styles.pressed,
                 ]}
               >
-                {post.book_cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        post.book_cover_url,
-                    }}
+                {(post.google_book_id || post.book_cover_url) ? (
+                  <BookCoverImage
+                    googleBookId={post.google_book_id}
+                    existingCoverUrl={post.book_cover_url}
                     style={
                       styles.feedBookCover
                     }

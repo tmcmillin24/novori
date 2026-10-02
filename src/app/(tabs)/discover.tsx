@@ -1752,8 +1752,9 @@ const DiscoverBookCard = memo(
           )
         }
       >
-        {cover ? (
+        {(item.id || cover) ? (
           <BookCoverImage
+            googleBookId={item.id}
             imageLinks={
               info.imageLinks
             }
@@ -1762,11 +1763,6 @@ const DiscoverBookCard = memo(
             }
             existingCoverUrl={
               canonicalCover
-            }
-            preferExistingCover={
-              Boolean(
-                canonicalCover
-              )
             }
             style={
               styles.cover
@@ -3773,19 +3769,12 @@ export default function DiscoverScreen() {
             styles.trendingCoverWrap
           }
         >
-          {item.coverUrl ? (
-            <ExpoImage
-              source={
-                item.coverUrl
-              }
+          {(item.isbns?.length || item.coverUrl) ? (
+            <BookCoverImage
+              isbns={item.isbns}
+              existingCoverUrl={item.coverUrl}
               style={
                 styles.trendingCover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                item.coverUrl
               }
             />
           ) : (
@@ -3874,19 +3863,12 @@ export default function DiscoverScreen() {
             styles.newReleaseCoverWrap
           }
         >
-          {item.coverUrl ? (
-            <ExpoImage
-              source={
-                item.coverUrl
-              }
+          {(item.isbns?.length || item.coverUrl) ? (
+            <BookCoverImage
+              isbns={item.isbns}
+              existingCoverUrl={item.coverUrl}
               style={
                 styles.newReleaseCover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                item.coverUrl
               }
             />
           ) : (

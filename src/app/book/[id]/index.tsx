@@ -1,3 +1,4 @@
+import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -27,7 +28,6 @@ import { NovoriColors } from '../../../constants/novori-theme';
 import BookCoverImage from '../../../components/BookCoverImage';
 import {
   getBookCoverPlan,
-  resolveBookCoverUrl,
 } from '../../../lib/book-covers';
 import { useNovoriTheme } from '../../../context/theme-context';
 import {
@@ -1371,151 +1371,16 @@ export default function BookDetailsScreen() {
           resolvedBook
         );
 
-        let verifiedWorkCoverUrl:
-          string | null =
-          null;
-
-        if (
-          source ===
-            'discover'
-        ) {
-          try {
-            const {
-              data:
-                coverSelectionData,
-              error:
-                coverSelectionError,
-            } =
-              await supabase.functions.invoke(
-                'book-cover-selection',
-                {
-                  body: {
-                    volumeId:
-                      resolvedBook.id,
-                  },
-                }
-              );
-
-            if (
-              coverSelectionError
-            ) {
-              console.warn(
-                'Could not load verified Novori work cover:',
-                coverSelectionError
-              );
-            } else {
-              const selection =
-                coverSelectionData as
-                  | {
-                      ok?: boolean;
-                      data?: {
-                        locked?: boolean;
-                        authoritative?: boolean;
-                        url?:
-                          | string
-                          | null;
-                      };
-                    }
-                  | null;
-
-              const selectedUrl =
-                selection?.ok ===
-                  true &&
-                selection.data
-                  ?.locked ===
-                  true &&
-                selection.data
-                  ?.authoritative ===
-                  true &&
-                typeof selection.data
-                  ?.url ===
-                  'string'
-                  ? selection.data.url
-                      .trim()
-                  : '';
-
-              if (
-                selectedUrl
-              ) {
-                verifiedWorkCoverUrl =
-                  selectedUrl
-                    .replace(
-                      'http://',
-                      'https://'
-                    );
-
-                setSelectedWorkCoverUrl(
-                  verifiedWorkCoverUrl
-                );
-              }
-            }
-          } catch (
-            coverSelectionError
-          ) {
-            console.warn(
-              'Could not load verified Novori work cover:',
-              coverSelectionError
-            );
-          }
-        }
-
-        // Resolve series identity before revealing Discover details.
-        // This does not add another Hardcover request; it moves the existing
-        // series lookup earlier so a verified series cover can participate in
-        // the first visible paint.
-        const discoveredSeriesCoverUrl =
-          source ===
-            'discover'
-            ? await loadSeries(
-                resolvedBook
-              )
-            : null;
-
-        if (
-          source ===
-            'discover'
-        ) {
-          const trustedIncomingCover =
-            trustedCover ===
-              '1'
-              ? discoverCoverUrl ??
-                null
-              : null;
-
-          let finalDiscoverCover =
-            verifiedWorkCoverUrl ??
-            trustedIncomingCover ??
-            discoveredSeriesCoverUrl ??
-            null;
-
-          if (
-            !finalDiscoverCover
-          ) {
-            finalDiscoverCover =
-              await resolveBookCoverUrl({
-                imageLinks:
-                  resolvedBook
-                    .volumeInfo
-                    .imageLinks,
-                isbn:
-                  getBookISBN(
-                    resolvedBook
-                  ) ??
-                  null,
-                existingCoverUrl:
-                  discoverCoverUrl ??
-                  null,
-              });
-          }
-
-          if (
-            finalDiscoverCover
-          ) {
-            setSelectedWorkCoverUrl(
-              finalDiscoverCover
-            );
-          }
-        }
+        // Series lookup registers verified candidates in the existing catalog.
+        // The screen then reads the catalog winner, never the series/route URL.
+        if (source === 'discover') await loadSeries(resolvedBook);
+        const canonicalCover = await resolveCanonicalBookCover({
+          googleBookId: resolvedBook.id,
+          isbn: getBookISBN(resolvedBook),
+          imageLinks: resolvedBook.volumeInfo.imageLinks,
+          existingCoverUrl: discoverCoverUrl,
+        }, true);
+        setSelectedWorkCoverUrl(canonicalCover);
 
         // The first visible Discover paint now uses the already-resolved cover
         // instead of showing one image and swapping it after mount.
@@ -2132,40 +1997,14 @@ export default function BookDetailsScreen() {
         resolvedSeriesBooks
       );
 
-      const currentSeriesBook =
-        resolvedSeries
-          ?.currentPosition !==
-            null &&
-        resolvedSeries
-          ?.currentPosition !==
-            undefined
-          ? resolvedSeriesBooks.find(
-              (
-                seriesBook
-              ) =>
-                seriesBook.position ===
-                resolvedSeries
-                  .currentPosition
-            )
-          : null;
-
-      const seriesCoverUrl =
-        secureGoogleBooksImageUrl(
-          currentSeriesBook
-            ?.imageUrl ??
-            undefined
-        ) ??
-        null;
-
-      if (
-        seriesCoverUrl
-      ) {
-        setSeriesWorkCoverUrl(
-          seriesCoverUrl
-        );
-      }
-
-      return seriesCoverUrl;
+      const canonicalCover = await resolveCanonicalBookCover({
+        googleBookId: currentBook.id,
+        isbn: getBookISBN(currentBook),
+        imageLinks: currentBook.volumeInfo.imageLinks,
+      }, true);
+      setSeriesWorkCoverUrl(canonicalCover);
+      setSelectedWorkCoverUrl(canonicalCover);
+      return canonicalCover;
     } catch {
       setSeries(null);
       setSeriesBooks([]);
@@ -2631,7 +2470,8 @@ export default function BookDetailsScreen() {
     const info = book.volumeInfo;
 
     const coverUrl =
-      await resolveBookCoverUrl({
+      await resolveCanonicalBookCover({
+        googleBookId: book.id,
         imageLinks:
           info.imageLinks,
         isbn:
@@ -2721,7 +2561,8 @@ export default function BookDetailsScreen() {
           );
       } else {
         const coverUrl =
-          await resolveBookCoverUrl({
+          await resolveCanonicalBookCover({
+        googleBookId: book.id,
             imageLinks:
               info.imageLinks,
             isbn:
@@ -3110,7 +2951,7 @@ export default function BookDetailsScreen() {
         resolved.novoriWork
           ?.canonicalCoverUrl ??
         secureGoogleBooksImageUrl(
-          seriesBook.imageUrl
+          seriesBook.imageUrl ?? undefined
         ) ??
         getValidatedHighResolutionCover(
           undefined,
@@ -3209,49 +3050,8 @@ export default function BookDetailsScreen() {
 
   const info = book.volumeInfo;
 
-  const isCanonicalWorkPage =
-    canonicalizeWork ===
-      '1';
-
-  const exactRouteCoverUrl =
-    googleBooksCoverMatchesVolume(
-      discoverCoverUrl,
-      book.id
-    )
-      ? discoverCoverUrl
-      : null;
-
-  const trustedRouteCoverUrl =
-    trustedCover ===
-      '1'
-      ? discoverCoverUrl ??
-        null
-      : null;
-
-  const canonicalRouteCoverUrl =
-    trustedRouteCoverUrl ??
-    exactRouteCoverUrl ??
-    discoverCoverUrl ??
-    null;
-
-  const displayExistingCoverUrl =
-    selectedWorkCoverUrl ??
-    savedBook?.cover_url ??
-    trustedRouteCoverUrl ??
-    seriesWorkCoverUrl ??
-    (
-      isCanonicalWorkPage
-        ? canonicalRouteCoverUrl
-        : discoverCoverUrl ??
-          null
-    );
-
-  const preferExistingCover =
-    Boolean(
-      selectedWorkCoverUrl ||
-      savedBook?.cover_url ||
-      trustedRouteCoverUrl
-    );
+  const displayExistingCoverUrl = selectedWorkCoverUrl ?? savedBook?.cover_url ??
+    book.novoriWork?.canonicalCoverUrl ?? discoverCoverUrl ?? null;
 
   const coverPlan =
     getBookCoverPlan({
@@ -3414,8 +3214,9 @@ export default function BookDetailsScreen() {
                 styles.libraryBookHero
               }
             >
-            {cover ? (
+            {(book.id || cover) ? (
               <BookCoverImage
+                googleBookId={book.id}
                 imageLinks={
                   info.imageLinks
                 }
@@ -3427,9 +3228,6 @@ export default function BookDetailsScreen() {
                 }
                 existingCoverUrl={
                   displayExistingCoverUrl
-                }
-                preferExistingCover={
-                  preferExistingCover
                 }
                 style={
                   styles.libraryBookCover
@@ -3714,8 +3512,9 @@ export default function BookDetailsScreen() {
               styles.hero
             }
           >
-            {cover ? (
+            {(book.id || cover) ? (
               <BookCoverImage
+                googleBookId={book.id}
                 imageLinks={
                   info.imageLinks
                 }
@@ -3727,9 +3526,6 @@ export default function BookDetailsScreen() {
                 }
                 existingCoverUrl={
                   displayExistingCoverUrl
-                }
-                preferExistingCover={
-                  preferExistingCover
                 }
                 style={
                   styles.cover
@@ -5096,9 +4892,11 @@ export default function BookDetailsScreen() {
                           styles.seriesRowPressed,
                       ]}
                     >
-                      {seriesBook.imageUrl ? (
-                        <Image
-                          source={{ uri: seriesBook.imageUrl }}
+                      {((isCurrent ? book.id : undefined) || seriesBook.isbns.length || seriesBook.imageUrl) ? (
+                        <BookCoverImage
+                          googleBookId={isCurrent ? book.id : undefined}
+                          isbns={seriesBook.isbns}
+                          existingCoverUrl={seriesBook.imageUrl}
                           style={styles.seriesCover}
                         />
                       ) : (

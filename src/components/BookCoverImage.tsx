@@ -1,193 +1,41 @@
+import type { ImageProps } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { useEffect, useSyncExternalStore } from 'react';
+import type { CanonicalCoverInput } from '../lib/canonical-book-covers';
 import {
-  ImageProps,
-} from 'react-native';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+  getCanonicalBookCover,
+  resolveCanonicalBookCover,
+  subscribeCanonicalBookCovers,
+} from '../lib/canonical-book-covers';
 
-import {
-  BookImageLinks,
-  getBookCoverPlan,
-  resolveBestBookCover,
-} from '../lib/book-covers';
+type Props = Omit<ImageProps, 'source'> & CanonicalCoverInput;
 
-type Props = Omit<
-  ImageProps,
-  'source'
-> & {
-  imageLinks?: BookImageLinks;
-  isbn?: string | null;
-  existingCoverUrl?: string | null;
-  preferExistingCover?: boolean;
-};
-
+// Every book image renders the catalog's original URL. Display size never
+// participates in selection, and image failures never switch artwork locally.
 export default function BookCoverImage({
-  imageLinks,
-  isbn,
-  existingCoverUrl,
-  preferExistingCover = false,
-  onError,
-  resizeMode,
-  ...imageProps
+  googleBookId, isbn, isbns, imageLinks, existingCoverUrl,
+  resizeMode, onError, ...imageProps
 }: Props) {
-  const plan =
-    useMemo(
-      () =>
-        getBookCoverPlan({
-          imageLinks,
-          isbn,
-          existingCoverUrl,
-        }),
-      [
-        imageLinks,
-        isbn,
-        existingCoverUrl,
-      ]
-    );
-
-  const preferredExistingUrl =
-    preferExistingCover &&
-    existingCoverUrl
-      ? existingCoverUrl.replace(
-          'http://',
-          'https://'
-        )
-      : null;
-
-  const [
-    activeUrl,
-    setActiveUrl,
-  ] =
-    useState<string | null>(
-      preferredExistingUrl ??
-      plan.primaryUrl
-    );
-
-  useEffect(
-    () => {
-      let cancelled =
-        false;
-
-      setActiveUrl(
-        preferredExistingUrl ??
-        plan.primaryUrl
-      );
-
-      if (
-        preferredExistingUrl
-      ) {
-        return () => {
-          cancelled =
-            true;
-        };
-      }
-
-      void resolveBestBookCover({
-        imageLinks,
-        isbn,
-        existingCoverUrl,
-      }).then(
-        (
-          resolved
-        ) => {
-          if (
-            !cancelled &&
-            resolved.url
-          ) {
-            setActiveUrl(
-              resolved.url
-            );
-          }
-        }
-      );
-
-      return () => {
-        cancelled =
-          true;
-      };
-    },
-    [
-      imageLinks,
-      isbn,
-      existingCoverUrl,
-      preferExistingCover,
-      preferredExistingUrl,
-      plan.primaryUrl,
-    ]
+  const input = { googleBookId, isbn, isbns, imageLinks, existingCoverUrl };
+  const url = useSyncExternalStore(
+    subscribeCanonicalBookCovers,
+    () => getCanonicalBookCover(input),
+    () => null,
   );
+  const isbnKey = (isbns ?? []).join(',');
+  useEffect(() => {
+    void resolveCanonicalBookCover({ googleBookId, isbn, isbns, imageLinks, existingCoverUrl });
+  }, [googleBookId, isbn, isbnKey, imageLinks, existingCoverUrl]);
 
-  if (
-    !activeUrl
-  ) {
-    return null;
-  }
-
-  const contentFit =
-    resizeMode ===
-      'contain'
-      ? 'contain'
-      : resizeMode ===
-          'center'
-        ? 'none'
-        : resizeMode ===
-            'stretch'
-          ? 'fill'
-          : 'cover';
-
-  return (
-    <ExpoImage
-      {...(
-        imageProps as any
-      )}
-      source={{
-        uri:
-          activeUrl,
-      }}
-      cachePolicy="memory-disk"
-      contentFit={
-        contentFit
-      }
-      transition={0}
-      recyclingKey={
-        activeUrl
-      }
-      onError={(
-        event
-      ) => {
-        if (
-          preferredExistingUrl &&
-          activeUrl ===
-            preferredExistingUrl &&
-          plan.primaryUrl &&
-          plan.primaryUrl !==
-            preferredExistingUrl
-        ) {
-          setActiveUrl(
-            plan.primaryUrl
-          );
-          return;
-        }
-
-        if (
-          plan.fallbackUrl &&
-          activeUrl !==
-            plan.fallbackUrl
-        ) {
-          setActiveUrl(
-            plan.fallbackUrl
-          );
-          return;
-        }
-
-        onError?.(
-          event as any
-        );
-      }}
-    />
-  );
+  const contentFit = resizeMode === 'contain' ? 'contain' : resizeMode === 'center' ? 'none' :
+    resizeMode === 'stretch' ? 'fill' : 'cover';
+  return <ExpoImage
+    {...(imageProps as any)}
+    source={url ? { uri: url } : null}
+    cachePolicy="memory-disk"
+    contentFit={contentFit}
+    transition={0}
+    recyclingKey={`${googleBookId ?? isbn ?? isbnKey}:${url ?? 'pending'}`}
+    onError={event => onError?.(event as any)}
+  />;
 }

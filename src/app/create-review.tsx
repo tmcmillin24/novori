@@ -1,3 +1,4 @@
+import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -911,12 +912,10 @@ export default function CreateReviewScreen() {
                             styles.pressed,
                         ]}
                       >
-                        {book.cover_url ? (
-                          <Image
-                            source={{
-                              uri:
-                                book.cover_url,
-                            }}
+                        {(book.google_book_id || book.cover_url) ? (
+                          <BookCoverImage
+                            googleBookId={book.google_book_id}
+                            existingCoverUrl={book.cover_url}
                             style={
                               styles.bookCover
                             }
@@ -994,12 +993,10 @@ export default function CreateReviewScreen() {
                       styles.selectedBookCard
                     }
                   >
-                    {selectedBook.cover_url ? (
-                      <Image
-                        source={{
-                          uri:
-                            selectedBook.cover_url,
-                        }}
+                    {(selectedBook.google_book_id || selectedBook.cover_url) ? (
+                      <BookCoverImage
+                        googleBookId={selectedBook.google_book_id}
+                        existingCoverUrl={selectedBook.cover_url}
                         style={
                           styles.selectedCover
                         }

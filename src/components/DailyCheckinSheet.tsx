@@ -1,7 +1,6 @@
+import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
+
 import {
   useMemo,
   useRef,
@@ -521,19 +520,12 @@ export default function DailyCheckinSheet({
                           styles.pressed,
                       ]}
                     >
-                      {book.cover_url ? (
-                        <ExpoImage
-                          source={
-                            book.cover_url
-                          }
+                      {(book.google_book_id || book.cover_url) ? (
+                        <BookCoverImage
+                          googleBookId={book.google_book_id}
+                          existingCoverUrl={book.cover_url}
                           style={
                             styles.cover
-                          }
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          transition={0}
-                          recyclingKey={
-                            book.cover_url
                           }
                         />
                       ) : (

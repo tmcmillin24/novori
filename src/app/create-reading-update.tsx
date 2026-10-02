@@ -1,3 +1,4 @@
+import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -11,19 +12,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
   SafeAreaView,
@@ -887,12 +876,10 @@ export default function CreateReadingUpdateScreen() {
                   styles.previewBookRow
                 }
               >
-                {selectedBook.cover_url ? (
-                  <Image
-                    source={{
-                      uri:
-                        selectedBook.cover_url,
-                    }}
+                {(selectedBook.google_book_id || selectedBook.cover_url) ? (
+                  <BookCoverImage
+                    googleBookId={selectedBook.google_book_id}
+                    existingCoverUrl={selectedBook.cover_url}
                     style={
                       styles.previewCover
                     }
@@ -1384,12 +1371,10 @@ export default function CreateReadingUpdateScreen() {
                 styles.previewBookRow
               }
             >
-              {selectedBook.cover_url ? (
-                <Image
-                  source={{
-                    uri:
-                      selectedBook.cover_url,
-                  }}
+              {(selectedBook.google_book_id || selectedBook.cover_url) ? (
+                <BookCoverImage
+                  googleBookId={selectedBook.google_book_id}
+                  existingCoverUrl={selectedBook.cover_url}
                   style={
                     styles.previewCover
                   }
@@ -1963,12 +1948,10 @@ export default function CreateReadingUpdateScreen() {
                           styles.pressed,
                       ]}
                     >
-                      {book.cover_url ? (
-                        <Image
-                          source={{
-                            uri:
-                              book.cover_url,
-                          }}
+                      {(book.google_book_id || book.cover_url) ? (
+                        <BookCoverImage
+                          googleBookId={book.google_book_id}
+                          existingCoverUrl={book.cover_url}
                           style={
                             styles.cover
                           }

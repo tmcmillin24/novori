@@ -1,9 +1,8 @@
+import BookCoverImage from '../components/BookCoverImage';
 import {
   Ionicons,
 } from '@expo/vector-icons';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
+
 import {
   useFocusEffect,
   useRouter,
@@ -1647,13 +1646,11 @@ export default function ReadingActivityScreen() {
                           </Text>
                         </View>
 
-                        {selectedDayBooks[0]
-                          .coverUrl ? (
-                          <ExpoImage
-                            source={
-                              selectedDayBooks[0]
-                                .coverUrl
-                            }
+                        {(selectedDayBooks[0].googleBookId || selectedDayBooks[0]
+                          .coverUrl) ? (
+                          <BookCoverImage
+                            googleBookId={selectedDayBooks[0].googleBookId}
+                            existingCoverUrl={selectedDayBooks[0].coverUrl}
                             style={[
                               styles.orbitCenterCover,
                               {
@@ -1663,15 +1660,6 @@ export default function ReadingActivityScreen() {
                                   centerCoverHeight,
                               },
                             ]}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={
-                              0
-                            }
-                            recyclingKey={
-                              selectedDayBooks[0]
-                                .coverUrl
-                            }
                           />
                         ) : (
                           <View

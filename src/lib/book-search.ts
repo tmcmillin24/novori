@@ -1,8 +1,8 @@
+import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
 import {
   getBookCoverPlan,
-  resolveBookCoverUrl,
 } from './book-covers';
 
 export type GoogleBookSearchItem = {
@@ -85,6 +85,7 @@ export function getNovoriSearchBookCover(
   book: GoogleBookSearchItem
 ) {
   const canonicalCover =
+    getCanonicalBookCover({ googleBookId: book.id }) ??
     book.novoriWork
       ?.canonicalCoverUrl ??
     null;
@@ -119,7 +120,8 @@ export async function resolveNovoriSearchBookCover(
     null;
 
   return (
-    await resolveBookCoverUrl({
+    await resolveCanonicalBookCover({
+      googleBookId: book.id,
       imageLinks:
         book.volumeInfo
           .imageLinks,
@@ -209,10 +211,8 @@ async function attachCatalogSearchCovers(
       return;
     }
 
-    const covers =
-      response.data
-        ?.covers ??
-      {};
+    const covers = response.data?.covers ?? {};
+    publishCatalogCovers(covers, (data as any)?.data?.details ?? {});
 
     for (
       const book of
@@ -2957,60 +2957,8 @@ function isSameGoogleBooksCover(
   );
 }
 
-export function getBestSearchCover(
-  imageLinks:
-    | GoogleBookSearchItem[
-        'volumeInfo'
-      ]['imageLinks']
-    | undefined
-) {
-  const thumbnail =
-    secureGoogleBooksImageUrl(
-      imageLinks?.thumbnail
-    ) ||
-    secureGoogleBooksImageUrl(
-      imageLinks?.smallThumbnail
-    );
-
-  if (
-    !thumbnail
-  ) {
-    return undefined;
-  }
-
-  const higherResolutionCandidates = [
-    imageLinks?.extraLarge,
-    imageLinks?.large,
-    imageLinks?.medium,
-    imageLinks?.small,
-  ]
-    .map(
-      secureGoogleBooksImageUrl
-    )
-    .filter(
-      (
-        candidate
-      ): candidate is string =>
-        Boolean(
-          candidate
-        )
-    );
-
-  const matchingCandidate =
-    higherResolutionCandidates.find(
-      (
-        candidate
-      ) =>
-        isSameGoogleBooksCover(
-          thumbnail,
-          candidate
-        )
-    );
-
-  return (
-    matchingCandidate ||
-    thumbnail
-  );
+export function getBestSearchCover(imageLinks: GoogleBookSearchItem['volumeInfo']['imageLinks']) {
+  return getBookCoverPlan({ imageLinks }).primaryUrl ?? undefined;
 }
 
 export async function searchNovoriBooks(

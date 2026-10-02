@@ -1,3 +1,4 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useLocalSearchParams,
@@ -8,16 +9,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -464,12 +456,10 @@ export default function AuthorScreen() {
             styles.pressed,
         ]}
       >
-        {coverUrl ? (
-          <Image
-            source={{
-              uri:
-                coverUrl,
-            }}
+        {(item.book.id || coverUrl) ? (
+          <BookCoverImage
+            googleBookId={item.book.id}
+            existingCoverUrl={coverUrl}
             style={
               styles.cover
             }

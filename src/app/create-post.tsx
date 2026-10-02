@@ -1850,13 +1850,11 @@ export default function CreatePostScreen() {
                           styles.pressed,
                       ]}
                     >
-                      {attachedBook
-                        .coverUrl ? (
-                        <Image
-                          source={{
-                            uri:
-                              attachedBook.coverUrl,
-                          }}
+                      {(attachedBook.id || attachedBook
+                        .coverUrl) ? (
+                        <BookCoverImage
+                          googleBookId={attachedBook.id}
+                          existingCoverUrl={attachedBook.coverUrl}
                           style={
                             styles.feedPreviewBookCover
                           }
@@ -2613,8 +2611,9 @@ export default function CreatePostScreen() {
                           styles.bookResultRowPressed,
                       ]}
                     >
-                      {cover ? (
+                      {(item.id || cover) ? (
                         <BookCoverImage
+                          googleBookId={item.id}
                           imageLinks={
                             info.imageLinks
                           }
@@ -2623,11 +2622,6 @@ export default function CreatePostScreen() {
                           }
                           existingCoverUrl={
                             canonicalCover
-                          }
-                          preferExistingCover={
-                            Boolean(
-                              canonicalCover
-                            )
                           }
                           style={
                             styles.bookResultCover

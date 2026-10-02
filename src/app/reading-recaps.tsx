@@ -1,9 +1,8 @@
+import BookCoverImage from '../components/BookCoverImage';
 import {
   Ionicons,
 } from '@expo/vector-icons';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
+
 import {
   useRouter,
 } from 'expo-router';
@@ -1533,18 +1532,12 @@ export default function ReadingRecapsScreen() {
                             styles.heroCoverOverlap,
                         ]}
                       >
-                        {item.book.coverUrl ? (
-                          <ExpoImage
-                            source={
-                              item.book.coverUrl
-                            }
+                        {(item.book.googleBookId || item.book.coverUrl) ? (
+                          <BookCoverImage
+                            googleBookId={item.book.googleBookId}
+                            existingCoverUrl={item.book.coverUrl}
                             style={
                               styles.heroCover
-                            }
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={
-                              0
                             }
                           />
                         ) : (
@@ -1873,18 +1866,12 @@ export default function ReadingRecapsScreen() {
                             styles.finishedCoverOverlap,
                         ]}
                       >
-                        {event.book.coverUrl ? (
-                          <ExpoImage
-                            source={
-                              event.book.coverUrl
-                            }
+                        {(event.book.googleBookId || event.book.coverUrl) ? (
+                          <BookCoverImage
+                            googleBookId={event.book.googleBookId}
+                            existingCoverUrl={event.book.coverUrl}
                             style={
                               styles.finishedCover
-                            }
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={
-                              0
                             }
                           />
                         ) : (
@@ -2002,18 +1989,12 @@ export default function ReadingRecapsScreen() {
                             styles.continuingBook
                           }
                         >
-                          {journey.book.coverUrl ? (
-                            <ExpoImage
-                              source={
-                                journey.book.coverUrl
-                              }
+                          {(journey.book.googleBookId || journey.book.coverUrl) ? (
+                            <BookCoverImage
+                              googleBookId={journey.book.googleBookId}
+                              existingCoverUrl={journey.book.coverUrl}
                               style={
                                 styles.continuingCover
-                              }
-                              contentFit="cover"
-                              cachePolicy="memory-disk"
-                              transition={
-                                0
                               }
                             />
                           ) : (

@@ -1,14 +1,9 @@
+import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useEffect,
 } from 'react';
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Gesture,
   GestureDetector,
@@ -215,12 +210,10 @@ export default function SortableBookStackRow({
           styles.row
         }
       >
-        {item.coverUrl ? (
-          <Image
-            source={{
-              uri:
-                item.coverUrl,
-            }}
+        {(item.googleBookId || item.coverUrl) ? (
+          <BookCoverImage
+            googleBookId={item.googleBookId}
+            existingCoverUrl={item.coverUrl}
             style={
               styles.cover
             }

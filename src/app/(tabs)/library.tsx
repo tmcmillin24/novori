@@ -1,7 +1,6 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Image as ExpoImage,
-} from 'expo-image';
+
 import {
   useFocusEffect,
   useNavigation,
@@ -219,19 +218,12 @@ const LibraryBookCard = memo(
             styles.coverWrap
           }
         >
-          {item.cover_url ? (
-            <ExpoImage
-              source={
-                item.cover_url
-              }
+          {(item.google_book_id || item.cover_url) ? (
+            <BookCoverImage
+              googleBookId={item.google_book_id}
+              existingCoverUrl={item.cover_url}
               style={
                 styles.cover
-              }
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={0}
-              recyclingKey={
-                item.cover_url
               }
             />
           ) : (
@@ -2358,19 +2350,12 @@ export default function LibraryScreen() {
                     styles.sheetHeader
                   }
                 >
-                  {selectedBook.cover_url ? (
-                    <ExpoImage
-                      source={
-                        selectedBook.cover_url
-                      }
+                  {(selectedBook.google_book_id || selectedBook.cover_url) ? (
+                    <BookCoverImage
+                      googleBookId={selectedBook.google_book_id}
+                      existingCoverUrl={selectedBook.cover_url}
                       style={
                         styles.sheetCover
-                      }
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={0}
-                      recyclingKey={
-                        selectedBook.cover_url
                       }
                     />
                   ) : (

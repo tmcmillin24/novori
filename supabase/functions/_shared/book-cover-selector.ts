@@ -61,6 +61,10 @@ type EditionRow = {
 type ExistingSelectionRow = {
   work_id: string;
   locked: boolean;
+  candidate_id?: string | null;
+  selector_version?: number;
+  status?: string;
+  score?: number | null;
 };
 
 function normalizedLanguage(
@@ -237,7 +241,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
           'book_cover_selections'
         )
         .select(
-          'work_id, locked'
+          'work_id, locked, candidate_id, selector_version, status, score'
         )
         .in(
           'work_id',
@@ -298,50 +302,26 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       return;
     }
 
-    const {
-      data:
-        candidateRows,
-      error:
-        candidateReadError,
-    } =
-      await supabaseAdmin
-        .from(
-          'book_cover_candidates'
-        )
-        .select(
-          'id, work_id, edition_id, provider, source_variant, url'
-        )
-        .in(
-          'provider',
-          [
-            GOOGLE_PROVIDER,
-            HARDCOVER_PROVIDER,
-          ]
-        )
-        .eq(
-          'scope',
-          'edition'
-        )
-        .in(
-          'work_id',
-          eligibleWorkIds
-        );
-
-    if (
-      candidateReadError
-    ) {
-      console.warn(
-        'Could not read Novori cover candidates:',
-        candidateReadError.message
-      );
-      return;
+    // Read every stored candidate; a large library must not turn the database's
+    // first-page limit into a cover downgrade for later works in the batch.
+    const candidates: CandidateRow[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from('book_cover_candidates')
+        .select('id, work_id, edition_id, provider, source_variant, url')
+        .in('provider', [GOOGLE_PROVIDER, HARDCOVER_PROVIDER])
+        .eq('scope', 'edition')
+        .in('work_id', eligibleWorkIds)
+        .order('id')
+        .range(offset, offset + 999);
+      if (error) {
+        console.warn('Could not read Novori cover candidates:', error.message);
+        return;
+      }
+      const page = (data ?? []) as CandidateRow[];
+      candidates.push(...page);
+      if (page.length < 1000) break;
     }
-
-    const candidates =
-      (
-        candidateRows ??
-        []
-      ) as CandidateRow[];
 
     const editionIds =
       Array.from(
@@ -374,47 +354,17 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       editionIds.length >
         0
     ) {
-      const {
-        data:
-          editionRows,
-        error:
-          editionReadError,
-      } =
-        await supabaseAdmin
-          .from(
-            'book_editions'
-          )
-          .select(
-            'id, detail_complete, language, sale_country'
-          )
-          .in(
-            'id',
-            editionIds
-          );
-
-      if (
-        editionReadError
-      ) {
-        console.warn(
-          'Could not read editions for Novori cover selection:',
-          editionReadError.message
-        );
-        return;
-      }
-
-      for (
-        const row of
-          editionRows ??
-          []
-      ) {
-        const edition =
-          row as
-            EditionRow;
-
-        editionsById.set(
-          edition.id,
-          edition
-        );
+      // Keep IN filters short even when a work has many cached editions.
+      for (let offset = 0; offset < editionIds.length; offset += 200) {
+        const { data, error } = await supabaseAdmin
+          .from('book_editions')
+          .select('id, detail_complete, language, sale_country')
+          .in('id', editionIds.slice(offset, offset + 200));
+        if (error) {
+          console.warn('Could not read editions for Novori cover selection:', error.message);
+          return;
+        }
+        for (const edition of (data ?? []) as EditionRow[]) editionsById.set(edition.id, edition);
       }
     }
 
@@ -549,6 +499,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
 
           const selected =
             strongRanked[0] ??
+            ranked[0] ??
             null;
 
           const status =
@@ -584,7 +535,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                 GOOGLE_PROVIDER,
                 HARDCOVER_PROVIDER,
               ],
-              requiredMinimumGoogleVariant:
+              preferredMinimumGoogleVariant:
                 'medium',
               totalCandidates:
                 workCandidates.length,
@@ -629,6 +580,14 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       return;
     }
 
+    const changedDecisions = decisions.filter(decision => {
+      const previous = (existingSelections ?? []).find(row => row.work_id === decision.work_id) as ExistingSelectionRow | undefined;
+      return !previous || previous.candidate_id !== decision.candidate_id ||
+        previous.status !== decision.status || previous.score !== decision.score ||
+        previous.selector_version !== decision.selector_version;
+    });
+    if (!changedDecisions.length) return;
+
     const {
       error:
         selectionWriteError,
@@ -638,7 +597,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
           'book_cover_selections'
         )
         .upsert(
-          decisions,
+          changedDecisions,
           {
             onConflict:
               'work_id',

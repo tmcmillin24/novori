@@ -1,3 +1,4 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -10,27 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Easing,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  LayoutAnimation,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  UIManager,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
@@ -2621,14 +2602,11 @@ export default function ReadingDetailsScreen() {
               styles.bookHeader
             }
           >
-            {data.book
-              .cover_url ? (
-              <Image
-                source={{
-                  uri:
-                    data.book
-                      .cover_url,
-                }}
+            {(data.book.google_book_id || data.book
+              .cover_url) ? (
+              <BookCoverImage
+                googleBookId={data.book.google_book_id}
+                existingCoverUrl={data.book.cover_url}
                 style={
                   styles.cover
                 }

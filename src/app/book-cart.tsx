@@ -1,3 +1,4 @@
+import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -12,18 +13,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  FlatList,
-  Image,
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Animated, Easing, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
@@ -759,12 +749,10 @@ export default function BookCartScreen() {
                   styles.pressed,
               ]}
             >
-              {item.cover_url ? (
-                <Image
-                  source={{
-                    uri:
-                      item.cover_url,
-                  }}
+              {(item.google_book_id || item.cover_url) ? (
+                <BookCoverImage
+                  googleBookId={item.google_book_id}
+                  existingCoverUrl={item.cover_url}
                   style={
                     styles.cover
                   }

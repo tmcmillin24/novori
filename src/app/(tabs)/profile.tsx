@@ -1,3 +1,4 @@
+import BookCoverImage from '../../components/BookCoverImage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
@@ -1353,19 +1354,12 @@ export default function ProfileScreen() {
                   styles.gridCoverWrap
                 }
               >
-                {book.cover_url ? (
-                  <ExpoImage
-                    source={
-                      book.cover_url
-                    }
+                {(book.google_book_id || book.cover_url) ? (
+                  <BookCoverImage
+                    googleBookId={book.google_book_id}
+                    existingCoverUrl={book.cover_url}
                     style={
                       styles.gridCover
-                    }
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
-                    recyclingKey={
-                      book.cover_url
                     }
                   />
                 ) : (
@@ -1523,19 +1517,12 @@ export default function ProfileScreen() {
                   styles.reviewHeader
                 }
               >
-                {book.cover_url ? (
-                  <ExpoImage
-                    source={
-                      book.cover_url
-                    }
+                {(book.google_book_id || book.cover_url) ? (
+                  <BookCoverImage
+                    googleBookId={book.google_book_id}
+                    existingCoverUrl={book.cover_url}
                     style={
                       styles.reviewCover
-                    }
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
-                    recyclingKey={
-                      book.cover_url
                     }
                   />
                 ) : (
@@ -2534,19 +2521,12 @@ export default function ProfileScreen() {
                             styles.pressed,
                         ]}
                       >
-                        {post.book_cover_url ? (
-                          <ExpoImage
-                            source={
-                              post.book_cover_url
-                            }
+                        {(post.google_book_id || post.book_cover_url) ? (
+                          <BookCoverImage
+                            googleBookId={post.google_book_id}
+                            existingCoverUrl={post.book_cover_url}
                             style={
                               styles.activityFeedBookCover
-                            }
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            transition={0}
-                            recyclingKey={
-                              post.book_cover_url
                             }
                           />
                         ) : (

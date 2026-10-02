@@ -1,3 +1,4 @@
+import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useLocalSearchParams,
@@ -40,12 +41,6 @@ import {
   searchNovoriBooks,
 } from '../lib/book-search';
 import {
-  resolveBestBookCover,
-} from '../lib/book-covers';
-import {
-  fetchGoogleBooksJson,
-} from '../lib/google-books';
-import {
   BookStackDraftItem,
   createBookStack,
   deleteBookStack,
@@ -66,152 +61,6 @@ const MIN_STACK_BOOKS = 2;
 const MIN_BOOK_SEARCH_LENGTH = 2;
 const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
 const BOOK_SEARCH_DELAY_MS = 700;
-
-const BOOK_STACK_DETAIL_MIN_WIDTH =
-  400;
-const BOOK_STACK_DETAIL_MIN_HEIGHT =
-  600;
-
-const bookStackCoverMemoryCache =
-  new Map<string, string>();
-
-async function getSelectedBookStackCatalogCover(
-  volumeId: string
-) {
-  try {
-    const {
-      data,
-      error,
-    } =
-      await supabase.functions.invoke(
-        'book-cover-selection',
-        {
-          body: {
-            volumeId,
-          },
-        }
-      );
-
-    if (error) {
-      return null;
-    }
-
-    const selection =
-      data as
-        | {
-            ok?: boolean;
-            data?: {
-              selectionStatus?:
-                | string
-                | null;
-              url?:
-                | string
-                | null;
-            };
-          }
-        | null;
-
-    if (
-      selection?.ok !==
-        true ||
-      selection.data
-        ?.selectionStatus !==
-        'selected'
-    ) {
-      return null;
-    }
-
-    return secureStackCoverUrl(
-      selection.data
-        ?.url
-    );
-  } catch {
-    return null;
-  }
-}
-
-function isDetailQualityStackCover(
-  resolution: {
-    url: string | null;
-    width: number | null;
-    height: number | null;
-  }
-) {
-  return Boolean(
-    resolution.url &&
-    resolution.width !==
-      null &&
-    resolution.height !==
-      null &&
-    resolution.width >=
-      BOOK_STACK_DETAIL_MIN_WIDTH &&
-    resolution.height >=
-      BOOK_STACK_DETAIL_MIN_HEIGHT
-  );
-}
-
-type BookStackSeriesResponse = {
-  series?: {
-    currentPosition?:
-      | number
-      | null;
-  } | null;
-  books?: {
-    position: number;
-    imageUrl?:
-      | string
-      | null;
-  }[];
-};
-
-function secureStackCoverUrl(
-  value?:
-    | string
-    | null
-) {
-  return (
-    value
-      ?.replace(
-        'http://',
-        'https://'
-      )
-      .trim() ||
-    null
-  );
-}
-
-function getStackBookIsbns(
-  book: GoogleBookSearchItem
-) {
-  return Array.from(
-    new Set(
-      (
-        book.volumeInfo
-          .industryIdentifiers ??
-        []
-      )
-        .map(
-          (
-            identifier
-          ) =>
-            identifier.identifier
-              ?.replace(
-                /[^0-9Xx]/g,
-                ''
-              )
-              .toUpperCase()
-        )
-        .filter(
-          (
-            isbn
-          ): isbn is string =>
-            Boolean(
-              isbn
-            )
-        )
-    )
-  );
-}
 
 function getStackBookPrimaryIsbn(
   book: GoogleBookSearchItem
@@ -242,263 +91,13 @@ function getStackBookPrimaryIsbn(
   );
 }
 
-async function resolveBookStackPreviewCover(
-  book: GoogleBookSearchItem,
-  initialCover:
-    | string
-    | null
-) {
-  const cachedCover =
-    bookStackCoverMemoryCache.get(
-      book.id
-    );
-
-  if (
-    cachedCover
-  ) {
-    return cachedCover;
-  }
-
-  const canonicalCover =
-    secureStackCoverUrl(
-      book.novoriWork
-        ?.canonicalCoverUrl
-    );
-
-  if (
-    canonicalCover
-  ) {
-    bookStackCoverMemoryCache.set(
-      book.id,
-      canonicalCover
-    );
-
-    return canonicalCover;
-  }
-
-  const catalogCover =
-    await getSelectedBookStackCatalogCover(
-      book.id
-    );
-
-  if (
-    catalogCover
-  ) {
-    bookStackCoverMemoryCache.set(
-      book.id,
-      catalogCover
-    );
-
-    return catalogCover;
-  }
-
-  const searchResolution =
-    await resolveBestBookCover({
-      imageLinks:
-        book.volumeInfo
-          .imageLinks,
-      isbn:
-        getStackBookPrimaryIsbn(
-          book
-        ),
-      existingCoverUrl:
-        initialCover,
-    });
-
-  if (
-    isDetailQualityStackCover(
-      searchResolution
-    ) &&
-    searchResolution.url
-  ) {
-    bookStackCoverMemoryCache.set(
-      book.id,
-      searchResolution.url
-    );
-
-    return searchResolution.url;
-  }
-
-  let detailBook =
-    book;
-
-  try {
-    const detail =
-      await fetchGoogleBooksJson<
-        GoogleBookSearchItem
-      >(
-        `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
-          book.id
-        )}`
-      );
-
-    if (
-      detail.ok &&
-      detail.data
-    ) {
-      detailBook =
-        detail.data;
-    }
-  } catch (
-    error
-  ) {
-    console.warn(
-      'Could not load Book Stack detail metadata:',
-      error
-    );
-  }
-
-  if (
-    detailBook.id !==
-    book.id
-  ) {
-    const detailCatalogCover =
-      await getSelectedBookStackCatalogCover(
-        detailBook.id
-      );
-
-    if (
-      detailCatalogCover
-    ) {
-      bookStackCoverMemoryCache.set(
-        book.id,
-        detailCatalogCover
-      );
-
-      return detailCatalogCover;
-    }
-  }
-
-  const detailResolution =
-    await resolveBestBookCover({
-      imageLinks:
-        detailBook.volumeInfo
-          .imageLinks,
-      isbn:
-        getStackBookPrimaryIsbn(
-          detailBook
-        ),
-      existingCoverUrl:
-        searchResolution.url ??
-        initialCover,
-    });
-
-  if (
-    isDetailQualityStackCover(
-      detailResolution
-    ) &&
-    detailResolution.url
-  ) {
-    bookStackCoverMemoryCache.set(
-      book.id,
-      detailResolution.url
-    );
-
-    return detailResolution.url;
-  }
-
-  try {
-    const isbns =
-      getStackBookIsbns(
-        detailBook
-      );
-
-    const {
-      data,
-      error,
-    } =
-      await supabase.functions.invoke(
-        'hardcover-series',
-        {
-          body: {
-            googleBookId:
-              detailBook.id,
-            isbn:
-              getStackBookPrimaryIsbn(
-                detailBook
-              ) ??
-              isbns[0] ??
-              null,
-            isbns,
-            title:
-              detailBook.volumeInfo
-                .title ??
-              '',
-            authors:
-              detailBook.volumeInfo
-                .authors ??
-              [],
-          },
-        }
-      );
-
-    if (!error) {
-      const response =
-        data as
-          BookStackSeriesResponse;
-
-      const currentPosition =
-        response.series
-          ?.currentPosition;
-
-      const currentSeriesBook =
-        currentPosition !==
-          null &&
-        currentPosition !==
-          undefined
-          ? (
-              response.books ??
-              []
-            ).find(
-              (
-                seriesBook
-              ) =>
-                seriesBook.position ===
-                currentPosition
-            )
-          : null;
-
-      const seriesCover =
-        secureStackCoverUrl(
-          currentSeriesBook
-            ?.imageUrl
-        );
-
-      if (
-        seriesCover
-      ) {
-        bookStackCoverMemoryCache.set(
-          book.id,
-          seriesCover
-        );
-
-        return seriesCover;
-      }
-    }
-  } catch (
-    error
-  ) {
-    console.warn(
-      'Could not load Book Stack series cover:',
-      error
-    );
-  }
-
-  const fallbackCover =
-    detailResolution.url ??
-    searchResolution.url ??
-    initialCover;
-
-  if (
-    fallbackCover
-  ) {
-    bookStackCoverMemoryCache.set(
-      book.id,
-      fallbackCover
-    );
-  }
-
-  return fallbackCover;
+async function resolveBookStackPreviewCover(book: GoogleBookSearchItem, initialCover: string | null) {
+  return resolveCanonicalBookCover({
+    googleBookId: book.id,
+    isbn: getStackBookPrimaryIsbn(book),
+    imageLinks: book.volumeInfo.imageLinks,
+    existingCoverUrl: book.novoriWork?.canonicalCoverUrl ?? initialCover,
+  });
 }
 
 export default function CreateBookStackScreen() {
@@ -1019,7 +618,7 @@ export default function CreateBookStackScreen() {
             ]
     );
 
-    let finalCover =
+    let finalCover: string | null =
       initialCover;
 
     try {
@@ -2601,8 +2200,9 @@ export default function CreateBookStackScreen() {
                         styles.searchResultPressed,
                     ]}
                   >
-                    {cover ? (
+                    {(book.id || cover) ? (
                       <BookCoverImage
+                        googleBookId={book.id}
                         imageLinks={
                           info.imageLinks
                         }
@@ -2611,11 +2211,6 @@ export default function CreateBookStackScreen() {
                         }
                         existingCoverUrl={
                           canonicalCover
-                        }
-                        preferExistingCover={
-                          Boolean(
-                            canonicalCover
-                          )
                         }
                         style={
                           styles.resultCover

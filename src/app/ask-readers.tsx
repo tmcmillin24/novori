@@ -616,9 +616,10 @@ export default function AskReadersScreen() {
 
           {attachedBook ? (
             <View style={styles.attachedBook}>
-              {attachedBook.coverUrl ? (
-                <Image
-                  source={{ uri: attachedBook.coverUrl }}
+              {(attachedBook.id || attachedBook.coverUrl) ? (
+                <BookCoverImage
+                  googleBookId={attachedBook.id}
+                  existingCoverUrl={attachedBook.coverUrl}
                   style={styles.bookCover}
                 />
               ) : (
@@ -1008,12 +1009,10 @@ export default function AskReadersScreen() {
                       styles.pressed,
                   ]}
                 >
-                  {attachedBook.coverUrl ? (
-                    <Image
-                      source={{
-                        uri:
-                          attachedBook.coverUrl,
-                      }}
+                  {(attachedBook.id || attachedBook.coverUrl) ? (
+                    <BookCoverImage
+                      googleBookId={attachedBook.id}
+                      existingCoverUrl={attachedBook.coverUrl}
                       style={styles.feedPreviewBookCover}
                     />
                   ) : (
@@ -1282,8 +1281,9 @@ export default function AskReadersScreen() {
                     pressed && styles.destinationOptionPressed,
                   ]}
                 >
-                  {cover ? (
+                  {(item.id || cover) ? (
                     <BookCoverImage
+                      googleBookId={item.id}
                       imageLinks={
                         item.volumeInfo
                           .imageLinks
@@ -1293,11 +1293,6 @@ export default function AskReadersScreen() {
                       }
                       existingCoverUrl={
                         canonicalCover
-                      }
-                      preferExistingCover={
-                        Boolean(
-                          canonicalCover
-                        )
                       }
                       style={
                         styles.resultCover
