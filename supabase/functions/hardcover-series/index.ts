@@ -558,7 +558,6 @@ Deno.serve(async (req) => {
     ) {
       if (
         !supabaseAdmin ||
-        !requestedGoogleBookId ||
         !payload?.series ||
         !Array.isArray(payload?.books)
       ) {
@@ -593,32 +592,178 @@ Deno.serve(async (req) => {
         return;
       }
 
-      const {
-        data: edition,
-        error: editionError,
-      } =
-        await supabaseAdmin
-          .from("book_editions")
-          .select("id, work_id")
-          .eq("provider", "google_books")
-          .eq(
-            "provider_book_id",
-            requestedGoogleBookId
-          )
-          .maybeSingle();
+      const seriesIsbns =
+        Array.isArray(
+          currentSeriesBook?.isbns
+        )
+          ? currentSeriesBook.isbns
+              .map((value: unknown) =>
+                String(value ?? "")
+                  .replace(/[^0-9Xx]/g, "")
+                  .toUpperCase()
+              )
+              .filter(Boolean)
+          : [];
 
-      if (
-        editionError ||
-        !edition?.id ||
-        !edition?.work_id
-      ) {
-        if (editionError) {
+      const matchingIsbns =
+        Array.from(
+          new Set([
+            ...requestedIsbns,
+            ...seriesIsbns,
+          ])
+        );
+
+      let edition:
+        | {
+            id: string;
+            work_id: string;
+            provider_book_id: string;
+          }
+        | null =
+        null;
+
+      if (requestedGoogleBookId) {
+        const {
+          data,
+          error,
+        } =
+          await supabaseAdmin
+            .from("book_editions")
+            .select(
+              "id, work_id, provider_book_id"
+            )
+            .eq("provider", "google_books")
+            .eq(
+              "provider_book_id",
+              requestedGoogleBookId
+            )
+            .maybeSingle();
+
+        if (error) {
           console.warn(
-            "Could not resolve Novori edition for verified Hardcover cover:",
-            editionError.message
+            "Could not resolve exact Google edition for verified Hardcover cover:",
+            error.message
           );
+        } else if (
+          data?.id &&
+          data?.work_id &&
+          data?.provider_book_id
+        ) {
+          edition =
+            data as {
+              id: string;
+              work_id: string;
+              provider_book_id: string;
+            };
         }
+      }
 
+      if (!edition) {
+        const isbn13s =
+          matchingIsbns.filter(
+            (isbn) =>
+              isbn.length === 13
+          );
+
+        if (isbn13s.length > 0) {
+          const {
+            data,
+            error,
+          } =
+            await supabaseAdmin
+              .from("book_editions")
+              .select(
+                "id, work_id, provider_book_id"
+              )
+              .eq("provider", "google_books")
+              .in(
+                "isbn_13",
+                isbn13s
+              )
+              .order(
+                "detail_complete",
+                {
+                  ascending: false,
+                }
+              )
+              .limit(1)
+              .maybeSingle();
+
+          if (error) {
+            console.warn(
+              "Could not resolve ISBN-13 edition for verified Hardcover cover:",
+              error.message
+            );
+          } else if (
+            data?.id &&
+            data?.work_id &&
+            data?.provider_book_id
+          ) {
+            edition =
+              data as {
+                id: string;
+                work_id: string;
+                provider_book_id: string;
+              };
+          }
+        }
+      }
+
+      if (!edition) {
+        const isbn10s =
+          matchingIsbns.filter(
+            (isbn) =>
+              isbn.length === 10
+          );
+
+        if (isbn10s.length > 0) {
+          const {
+            data,
+            error,
+          } =
+            await supabaseAdmin
+              .from("book_editions")
+              .select(
+                "id, work_id, provider_book_id"
+              )
+              .eq("provider", "google_books")
+              .in(
+                "isbn_10",
+                isbn10s
+              )
+              .order(
+                "detail_complete",
+                {
+                  ascending: false,
+                }
+              )
+              .limit(1)
+              .maybeSingle();
+
+          if (error) {
+            console.warn(
+              "Could not resolve ISBN-10 edition for verified Hardcover cover:",
+              error.message
+            );
+          } else if (
+            data?.id &&
+            data?.work_id &&
+            data?.provider_book_id
+          ) {
+            edition =
+              data as {
+                id: string;
+                work_id: string;
+                provider_book_id: string;
+              };
+          }
+        }
+      }
+
+      if (!edition) {
+        console.info(
+          "Verified Hardcover series cover has no matching Novori Google edition yet."
+        );
         return;
       }
 
@@ -639,7 +784,7 @@ Deno.serve(async (req) => {
           .upsert(
             {
               candidate_key:
-                `hardcover:${hardcoverBookId}:${requestedGoogleBookId}:series_verified`,
+                `hardcover:${hardcoverBookId}:${edition.provider_book_id}:series_verified`,
               work_id:
                 edition.work_id,
               edition_id:
@@ -659,13 +804,17 @@ Deno.serve(async (req) => {
               discovery_source:
                 "hardcover_series_verified",
               source_metadata: {
-                googleBookId:
-                  requestedGoogleBookId,
+                requestedGoogleBookId:
+                  requestedGoogleBookId || null,
+                linkedGoogleBookId:
+                  edition.provider_book_id,
                 hardcoverBookId,
                 seriesId:
                   payload.series.id ?? null,
                 seriesPosition:
                   currentPosition,
+                matchedIsbns:
+                  matchingIsbns,
               },
               last_seen_at:
                 now,
@@ -691,7 +840,6 @@ Deno.serve(async (req) => {
         ]
       );
     }
-
 
     const cachedHardcoverSeries =
 
