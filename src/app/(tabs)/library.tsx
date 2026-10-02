@@ -359,38 +359,6 @@ const LibraryBookCard = memo(
           ) : null}
         </View>
 
-        {item.rating !==
-        null ? (
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <Ionicons
-              name="star"
-              size={13}
-              color={
-                goldColor
-              }
-            />
-
-            <Text
-              style={
-                styles.ratingText
-              }
-            >
-              {
-                item.rating
-              }
-            </Text>
-          </View>
-        ) : (
-          <View
-            style={
-              styles.ratingSpacer
-            }
-          />
-        )}
       </Pressable>
     );
   }
@@ -3693,25 +3661,6 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       fontSize: 11,
-    },
-
-    ratingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 6,
-    },
-
-    ratingText: {
-      color: colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 11,
-      marginLeft: 4,
-    },
-
-    ratingSpacer: {
-      height: 19,
-      marginTop: 6,
     },
 
     emptyState: {
