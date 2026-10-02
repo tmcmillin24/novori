@@ -277,14 +277,20 @@ test.each([
   ['Reading Update', CreateReadingUpdateScreen],
   ['Ask Readers', AskReadersScreen],
   ['Book Stack', CreateBookStackScreen],
-])('%s shows the reader photo in the selected feed bar and dropdown', async (_, Screen) => {
+])('%s keeps the reader photo in the dropdown and hides it from the selected feed bar', async (_, Screen) => {
   await renderScreen(Screen);
   const picker = view.root.findByType(PostDestinationPicker);
-  expect(picker.findByType('ExpoImage').props.source.uri).toBe('https://profiles/reader.jpg');
+  expect(picker.findAllByType('ExpoImage')).toHaveLength(0);
   await press('Post to Your feed');
   const feedOption = button('Choose Your feed');
   expect(feedOption.findByType('ExpoImage').props.source.uri).toBe('https://profiles/reader.jpg');
   expect(feedOption.findByType('ExpoImage').props.cachePolicy).toBe('memory-disk');
+  await press('Choose Our readers');
+  expect(picker.findByType('ExpoImage').props.source.uri).toBe('https://clubs/our-readers.jpg');
+  await press('Post to Our readers');
+  await press('Choose Your feed');
+  expect(picker.findAllByType('ExpoImage')).toHaveLength(0);
+  expect(view.root.findAllByType('Image').filter((node) => node.props.source?.uri === 'https://profiles/reader.jpg')).toHaveLength(1);
 });
 
 test.each(['Save stack to profile without posting', 'Save and publish Book Stack'])('%s uses dismissible animated validation warnings and preserves the draft', async (action) => {

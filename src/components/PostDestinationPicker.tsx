@@ -57,9 +57,11 @@ export default function PostDestinationPicker({
         onPress={() => setExpanded((current) => !current)}
         style={({ pressed }) => [styles.bar, expanded && styles.barOpen, pressed && styles.pressed]}
       >
-        <View style={styles.image}>
-          {clubId ? <ClubDestinationImage club={selectedClub ?? { name: title, cover_url: null }} size={42} /> : feedPhoto(42)}
-        </View>
+        {clubId ? (
+          <View style={styles.image}>
+            <ClubDestinationImage club={selectedClub ?? { name: title, cover_url: null }} size={42} />
+          </View>
+        ) : null}
         <View style={styles.copy}>
           <Text style={styles.eyebrow}>POST TO</Text>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
