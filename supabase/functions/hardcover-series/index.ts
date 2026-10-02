@@ -639,7 +639,7 @@ Deno.serve(async (req) => {
           .upsert(
             {
               candidate_key:
-                `hardcover:${hardcoverBookId}:series_verified`,
+                `hardcover:${hardcoverBookId}:${requestedGoogleBookId}:series_verified`,
               work_id:
                 edition.work_id,
               edition_id:
