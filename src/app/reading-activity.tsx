@@ -683,7 +683,7 @@ export default function ReadingActivityScreen() {
           loadError
         ) {
           console.error(
-            'Could not load reading activity:',
+            'Could not load reading tracker:',
             loadError
           );
 
@@ -1070,7 +1070,7 @@ export default function ReadingActivityScreen() {
                   styles.headingCompact,
               ]}
             >
-              Reading Activity
+              Reading Tracker
             </Text>
 
             <Text
@@ -1643,7 +1643,7 @@ export default function ReadingActivityScreen() {
                           >
                             {selectedDay.checkedIn
                               ? 'READING DAY'
-                              : 'READING ACTIVITY'}
+                              : 'READING TRACKER'}
                           </Text>
                         </View>
 
