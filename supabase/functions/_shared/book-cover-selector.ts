@@ -596,7 +596,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                   .detail_complete ??
                 null,
               rule:
-                'Prefer exact verified Hardcover series artwork when available; otherwise use strong eligible Google candidates. Locked selections are never changed.',
+                'Use verified Hardcover series artwork ahead of weaker Google candidates, while preserving Google extraLarge and all locked selections.',
             },
             selected_at:
               selected
