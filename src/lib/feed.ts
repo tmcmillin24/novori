@@ -535,8 +535,15 @@ export async function createPost(input: {
   const body =
     input.body.trim();
 
+  const allowsEmptyBody =
+    input.postType ===
+    'book_stack';
+
   if (
-    body.length < 1 ||
+    (
+      !allowsEmptyBody &&
+      body.length < 1
+    ) ||
     body.length > 4000
   ) {
     throw new Error(
@@ -603,6 +610,7 @@ export async function updatePost(
   postId: string,
   input: {
     body: string;
+    allowEmptyBody?: boolean;
     clubId?: string | null;
     googleBookId?: string | null;
     bookTitle?: string | null;
@@ -620,7 +628,10 @@ export async function updatePost(
     input.body.trim();
 
   if (
-    body.length < 1 ||
+    (
+      !input.allowEmptyBody &&
+      body.length < 1
+    ) ||
     body.length > 4000
   ) {
     throw new Error(
