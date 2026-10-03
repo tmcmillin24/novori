@@ -996,6 +996,17 @@ export default function ProfileReadingModule({
             }
           />
         </Pressable>
+        <View style={styles.destinationDivider} />
+        <Pressable onPress={() => router.push('/reading-goals')}
+          style={({ pressed }) => [styles.destination, pressed && styles.pressed]}
+          accessibilityRole="button" accessibilityLabel="Open Reading Goals">
+          <View style={styles.destinationIcon}><Ionicons name="flag-outline" size={18} color={colors.gold} /></View>
+          <View style={styles.destinationCopy}>
+            <Text style={styles.destinationTitle}>Reading Goals</Text>
+            <Text style={styles.destinationSubtitle}>Your annual and monthly book targets</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
+        </Pressable>
       </View>
 
       <DailyCheckinSheet
