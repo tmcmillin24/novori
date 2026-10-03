@@ -1,5 +1,6 @@
 import ClubEventCard from '../../components/ClubEventCard';
 import ClubEventsBoard from '../../components/ClubEventsBoard';
+import ClubBooksBoard from '../../components/ClubBooksBoard';
 import useEventClock from '../../hooks/use-event-clock';
 import { getClubEvents } from '../../lib/club-events';
 import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
@@ -528,7 +529,8 @@ export default function ClubDetailScreen() {
       null
     );
 
-  const [clubTab,setClubTab] = useState<'posts'|'events'>('posts');
+  const [clubTab,setClubTab] = useState<'posts'|'events'|'books'>('posts');
+  const [booksRefreshVersion,setBooksRefreshVersion] = useState(0);
   const [upcomingEvents,setUpcomingEvents] = useState<ClubEvent[]>([]);
   const [pinnedPosts,setPinnedPosts] = useState<FeedPost[]>([]);
   const [pinTarget,setPinTarget] = useState<FeedPost | null>(null);
@@ -553,7 +555,8 @@ export default function ClubDetailScreen() {
   pinClubIdRef.current = clubId;
 
   useEffect(() => {
-    setClubTab((params as {tab?:string}).tab === 'events' ? 'events' : 'posts');
+    const tab = (params as {tab?:string}).tab;
+    setClubTab(tab === 'books' ? 'books' : tab === 'events' ? 'events' : 'posts');
     setUpcomingEvents([]);setPinnedPosts([]); setPinTarget(null);
     setClubMenuVisible(false); setRulesExpanded(false); setMembersVisible(false); setManagementVisible(false);
     setInvitePanelOpen(false); pendingMemberScroll.current = false;
@@ -683,6 +686,7 @@ export default function ClubDetailScreen() {
         );
         setPinnedPosts(pinnedData);
         setUpcomingEvents(eventData);
+        setBooksRefreshVersion(version=>version+1);
         setPendingInvite(
           pendingInviteData
         );
@@ -5546,8 +5550,8 @@ export default function ClubDetailScreen() {
 
         </View> : null}
 
-        <View style={styles.clubTabBar}>{(['posts','events'] as const).map(tab=><Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab==='posts'?'Club Posts tab':'Club Events tab'} accessibilityState={{selected:clubTab===tab}} onPress={()=>setClubTab(tab)} style={[styles.clubTab,clubTab===tab&&styles.clubTabSelected]}><Ionicons name={tab==='posts'?'chatbubbles-outline':'calendar-outline'} size={16} color={clubTab===tab?colors.gold:colors.mutedText}/><Text style={[styles.clubTabText,clubTab===tab&&{color:colors.gold}]}>{tab==='posts'?'Posts':'Events'}</Text></Pressable>)}</View>
-        {clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow}/> : <>
+        <View style={styles.clubTabBar}>{(['posts','events','books'] as const).map(tab=><Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab==='posts'?'Club Posts tab':tab==='events'?'Club Events tab':'Club Books tab'} accessibilityState={{selected:clubTab===tab}} onPress={()=>setClubTab(tab)} style={[styles.clubTab,clubTab===tab&&styles.clubTabSelected]}><Ionicons name={tab==='posts'?'chatbubbles-outline':tab==='events'?'calendar-outline':'book-outline'} size={16} color={clubTab===tab?colors.gold:colors.mutedText}/><Text style={[styles.clubTabText,clubTab===tab&&{color:colors.gold}]}>{tab==='posts'?'Posts':tab==='events'?'Events':'Books'}</Text></Pressable>)}</View>
+        {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow}/> : <>
         {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={()=>router.push({pathname:'/club-event/[id]',params:{id:nextEvent.id}})}/> : null}
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy}
           onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}

@@ -8,6 +8,7 @@ import ClubOptionsSheet from '../src/components/ClubOptionsSheet';
 import { getClub, getClubMembers, getPendingClubInvitesForManager, updateClub, createClub } from '../src/lib/clubs';
 import { getClubPosts } from '../src/lib/feed';
 import { getClubEvents } from '../src/lib/club-events';
+import { getClubReads } from '../src/lib/club-reads';
 import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/club-posts';
 
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
@@ -38,11 +39,13 @@ jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),upl
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
 jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn()}));
 jest.mock('../src/lib/club-events',()=>({getClubEvents:jest.fn(),CLUB_EVENTS_PAGE_SIZE:20}));
+jest.mock('../src/lib/club-reads',()=>({getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
 jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();getClub.mockResolvedValue(base);
+  getClubReads.mockResolvedValue({current:null,upcoming:[],past:[],upcoming_more:false,past_more:false});
   getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person',username:'owner',avatar_url:null},{user_id:'member',role:'member',display_name:'Member Reader',username:'member',avatar_url:null}]);
   updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getClubEvents.mockResolvedValue([]);getClubConversation.mockImplementation(async()=>({posts:await getClubPosts(),pinnedPosts:[]}));getClubPins.mockResolvedValue([]);setClubPostPin.mockResolvedValue();getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
 });
@@ -78,6 +81,7 @@ test('rules expand in the home card and remain owner-editable',async()=>{
 test('private visitors see rules but no members, posts or management actions',async()=>{
   getClub.mockResolvedValue({...base,privacy:'private',membership_role:null});await render();
   expect(getClubMembers).not.toHaveBeenCalled();expect(getClubPosts).not.toHaveBeenCalled();expect(getClubEvents).not.toHaveBeenCalled();expect(getPendingClubInvitesForManager).not.toHaveBeenCalled();
+  expect(getClubReads).not.toHaveBeenCalled();expect(button('Club Books tab')).toBeUndefined();
   await press('Open club options');expect(button('Members')).toBeUndefined();expect(button('Edit club')).toBeUndefined();expect(button('Manage members & invitations')).toBeUndefined();
   await press('Club rules');expect(text()).toContain('Label spoilers.');expect(button('Edit club rules')).toBeUndefined();
 });
@@ -146,4 +150,9 @@ test('club tabs keep posts and events separate and managers can create events',a
   await render();await press('Club Events tab');expect(button('Create club event')).toBeDefined();expect(button('Create club announcement')).toBeUndefined();
   await press('Create club event');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-event',params:{clubId:'club-1'}});
   await press('Club Posts tab');expect(button('Create club announcement')).toBeDefined();expect(getClubEvents).toHaveBeenCalledTimes(1);
+});
+test('books tab loads the shared lineup only when opened and provides manager controls',async()=>{
+  await render();expect(getClubReads).not.toHaveBeenCalled();await press('Club Books tab');expect(getClubReads).toHaveBeenCalledTimes(1);
+  expect(button('Add club read')).toBeDefined();expect(button('Create club announcement')).toBeUndefined();expect(button('Create club event')).toBeUndefined();
+  await press('Choose current club read');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/edit-club-read',params:{clubId:'club-1',status:'current'}});
 });
