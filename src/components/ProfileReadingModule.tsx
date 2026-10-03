@@ -580,11 +580,9 @@ export default function ProfileReadingModule({
 
   return (
     <>
-      <View
-        style={
-          styles.card
-        }
-      >
+      <View style={styles.cardShadow}><View style={styles.card}>
+        <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.cardAccent} />
+        <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.cardGlow} />
         <View
           style={
             styles.topRow
@@ -628,15 +626,7 @@ export default function ProfileReadingModule({
             </View>
           </View>
 
-          <Ionicons
-            name="book-outline"
-            size={
-              21
-            }
-            color={
-              colors.gold
-            }
-          />
+          <View style={styles.moduleMark}><Ionicons name="book-outline" size={21} color={colors.gold} /></View>
         </View>
 
         {checkinState
@@ -855,159 +845,40 @@ export default function ProfileReadingModule({
           </Text>
         ) : null}
 
-        <View
-          style={
-            styles.sectionDivider
-          }
-        />
-
-        <Pressable
-          onPress={() =>
-            router.push(
-              '/reading-activity'
-            )
-          }
-          style={({
-            pressed,
-          }) => [
-            styles.destination,
-            pressed &&
-              styles.pressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Open Reading Tracker"
-        >
-          <View
-            style={
-              styles.destinationIcon
-            }
-          >
-            <Ionicons
-              name="calendar-outline"
-              size={
-                18
-              }
-              color={
-                colors.gold
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.destinationCopy
-            }
-          >
-            <Text
-              style={
-                styles.destinationTitle
-              }
-            >
-              Reading Tracker
-            </Text>
-
-            <Text
-              style={
-                styles.destinationSubtitle
-              }
-            >
-              See your reading days in motion
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={
-              18
-            }
-            color={
-              colors.mutedText
-            }
-          />
-        </Pressable>
-
-        <View
-          style={
-            styles.destinationDivider
-          }
-        />
-
-        <Pressable
-          onPress={() =>
-            router.push(
-              '/reading-recaps'
-            )
-          }
-          style={({
-            pressed,
-          }) => [
-            styles.destination,
-            pressed &&
-              styles.pressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Open Reading Recaps"
-        >
-          <View
-            style={
-              styles.destinationIcon
-            }
-          >
-            <Ionicons
-              name="sparkles-outline"
-              size={
-                18
-              }
-              color={
-                colors.gold
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.destinationCopy
-            }
-          >
-            <Text
-              style={
-                styles.destinationTitle
-              }
-            >
-              Reading Recaps
-            </Text>
-
-            <Text
-              style={
-                styles.destinationSubtitle
-              }
-            >
-              Your weeks and months in motion
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={
-              18
-            }
-            color={
-              colors.mutedText
-            }
-          />
-        </Pressable>
-        <View style={styles.destinationDivider} />
-        <Pressable onPress={() => router.push('/reading-goals')}
+        <View style={styles.sectionDivider} />
+        <Pressable onPress={() => router.push('/reading-activity')}
           style={({ pressed }) => [styles.destination, pressed && styles.pressed]}
-          accessibilityRole="button" accessibilityLabel="Open Reading Goals">
-          <View style={styles.destinationIcon}><Ionicons name="flag-outline" size={18} color={colors.gold} /></View>
+          accessibilityRole="button" accessibilityLabel="Open Reading Tracker">
+          <View style={styles.destinationIcon}><Ionicons name="calendar-outline" size={18} color={colors.gold} /></View>
           <View style={styles.destinationCopy}>
-            <Text style={styles.destinationTitle}>Reading Goals</Text>
-            <Text style={styles.destinationSubtitle}>Your annual and monthly book targets</Text>
+            <Text style={styles.destinationTitle}>Reading Tracker</Text>
+            <Text style={styles.destinationSubtitle}>See your reading days in motion</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
         </Pressable>
-      </View>
+        <View style={styles.destinationPair}>
+          <Pressable onPress={() => router.push('/reading-recaps')}
+            style={({ pressed }) => [styles.destinationTile, pressed && styles.pressed]}
+            accessibilityRole="button" accessibilityLabel="Open Reading Recaps">
+            <View style={styles.destinationTileTop}>
+              <View style={[styles.destinationIcon, styles.tileIcon]}><Ionicons name="sparkles-outline" size={17} color={colors.gold} /></View>
+              <Ionicons name="chevron-forward" size={15} color={colors.mutedText} />
+            </View>
+            <Text style={styles.destinationTileTitle}>Reading Recaps</Text>
+            <Text style={styles.destinationTileSubtitle}>Weeks &amp; months</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/reading-goals')}
+            style={({ pressed }) => [styles.destinationTile, pressed && styles.pressed]}
+            accessibilityRole="button" accessibilityLabel="Open Reading Goals">
+            <View style={styles.destinationTileTop}>
+              <View style={[styles.destinationIcon, styles.tileIcon]}><Ionicons name="flag-outline" size={17} color={colors.gold} /></View>
+              <Ionicons name="chevron-forward" size={15} color={colors.mutedText} />
+            </View>
+            <Text style={styles.destinationTileTitle}>Reading Goals</Text>
+            <Text style={styles.destinationTileSubtitle}>Annual &amp; monthly</Text>
+          </Pressable>
+        </View>
+      </View></View>
 
       <DailyCheckinSheet
         visible={
@@ -1066,20 +937,13 @@ function createStyles(
     NovoriColors
 ) {
   return StyleSheet.create({
-    card: {
-      backgroundColor:
-        colors.surface,
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        18,
-      padding:
-        14,
-      marginTop:
-        12,
-    },
+    cardShadow: { marginTop: 12, borderRadius: 18, backgroundColor: colors.surface,
+      shadowColor: '#000000', shadowOpacity: 0.13, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+    card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: `${colors.gold}40`, borderRadius: 18, padding: 14, overflow: 'hidden' },
+    cardAccent: { position: 'absolute', top: 0, left: 16, right: 16, height: 2, borderRadius: 2, backgroundColor: colors.gold, opacity: 0.85 },
+    cardGlow: { position: 'absolute', top: -55, right: -35, width: 160, height: 160, borderRadius: 80, backgroundColor: colors.gold, opacity: 0.035 },
+    moduleMark: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, borderColor: `${colors.gold}40`,
+      backgroundColor: `${colors.gold}16`, alignItems: 'center', justifyContent: 'center' },
 
     topRow: {
       flexDirection:
@@ -1094,7 +958,7 @@ function createStyles(
 
     eyebrow: {
       color:
-        colors.mutedText,
+        colors.gold,
       fontFamily:
         'Inter_700Bold',
       fontSize:
@@ -1304,69 +1168,19 @@ function createStyles(
         4,
     },
 
-    destination: {
-      minHeight:
-        58,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingVertical:
-        8,
-    },
-
-    destinationIcon: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        11,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight:
-        11,
-    },
-
-    destinationCopy: {
-      flex:
-        1,
-      paddingRight:
-        8,
-    },
-
-    destinationTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12.5,
-    },
-
-    destinationSubtitle: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize:
-        10.5,
-      marginTop:
-        2,
-    },
-
-    destinationDivider: {
-      height:
-        1,
-      backgroundColor:
-        colors.border,
-      marginLeft:
-        45,
-    },
+    destination: { minHeight: 60, flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10,
+      backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 13 },
+    destinationIcon: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, borderColor: `${colors.gold}30`,
+      backgroundColor: `${colors.gold}12`, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+    destinationCopy: { flex: 1, paddingRight: 8 },
+    destinationTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12.5 },
+    destinationSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, marginTop: 2 },
+    destinationPair: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 8 },
+    destinationTile: { flex: 1, minWidth: 0, padding: 10, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+    destinationTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+    tileIcon: { width: 30, height: 30, borderRadius: 10, marginRight: 0 },
+    destinationTileTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16, marginTop: 7 },
+    destinationTileSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 9.5, lineHeight: 14, marginTop: 2 },
 
     pressed: {
       opacity:

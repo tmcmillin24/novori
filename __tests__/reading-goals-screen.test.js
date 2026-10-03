@@ -28,6 +28,13 @@ jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView
 jest.mock('../src/context/theme-context', () => ({
   useNovoriTheme: () => ({ colors: require('../src/constants/novori-theme').DARK_COLORS }),
 }));
+jest.mock('../src/components/ReadingGoalActionsSheet', () => ({ visible, title, onEdit, onRemove, onDismiss }) => {
+  if (!visible) return null;
+  const React = require('react');
+  return React.createElement('GoalActionsSheet', {},
+    React.createElement('Pressable', { accessibilityLabel: `Edit ${title}`, onPress: () => { onDismiss(); onEdit(); } }),
+    React.createElement('Pressable', { accessibilityLabel: `Remove ${title}`, onPress: () => { onDismiss(); onRemove(); } }));
+});
 jest.mock('../src/components/BookCoverImage', () => 'BookCoverImage');
 jest.mock('../src/lib/reading-goal-books', () => ({ getReadingGoalBooks: jest.fn() }));
 jest.mock('../src/components/ValidationWarningSheet', () => 'ValidationWarningSheet');
@@ -97,10 +104,10 @@ test('invalid goals use the shared animated warning component without sending a 
 
 test('removing the monthly target leaves annual progress and finished-book counts visible', async () => {
   targets.set(key('annual','2026-01-01'),24); targets.set(key('monthly','2026-10-01'),3);
-  await render(); await press('Remove Monthly Goal');
+  await render(); await press('Options for Monthly Goal'); await press('Remove Monthly Goal');
   expect(removeReadingGoal).toHaveBeenCalledWith('monthly','2026-10-01');
   expect(field('Monthly Goal book target')).toBeDefined();
-  expect(button('Edit Annual Goal')).toBeDefined();
+  expect(button('Options for Annual Goal')).toBeDefined();
   const bars = view.root.findAllByType('View').filter(node => node.props.accessibilityRole === 'progressbar');
   expect(bars).toHaveLength(1); expect(bars[0].props.accessibilityValue.text).toBe('4 of 24 books');
 });
@@ -162,4 +169,20 @@ test('a late cover response for a different shelf cannot show the wrong book', a
   const covers = view.root.findAllByType('BookCoverImage');
   expect(covers.some(node => node.props.googleBookId === 'current-shelf-book')).toBe(true);
   expect(covers.some(node => node.props.googleBookId === 'old-shelf-book')).toBe(false);
+});
+
+
+test('the more menu keeps actions tucked away and can edit the selected goal', async () => {
+  targets.set(key('annual','2026-01-01'),24);
+  await render();
+  expect(button('Edit Annual Goal')).toBeUndefined();
+  expect(button('Remove Annual Goal')).toBeUndefined();
+  const summary = view.root.findAllByType('Text').find(node => node.props.accessibilityLabel === '4/24 books read');
+  expect(summary.props.numberOfLines).toBe(1);
+  expect(summary.props.style.textAlign).toBe('center');
+  await press('Options for Annual Goal'); await press('Edit Annual Goal');
+  expect(field('Annual Goal book target').props.value).toBe('24');
+  await fill('Annual Goal book target','26'); await press('Save Annual Goal');
+  expect(saveReadingGoal).toHaveBeenCalledWith('annual','2026-01-01',26);
+  expect(button('Remove Annual Goal')).toBeUndefined();
 });

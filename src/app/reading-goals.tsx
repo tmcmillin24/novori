@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ReadingGoalActionsSheet from '../components/ReadingGoalActionsSheet';
 import BookCoverImage from '../components/BookCoverImage';
 import { getReadingGoalBooks, ReadingGoalBook } from '../lib/reading-goal-books';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
@@ -137,6 +138,7 @@ function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShi
   const { colors } = useNovoriTheme();
   const styles = createStyles(colors);
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [draft, setDraft] = useState('');
   useEffect(() => { if (!editing) setDraft(goal?.targetBooks?.toString() ?? ''); }, [goal?.targetBooks, editing]);
   const title = kind === 'annual' ? 'Annual Goal' : 'Monthly Goal';
@@ -146,7 +148,7 @@ function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShi
   const display = goal ? getGoalProgressDisplay(goal) : null;
   const showEditor = goal !== null && (editing || goal.targetBooks === null);
 
-  return <View style={styles.cardShadow}><View style={[styles.card, display?.complete && styles.cardComplete]}>
+  return <><View style={styles.cardShadow}><View style={[styles.card, display?.complete && styles.cardComplete]}>
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.cardAccent, { backgroundColor: kind === 'annual' ? colors.gold : colors.softGold }]} />
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.cardGlow} />
@@ -154,9 +156,14 @@ function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShi
       <View style={styles.icon}><Ionicons name={kind === 'annual' ? 'ribbon-outline' : 'calendar-outline'} size={20} color={colors.gold} /></View>
       <View style={styles.cardHeading}>
         <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSubtitle}>{kind === 'annual' ? 'The bigger picture' : 'One chapter at a time'}</Text>
+        {display?.complete ? <View style={styles.completeBadge}><Ionicons name="checkmark-circle" size={13} color={colors.background} /><Text style={styles.completeText}>Reached!</Text></View>
+          : <Text style={styles.cardSubtitle}>{kind === 'annual' ? 'The bigger picture' : 'One chapter at a time'}</Text>}
       </View>
-      {display?.complete ? <View style={styles.completeBadge}><Ionicons name="checkmark-circle" size={13} color={colors.background} /><Text style={styles.completeText}>Reached!</Text></View> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Options for ${title}`} accessibilityState={{ expanded: menuOpen }}
+        disabled={busy || loading || goal?.targetBooks == null} onPress={() => setMenuOpen(true)}
+        style={({ pressed }) => [styles.optionsButton, pressed && styles.pressed]}>
+        <Ionicons name="ellipsis-horizontal" size={21} color={colors.gold} />
+      </Pressable>
     </View>
     <View style={styles.periodRow}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Previous ${kind === 'annual' ? 'year' : 'month'}`}
@@ -171,13 +178,12 @@ function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShi
     </View>
     {goal ? <>
       <View style={styles.readingRow}>
-        <View style={styles.countBlock}>
-          <View style={styles.countRow}>
-            <Text style={styles.finishedCount}>{goal.finishedBooks}</Text>
-            {goal.targetBooks !== null ? <Text style={styles.targetCount}>/ {goal.targetBooks}</Text> : null}
-          </View>
-          <Text style={styles.description}>books read</Text>
-        </View>
+        <Text style={styles.readingSummary} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}
+          accessibilityLabel={`${goal.finishedBooks}${goal.targetBooks !== null ? `/${goal.targetBooks}` : ''} books read`}>
+          <Text style={styles.finishedCount}>{goal.finishedBooks}</Text>
+          {goal.targetBooks !== null ? <Text style={styles.targetCount}>/{goal.targetBooks}</Text> : null}
+          <Text style={styles.countLabel}> books read</Text>
+        </Text>
       </View>
       <GoalShelf goal={goal} title={title} colors={colors} revision={coverRevision} />
       {goal.targetBooks !== null && display ? <>
@@ -204,16 +210,12 @@ function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShi
           </Pressable>
         </View>
         {editing ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => setEditing(false)} style={styles.textButton}><Text style={styles.secondaryAction}>Cancel</Text></Pressable> : null}
-      </View> : <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${title}`} disabled={busy || loading} onPress={() => setEditing(true)} style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}>
-          <Ionicons name="create-outline" size={14} color={colors.gold} /><Text style={styles.primaryAction}>Edit Goal</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title}`} disabled={busy || loading} onPress={onRemove} style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-          <Text style={styles.secondaryAction}>Remove</Text>
-        </Pressable>
-      </View>}
+      </View> : null}
     </> : <View style={styles.loadingCard}>{loading ? <ActivityIndicator color={colors.gold} /> : <Text style={styles.description}>Your goal couldn’t be loaded.</Text>}</View>}
-  </View></View>;
+  </View></View>
+    <ReadingGoalActionsSheet visible={menuOpen} title={title} periodLabel={label}
+      onEdit={() => setEditing(true)} onRemove={() => { void onRemove(); }} onDismiss={() => setMenuOpen(false)} />
+  </>;
 }
 
 export default function ReadingGoalsScreen() {
@@ -311,7 +313,6 @@ export default function ReadingGoalsScreen() {
         <Ionicons name="chevron-back" size={24} color={colors.text} />
       </Pressable>
       <Text style={styles.headerTitle}>Reading Goals</Text>
-      <Ionicons name="flag-outline" size={22} color={colors.gold} />
     </View>
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
@@ -374,15 +375,17 @@ function createStyles(colors: NovoriColors) {
     icon: { width: 34, height: 34, borderRadius: 11, backgroundColor: `${colors.gold}16`, borderWidth: 1, borderColor: `${colors.gold}40`, alignItems: 'center', justifyContent: 'center' },
     cardHeading: { flex: 1 }, cardTitle: { color: colors.text, fontSize: 17, fontFamily: 'PlayfairDisplay_600SemiBold' },
     cardSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 2 },
-    completeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: colors.gold, borderRadius: 10 },
+    completeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: colors.gold, borderRadius: 10, alignSelf: 'flex-start', marginTop: 3 },
     completeText: { color: colors.background, fontFamily: 'Inter_700Bold', fontSize: 10 },
     periodRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 11 },
     arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     period: { flex: 1, textAlign: 'center', color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-    readingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 0, marginBottom: 0 }, countBlock: { flex: 1 },
-    countRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 5 },
-    finishedCount: { color: colors.gold, fontSize: 36, lineHeight: 40, fontFamily: 'PlayfairDisplay_600SemiBold' },
-    targetCount: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 16 },
+    optionsButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -5 },
+    readingRow: { alignItems: 'center', justifyContent: 'center', marginTop: 2, marginBottom: 1 },
+    readingSummary: { width: '100%', textAlign: 'center', fontSize: 30, lineHeight: 40 },
+    finishedCount: { color: colors.gold, fontSize: 30, fontFamily: 'PlayfairDisplay_600SemiBold' },
+    targetCount: { color: colors.secondaryText, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 25 },
+    countLabel: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 13 },
     description: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11 },
     shelf: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 13, paddingHorizontal: 6, paddingVertical: 6, marginTop: 5 },
     shelfHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 4, marginBottom: 1 },
@@ -417,10 +420,8 @@ function createStyles(colors: NovoriColors) {
     input: { flex: 1, minWidth: 65, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 14 },
     save: { backgroundColor: colors.gold, borderRadius: 11, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', minHeight: 44, flexDirection: 'row', gap: 5 },
     saveText: { color: colors.background, fontFamily: 'Inter_700Bold', fontSize: 12 }, disabled: { opacity: 0.55 }, pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-    actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 5, paddingTop: 2, borderTopWidth: 1, borderTopColor: colors.border },
-    editButton: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, paddingHorizontal: 10, borderRadius: 11, backgroundColor: `${colors.gold}12`, borderWidth: 1, borderColor: `${colors.gold}30` },
     textButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-    primaryAction: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 11 }, secondaryAction: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11 },
+    secondaryAction: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11 },
     loadingCard: { paddingVertical: 28, alignItems: 'center' }, errorBox: { padding: 12, borderRadius: 12, backgroundColor: colors.elevated }, errorText: { color: colors.gold, fontSize: 12, lineHeight: 18 },
     details: { paddingHorizontal: 2 }, privacyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
     privacyCopy: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10 },
