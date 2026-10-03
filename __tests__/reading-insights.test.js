@@ -17,7 +17,7 @@ beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; jest.clearAllMock
   supabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'reader' } } }); supabase.rpc.mockResolvedValue({ data: {} }); });
 afterEach(async()=>{if(view) await act(async()=>view.unmount());view=null;silence.mockRestore();});
 async function render(element){await act(async()=>{view=renderer.create(element);});}
-function text(){return view.root.findAllByType('Text').map(node=>node.props.children).join(' ');}
+function text(){return view.root.findAllByType('Text').map(node=>[node.props.children].flat(Infinity).join('')).join(' ');}
 const snapshot={schemaVersion:1,kind:'month',periodStart:'2025-01-01',periodEndExclusive:'2025-02-01',throughDate:'2025-01-31',finishedBooks:1,daysRead:2,bestStreak:1,books:[]};
 
 test('absent, zero, and empty metrics render no section',async()=>{
@@ -27,6 +27,23 @@ test('absent, zero, and empty metrics render no section',async()=>{
 test('a reader without audio sees only applicable metrics and no audio label',async()=>{
   await render(<ReadingInsightStats insights={{pagesTracked:80,authorsRead:2,rereads:1}}/>);
   expect(text()).toContain('pages tracked');expect(text()).toContain('authors read');expect(text()).not.toContain('audiobook');
+});
+test('mark-read stats need no checkpoints and explain available page counts',async()=>{
+  await render(<ReadingInsightStats insights={{finishedBookPages:640,finishedBooksWithPageCounts:2,authorsRead:1}}/>);
+  expect(text()).toContain('pages in finished books');expect(text()).toContain('2 finished');
+  expect(text()).not.toContain('pages tracked');expect(text()).not.toContain('audiobook');
+});
+test('finished-book pages and checkpoint progress remain separate metrics',async()=>{
+  await render(<ReadingInsightStats insights={{finishedBookPages:320,finishedBooksWithPageCounts:1,pagesTracked:80}}/>);
+  expect(text()).toContain('pages in finished books');expect(text()).toContain('pages tracked');
+  expect(getReadingInsightStats({finishedBookPages:320,finishedBooksWithPageCounts:1,pagesTracked:80})).toHaveLength(2);
+});
+test.each([{finishedBookPages:100},{finishedBooksWithPageCounts:1},{finishedBookPages:100,finishedBooksWithPageCounts:-1}])('incomplete page totals fail closed %o',value=>{
+  expect(parseReadingInsights(value)).toBeNull();
+});
+test('snapshot coverage cannot exceed its recorded finishes',()=>{
+  expect(parseReadingRecapSnapshot({...snapshot,insights:{finishedBookPages:320,finishedBooksWithPageCounts:1}})).not.toBeNull();
+  expect(parseReadingRecapSnapshot({...snapshot,insights:{finishedBookPages:640,finishedBooksWithPageCounts:2}})).toBeNull();
 });
 test('recorded audio shows journeys without inventing listening duration',async()=>{
   await render(<ReadingInsightStats insights={{audiobookJourneys:1}}/>);expect(text()).toContain('audiobook journeys');expect(text()).not.toContain('pages');expect(text()).not.toMatch(/hours|minutes/);

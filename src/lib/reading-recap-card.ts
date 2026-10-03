@@ -41,6 +41,7 @@ export function parseReadingRecapSnapshot(value: unknown): ReadingRecapSnapshot 
   if (!item.books.every(book => book && typeof book.title === 'string' && book.title.length <= 4000
     && [book.googleBookId,book.isbn,book.coverUrl].every(v => v === null || (typeof v === 'string' && v.length <= 8000)))) return null;
   if (item.insights !== undefined && !parseReadingInsights(item.insights)) return null;
+  if ((item.insights?.finishedBooksWithPageCounts ?? 0) > item.finishedBooks) return null;
   return item;
 }
 export function getRecapCardTitle(snapshot: ReadingRecapSnapshot): string {

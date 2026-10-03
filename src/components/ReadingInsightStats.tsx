@@ -13,6 +13,7 @@ export default function ReadingInsightStats({ insights }: { insights?: ReadingIn
         <Text style={{ color: colors.secondaryText, fontFamily: 'Inter_500Medium', fontSize: 10 }}>{stat.label}</Text>
       </View>)}
     </View>
+    {insights?.finishedBookPages && insights.finishedBooksWithPageCounts ? <Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 7 }}>Page counts available for {insights.finishedBooksWithPageCounts.toLocaleString()} finished {insights.finishedBooksWithPageCounts === 1 ? 'book' : 'books'}. Counted when finished; checkpoint progress is separate.</Text> : null}
     {insights?.pagesTracked ? <Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 7 }}>Pages tracked between recorded checkpoints. Your first checkpoint sets the starting point.</Text> : null}
   </View>;
 }
