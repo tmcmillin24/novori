@@ -1,4 +1,5 @@
 import BookCoverImage from '../components/BookCoverImage';
+import YearInReading from '../components/YearInReading';
 import {
   Ionicons,
 } from '@expo/vector-icons';
@@ -47,7 +48,8 @@ import { parseRecapReferenceDate } from '../lib/reading-reminders';
 
 type RecapMode =
   | 'week'
-  | 'month';
+  | 'month'
+  | 'year';
 
 type RecapBook = {
   identity:
@@ -801,8 +803,10 @@ export default function ReadingRecapsScreen() {
     setMode,
   ] =
     useState<RecapMode>(
-      params.mode === 'week' ? 'week' : 'month'
+      params.mode === 'year' ? 'year' : params.mode === 'week' ? 'week' : 'month'
     );
+
+  const [yearRefreshRevision, setYearRefreshRevision] = useState(0);
 
   const [
     referenceDate,
@@ -816,7 +820,7 @@ export default function ReadingRecapsScreen() {
   useEffect(() => {
     const requestedDate = parseRecapReferenceDate(params.referenceDate);
     if (!requestedDate) return;
-    setMode(params.mode === 'week' ? 'week' : 'month');
+    setMode(params.mode === 'year' ? 'year' : params.mode === 'week' ? 'week' : 'month');
     setReferenceDate(requestedDate);
   }, [params.mode, params.referenceDate]);
 
@@ -872,7 +876,7 @@ export default function ReadingRecapsScreen() {
   const periodKeys =
     useMemo(
       () =>
-        getPeriodKeys(
+        mode === 'year' ? [] : getPeriodKeys(
           mode,
           referenceDate
         ),
@@ -888,6 +892,8 @@ export default function ReadingRecapsScreen() {
         isRefresh =
           false
       ) => {
+        // The annual summary has its own single read; never fetch twelve months.
+        if (mode === 'year') return;
         if (
           isRefresh
         ) {
@@ -1280,7 +1286,7 @@ export default function ReadingRecapsScreen() {
             styles.headerTitle
           }
         >
-          Reading Recap
+          {mode === 'year' ? 'Year in Reading' : 'Reading Recap'}
         </Text>
 
         <View
@@ -1302,11 +1308,10 @@ export default function ReadingRecapsScreen() {
             refreshing={
               refreshing
             }
-            onRefresh={() =>
-              void loadRecap(
-                true
-              )
-            }
+            onRefresh={() => {
+              if (mode === 'year') { setRefreshing(true); setYearRefreshRevision(value => value + 1); }
+              else void loadRecap(true);
+            }}
             tintColor={
               colors.gold
             }
@@ -1325,6 +1330,7 @@ export default function ReadingRecapsScreen() {
             [
               'week',
               'month',
+              'year',
             ] as
               RecapMode[]
           ).map(
@@ -1340,6 +1346,9 @@ export default function ReadingRecapsScreen() {
                     item
                   )
                 }
+                accessibilityRole="button"
+                accessibilityLabel={`${item === 'year' ? 'Year in Reading' : item === 'week' ? 'Weekly recap' : 'Monthly recap'}`}
+                accessibilityState={{ selected: mode === item }}
                 style={[
                   styles.modeButton,
                   mode ===
@@ -1358,14 +1367,14 @@ export default function ReadingRecapsScreen() {
                   {item ===
                   'week'
                     ? 'Week'
-                    : 'Month'}
+                    : item === 'month' ? 'Month' : 'Year'}
                 </Text>
               </Pressable>
             )
           )}
         </View>
 
-        <View
+        {mode !== 'year' ? <View
           style={
             styles.periodNav
           }
@@ -1432,9 +1441,12 @@ export default function ReadingRecapsScreen() {
               }
             />
           </Pressable>
-        </View>
+        </View> : null}
 
-        {loading ? (
+        {mode === 'year' ? <YearInReading year={Math.min(new Date().getFullYear(), referenceDate.getFullYear())}
+          onYearChange={year => setReferenceDate(new Date(year, 0, 1, 12))}
+          onOpenMonth={monthIndex => { setReferenceDate(new Date(Math.min(new Date().getFullYear(), referenceDate.getFullYear()), monthIndex, 1, 12)); setMode('month'); }}
+          refreshRevision={yearRefreshRevision} onRefreshComplete={() => setRefreshing(false)} /> : loading ? (
           <View
             style={
               styles.loadingState
