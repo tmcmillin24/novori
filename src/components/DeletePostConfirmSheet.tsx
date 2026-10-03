@@ -27,6 +27,10 @@ import {
 } from '../context/theme-context';
 
 type Props = {
+  title?: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   visible: boolean;
   busy?: boolean;
   onConfirm: () => Promise<void>;
@@ -34,6 +38,10 @@ type Props = {
 };
 
 export default function DeletePostConfirmSheet({
+  title = 'Delete post?',
+  message = 'This post and its comments will be permanently deleted. This can’t be undone.',
+  confirmLabel = 'Delete',
+  cancelLabel = 'Cancel',
   visible,
   busy = false,
   onConfirm,
@@ -549,7 +557,7 @@ export default function DeletePostConfirmSheet({
                 styles.title
               }
             >
-              Delete post?
+              {title}
             </Text>
 
             <Text
@@ -557,7 +565,7 @@ export default function DeletePostConfirmSheet({
                 styles.message
               }
             >
-              This post and its comments will be permanently deleted. This can’t be undone.
+              {message}
             </Text>
 
             <View
@@ -585,7 +593,7 @@ export default function DeletePostConfirmSheet({
                     styles.cancelText
                   }
                 >
-                  Cancel
+                  {cancelLabel}
                 </Text>
               </Pressable>
 
@@ -617,7 +625,7 @@ export default function DeletePostConfirmSheet({
                       styles.deleteText
                     }
                   >
-                    Delete
+                    {confirmLabel}
                   </Text>
                 )}
               </Pressable>

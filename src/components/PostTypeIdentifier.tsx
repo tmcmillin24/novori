@@ -18,6 +18,7 @@ type Props = {
   colors: NovoriColors;
   readingRecap?: boolean;
   announcement?: boolean;
+  event?: boolean;
 };
 
 type Identity = {
@@ -75,9 +76,10 @@ export default function PostTypeIdentifier({
   colors,
   readingRecap = false,
   announcement = false,
+  event = false,
 }: Props) {
   const identity =
-    announcement ? { label: 'ANNOUNCEMENT', icon: 'megaphone-outline' as const } : readingRecap ? { label: 'READING RECAP', icon: 'sparkles-outline' as const } : getIdentity(
+    event ? { label: 'CLUB EVENT',icon: 'calendar-outline' as const } : announcement ? { label: 'ANNOUNCEMENT', icon: 'megaphone-outline' as const } : readingRecap ? { label: 'READING RECAP', icon: 'sparkles-outline' as const } : getIdentity(
       postType
     );
 

@@ -3,22 +3,14 @@ import { useMemo, useRef } from 'react';
 import { Animated, Easing, Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { FeedPost } from '../lib/feed';
-import { MAX_CLUB_PINS } from '../lib/club-posts';
+
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 
-type Props = {
-  visible: boolean; post: FeedPost | null; pinnedPosts: FeedPost[]; busy: boolean;
-  onPin: (postId: string,pinned: boolean,replacePostId?: string) => void; onDismiss: () => void;
-};
-
-export default function ClubPinActionsSheet({ visible,post,pinnedPosts,busy,onPin,onDismiss }: Props) {
-  const alreadyPinned = pinnedPosts.some(pin => pin.id === post?.id);
-  const replace = !alreadyPinned && pinnedPosts.length >= MAX_CLUB_PINS;
-  const actions = !post ? [] : alreadyPinned ? [{ label: 'Unpin post',pinned: false,replaceId: undefined as string | undefined }]
-    : replace ? pinnedPosts.map(pin => ({ label: `Replace: ${pin.club_event?.title || pin.body.trim().slice(0,70) || pin.book_title || 'Pinned post'}`,pinned: true,replaceId: pin.id }))
-    : [{ label: 'Pin post',pinned: true,replaceId: undefined as string | undefined }];
+type Action = 'edit'|'pin'|'cancel';
+type Props = { visible: boolean; eventTitle: string; onAction: (action:Action)=>void; onDismiss:()=>void };
+const actionDetails = {edit:{label:'Edit event',icon:'create-outline'},pin:{label:'Pin options',icon:'pin-outline'},cancel:{label:'Cancel event',icon:'close-circle-outline'}} as const;
+export default function ClubEventActionsSheet({visible,eventTitle,onAction,onDismiss}: Props) {
   const { colors } = useNovoriTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -109,16 +101,16 @@ export default function ClubPinActionsSheet({ visible,post,pinnedPosts,busy,onPi
           style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12), opacity: sheetOpacity, transform: [{ translateY }] }]}>
           <Pressable onPress={(event) => event.stopPropagation()}>
             <View style={styles.handle} />
-            <Text style={styles.title} accessibilityRole="header">{alreadyPinned ? 'Pinned post' : 'Pin to club'}</Text>
-            <Text style={styles.period}>{replace ? 'Your club has 3 pins. Choose one to replace.' : 'Keep important posts above the conversation.'}</Text>
-            {actions.map(action => <Pressable key={action.replaceId ?? action.label} accessibilityRole="button"
-              accessibilityLabel={action.label} disabled={busy} onPress={() => { if (post) closeSmoothly(() => onPin(post.id,action.pinned,action.replaceId)); }}
+            <Text style={styles.title} accessibilityRole="header">{eventTitle}</Text>
+            <Text style={styles.period}>Event options</Text>
+            {(['edit','pin','cancel'] as const).map(action => <Pressable key={action} accessibilityRole="button"
+              accessibilityLabel={actionDetails[action].label} onPress={() => closeSmoothly(() => onAction(action))}
               style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              <View style={styles.actionIcon}><Ionicons name={action.pinned ? 'pin-outline' : 'close-outline'} size={20} color={colors.gold} /></View>
-              <Text numberOfLines={2} style={styles.actionText}>{action.label}</Text>
+              <View style={styles.actionIcon}><Ionicons name={actionDetails[action].icon} size={20} color={action === 'cancel' ? colors.danger : colors.gold} /></View>
+              <Text style={[styles.actionText, action === 'cancel' && { color: colors.danger }]}>{actionDetails[action].label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText} />
             </Pressable>)}
-            <Pressable accessibilityRole="button" accessibilityLabel="Close pin options" onPress={() => closeSmoothly()}
+            <Pressable accessibilityRole="button" accessibilityLabel="Close event options" onPress={() => closeSmoothly()}
               style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>
         </Animated.View>

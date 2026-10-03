@@ -1,3 +1,4 @@
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -1741,6 +1742,7 @@ export default function ReaderProfileScreen() {
           }
         >
           <PostTypeIdentifier
+          event={Boolean(post.club_event)}
           announcement={post.is_club_announcement}
             readingRecap={Boolean(post.reading_recap)}
             postType={
@@ -1762,6 +1764,7 @@ export default function ReaderProfileScreen() {
           {post.body}
         </Text> : null}
 
+        {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
         {post.post_type ===

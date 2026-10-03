@@ -25,7 +25,7 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (callback) => require('react').useEffect(callback, [callback]),
 }));
 jest.mock('react-native', () => ({
-  ActivityIndicator: 'ActivityIndicator', Image: 'Image', Pressable: 'Pressable',
+  AppState:{addEventListener:()=>({remove:()=>{}})},ActivityIndicator: 'ActivityIndicator', Image: 'Image', Pressable: 'Pressable',
   ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View',
   Modal: ({ visible, ...props }) => visible ? require('react').createElement('Modal', props) : null,
   StyleSheet: { create: (value) => value, hairlineWidth: 1 },

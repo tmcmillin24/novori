@@ -1,3 +1,4 @@
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -2301,6 +2302,7 @@ export default function ProfileScreen() {
                   }
                 >
                   <PostTypeIdentifier
+          event={Boolean(post.club_event)}
           announcement={post.is_club_announcement}
                     readingRecap={Boolean(post.reading_recap)}
                     postType={
@@ -2348,7 +2350,8 @@ export default function ProfileScreen() {
                     </Text>
                   ) : null}
 
-                  {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
+                  {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
+        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
                   {post.post_type ===
                     'book_stack' &&

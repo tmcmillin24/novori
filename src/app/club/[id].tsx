@@ -1,3 +1,9 @@
+import ClubEventCard from '../../components/ClubEventCard';
+import ClubEventsBoard from '../../components/ClubEventsBoard';
+import useEventClock from '../../hooks/use-event-clock';
+import { getClubEvents } from '../../lib/club-events';
+import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubPinnedPosts from '../../components/ClubPinnedPosts';
 import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
 import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
@@ -522,6 +528,8 @@ export default function ClubDetailScreen() {
       null
     );
 
+  const [clubTab,setClubTab] = useState<'posts'|'events'>('posts');
+  const [upcomingEvents,setUpcomingEvents] = useState<ClubEvent[]>([]);
   const [pinnedPosts,setPinnedPosts] = useState<FeedPost[]>([]);
   const [pinTarget,setPinTarget] = useState<FeedPost | null>(null);
   const [pinBusy,setPinBusy] = useState(false);
@@ -545,10 +553,16 @@ export default function ClubDetailScreen() {
   pinClubIdRef.current = clubId;
 
   useEffect(() => {
-    setPinnedPosts([]); setPinTarget(null);
+    setClubTab((params as {tab?:string}).tab === 'events' ? 'events' : 'posts');
+    setUpcomingEvents([]);setPinnedPosts([]); setPinTarget(null);
     setClubMenuVisible(false); setRulesExpanded(false); setMembersVisible(false); setManagementVisible(false);
     setInvitePanelOpen(false); pendingMemberScroll.current = false;
-  }, [clubId]);
+  }, [clubId,(params as {tab?:string}).tab]);
+
+  const eventDeadline = Math.min(...[...upcomingEvents,...pinnedPosts.flatMap(post=>post.club_event?[post.club_event]:[])].filter(event=>isUpcomingClubEvent(event)).map(event=>Date.parse(event.ends_at)));
+  const eventNow = useEventClock(Number.isFinite(eventDeadline)?eventDeadline:undefined);
+  const visiblePinnedPosts = pinnedPosts.filter(post=>!post.club_event||isUpcomingClubEvent(post.club_event,eventNow));
+  const nextEvent = upcomingEvents.find(event=>isUpcomingClubEvent(event,eventNow));
 
   const loadClub = useCallback(
     async () => {
@@ -608,6 +622,7 @@ export default function ClubDetailScreen() {
           FeedPost[] =
             [];
         let pinnedData: FeedPost[] = [];
+        let eventData: ClubEvent[] = [];
 
         if (
           canReadPrivateContent
@@ -615,12 +630,14 @@ export default function ClubDetailScreen() {
           const [
             loadedMembers,
             loadedPosts,
+            loadedEvents,
           ] =
             await Promise.all([
               getClubMembers(
                 clubId
               ),
               getClubConversation(clubId),
+              getClubEvents(clubId),
             ]);
 
           memberData =
@@ -628,6 +645,7 @@ export default function ClubDetailScreen() {
 
           postData = loadedPosts.posts;
           pinnedData = loadedPosts.pinnedPosts;
+          eventData = loadedEvents;
         }
 
         const manager =
@@ -664,6 +682,7 @@ export default function ClubDetailScreen() {
           postData
         );
         setPinnedPosts(pinnedData);
+        setUpcomingEvents(eventData);
         setPendingInvite(
           pendingInviteData
         );
@@ -3735,13 +3754,14 @@ export default function ClubDetailScreen() {
           />
         </Pressable>
 
-        {club?.membership_role === 'owner' || club?.membership_role === 'admin' ? <Pressable disabled={pinBusy}
+        {(club?.membership_role === 'owner' || club?.membership_role === 'admin') && (!post.club_event || isUpcomingClubEvent(post.club_event,eventNow)) ? <Pressable disabled={pinBusy}
           accessibilityRole="button" accessibilityLabel={`Pin options: ${post.id}`} hitSlop={8}
           onPress={() => { Keyboard.dismiss(); setPinTarget(post); }} style={({ pressed }) => [styles.postPinButton,pressed && styles.pressed]}>
           <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold} />
         </Pressable> : null}
 
         <PostTypeIdentifier
+          event={Boolean(post.club_event)}
           announcement={post.is_club_announcement}
           readingRecap={Boolean(post.reading_recap)}
           postType={
@@ -3785,6 +3805,7 @@ export default function ClubDetailScreen() {
           </Text>
         ) : null}
 
+        {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
         {post.post_image_url ? (
@@ -5414,7 +5435,7 @@ export default function ClubDetailScreen() {
           </View>
         ) : null}
 
-        {isMember ? (
+        {isMember && clubTab === 'posts' ? (
           <Pressable
             onPress={() =>
               router.push({
@@ -5445,7 +5466,7 @@ export default function ClubDetailScreen() {
           </Pressable>
         ) : null}
 
-        {isManager ? <Pressable accessibilityRole="button" accessibilityLabel="Create club announcement"
+        {isManager && clubTab === 'posts' ? <Pressable accessibilityRole="button" accessibilityLabel="Create club announcement"
           onPress={() => router.push({ pathname: '/create-post',params: { clubId: club.id,announcement: '1' } })}
           style={({ pressed }) => [styles.announcementButton,pressed && styles.pressed]}>
           <Ionicons name="megaphone-outline" size={16} color={colors.gold} /><Text style={styles.announcementButtonText}>Make an announcement</Text>
@@ -5525,11 +5546,14 @@ export default function ClubDetailScreen() {
 
         </View> : null}
 
-        <ClubPinnedPosts posts={pinnedPosts} canManage={isManager} busy={pinBusy}
+        <View style={styles.clubTabBar}>{(['posts','events'] as const).map(tab=><Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab==='posts'?'Club Posts tab':'Club Events tab'} accessibilityState={{selected:clubTab===tab}} onPress={()=>setClubTab(tab)} style={[styles.clubTab,clubTab===tab&&styles.clubTabSelected]}><Ionicons name={tab==='posts'?'chatbubbles-outline':'calendar-outline'} size={16} color={clubTab===tab?colors.gold:colors.mutedText}/><Text style={[styles.clubTabText,clubTab===tab&&{color:colors.gold}]}>{tab==='posts'?'Posts':'Events'}</Text></Pressable>)}</View>
+        {clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow}/> : <>
+        {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={()=>router.push({pathname:'/club-event/[id]',params:{id:nextEvent.id}})}/> : null}
+        <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy}
           onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}
           onManage={post => { Keyboard.dismiss(); setPinTarget(post); }} />
 
-        <View style={[styles.sectionHeader,styles.conversationHeader,membersVisible && !pinnedPosts.length && styles.conversationAfterMembers]}>
+        <View style={[styles.sectionHeader,styles.conversationHeader,membersVisible && !visiblePinnedPosts.length && !nextEvent && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
             Club conversation
           </Text>
@@ -5593,11 +5617,12 @@ export default function ClubDetailScreen() {
             ) : null}
           </View>
         )}
+        </>}
           </>
         )}
       </ScrollView>
 
-      <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={pinnedPosts} busy={pinBusy}
+      <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={visiblePinnedPosts} busy={pinBusy}
         onPin={(postId,pinned,replacePostId) => void handleClubPin(postId,pinned,replacePostId)} onDismiss={() => setPinTarget(null)} />
 
       <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
@@ -7748,6 +7773,10 @@ function createStyles(colors: NovoriColors) {
       marginBottom: 10,
       paddingHorizontal: 2,
     },
+    clubTabBar: { flexDirection:'row',gap:8,marginBottom:14,marginTop:4,backgroundColor:colors.surface,borderRadius:13,padding:4,borderWidth:1,borderColor:colors.border },
+    clubTab: { flex:1,flexDirection:'row',gap:7,alignItems:'center',justifyContent:'center',minHeight:40,borderRadius:10 },
+    clubTabSelected: { backgroundColor:`${colors.gold}13` },
+    clubTabText: { color:colors.mutedText,fontFamily:'Inter_600SemiBold',fontSize:12 },
     membersSection: { marginBottom: 22 },
     membersSectionHeader: { marginTop: 0 },
     membersScroll: { maxHeight: 344 },

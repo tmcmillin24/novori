@@ -7,13 +7,14 @@ import ClubHomeCard from '../src/components/ClubHomeCard';
 import ClubOptionsSheet from '../src/components/ClubOptionsSheet';
 import { getClub, getClubMembers, getPendingClubInvitesForManager, updateClub, createClub } from '../src/lib/clubs';
 import { getClubPosts } from '../src/lib/feed';
+import { getClubEvents } from '../src/lib/club-events';
 import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/club-posts';
 
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>({id:'club-1',clubId:'club-1'}),useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
 jest.mock('react-native',()=>({
   KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',
-  Alert:{alert:jest.fn()},Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},
+  AppState:{addEventListener:()=>({remove:()=>{}})},Alert:{alert:jest.fn()},Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},
   Modal:props=>props.visible?require('react').createElement('Modal',props,props.children):null,
   ScrollView:require('react').forwardRef((props,ref)=>{require('react').useImperativeHandle(ref,()=>({scrollTo:jest.fn()}),[]);return require('react').createElement('ScrollView',props,props.children);}),
   Animated:{View:'AnimatedView',Value:class {setValue(){}stopAnimation(){}interpolate(){return 0;}},
@@ -36,13 +37,14 @@ jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{u
 jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),uploadClubCover:jest.fn(),getClub:jest.fn(),getClubMembers:jest.fn(),getPendingClubInvite:async()=>null,getPendingPrivateClubRequest:async()=>null,
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
 jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn()}));
+jest.mock('../src/lib/club-events',()=>({getClubEvents:jest.fn(),CLUB_EVENTS_PAGE_SIZE:20}));
 jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
 jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();getClub.mockResolvedValue(base);
   getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person',username:'owner',avatar_url:null},{user_id:'member',role:'member',display_name:'Member Reader',username:'member',avatar_url:null}]);
-  updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getClubConversation.mockImplementation(async()=>({posts:await getClubPosts(),pinnedPosts:[]}));getClubPins.mockResolvedValue([]);setClubPostPin.mockResolvedValue();getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
+  updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getClubEvents.mockResolvedValue([]);getClubConversation.mockImplementation(async()=>({posts:await getClubPosts(),pinnedPosts:[]}));getClubPins.mockResolvedValue([]);setClubPostPin.mockResolvedValue();getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
 });
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;silence.mockRestore();});
 async function render(element=<ClubDetailScreen/>){await act(async()=>{view=renderer.create(element);});}
@@ -75,7 +77,7 @@ test('rules expand in the home card and remain owner-editable',async()=>{
 });
 test('private visitors see rules but no members, posts or management actions',async()=>{
   getClub.mockResolvedValue({...base,privacy:'private',membership_role:null});await render();
-  expect(getClubMembers).not.toHaveBeenCalled();expect(getClubPosts).not.toHaveBeenCalled();expect(getPendingClubInvitesForManager).not.toHaveBeenCalled();
+  expect(getClubMembers).not.toHaveBeenCalled();expect(getClubPosts).not.toHaveBeenCalled();expect(getClubEvents).not.toHaveBeenCalled();expect(getPendingClubInvitesForManager).not.toHaveBeenCalled();
   await press('Open club options');expect(button('Members')).toBeUndefined();expect(button('Edit club')).toBeUndefined();expect(button('Manage members & invitations')).toBeUndefined();
   await press('Club rules');expect(text()).toContain('Label spoilers.');expect(button('Edit club rules')).toBeUndefined();
 });
@@ -138,4 +140,10 @@ test('large member lists scroll inside the card while small clubs stay natural h
   await act(async()=>view.unmount());view=null;getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person'}]);
   await render();await press('View club members');scroll=view.root.findByProps({accessibilityLabel:'Club members'});
   expect(scroll.props.scrollEnabled).toBe(false);expect(scroll.props.style).toBeUndefined();expect(text()).not.toContain('Swipe to see all members');
+});
+
+test('club tabs keep posts and events separate and managers can create events',async()=>{
+  await render();await press('Club Events tab');expect(button('Create club event')).toBeDefined();expect(button('Create club announcement')).toBeUndefined();
+  await press('Create club event');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-event',params:{clubId:'club-1'}});
+  await press('Club Posts tab');expect(button('Create club announcement')).toBeDefined();expect(getClubEvents).toHaveBeenCalledTimes(1);
 });

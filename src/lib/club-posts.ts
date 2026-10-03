@@ -1,3 +1,4 @@
+import { isUpcomingClubEvent } from './club-event';
 import { getClubPosts, getPostDetail, markPostMutation, type FeedPost } from './feed';
 import { supabase } from './supabase';
 
@@ -8,8 +9,7 @@ export function canManageClubPosts(role: string | null | undefined) {
 }
 
 export async function getClubPins(clubId: string): Promise<ClubPostPin[]> {
-  const { data, error } = await supabase.from('club_post_pins')
-    .select('club_id,post_id,pinned_at').eq('club_id',clubId).order('pinned_at',{ ascending: false }).limit(MAX_CLUB_PINS);
+  const { data,error } = await supabase.rpc('get_visible_club_pins',{target_club_id:clubId});
   if (error) throw error;
   return data ?? [];
 }
@@ -35,7 +35,7 @@ export async function resolveClubPinnedPosts(clubId: string,pins: ClubPostPin[],
   }));
   const pinnedPosts: FeedPost[] = pins.flatMap(pin => {
     const post = byId.get(pin.post_id);
-    return post?.club_id === clubId ? [post] : [];
+    return post?.club_id === clubId && (!post.club_event || isUpcomingClubEvent(post.club_event)) ? [post] : [];
   });
   return pinnedPosts;
 }

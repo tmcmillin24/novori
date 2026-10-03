@@ -1,3 +1,4 @@
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -3373,6 +3374,7 @@ export default function PostDetailScreen() {
             </View>
 
             <PostTypeIdentifier
+          event={Boolean(post.club_event)}
           announcement={post.is_club_announcement}
               readingRecap={Boolean(post.reading_recap)}
               postType={
@@ -3444,7 +3446,8 @@ export default function PostDetailScreen() {
               )
             ) : null}
 
-            {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
+            {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
+        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
             {post.post_type ===
               'book_stack' &&

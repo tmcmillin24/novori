@@ -2,13 +2,13 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),ts=require('typescr
 function load(file,requireFn){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/lib/',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:requireFn,Error,console});return exports;}
 function harness({posts=[],pins=[],details={},pinError=null,detailError=null}={}){
   const calls=[],mutations=[];const query={select:()=>query,eq:()=>query,order:()=>query,limit:async()=>({data:pins,error:null})};
-  const supabase={from:table=>{calls.push(['table',table]);return query;},rpc:async(name,args)=>{calls.push([name,args]);return {error:pinError};}};
+  const supabase={from:table=>{calls.push(['table',table]);return query;},rpc:async(name,args)=>{calls.push([name,args]);return name==='get_visible_club_pins'?{data:pins,error:null}:{error:pinError};}};
   const feed={getClubPosts:async id=>{calls.push(['recent',id]);return posts;},getPostDetail:async id=>{calls.push(['detail',id]);if(detailError)throw detailError;return details[id];},markPostMutation:()=>mutations.push(true)};
-  const api=load('club-posts.ts',name=>name==='./supabase'?{supabase}:name==='./feed'?feed:(()=>{throw Error('No book/provider dependency: '+name)})());return {api,calls,mutations};
+  const api=load('club-posts.ts',name=>name==='./supabase'?{supabase}:name==='./feed'?feed:name==='./club-event'?load('club-event.ts',()=>{throw Error('Provider import')}):(()=>{throw Error('No book/provider dependency: '+name)})());return {api,calls,mutations};
 }
 test.each(['post','question','reading_update','review','book_stack'])('pins preserve %s posts and stored book media without book calls',async type=>{
   const post={id:'p1',club_id:'c1',post_type:type,book_cover_url:'stored-cover',book_authors:['Author']};const h=harness({posts:[post],pins:[{post_id:'p1'}]});
-  const result=await h.api.getClubConversation('c1');expect(result.posts[0]).toBe(post);expect(result.pinnedPosts[0]).toBe(post);expect(h.calls).toEqual([['recent','c1'],['table','club_post_pins']]);
+  const result=await h.api.getClubConversation('c1');expect(result.posts[0]).toBe(post);expect(result.pinnedPosts[0]).toBe(post);expect(h.calls).toEqual([['recent','c1'],['get_visible_club_pins',{target_club_id:'c1'}]]);
 });
 test('old pins load only missing details, retaining pin order',async()=>{
   const recent={id:'p1',club_id:'c1'},old={id:'p0',club_id:'c1'};const h=harness({posts:[recent],pins:[{post_id:'p0'},{post_id:'p1'}],details:{p0:old}});
@@ -30,7 +30,7 @@ test('only owner and admin roles manage club posts',()=>{const h=harness();for(c
 function feedHarness({rows=[],signedIn=true}={}){
   const calls=[];const query={insert:value=>{calls.push(['insert',value]);return query;},update:value=>{calls.push(['update',value]);return query;},eq:()=>query,select:value=>{calls.push(['select',value]);return query;},in:async()=>({data:rows,error:null}),single:async()=>({data:{id:'post'},error:null})};
   const supabase={auth:{getUser:async()=>({data:{user:signedIn?{id:'owner'}:null}})},from:()=>query};
-  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./reading-recap-card'?{parseReadingRecapSnapshot:value=>value??null}:(()=>{throw Error('No cover/provider dependency '+name)})());return {api,calls};
+  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./reading-recap-card'?{parseReadingRecapSnapshot:value=>value??null}:name==='./club-event'?load('club-event.ts',()=>{throw Error('Provider import')}):(()=>{throw Error('No cover/provider dependency '+name)})());return {api,calls};
 }
 test('announcement publication uses the ordinary post write with stored media',async()=>{
   const h=feedHarness();await h.api.createPost({body:' Welcome! ',clubId:'c1',isClubAnnouncement:true,bookCoverUrl:'stored-cover',bookAuthors:['Author']});
