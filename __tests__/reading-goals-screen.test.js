@@ -12,6 +12,9 @@ jest.mock('react-native', () => ({
   Text: 'Text', TextInput: 'TextInput', View: 'View', RefreshControl: 'RefreshControl',
   KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'ios', select: options => options.ios ?? options.default },
   TurboModuleRegistry: { get: () => null },
+  AccessibilityInfo: { isReduceMotionEnabled: async () => true, addEventListener: () => ({ remove: jest.fn() }) },
+  Animated: { View: 'AnimatedView', Value: class { constructor(value) { this.value = value; } interpolate() { return `${this.value * 100}%`; } },
+    timing: () => ({ start: jest.fn(), stop: jest.fn() }) },
   StyleSheet: { create: value => value }, AppState: { addEventListener: () => ({ remove: jest.fn() }) },
 }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
@@ -54,7 +57,10 @@ async function press(label) { await act(async () => button(label).props.onPress(
 
 test('annual and monthly forms save their own period and refresh actual goal progress', async () => {
   await render();
-  await fill('Annual Goal book target','24'); await press('Save Annual Goal');
+  await press('Annual Goal: 24 books');
+  expect(field('Annual Goal book target').props.value).toBe('24');
+  expect(saveReadingGoal).not.toHaveBeenCalled();
+  await press('Save Annual Goal');
   await fill('Monthly Goal book target','3'); await press('Save Monthly Goal');
   expect(saveReadingGoal.mock.calls).toEqual([['annual','2026-01-01',24],['monthly','2026-10-01',3]]);
   const bars = view.root.findAllByType('View').filter(node => node.props.accessibilityRole === 'progressbar');
