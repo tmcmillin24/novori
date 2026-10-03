@@ -3,7 +3,7 @@ import renderer, { act } from 'react-test-renderer';
 import ReadingInsightStats from '../src/components/ReadingInsightStats';
 import PeriodReadingInsights from '../src/components/PeriodReadingInsights';
 import ReadingRecapPostAttachment from '../src/components/ReadingRecapPostAttachment';
-import { parseReadingInsights, getReadingInsightStats } from '../src/lib/reading-insights';
+import { parseReadingInsights, getReadingInsightStats, formatAudioProgress } from '../src/lib/reading-insights';
 import { parseReadingRecapSnapshot } from '../src/lib/reading-recap-card';
 import { supabase } from '../src/lib/supabase';
 
@@ -47,6 +47,29 @@ test('snapshot coverage cannot exceed its recorded finishes',()=>{
 });
 test('recorded audio shows journeys without inventing listening duration',async()=>{
   await render(<ReadingInsightStats insights={{audiobookJourneys:1}}/>);expect(text()).toContain('audiobook journeys');expect(text()).not.toContain('pages');expect(text()).not.toMatch(/hours|minutes/);
+});
+test('audio progress uses readable positions and keeps duration claims out',async()=>{
+  await render(<ReadingInsightStats insights={{audiobookJourneys:1,audioProgressSeconds:3665}}/>);
+  expect(text()).toContain('1h 1m 5s');expect(text()).toContain('audio progress logged');expect(text()).toContain('playback speed isn’t included');
+  expect(formatAudioProgress(59)).toBe('59s');expect(formatAudioProgress(65)).toBe('1m 5s');
+});
+test('series insights show released-numbered progress only when present',async()=>{
+  await render(<ReadingInsightStats insights={{seriesRead:1,seriesCaughtUp:1,seriesProgress:[{id:'10',name:'A series',finishedBooks:3,totalBooks:3}]}}/>);
+  expect(text()).toContain('series caught up');expect(text()).toContain('A series');
+  expect(view.root.findAllByType('View').find(node=>node.props.accessibilityRole==='progressbar').props.accessibilityValue).toEqual({min:0,max:3,now:3});
+});
+test('missing metadata creates no series placeholder and no book requests',async()=>{
+  await render(<ReadingInsightStats insights={{authorsRead:1}}/>);expect(text()).not.toContain('series');expect(text()).not.toContain('audio progress');expect(supabase.rpc).not.toHaveBeenCalled();
+});
+test.each([{audioProgressSeconds:60},{seriesCaughtUp:1},{seriesRead:1,seriesCaughtUp:2},
+  {seriesRead:1,seriesProgress:[{id:'1',name:'Story',finishedBooks:2,totalBooks:1}]},
+  {seriesRead:1,seriesProgress:[{id:'1',name:'',finishedBooks:1,totalBooks:2}]},
+  {seriesRead:7,seriesProgress:Array(7).fill({id:'1',name:'Story',finishedBooks:1,totalBooks:2})}
+])('invalid advanced metrics fail closed %o',value=>{expect(parseReadingInsights(value)).toBeNull();});
+test('series/audio are preserved in the reviewed snapshot and never fetched while rendering it',async()=>{
+  const value={...snapshot,insights:{seriesRead:1,audiobookJourneys:1,audioProgressSeconds:120,seriesProgress:[{id:'10',name:'A series',finishedBooks:1,totalBooks:2}]}};
+  expect(parseReadingRecapSnapshot(value)).toBe(value);await render(<ReadingRecapPostAttachment snapshot={value}/>);
+  expect(text()).toContain('A series');expect(text()).toContain('audio progress logged');expect(supabase.rpc).not.toHaveBeenCalled();
 });
 test.each([null,[],{pagesTracked:-1},{authorsRead:1.5},{rereads:'2'},{audiobookJourneys:Infinity}])('malformed metrics fail closed %o',value=>{
   expect(parseReadingInsights(value)).toBeNull();expect(getReadingInsightStats(value)).toEqual([]);
