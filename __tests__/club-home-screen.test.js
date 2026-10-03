@@ -129,3 +129,13 @@ test('pin failures preserve the visible pins',async()=>{
   getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[postFixture]});setClubPostPin.mockRejectedValue(new Error('Permission changed.'));
   await render();await press('Pin options: post-1');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
 });
+
+test('large member lists scroll inside the card while small clubs stay natural height',async()=>{
+  getClubMembers.mockResolvedValue(Array.from({length:50},(_,i)=>({user_id:'reader-'+i,role:i===0?'owner':'member',display_name:'Reader '+i,username:'reader'+i})));
+  await render();await press('View club members');let scroll=view.root.findByProps({accessibilityLabel:'Club members'});
+  expect(scroll.props.nestedScrollEnabled).toBe(true);expect(scroll.props.scrollEnabled).toBe(true);expect(scroll.props.style.maxHeight).toBe(344);
+  expect(text()).toContain('Swipe to see all members');expect(text()).not.toContain('Show 49 more');expect(getClubMembers).toHaveBeenCalledTimes(1);
+  await act(async()=>view.unmount());view=null;getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person'}]);
+  await render();await press('View club members');scroll=view.root.findByProps({accessibilityLabel:'Club members'});
+  expect(scroll.props.scrollEnabled).toBe(false);expect(scroll.props.style).toBeUndefined();expect(text()).not.toContain('Swipe to see all members');
+});

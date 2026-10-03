@@ -216,12 +216,6 @@ export default function ClubDetailScreen() {
     );
 
   const [
-    membersExpanded,
-    setMembersExpanded,
-  ] =
-    useState(false);
-
-  const [
     memberActionTarget,
     setMemberActionTarget,
   ] =
@@ -4779,7 +4773,7 @@ export default function ClubDetailScreen() {
   }
   function toggleManagement(next = !managementVisible) {
     if (!isManager) return;
-    setManagementVisible(next); setMembersVisible(next); setMembersExpanded(next); setInvitePanelOpen(next);
+    setManagementVisible(next); setMembersVisible(next); setInvitePanelOpen(next);
     if (!next) { setInviteQuery(''); setInviteResults([]); }
   }
   function handleClubAction(action: ClubHomeAction) {
@@ -4789,7 +4783,7 @@ export default function ClubDetailScreen() {
     else if (action === 'members') {
       if (membersVisible) clubScrollRef.current?.scrollTo({ y: Math.max(0,membersSectionY.current-12), animated: true });
       else pendingMemberScroll.current = true;
-      setMembersVisible(true); setMembersExpanded(true);
+      setMembersVisible(true);
     }
     else if (action === 'manage') { toggleManagement(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }
     else if (action === 'leave') confirmLeave();
@@ -4828,6 +4822,7 @@ export default function ClubDetailScreen() {
       </View>
 
       <ScrollView
+        nestedScrollEnabled
         ref={
           clubScrollRef
         }
@@ -4863,7 +4858,7 @@ export default function ClubDetailScreen() {
         <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded}
           membersVisible={membersVisible} managementVisible={managementVisible} pendingRequests={managerJoinRequests.length} pendingInvites={managerInvites.length}
           onPhoto={() => setClubImageOpen(true)} onRules={() => setRulesExpanded(value => !value)}
-          onMembers={() => { setMembersVisible(value => !value); setMembersExpanded(true); }} onManage={() => toggleManagement()} onEdit={editClub} />
+          onMembers={() => setMembersVisible(value => !value)} onManage={() => toggleManagement()} onEdit={editClub} />
 
         {pendingInvite &&
         !isMember ? (
@@ -5496,7 +5491,7 @@ export default function ClubDetailScreen() {
           </View>
         ) : (
           <>
-        {membersVisible ? <View onLayout={event => {
+        {membersVisible ? <View style={styles.membersSection} onLayout={event => {
           membersSectionY.current = event.nativeEvent.layout.y;
           if (pendingMemberScroll.current) {
             const y = event.nativeEvent.layout.y;
@@ -5504,7 +5499,7 @@ export default function ClubDetailScreen() {
             requestAnimationFrame(() => clubScrollRef.current?.scrollTo({ y: Math.max(0,y-12), animated: true }));
           }
         }}>
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader,styles.membersSectionHeader]}>
           <Text style={styles.sectionTitle}>
             Members
           </Text>
@@ -5515,99 +5510,17 @@ export default function ClubDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          {ownerMember ? (
-            <>
-              {renderMember(
-                ownerMember
-              )}
-
-              {otherMembers.length >
-              0 ? (
-                <>
-                  {membersExpanded ? (
-                    <>
-                      {otherMembers.map(
-                        (
-                          member
-                        ) => (
-                          <View
-                            key={
-                              member.user_id
-                            }
-                          >
-                            <View
-                              style={
-                                styles.rowDivider
-                              }
-                            />
-
-                            {renderMember(
-                              member
-                            )}
-                          </View>
-                        )
-                      )}
-                    </>
-                  ) : null}
-
-                  <View
-                    style={
-                      styles.rowDivider
-                    }
-                  />
-
-                  <Pressable
-                    onPress={() =>
-                      setMembersExpanded(
-                        (
-                          current
-                        ) =>
-                          !current
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.membersExpandRow,
-                      pressed &&
-                        styles.pressed,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.membersExpandText
-                      }
-                    >
-                      {membersExpanded
-                        ? 'Hide members'
-                        : `Show ${otherMembers.length} more ${
-                            otherMembers.length ===
-                            1
-                              ? 'member'
-                              : 'members'
-                          }`}
-                    </Text>
-
-                    <Ionicons
-                      name={
-                        membersExpanded
-                          ? 'chevron-up'
-                          : 'chevron-down'
-                      }
-                      size={
-                        17
-                      }
-                      color={
-                        colors.mutedText
-                      }
-                    />
-                  </Pressable>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.emptyCardText}>
-              No members to show yet.
-            </Text>
-          )}
+          {ownerMember ? <>
+            <ScrollView accessibilityLabel="Club members" nestedScrollEnabled directionalLockEnabled
+              scrollEnabled={members.length > 5} showsVerticalScrollIndicator={members.length > 5}
+              bounces={false} keyboardShouldPersistTaps="handled" style={members.length > 5 ? styles.membersScroll : undefined}>
+              {[ownerMember,...otherMembers].map((member,index) => <View key={member.user_id}>
+                {index ? <View style={styles.rowDivider} /> : null}
+                {renderMember(member)}
+              </View>)}
+            </ScrollView>
+            {members.length > 5 ? <Text style={styles.membersScrollHint}>Swipe to see all members</Text> : null}
+          </> : <Text style={styles.emptyCardText}>No members to show yet.</Text>}
         </View>
 
         </View> : null}
@@ -5616,7 +5529,7 @@ export default function ClubDetailScreen() {
           onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}
           onManage={post => { Keyboard.dismiss(); setPinTarget(post); }} />
 
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader,styles.conversationHeader,membersVisible && !pinnedPosts.length && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
             Club conversation
           </Text>
@@ -7835,6 +7748,12 @@ function createStyles(colors: NovoriColors) {
       marginBottom: 10,
       paddingHorizontal: 2,
     },
+    membersSection: { marginBottom: 22 },
+    membersSectionHeader: { marginTop: 0 },
+    membersScroll: { maxHeight: 344 },
+    membersScrollHint: { color: colors.mutedText,fontFamily: 'Inter_400Regular',fontSize: 10,textAlign: 'center',paddingVertical: 9 },
+    conversationHeader: { marginTop: 12 },
+    conversationAfterMembers: { marginTop: 0 },
     sectionTitle: {
       color: colors.text,
       fontFamily: 'PlayfairDisplay_700Bold',
@@ -8302,7 +8221,7 @@ function createStyles(colors: NovoriColors) {
       alignItems: 'flex-start',
     },
     postPinButton: { position: 'absolute',right: 44,top: 9,width: 34,height: 34,alignItems: 'center',justifyContent: 'center',zIndex: 2 },
-    announcementButton: { minHeight: 44,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 7,marginBottom: 14 },
+    announcementButton: { minHeight: 44,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 7,marginBottom: 8 },
     announcementButtonText: { fontFamily: 'Inter_600SemiBold',fontSize: 12,color: colors.gold },
     postHeaderShare: {
       position: 'absolute',
