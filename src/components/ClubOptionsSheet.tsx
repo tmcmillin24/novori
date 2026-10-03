@@ -11,14 +11,17 @@ import { useNovoriTheme } from '../context/theme-context';
 type Props = {
   visible: boolean; clubName: string; role: ClubRole | null; canViewMembers: boolean; hasRules: boolean; busy: boolean;
   onAction: (action: ClubHomeAction) => void; onDismiss: () => void;
+  notificationsEnabled?: boolean; globalNotificationsEnabled?: boolean; notificationsBusy?: boolean;
 };
 const actionDetails: Record<ClubHomeAction, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   edit: { label: 'Edit club', icon: 'create-outline' }, rules: { label: 'Club rules', icon: 'reader-outline' },
   members: { label: 'Members', icon: 'people-outline' }, manage: { label: 'Manage members & invitations', icon: 'shield-checkmark-outline' },
   leave: { label: 'Leave club', icon: 'exit-outline' },
+  guide: {label:'Club guide',icon:'sparkles-outline'}, notifications: {label:'Mute club notifications',icon:'notifications-off-outline'},
+  notification_settings: {label:'Notification settings',icon:'settings-outline'},
 };
 
-export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, onAction, onDismiss }: Props) {
+export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, notificationsEnabled=true,globalNotificationsEnabled=true,notificationsBusy=false,onAction, onDismiss }: Props) {
   const { colors } = useNovoriTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -112,12 +115,13 @@ export default function ClubOptionsSheet({ visible, clubName, role, canViewMembe
             <Text style={styles.title} accessibilityRole="header">{clubName}</Text>
             <Text style={styles.period}>Club options</Text>
             {getClubHomeActions(role,canViewMembers,hasRules).map(action => <Pressable key={action} accessibilityRole="button"
-              accessibilityLabel={actionDetails[action].label} disabled={busy && action === 'leave'} onPress={() => closeSmoothly(() => onAction(action))}
+              accessibilityLabel={action==='notifications'?(notificationsEnabled?'Mute club notifications':'Unmute club notifications'):actionDetails[action].label} disabled={(busy && action === 'leave')||(notificationsBusy && action==='notifications')} onPress={() => closeSmoothly(() => onAction(action))}
               style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              <View style={styles.actionIcon}><Ionicons name={actionDetails[action].icon} size={20} color={action === 'leave' ? colors.danger : colors.gold} /></View>
-              <Text style={[styles.actionText, action === 'leave' && { color: colors.danger }]}>{actionDetails[action].label}</Text>
+              <View style={styles.actionIcon}><Ionicons name={action==='notifications'&&!notificationsEnabled?'notifications-outline':actionDetails[action].icon} size={20} color={action === 'leave' ? colors.danger : colors.gold} /></View>
+              <Text style={[styles.actionText, action === 'leave' && { color: colors.danger }]}>{action==='notifications'?(notificationsEnabled?'Mute club notifications':'Unmute club notifications'):actionDetails[action].label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText} />
             </Pressable>)}
+            {role?<Text style={styles.note}>{!globalNotificationsEnabled?'Club notifications are off in Settings.':notificationsEnabled?'Notifications are on for this club.':'This club is muted. Other clubs can still notify you.'}</Text>:null}
             <Pressable accessibilityRole="button" accessibilityLabel="Close club options" onPress={() => closeSmoothly()}
               style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>

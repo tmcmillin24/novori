@@ -138,6 +138,7 @@ function PreferenceRow({
       </View>
 
       <Switch
+        accessibilityLabel={title}
         value={value}
         disabled={disabled}
         onValueChange={
@@ -807,8 +808,8 @@ export default function NotificationSettingsScreen() {
 
           <PreferenceRow
             icon="megaphone-outline"
-            title="Club Activity"
-            subtitle="New posts, events, and important activity in your clubs"
+            title="Club Notifications"
+            subtitle="Posts, announcements, events, shared reads, and replies. Mute individual clubs from their … menu."
             value={
               activityPreferences.club_activity
             }

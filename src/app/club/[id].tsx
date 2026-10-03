@@ -12,6 +12,9 @@ import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
 import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
 import ClubHomeCard from '../../components/ClubHomeCard';
 import ClubOptionsSheet from '../../components/ClubOptionsSheet';
+import ClubWelcomeCard from '../../components/ClubWelcomeCard';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
+import {getClubMemberExperience,setClubNotificationsEnabled,dismissClubWelcome,type ClubMemberExperience} from '../../lib/club-member-experience';
 import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -542,6 +545,13 @@ export default function ClubDetailScreen() {
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [membersVisible, setMembersVisible] = useState(false);
   const [managementVisible, setManagementVisible] = useState(false);
+  const [memberExperience,setMemberExperience]=useState<ClubMemberExperience|null>(null);
+  const [welcomeOpen,setWelcomeOpen]=useState(false);
+  const [experienceBusy,setExperienceBusy]=useState(false);
+  const [experienceWarning,setExperienceWarning]=useState('');
+  const experienceMutation=useRef(false),experienceVersion=useRef(0);
+  const experienceMounted=useRef(true),requestedGuideShown=useRef(false);
+  useEffect(()=>{experienceMounted.current=true;return()=>{experienceMounted.current=false;experienceVersion.current++;};},[]);
   const pendingMemberScroll = useRef(false);
   const membersSectionY = useRef(0);
 
@@ -561,6 +571,7 @@ export default function ClubDetailScreen() {
     setClubTab(tab === 'books' ? 'books' : tab === 'events' ? 'events' : 'posts');
     setUpcomingEvents([]);setPinnedPosts([]); setPinTarget(null);
     setClubMenuVisible(false); setRulesExpanded(false); setMembersVisible(false); setManagementVisible(false);
+    setMemberExperience(null);setWelcomeOpen(false);setExperienceWarning('');requestedGuideShown.current=false;experienceVersion.current++;
     setInvitePanelOpen(false); pendingMemberScroll.current = false;
   }, [clubId,(params as {tab?:string}).tab]);
 
@@ -571,6 +582,7 @@ export default function ClubDetailScreen() {
 
   const loadClub = useCallback(
     async () => {
+      const experienceRequest=++experienceVersion.current;
       if (!clubId) {
         setError(
           'This club could not be found.'
@@ -602,6 +614,7 @@ export default function ClubDetailScreen() {
         const [
           pendingInviteData,
           pendingJoinRequestData,
+          experienceData,
         ] =
           await Promise.all([
             getPendingClubInvite(
@@ -610,6 +623,10 @@ export default function ClubDetailScreen() {
             getPendingPrivateClubRequest(
               clubId
             ),
+            clubData.membership_role?getClubMemberExperience(clubId).catch(error=>{
+              if(experienceMounted.current&&experienceRequest===experienceVersion.current)setExperienceWarning(error?.message||'Could not load your club preferences.');
+              return null;
+            }):Promise.resolve(null),
           ]);
 
         const canReadPrivateContent =
@@ -680,6 +697,7 @@ export default function ClubDetailScreen() {
         setClub(
           clubData
         );
+        if(experienceMounted.current&&experienceRequest===experienceVersion.current){setMemberExperience(experienceData);setWelcomeOpen(Boolean(experienceData&&(!experienceData.welcome_seen_at||((params as {guide?:string}).guide==='1'&&!requestedGuideShown.current))));requestedGuideShown.current=true;}
         setMembers(
           memberData
         );
@@ -714,7 +732,7 @@ export default function ClubDetailScreen() {
         setLoading(false);
       }
     },
-    [clubId]
+    [clubId,(params as {guide?:string}).guide]
   );
 
   useFocusEffect(
@@ -4816,7 +4834,20 @@ export default function ClubDetailScreen() {
       setMembersVisible(true);
     }
     else if (action === 'manage') { toggleManagement(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }
+    else if(action==='guide'){if(memberExperience)setWelcomeOpen(true);else void updateClubExperience('guide');clubScrollRef.current?.scrollTo({y:0,animated:true});}
+    else if(action==='notification_settings')router.push('/notification-settings');
+    else if(action==='notifications')void updateClubExperience('notifications');
     else if (action === 'leave') confirmLeave();
+  }
+  async function updateClubExperience(action:'notifications'|'welcome'|'guide'){
+    if(!club?.membership_role||experienceMutation.current)return;
+    const target=club.id;experienceMutation.current=true;setExperienceBusy(true);
+    try{
+      const previous=memberExperience??await getClubMemberExperience(target);
+      const next=action==='notifications'?await setClubNotificationsEnabled(target,!previous.notifications_enabled):action==='welcome'?await dismissClubWelcome(target):previous;
+      if(experienceMounted.current&&pinClubIdRef.current===target){experienceVersion.current++;setMemberExperience(next);setExperienceWarning('');if(action==='welcome')setWelcomeOpen(false);else if(action==='guide')setWelcomeOpen(true);}
+    }catch(error){if(experienceMounted.current&&pinClubIdRef.current===target)setExperienceWarning((error as {message?:string})?.message||'Could not save your club preference.');}
+    finally{experienceMutation.current=false;if(experienceMounted.current)setExperienceBusy(false);}
   }
 
   return (
@@ -4889,6 +4920,9 @@ export default function ClubDetailScreen() {
           membersVisible={membersVisible} managementVisible={managementVisible} pendingRequests={managerJoinRequests.length} pendingInvites={managerInvites.length}
           onPhoto={() => setClubImageOpen(true)} onRules={() => setRulesExpanded(value => !value)}
           onMembers={() => setMembersVisible(value => !value)} onManage={() => toggleManagement()} onEdit={editClub} />
+        {isMember&&welcomeOpen&&memberExperience?<ClubWelcomeCard name={club.name} experience={memberExperience} eventTitle={nextEvent?.title} hasRules={Boolean(club.rules?.trim())} busy={experienceBusy}
+          onBooks={()=>setClubTab('books')} onDiscussion={()=>router.push({pathname:'/club-discussions',params:{clubId:club.id}})} onEvents={()=>setClubTab('events')}
+          onRules={()=>{setRulesExpanded(true);clubScrollRef.current?.scrollTo({y:0,animated:true});}} onDismiss={()=>void updateClubExperience('welcome')}/>:null}
 
         {pendingInvite &&
         !isMember ? (
@@ -5600,7 +5634,9 @@ export default function ClubDetailScreen() {
         onPin={(postId,pinned,replacePostId) => void handleClubPin(postId,pinned,replacePostId)} onDismiss={() => setPinTarget(null)} />
 
       <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
+        notificationsEnabled={memberExperience?.notifications_enabled} globalNotificationsEnabled={memberExperience?.global_notifications_enabled} notificationsBusy={experienceBusy}
         hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)} />
+      <ValidationWarningSheet visible={Boolean(experienceWarning)} title="Club preferences" message={experienceWarning} onDismiss={()=>setExperienceWarning('')}/>
 
       <Modal
         visible={

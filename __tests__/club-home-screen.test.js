@@ -5,6 +5,9 @@ import CreateClubScreen from '../src/app/create-club';
 import ClubDetailScreen from '../src/app/club/[id]';
 import ClubHomeCard from '../src/components/ClubHomeCard';
 import ClubOptionsSheet from '../src/components/ClubOptionsSheet';
+import NotificationSettingsScreen from '../src/app/notification-settings';
+import {getClubMemberExperience,setClubNotificationsEnabled,dismissClubWelcome} from '../src/lib/club-member-experience';
+import {getNotificationPreferences,updateNotificationPreference} from '../src/lib/notifications';
 import { getClub, getClubMembers, getPendingClubInvitesForManager, updateClub, createClub } from '../src/lib/clubs';
 import { getClubPosts } from '../src/lib/feed';
 import { getClubEvents } from '../src/lib/club-events';
@@ -12,9 +15,10 @@ import { getClubReads } from '../src/lib/club-reads';
 import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/club-posts';
 
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
-jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>({id:'club-1',clubId:'club-1'}),useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
+let mockClubParams={id:'club-1',clubId:'club-1'};
+jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockClubParams,useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
 jest.mock('react-native',()=>({
-  KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',
+  KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',Switch:'Switch',
   AppState:{addEventListener:()=>({remove:()=>{}})},Alert:{alert:jest.fn()},Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},
   Modal:props=>props.visible?require('react').createElement('Modal',props,props.children):null,
   ScrollView:require('react').forwardRef((props,ref)=>{require('react').useImperativeHandle(ref,()=>({scrollTo:jest.fn()}),[]);return require('react').createElement('ScrollView',props,props.children);}),
@@ -34,6 +38,10 @@ jest.mock('../src/components/FullScreenImageViewer',()=> 'FullScreenImageViewer'
 jest.mock('../src/components/BlockReaderConfirmSheet',()=> 'BlockReaderConfirmSheet');
 jest.mock('../src/components/LeaveClubConfirmSheet',()=> 'LeaveClubConfirmSheet');
 jest.mock('../src/components/PostTypeIdentifier',()=> 'PostTypeIdentifier');
+jest.mock('../src/components/ReadingReminderSettings',()=> 'ReadingReminderSettings');
+jest.mock('@react-native-async-storage/async-storage',()=>({getItem:async()=>null,setItem:async()=>{}}));
+jest.mock('../src/lib/club-member-experience',()=>({getClubMemberExperience:jest.fn(),setClubNotificationsEnabled:jest.fn(),dismissClubWelcome:jest.fn()}));
+jest.mock('../src/lib/notifications',()=>({getNotificationPreferences:jest.fn(),updateNotificationPreference:jest.fn()}));
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}})}}}));
 jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),uploadClubCover:jest.fn(),getClub:jest.fn(),getClubMembers:jest.fn(),getPendingClubInvite:async()=>null,getPendingPrivateClubRequest:async()=>null,
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
@@ -44,7 +52,11 @@ jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest
 jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
+const experience={notifications_enabled:true,global_notifications_enabled:true,welcome_seen_at:'2026-10-03T19:00:00Z',current_read_id:'read-1',current_read_title:'Stored shared read'};
+const notificationPrefs={club_activity:true,club_invites:true,new_followers:true,reactions_and_replies:true,reading_started:false,reading_finished:false};
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();getClub.mockResolvedValue(base);
+  mockClubParams={id:'club-1',clubId:'club-1'};
+  getClubMemberExperience.mockResolvedValue(experience);setClubNotificationsEnabled.mockImplementation(async(_,enabled)=>({...experience,notifications_enabled:enabled}));dismissClubWelcome.mockResolvedValue(experience);getNotificationPreferences.mockResolvedValue(notificationPrefs);updateNotificationPreference.mockImplementation(async(key,enabled)=>({...notificationPrefs,[key]:enabled}));
   getClubReads.mockResolvedValue({current:null,upcoming:[],past:[],upcoming_more:false,past_more:false});
   getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person',username:'owner',avatar_url:null},{user_id:'member',role:'member',display_name:'Member Reader',username:'member',avatar_url:null}]);
   updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getClubEvents.mockResolvedValue([]);getClubConversation.mockImplementation(async()=>({posts:await getClubPosts(),pinnedPosts:[]}));getClubPins.mockResolvedValue([]);setClubPostPin.mockResolvedValue();getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
@@ -155,4 +167,32 @@ test('books tab loads the shared lineup only when opened and provides manager co
   await render();expect(getClubReads).not.toHaveBeenCalled();await press('Club Books tab');expect(getClubReads).toHaveBeenCalledTimes(1);
   expect(button('Add club read')).toBeDefined();expect(button('Create club announcement')).toBeDefined();expect(button('Create club event')).toBeUndefined();
   await press('Choose current club read');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/edit-club-read',params:{clubId:'club-1',status:'current'}});
+});
+
+test('member club menu persists mute/unmute and exposes global settings without moving tab actions',async()=>{
+  getClub.mockResolvedValue({...base,membership_role:'member'});await render();await press('Open club options');await press('Mute club notifications');expect(setClubNotificationsEnabled).toHaveBeenCalledWith('club-1',false);await press('Open club options');expect(text()).toContain('This club is muted.');await press('Unmute club notifications');expect(setClubNotificationsEnabled).toHaveBeenLastCalledWith('club-1',true);await press('Open club options');await press('Notification settings');expect(mockRouter.push).toHaveBeenCalledWith('/notification-settings');expect(button('Club Posts tab')).toBeDefined();
+});
+test('global off is shown in club menu and unmuting preserves global off',async()=>{
+  getClubMemberExperience.mockResolvedValue({...experience,notifications_enabled:false,global_notifications_enabled:false});setClubNotificationsEnabled.mockResolvedValue({...experience,global_notifications_enabled:false});await render();await press('Open club options');expect(text()).toContain('Club notifications are off in Settings.');await press('Unmute club notifications');await press('Open club options');expect(text()).toContain('Club notifications are off in Settings.');expect(button('Mute club notifications')).toBeDefined();
+});
+test('failed mute keeps the previous preference and shows the app warning sheet',async()=>{
+  setClubNotificationsEnabled.mockRejectedValue(new Error('Connection lost.'));await render();await press('Open club options');await press('Mute club notifications');expect(text()).toContain('Connection lost.');await press('Open club options');expect(button('Mute club notifications')).toBeDefined();expect(button('Unmute club notifications')).toBeUndefined();
+});
+test('new member sees stored read guidance, can dismiss it permanently, and reopen it',async()=>{
+  getClubMemberExperience.mockResolvedValue({...experience,welcome_seen_at:null});await render();expect(text()).toContain('MAKE YOURSELF AT HOME');expect(text()).toContain('Stored shared read');expect(getClubReads).not.toHaveBeenCalled();await press('Read welcome club rules');expect(text()).toContain('Label spoilers.');await press('Join the discussion');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/club-discussions',params:{clubId:'club-1'}});await press('Dismiss club welcome');expect(dismissClubWelcome).toHaveBeenCalledWith('club-1');expect(text()).not.toContain('MAKE YOURSELF AT HOME');await press('Open club options');await press('Club guide');expect(text()).toContain('MAKE YOURSELF AT HOME');await press('Explore club books');expect(getClubReads).toHaveBeenCalledTimes(1);
+});
+test('private visitor never reads member preferences or sees mute/guide controls',async()=>{
+  getClub.mockResolvedValue({...base,privacy:'private',membership_role:null});await render();expect(getClubMemberExperience).not.toHaveBeenCalled();await press('Open club options');expect(button('Mute club notifications')).toBeUndefined();expect(button('Club guide')).toBeUndefined();
+});
+test('club preferences failure does not hide the club and next attempt can save',async()=>{
+  getClubMemberExperience.mockRejectedValueOnce(new Error('Preferences unavailable.'));await render();expect(text()).toContain('Club conversation');await press('Open club options');await press('Mute club notifications');expect(setClubNotificationsEnabled).toHaveBeenCalledWith('club-1',false);
+});
+test('master club notifications switch is on by default, saves server preference, and rolls back failures',async()=>{
+  await render(<NotificationSettingsScreen/>);const control=()=>view.root.findAllByType('Switch').find(n=>n.props.accessibilityLabel==='Club Notifications');expect(control().props.value).toBe(true);await act(async()=>control().props.onValueChange(false));expect(updateNotificationPreference).toHaveBeenCalledWith('club_activity',false);expect(control().props.value).toBe(false);updateNotificationPreference.mockRejectedValue(new Error('Offline'));await act(async()=>control().props.onValueChange(true));expect(control().props.value).toBe(false);
+});
+test('opening a welcome notification shows the guide once and dismissing survives refresh',async()=>{
+  mockClubParams={id:'club-1',clubId:'club-1',guide:'1'};await render();expect(text()).toContain('MAKE YOURSELF AT HOME');await press('Dismiss club welcome');await act(async()=>view.root.findAllByType('ScrollView').find(n=>n.props.refreshControl).props.refreshControl.props.onRefresh());expect(text()).not.toContain('MAKE YOURSELF AT HOME');
+});
+test('guide can recover from a failed preference load without changing mute or welcome state',async()=>{
+  getClubMemberExperience.mockRejectedValueOnce(new Error('Temporary outage.'));await render();await press('Open club options');await press('Club guide');expect(text()).toContain('MAKE YOURSELF AT HOME');expect(getClubMemberExperience).toHaveBeenCalledTimes(2);expect(setClubNotificationsEnabled).not.toHaveBeenCalled();expect(dismissClubWelcome).not.toHaveBeenCalled();
 });

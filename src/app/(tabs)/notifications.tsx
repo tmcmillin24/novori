@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import {getClubNotificationDestination} from '../../lib/club-notification-route';
 import {
   useFocusEffect,
   useRouter,
@@ -918,6 +919,9 @@ export default function NotificationsScreen() {
       router.push(reminderDestination);
       return;
     }
+
+    const clubDestination=getClubNotificationDestination(item);
+    if(clubDestination){router.push(clubDestination);return;}
 
     if (
       item.type ===

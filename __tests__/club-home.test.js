@@ -7,13 +7,13 @@ function load(file,requireFn=()=>{throw Error('Unexpected import');}) {
 }
 const home=load('club-home.ts');
 test('owner can edit and manage, and has no leave action',()=>{
-  expect(home.getClubHomeActions('owner',true,false)).toEqual(['edit','rules','members','manage']);
+  expect(home.getClubHomeActions('owner',true,false)).toEqual(['edit','rules','members','manage','guide','notifications','notification_settings']);
 });
 test('admin can manage but cannot edit club identity or rules',()=>{
-  expect(home.getClubHomeActions('admin',true,true)).toEqual(['rules','members','manage','leave']);
+  expect(home.getClubHomeActions('admin',true,true)).toEqual(['rules','members','manage','guide','notifications','notification_settings','leave']);
 });
 test('member has only readable information and leave options',()=>{
-  expect(home.getClubHomeActions('member',true,true)).toEqual(['rules','members','leave']);
+  expect(home.getClubHomeActions('member',true,true)).toEqual(['rules','members','guide','notifications','notification_settings','leave']);
 });
 test('private nonmembers cannot see a member action; empty rules create no option',()=>{
   expect(home.getClubHomeActions(null,false,false)).toEqual([]);
