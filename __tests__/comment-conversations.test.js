@@ -1,0 +1,26 @@
+import {buildCommentThreads,countThreadReplies,getCommentDepthLimit,getFocusedConversationId} from '../src/lib/comment-conversations';
+const comment=(id,parent=null,score=0)=>({id,parent_comment_id:parent,created_at:'2026-10-03T10:00:00Z',vote_score:score});
+test('sibling order preserves top/newest and optimistic replies without changing the inputs',()=>{
+ const items=[comment('root'),comment('low','root',1),{...comment('new','root',2),created_at:'2026-10-03T11:00:00Z'},comment('high','root',10),comment('optimistic-1','root')];
+ expect(buildCommentThreads(items,'top').roots[0].children.map(n=>n.id)).toEqual(['optimistic-1','high','new','low']);
+ expect(buildCommentThreads(items,'newest').roots[0].children.map(n=>n.id)).toEqual(['optimistic-1','new','high','low']);
+ expect(items.every(item=>!item.children)).toBe(true);
+});
+test('orphaned, self-parented, and cyclic comments remain reachable without recursive loops',()=>{
+ const result=buildCommentThreads([comment('orphan','deleted'),comment('self','self'),comment('a','b'),comment('b','a'),comment('child','a')],'top');
+ expect(result.roots.map(n=>n.id).sort()).toEqual(['a','b','orphan','self']);
+ expect(countThreadReplies(result.nodes.get('a'))).toBe(1);
+});
+test('long conversations are counted and sorted without a recursive stack overflow',()=>{
+ const items=Array.from({length:1500},(_,i)=>comment('c'+i,i?'c'+(i-1):null));
+ const result=buildCommentThreads(items,'top');expect(countThreadReplies(result.roots[0])).toBe(1499);
+ expect(getFocusedConversationId(items,'','c1499',2)).toBe('c1498');
+});
+test('available width bounds indentation, deep notification links focus their own branch',()=>{
+ expect([280,390,800].map(getCommentDepthLimit)).toEqual([1,2,3]);
+ const items=[comment('root'),comment('c1','root'),comment('c2','c1'),comment('c3','c2')];
+ expect(getFocusedConversationId(items,'','c2',2)).toBe('');
+ expect(getFocusedConversationId(items,'','c3',2)).toBe('c2');
+ expect(getFocusedConversationId(items,'root','c3',2)).toBe('root');
+ expect(getFocusedConversationId(items,'missing','',2)).toBe('missing');
+});

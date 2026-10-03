@@ -1,3 +1,4 @@
+import {buildCommentThreads, countThreadReplies, getCommentDepthLimit} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -227,6 +228,7 @@ export default function HomeScreen() {
     );
   const {
     height: windowHeight,
+    width: windowWidth,
   } = useWindowDimensions();
 
   const commentsFullHeight =
@@ -1498,6 +1500,10 @@ export default function HomeScreen() {
   function openCommentsSheet(
     post: FeedPost
   ) {
+    if (post.club_discussion?.contains_spoilers) {
+      router.push({pathname: '/post/[id]', params: {id: post.id}});
+      return;
+    }
     commentsSheetHeight.stopAnimation();
     commentsEntranceTranslateY.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
@@ -3860,6 +3866,9 @@ export default function HomeScreen() {
     }
   }
 
+  const sheetThreadData = useMemo(() => buildCommentThreads(sheetComments, commentSort), [sheetComments, commentSort]);
+  const sheetDepthLimit = getCommentDepthLimit(windowWidth);
+
   function renderSheetComment(
     comment:
       PostComment,
@@ -3883,16 +3892,7 @@ export default function HomeScreen() {
         .charAt(0)
         .toUpperCase();
 
-    const children =
-      sortSiblingComments(
-        sheetComments.filter(
-          (
-            item
-          ) =>
-            item.parent_comment_id ===
-            comment.id
-        )
-      );
+    const children = sheetThreadData.nodes.get(comment.id)?.children ?? [];
 
     const expanded =
       Boolean(
@@ -3916,11 +3916,7 @@ export default function HomeScreen() {
           visibleChildren.length
       );
 
-    const visualDepth =
-      Math.min(
-        depth,
-        3
-      );
+    const visualDepth = depth > 0 ? 1 : 0;
 
     return (
       <View
@@ -4208,7 +4204,14 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {visibleChildren.length >
+        {children.length > 0 && depth >= sheetDepthLimit ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} style={styles.continueSheetConversation} onPress={() => {
+            if (!commentsPost) return;
+            const id=commentsPost.id;
+            closeCommentsSheet();
+            router.push({pathname: '/post/[id]', params: {id, threadId: comment.id, commentId: comment.id}});
+          }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>Continue conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} more replies</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
+        ) : visibleChildren.length >
         0 ? (
           <View
             style={
@@ -4227,7 +4230,7 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {hiddenCount >
+        {depth < sheetDepthLimit && hiddenCount >
         0 ? (
           <Pressable
             onPress={() =>
@@ -4260,7 +4263,7 @@ export default function HomeScreen() {
                 : 'replies'}
             </Text>
           </Pressable>
-        ) : expanded &&
+        ) : depth < sheetDepthLimit && expanded &&
           children.length >
             2 ? (
           <Pressable
@@ -7231,15 +7234,7 @@ export default function HomeScreen() {
     );
   }
 
-  const rootComments =
-    sortSiblingComments(
-      sheetComments.filter(
-        (
-          comment
-        ) =>
-          !comment.parent_comment_id
-      )
-    );
+  const rootComments = sheetThreadData.roots;
 
   const canSubmitComment =
     Boolean(
@@ -11101,17 +11096,7 @@ function createStyles(
       flex:
         1,
     },
-    commentsListContent: {
-      paddingLeft:
-        24,
-      paddingRight:
-        38,
-      paddingTop:
-        14,
-      paddingBottom:
-        18,
-      gap:
-        13,
+    commentsListContent: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 18, gap: 4,
     },
     commentsLoading: {
       flex:
@@ -11151,29 +11136,11 @@ function createStyles(
       marginTop:
         3,
     },
-    sheetCommentThread: {
-      gap:
-        7,
+    continueSheetConversation: {minHeight:32,flexDirection:'row',alignItems:'center',gap:6,marginLeft:14,paddingVertical:5},
+    continueSheetConversationText: {color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11,flexShrink:1},
+    sheetCommentThread: { gap: 2,
     },
-    sheetComment: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-start',
-      borderWidth:
-        1,
-      borderColor:
-        'transparent',
-      borderRadius:
-        14,
-      paddingHorizontal:
-        6,
-      paddingVertical:
-        5,
-      marginHorizontal:
-        -6,
-      marginVertical:
-        -5,
+    sheetComment: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6,
     },
     sheetCommentActionAccent: {
       position:
@@ -11207,37 +11174,11 @@ function createStyles(
       marginRight:
         9,
     },
-    sheetCommentAvatar: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        17,
-      backgroundColor:
-        colors.elevated,
+    sheetCommentAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.elevated,
     },
-    sheetCommentAvatarFallback: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        17,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
+    sheetCommentAvatarFallback: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.elevated, alignItems:'center', justifyContent:'center',
     },
-    sheetCommentAvatarText: {
-      color:
-        colors.text,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      fontSize:
-        13,
+    sheetCommentAvatarText: { color: colors.gold, fontFamily:'Inter_600SemiBold', fontSize: 10,
     },
     sheetCommentCopy: {
       flex:
@@ -11305,15 +11246,7 @@ function createStyles(
       marginTop:
         3,
     },
-    sheetCommentActions: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        16,
-      marginTop:
-        6,
+    sheetCommentActions: { flexDirection:'row',alignItems:'center',gap:12,marginTop:3,
     },
     commentVoteControl: {
       flexDirection:
@@ -11399,21 +11332,9 @@ function createStyles(
       fontSize:
         12.5,
     },
-    sheetReplies: {
-      gap:
-        8,
+    sheetReplies: { gap:2,
     },
-    viewMoreRepliesButton: {
-      minHeight:
-        25,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap:
-        7,
-      marginLeft:
-        43,
+    viewMoreRepliesButton: { minHeight:28,flexDirection:'row',alignItems:'center',gap:7,marginLeft:33,
     },
     replyGuide: {
       width:
@@ -11423,13 +11344,7 @@ function createStyles(
       backgroundColor:
         colors.border,
     },
-    viewMoreRepliesText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        9,
+    viewMoreRepliesText: { color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11,
     },
     commentsComposerWrap: {
       backgroundColor:

@@ -1,3 +1,5 @@
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
+import {INBOX_FILTERS,filterInbox,notificationSectionLabel,notificationCategoryLabel,isClubNotification,type InboxFilter} from '../../lib/notification-inbox';
 import { Ionicons } from '@expo/vector-icons';
 import {getClubNotificationDestination} from '../../lib/club-notification-route';
 import {
@@ -492,72 +494,25 @@ export default function NotificationsScreen() {
       >
     >({});
 
-  const unreadCount = useMemo(
-    () =>
-      notifications.filter(
-        (item) => !item.read_at
-      ).length,
-    [notifications]
-  );
-
+  const [filter, setFilter] = useState<InboxFilter>('all');
+  const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const unreadCount = notifications.filter(item => !item.read_at || visitNewNotificationIds[item.id]).length;
   const rows = useMemo(() => {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const today =
-      notifications.filter(
-        (item) =>
-          new Date(item.created_at).getTime() >=
-          startOfToday.getTime()
-      );
-
-    const earlier =
-      notifications.filter(
-        (item) =>
-          new Date(item.created_at).getTime() <
-          startOfToday.getTime()
-      );
-
-    const result:
-      Array<
-        | {
-            key: string;
-            kind: 'header';
-            title: string;
-          }
-        | {
-            key: string;
-            kind: 'notification';
-            item: NovoriNotification;
-          }
-      > = [];
-
-    function append(
-      title: string,
-      items: NovoriNotification[]
-    ) {
-      if (!items.length) return;
-
-      result.push({
-        key: `header-${title}`,
-        kind: 'header',
-        title,
-      });
-
-      for (const item of items) {
-        result.push({
-          key: item.id,
-          kind: 'notification',
-          item,
-        });
-      }
+    const result: Array<{key:string;kind:'header';title:string}|{key:string;kind:'notification';item:NovoriNotification}> = [];
+    const groups = new Map<string, NovoriNotification[]>();
+    for (const item of filterInbox(notifications, filter)) {
+      const label = notificationSectionLabel(item.created_at);
+      groups.set(label, [...(groups.get(label) ?? []), item]);
     }
-
-    append('Today', today);
-    append('Earlier', earlier);
-
+    for (const label of ['Today','Yesterday','Earlier']) {
+      const items = groups.get(label);
+      if (!items?.length) continue;
+      result.push({key:`header-${label}`,kind:'header',title:label});
+      for(const item of items) result.push({key:item.id,kind:'notification',item});
+    }
     return result;
-  }, [notifications]);
+  }, [notifications, filter]);
 
   const loadNotifications = useCallback(
     async (
@@ -822,9 +777,8 @@ export default function NotificationsScreen() {
         clearError
       );
 
-      setNotifications(
-        previous
-      );
+      const removed = previous.find(item => item.id === notificationId);
+      setNotifications(current => removed && !current.some(item => item.id === removed.id) ? [...current, removed].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)) : current);
 
       Alert.alert(
         'Could not clear notification',
@@ -834,6 +788,7 @@ export default function NotificationsScreen() {
   }
 
   async function clearEverything() {
+    setClearing(true);
     const previous =
       notifications;
 
@@ -843,6 +798,8 @@ export default function NotificationsScreen() {
 
     try {
       await clearAllNotifications();
+      setVisitNewNotificationIds({});
+      setClearConfirmVisible(false);
     } catch (
       clearError
     ) {
@@ -851,15 +808,13 @@ export default function NotificationsScreen() {
         clearError
       );
 
-      setNotifications(
-        previous
-      );
+      setNotifications(current => [...current, ...previous.filter(item => !current.some(next => next.id === item.id))].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)));
 
       Alert.alert(
         'Could not clear notifications',
         'Please try again.'
       );
-    }
+    } finally { setClearing(false); }
   }
 
   async function openNotification(
@@ -1084,403 +1039,86 @@ export default function NotificationsScreen() {
         .charAt(0)
         .toUpperCase();
 
+    const clubPhoto = isClubNotification(item) && item.entity_type === 'club' ? item.image_url : null;
     return (
-      <SwipeNotificationRow
-        onDelete={() =>
-          void clearOneNotification(
-            item.id
-          )
-        }
-        styles={
-          styles
-        }
-      >
-        <Pressable
-          onPress={() =>
-            openNotification(
-              item
-            )
-          }
-          style={({ pressed }) => [
-            styles.notificationRow,
-            unread &&
-              styles.notificationRowUnread,
-            pressed &&
-              styles.pressed,
-          ]}
-        >
-          <View
-            style={
-              styles.avatarWrap
-            }
-          >
-            {item.actor_avatar_url ? (
-              <Image
-                source={{
-                  uri:
-                    item.actor_avatar_url,
-                }}
-                style={
-                  styles.avatarImage
-                }
-              />
-            ) : (
-              <View
-                style={
-                  styles.avatarFallback
-                }
-              >
-                {item.actor_id ? (
-                  <Text
-                    style={
-                      styles.avatarInitial
-                    }
-                  >
-                    {avatarInitial}
-                  </Text>
-                ) : (
-                  <Ionicons
-                    name={
-                      getNotificationIcon(
-                        item
-                      )
-                    }
-                    size={
-                      20
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                )}
-              </View>
-            )}
-
-            <View
-              style={
-                styles.typeBadge
-              }
-            >
-              <Ionicons
-                name={
-                  getNotificationIcon(
-                    item
-                  )
-                }
-                size={
-                  11
-                }
-                color={
-                  colors.background
-                }
-              />
-            </View>
+      <SwipeNotificationRow key={item.id} onDelete={() => void clearOneNotification(item.id)} styles={styles}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open notification: ${item.id}`} onPress={() => void openNotification(item)} style={({pressed}) => [styles.notificationRow, unread && styles.notificationRowUnread, pressed && styles.pressed]}>
+          <View style={styles.avatarWrap}>
+            {clubPhoto || item.actor_avatar_url ? <Image source={{uri:(clubPhoto || item.actor_avatar_url)!}} style={[styles.avatarImage,clubPhoto && styles.clubAvatar]}/> :
+              <View style={styles.avatarFallback}>{item.actor_id ? <Text style={styles.avatarInitial}>{avatarInitial}</Text> : <Ionicons name={getNotificationIcon(item)} size={20} color={colors.gold}/>}</View>}
+            <View style={styles.typeBadge}><Ionicons name={getNotificationIcon(item)} size={10} color={colors.background}/></View>
           </View>
-
-          <View
-            style={
-              styles.notificationCopy
-            }
-          >
-            <View
-              style={
-                styles.notificationTitleRow
-              }
-            >
-              <Text
-                style={
-                  styles.notificationTitle
-                }
-                numberOfLines={
-                  2
-                }
-              >
-                {item.title}
-              </Text>
-
-              <Text
-                style={
-                  styles.time
-                }
-              >
-                {formatRelativeTime(
-                  item.created_at
-                )}
-              </Text>
-            </View>
-
-            {item.body ? (
-              hideExplicitBody ? (
-                <Text
-                  style={[
-                    styles.notificationBody,
-                    styles.notificationBodyHidden,
-                  ]}
-                  numberOfLines={
-                    2
-                  }
-                >
-                  Explicit language hidden · Tap to view
-                </Text>
-              ) : (
-                <Text
-                  style={
-                    styles.notificationBody
-                  }
-                  numberOfLines={
-                    3
-                  }
-                >
-                  {item.body}
-                </Text>
-              )
-            ) : null}
+          <View style={styles.notificationCopy}>
+            <View style={styles.notificationMeta}><Text style={styles.notificationCategory}>{notificationCategoryLabel(item)}</Text><Text style={styles.time}>· {formatRelativeTime(item.created_at)}</Text>{unread ? <View style={styles.unreadDot}/> : null}</View>
+            <Text style={styles.notificationTitle} numberOfLines={2}>{item.title}</Text>
+            {item.body ? <Text style={[styles.notificationBody, hideExplicitBody && styles.notificationBodyHidden]} numberOfLines={2}>{hideExplicitBody ? 'Explicit language hidden · Tap to view' : item.body}</Text> : null}
           </View>
-
-          <View
-            style={
-              styles.notificationRight
-            }
-          >
-            {item.image_url ? (
-              <Image
-                source={{
-                  uri:
-                    item.image_url,
-                }}
-                style={
-                  styles.entityImage
-                }
-              />
-            ) : unread ? (
-              <View
-                style={
-                  styles.unreadDot
-                }
-              />
-            ) : null}
-          </View>
+          {item.image_url && !clubPhoto ? <Image source={{uri:item.image_url}} style={styles.entityImage}/> : null}
         </Pressable>
       </SwipeNotificationRow>
     );
   }
 
-  return (
-    <SafeAreaView
-      style={styles.safeArea}
-      edges={['top']}
-    >
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.headerButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={24}
-            color={colors.text}
-          />
-        </Pressable>
-
-        <Text style={styles.headerTitle}>
-          Notifications
-        </Text>
-
-        <Pressable
-          disabled={
-            notifications.length ===
-            0
-          }
-          onPress={
-            clearEverything
-          }
-          hitSlop={
-            10
-          }
-          style={({ pressed }) => [
-            styles.clearHeaderButton,
-            pressed &&
-              styles.pressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.clearHeaderText,
-              notifications.length ===
-                0 &&
-                styles.clearHeaderTextDisabled,
-            ]}
-          >
-            Clear
-          </Text>
-        </Pressable>
+  const inboxHeader = <>
+    <View style={styles.inboxSummary}>
+      <View style={styles.summaryHeading}><View style={styles.summaryIcon}><Ionicons name="notifications-outline" size={21} color={colors.gold}/></View><View style={styles.summaryCopy}><Text style={styles.summaryEyebrow}>YOUR CIRCLE</Text><Text style={styles.summaryTitle}>{unreadCount ? `${unreadCount} new ${unreadCount === 1 ? 'update' : 'updates'}` : 'You’re all caught up'}</Text></View>
+        {notifications.length ? <Pressable accessibilityRole="button" accessibilityLabel="Clear all notifications" onPress={()=>setClearConfirmVisible(true)} style={styles.clearHeaderButton}><Text style={styles.clearHeaderText}>Clear all</Text></Pressable> : null}
       </View>
-
-      {followRequestCount >
-      0 ? (
-        <Pressable
-          onPress={() =>
-            router.push(
-              '/follow-requests'
-            )
-          }
-          style={({ pressed }) => [
-            styles.requestBanner,
-            pressed &&
-              styles.pressed,
-          ]}
-        >
-          <View
-            style={
-              styles.requestBannerIcon
-            }
-          >
-            <Ionicons
-              name="person-add-outline"
-              size={
-                18
-              }
-              color={
-                colors.gold
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.requestBannerCopy
-            }
-          >
-            <Text
-              style={
-                styles.requestBannerTitle
-              }
-            >
-              Follow Requests
-            </Text>
-
-            <Text
-              style={
-                styles.requestBannerText
-              }
-            >
-              {followRequestCount}{' '}
-              pending {
-                followRequestCount ===
-                1
-                  ? 'request'
-                  : 'requests'
-              }
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={
-              18
-            }
-            color={
-              colors.mutedText
-            }
-          />
-        </Pressable>
-      ) : null}
-
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator
-            size="small"
-            color={colors.gold}
-          />
-        </View>
-      ) : error &&
-        notifications.length === 0 ? (
-        <View style={styles.centered}>
-          <Ionicons
-            name="cloud-offline-outline"
-            size={34}
-            color={colors.mutedText}
-          />
-
-          <Text style={styles.emptyTitle}>
-            Couldn’t load notifications
-          </Text>
-
-          <Text style={styles.emptyText}>
-            {error}
-          </Text>
-
-          <Pressable
-            onPress={() =>
-              loadNotifications(true)
-            }
-            style={styles.retryButton}
-          >
-            <Text
-              style={styles.retryButtonText}
-            >
-              Try Again
-            </Text>
-          </Pressable>
-        </View>
-      ) : notifications.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>
-            You’re all caught up
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(row) => row.key}
-          contentContainerStyle={
-            styles.listContent
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={refresh}
-              tintColor={colors.gold}
-            />
-          }
-          renderItem={({ item: row }) =>
-            row.kind === 'header' ? (
-              <Text
-                style={styles.sectionLabel}
-              >
-                {row.title}
-              </Text>
-            ) : (
-              renderNotification(row.item)
-            )
-          }
-          ItemSeparatorComponent={() => (
-            <View style={styles.separator} />
-          )}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      <Text style={styles.summaryHint}>Club chatter, reader replies, and your next chapter.</Text>
+      <Text style={styles.swipeHint}>Swipe left on an update to clear it.</Text>
+    </View>
+    {followRequestCount > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="View follow requests" onPress={()=>router.push('/follow-requests')} style={styles.requestBanner}>
+      <View style={styles.requestBannerIcon}><Ionicons name="person-add-outline" size={18} color={colors.gold}/></View><View style={styles.requestBannerCopy}><Text style={styles.requestBannerTitle}>Follow requests</Text><Text style={styles.requestBannerText}>{followRequestCount} {followRequestCount===1?'reader wants':'readers want'} to join your circle</Text></View><Ionicons name="chevron-forward" size={16} color={colors.gold}/>
+    </Pressable> : null}
+    <View style={styles.filters}>{INBOX_FILTERS.map(option=><Pressable key={option.key} accessibilityRole="button" accessibilityLabel={`Show ${option.label.toLowerCase()} notifications`} accessibilityState={{selected:filter===option.key}} onPress={()=>setFilter(option.key)} style={[styles.filter,filter===option.key&&styles.filterActive]}><Text style={[styles.filterText,filter===option.key&&styles.filterTextActive]}>{option.label}</Text></Pressable>)}</View>
+    {error && notifications.length > 0 ? <Text style={styles.emptyText}>Couldn’t refresh. Pull down to try again.</Text> : null}
+  </>;
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={()=>router.back()} hitSlop={10} style={styles.headerButton}><Ionicons name="chevron-back" size={24} color={colors.text}/></Pressable>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Notification settings" onPress={()=>router.push('/notification-settings')} hitSlop={10} style={styles.headerButton}><Ionicons name="options-outline" size={23} color={colors.gold}/></Pressable>
+      </View>
+      {loading ? <View style={styles.centered}><ActivityIndicator color={colors.gold}/></View> :
+        <FlatList data={rows} keyExtractor={row=>row.key} contentContainerStyle={styles.listContent} ListHeaderComponent={inboxHeader} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.gold}/>}
+          ListEmptyComponent={<View style={styles.emptyState}>
+            <View style={styles.emptyIcon}><Ionicons name={error?'cloud-offline-outline':filter==='clubs'?'people-outline':filter==='replies'?'chatbubbles-outline':filter==='reading'?'book-outline':'checkmark-outline'} size={27} color={colors.gold}/></View>
+            <Text style={styles.emptyTitle}>{error?'Couldn’t load notifications':filter==='all'?'A quiet moment':`No ${filter} updates yet`}</Text>
+            <Text style={styles.emptyText}>{error || (filter==='all'?'Your next conversation will find you here.':filter==='clubs'?'Updates from your clubs will appear here. You can mute any club from its … menu.':filter==='replies'?'Replies to your posts and conversations will appear here.':'Reading reminders and reader milestones will appear here.')}</Text>
+            {error ? <Pressable accessibilityRole="button" accessibilityLabel="Retry notifications" onPress={()=>void loadNotifications(true)} style={styles.retryButton}><Text style={styles.retryButtonText}>Try again</Text></Pressable> : null}
+          </View>}
+          renderItem={({item:row})=>row.kind==='header'?<Text style={styles.sectionLabel}>{row.title}</Text>:renderNotification(row.item)} showsVerticalScrollIndicator={false}/>
+      }
+      <DeletePostConfirmSheet visible={clearConfirmVisible} busy={clearing} title="Clear your notifications?" message="This clears every update in your inbox, including the other filters. Your posts and conversations stay where they are." confirmLabel="Clear all" onDismiss={()=>{if(!clearing)setClearConfirmVisible(false);}} onConfirm={clearEverything}/>
     </SafeAreaView>
   );
 }
 
 function createStyles(colors: NovoriColors) {
   return StyleSheet.create({
+    clubAvatar: {borderRadius:12},
+    notificationMeta: {flexDirection:'row',alignItems:'center',gap:6,marginBottom:4},
+    notificationCategory: {color:colors.mutedText,fontSize:10,fontFamily:'Inter_600SemiBold'},
+    inboxSummary: {paddingVertical:17,borderBottomWidth:1,borderBottomColor:colors.gold},
+    summaryHeading: {flexDirection:'row',alignItems:'center',gap:11},
+    summaryIcon: {width:43,height:43,borderRadius:14,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+    summaryCopy: {flex:1},
+    summaryEyebrow: {color:colors.gold,fontFamily:'Inter_700Bold',fontSize:9,letterSpacing:1.5,marginBottom:4},
+    summaryTitle: {color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:22},
+    summaryHint: {color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:11,lineHeight:17,marginTop:12},
+    swipeHint: {color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,marginTop:4},
+    filters: {flexDirection:'row',gap:5,paddingTop:15,paddingBottom:1},
+    filter: {flex:1,minHeight:36,borderRadius:18,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:colors.border},
+    filterActive: {backgroundColor:colors.gold,borderColor:colors.gold},
+    filterText: {color:colors.secondaryText,fontFamily:'Inter_600SemiBold',fontSize:11},
+    filterTextActive: {color:colors.background},
+    emptyState: {alignItems:'center',justifyContent:'center',paddingHorizontal:18,paddingVertical:50},
     safeArea: {
       flex: 1,
       backgroundColor: colors.background,
     },
-    header: {
-      height: 58,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+    header: { height:58, flexDirection:'row', alignItems:'center', paddingHorizontal:12,
     },
     headerButton: {
       width: 42,
@@ -1496,13 +1134,7 @@ function createStyles(colors: NovoriColors) {
       fontSize: 21,
       textAlign: 'center',
     },
-    clearHeaderButton: {
-      minWidth: 62,
-      height: 42,
-      alignItems:
-        'flex-end',
-      justifyContent:
-        'center',
+    clearHeaderButton: { minHeight:40, paddingLeft:10, justifyContent:'center',
     },
     clearHeaderText: {
       color:
@@ -1515,36 +1147,9 @@ function createStyles(colors: NovoriColors) {
       color:
         colors.mutedText,
     },
-    requestBanner: {
-      width: '100%',
-      maxWidth: 720,
-      alignSelf:
-        'center',
-      minHeight: 64,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      paddingHorizontal:
-        16,
-      borderBottomWidth:
-        1,
-      borderBottomColor:
-        colors.border,
-      backgroundColor:
-        colors.surface,
+    requestBanner: { minHeight:58,flexDirection:'row',alignItems:'center',paddingVertical:10,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border,
     },
-    requestBannerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight: 11,
+    requestBannerIcon: { width:32,height:32,borderRadius:16,backgroundColor:colors.surface,alignItems:'center',justifyContent:'center',marginRight:10,
     },
     requestBannerCopy: {
       flex: 1,
@@ -1556,47 +1161,15 @@ function createStyles(colors: NovoriColors) {
         'Inter_700Bold',
       fontSize: 12,
     },
-    requestBannerText: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 10,
-      marginTop: 2,
+    requestBannerText: { color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:11,marginTop:3,
     },
-    listContent: {
-      width: '100%',
-      maxWidth: 720,
-      alignSelf: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 120,
+    listContent: { width:'100%',maxWidth:720,alignSelf:'center',paddingHorizontal:18,paddingBottom:120,flexGrow:1,
     },
-    sectionLabel: {
-      color: colors.mutedText,
-      fontSize: 11,
-      fontFamily: 'Inter_700Bold',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
-      marginTop: 18,
-      marginBottom: 8,
-      paddingHorizontal: 4,
+    sectionLabel: { color:colors.mutedText,fontSize:10,fontFamily:'Inter_700Bold',letterSpacing:1.3,textTransform:'uppercase',marginTop:20,marginBottom:6,
     },
-    swipeRow: {
-      position:
-        'relative',
-      overflow:
-        'hidden',
-      borderRadius:
-        20,
-      backgroundColor:
-        colors.danger,
+    swipeRow: { position:'relative',overflow:'hidden',borderRadius:0,backgroundColor:colors.danger,
     },
-    swipeForeground: {
-      backgroundColor:
-        colors.background,
-      borderRadius:
-        20,
+    swipeForeground: { backgroundColor:colors.background,
     },
     deleteReveal: {
       ...StyleSheet.absoluteFill,
@@ -1623,59 +1196,22 @@ function createStyles(colors: NovoriColors) {
       textAlign:
         'center',
     },
-    notificationRow: {
-      minHeight: 82,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
+    notificationRow: { minHeight:82,flexDirection:'row',alignItems:'center',paddingVertical:13,paddingHorizontal:3,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border,backgroundColor:colors.background,
     },
-    notificationRowUnread: {
-      backgroundColor: colors.surface,
+    notificationRowUnread: { backgroundColor:colors.surface,borderLeftWidth:2,borderLeftColor:colors.gold,paddingLeft:9,
     },
-    avatarWrap: {
-      width: 48,
-      height: 48,
-      marginRight: 12,
-      position: 'relative',
+    avatarWrap: { width:40,height:40,marginRight:11,position:'relative',
     },
-    avatarImage: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.elevated,
+    avatarImage: { width:40,height:40,borderRadius:20,backgroundColor:colors.elevated,
     },
-    avatarFallback: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.elevated,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
+    avatarFallback: { width:40,height:40,borderRadius:20,backgroundColor:colors.elevated,alignItems:'center',justifyContent:'center',
     },
     avatarInitial: {
       color: colors.text,
       fontFamily: 'PlayfairDisplay_700Bold',
       fontSize: 19,
     },
-    typeBadge: {
-      position: 'absolute',
-      right: -2,
-      bottom: -1,
-      width: 21,
-      height: 21,
-      borderRadius: 11,
-      backgroundColor: colors.gold,
-      borderWidth: 2,
-      borderColor: colors.background,
-      alignItems: 'center',
-      justifyContent: 'center',
+    typeBadge: { position:'absolute',right:-2,bottom:-1,width:18,height:18,borderRadius:9,backgroundColor:colors.gold,borderWidth:2,borderColor:colors.background,alignItems:'center',justifyContent:'center',
     },
     notificationRight: {
       minWidth: 18,
@@ -1695,44 +1231,19 @@ function createStyles(colors: NovoriColors) {
       alignItems: 'flex-start',
       gap: 8,
     },
-    notificationTitle: {
-      flex: 1,
-      color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 14,
-      lineHeight: 19,
+    notificationTitle: { color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:13,lineHeight:18,
     },
-    notificationBody: {
-      color: colors.secondaryText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: 3,
+    notificationBody: { color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:12,lineHeight:17,marginTop:3,
     },
     notificationBodyHidden: {
       color: colors.mutedText,
       fontFamily: 'Inter_600SemiBold',
     },
-    time: {
-      color: colors.mutedText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 11,
-      marginTop: 1,
+    time: { color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,
     },
-    entityImage: {
-      width: 42,
-      height: 58,
-      borderRadius: 6,
-      backgroundColor: colors.elevated,
-      marginLeft: 10,
+    entityImage: { width:32,height:45,borderRadius:4,backgroundColor:colors.elevated,marginLeft:10,
     },
-    unreadDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.gold,
-      marginLeft: 10,
-      marginRight: 2,
+    unreadDot: { width:5,height:5,borderRadius:3,backgroundColor:colors.gold,
     },
     separator: {
       height: 9,
@@ -1744,16 +1255,7 @@ function createStyles(colors: NovoriColors) {
       paddingHorizontal: 34,
       paddingBottom: 80,
     },
-    emptyIcon: {
-      width: 62,
-      height: 62,
-      borderRadius: 31,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 18,
+    emptyIcon: { width:52,height:52,borderRadius:26,backgroundColor:colors.surface,alignItems:'center',justifyContent:'center',marginBottom:14,
     },
     emptyTitle: {
       color: colors.text,
@@ -1761,14 +1263,7 @@ function createStyles(colors: NovoriColors) {
       fontSize: 23,
       textAlign: 'center',
     },
-    emptyText: {
-      color: colors.secondaryText,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 21,
-      textAlign: 'center',
-      maxWidth: 390,
-      marginTop: 8,
+    emptyText: { color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:12,lineHeight:18,textAlign:'center',maxWidth:340,marginTop:8,
     },
     retryButton: {
       marginTop: 18,

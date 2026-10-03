@@ -8,7 +8,7 @@ import {getClub} from '../src/lib/clubs';
 import {getClubRead,getClubReads} from '../src/lib/club-reads';
 import {getClubDiscussion,getClubDiscussions,saveClubDiscussion,voteClubPoll,closeClubPoll} from '../src/lib/club-discussions';
 import {getPostDetail} from '../src/lib/feed';
-import {getPostComments} from '../src/lib/comments';
+import {getPostComments,createPostComment} from '../src/lib/comments';
 
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
@@ -94,4 +94,27 @@ test('newer detail metadata can enable spoiler protection for comments loaded wi
 });
 test('ordinary posts retain their comments and composer',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,body:'An ordinary post.',club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('An ordinary post.');expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(1);expect(getClubDiscussion).not.toHaveBeenCalled();
+});
+
+const chain=()=>Array.from({length:6},(_,i)=>({...comment,id:'chain-'+i,parent_comment_id:i?'chain-'+(i-1):null,body:'Reply at depth '+i}));
+test('compact post comments stop indenting and link to a focused conversation',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);
+ expect(text()).toContain('Reply at depth 2');expect(text()).not.toContain('Reply at depth 3');await press('Continue conversation: chain-2');
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1',threadId:'chain-2',commentId:'chain-2'}});
+});
+test('focused conversation shows only its branch and posts directly to that comment',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2',commentId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'unrelated',body:'Unrelated conversation.'}]);
+ createPostComment.mockResolvedValue({...comment,id:'new-reply',parent_comment_id:'chain-2',body:'A focused reply.'});await render(<PostDetailScreen/>);
+ expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).not.toContain('Reply at depth 1');expect(text()).not.toContain('Unrelated conversation.');
+ await fill('Comment reply text','A focused reply.');await press('Send comment');
+ expect(createPostComment).toHaveBeenCalledWith('post-1','A focused reply.','chain-2');await press('View all post comments');expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});
+});
+test('deep notification targets open a readable branch automatically',async()=>{
+ mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Focused conversation');expect(text()).toContain('Reply at depth 5');expect(text()).not.toContain('Reply at depth 0');
+});
+test('missing focused comments cannot accidentally publish to the post root',async()=>{
+ mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('View all post comments')).toBeDefined();
+});
+test('focused routes preserve spoiler protection for the comment branch',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
 });
