@@ -854,7 +854,7 @@ export default function ProfileReadingModule({
             <Text style={styles.destinationTitle}>Reading Tracker</Text>
             <Text style={styles.destinationSubtitle}>Your reading calendar</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
+          <View style={styles.destinationIcon}><Ionicons name="chevron-forward" size={18} color={colors.mutedText} /></View>
         </Pressable>
         <View style={styles.destinationPair}>
           <Pressable onPress={() => router.push('/reading-recaps')}
@@ -1164,10 +1164,10 @@ function createStyles(
     },
 
     destination: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6 },
-    destinationIcon: { width: 28, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-    destinationCopy: { flex: 1, paddingRight: 8 },
-    destinationTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12.5 },
-    destinationSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, marginTop: 2 },
+    destinationIcon: { width: 28, alignItems: 'center', justifyContent: 'center' },
+    destinationCopy: { flex: 1, paddingHorizontal: 8 },
+    destinationTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12.5, textAlign: 'center' },
+    destinationSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, marginTop: 2, textAlign: 'center' },
     destinationPair: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     destinationLink: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 10 },
     destinationLinkDivider: { width: StyleSheet.hairlineWidth, height: 20, backgroundColor: colors.border, marginHorizontal: 5 },
