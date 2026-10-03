@@ -1,5 +1,6 @@
 import BookCoverImage from '../components/BookCoverImage';
 import YearInReading from '../components/YearInReading';
+import PeriodReadingInsights from '../components/PeriodReadingInsights';
 import {
   Ionicons,
 } from '@expo/vector-icons';
@@ -887,6 +888,8 @@ export default function ReadingRecapsScreen() {
       ]
     );
 
+  const [insightRevision, setInsightRevision] = useState(0);
+
   const loadRecap =
     useCallback(
       async (
@@ -954,6 +957,7 @@ export default function ReadingRecapsScreen() {
           setMonths(
             loadedMonths
           );
+          setInsightRevision(value => value + 1);
 
           setJourneyData(
             loadedJourneyData
@@ -1065,19 +1069,6 @@ export default function ReadingRecapsScreen() {
         dayMap,
         periodKeys,
         journeyData.events,
-      ]
-    );
-
-  const pagesLogged =
-    useMemo(
-      () =>
-        getLoggedPageMovement(
-          dayMap,
-          periodKeys
-        ),
-      [
-        dayMap,
-        periodKeys,
       ]
     );
 
@@ -1624,74 +1615,12 @@ export default function ReadingRecapsScreen() {
                   : ''}
               </Text>
 
-              {(streak.length >
-                1 ||
-                pagesLogged >
-                  0) ? (
-                <View
-                  style={
-                    styles.supportingStats
-                  }
-                >
-                  {streak.length >
-                  1 ? (
-                    <View
-                      style={
-                        styles.supportingStat
-                      }
-                    >
-                      <Ionicons
-                        name="flame-outline"
-                        size={
-                          14
-                        }
-                        color={
-                          colors.gold
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.supportingStatText
-                        }
-                      >
-                        {
-                          streak.length
-                        }-day best streak
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {pagesLogged >
-                  0 ? (
-                    <View
-                      style={
-                        styles.supportingStat
-                      }
-                    >
-                      <Ionicons
-                        name="document-text-outline"
-                        size={
-                          14
-                        }
-                        color={
-                          colors.gold
-                        }
-                      />
-
-                      <Text
-                        style={
-                          styles.supportingStatText
-                        }
-                      >
-                        {
-                          pagesLogged.toLocaleString()
-                        } pages logged
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+              {streak.length > 1 ? <View style={styles.supportingStats}><View style={styles.supportingStat}>
+                <Ionicons name="flame-outline" size={14} color={colors.gold} />
+                <Text style={styles.supportingStatText}>{streak.length}-day best streak</Text>
+              </View></View> : null}
+              <PeriodReadingInsights key={getRecapSharePeriod(mode,referenceDate)} start={dateKey(getPeriodBounds(mode,referenceDate).start)}
+                end={dateKey(getPeriodBounds(mode,referenceDate).endExclusive)} revision={insightRevision} />
               <Pressable accessibilityRole="button" accessibilityLabel="Share reading recap"
                 disabled={getPeriodBounds(mode,referenceDate).start > new Date()}
                 onPress={() => router.push({ pathname: '/share-reading-recap', params: { kind: mode, periodStart: getRecapSharePeriod(mode,referenceDate) } })}

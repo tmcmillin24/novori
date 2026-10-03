@@ -1,7 +1,9 @@
+import { parseReadingInsights, type ReadingInsights } from './reading-insights';
 export type ReadingRecapKind = 'week' | 'month' | 'year';
 export type ReadingRecapSnapshot = {
   schemaVersion: 1; kind: ReadingRecapKind; periodStart: string; periodEndExclusive: string; throughDate: string;
   finishedBooks: number; daysRead: number; bestStreak: number;
+  insights?: ReadingInsights;
   books: { googleBookId: string | null; isbn: string | null; title: string; coverUrl: string | null }[];
 };
 
@@ -38,6 +40,7 @@ export function parseReadingRecapSnapshot(value: unknown): ReadingRecapSnapshot 
     || item.books.length > Math.min(6,item.finishedBooks)) return null;
   if (!item.books.every(book => book && typeof book.title === 'string' && book.title.length <= 4000
     && [book.googleBookId,book.isbn,book.coverUrl].every(v => v === null || (typeof v === 'string' && v.length <= 8000)))) return null;
+  if (item.insights !== undefined && !parseReadingInsights(item.insights)) return null;
   return item;
 }
 export function getRecapCardTitle(snapshot: ReadingRecapSnapshot): string {

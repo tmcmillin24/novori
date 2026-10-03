@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
 import { getRecapCardTitle, getRecapSnapshotNote, type ReadingRecapSnapshot } from '../lib/reading-recap-card';
 import BookCoverImage from './BookCoverImage';
+import ReadingInsightStats from './ReadingInsightStats';
 
 // Feed, profile, club, detail, and composer render this same frozen snapshot.
 // It never fetches the author's private history or calls a book provider.
@@ -34,6 +35,7 @@ export default function ReadingRecapPostAttachment({ snapshot }: { snapshot: Rea
       <View style={styles.stat}><Text style={styles.number}>{snapshot.daysRead}</Text><Text style={styles.label}>days logged</Text></View><View style={styles.divider} />
       <View style={styles.stat}><Text style={styles.number}>{snapshot.bestStreak}</Text><Text style={styles.label}>day best streak</Text></View>
     </View>
+    <ReadingInsightStats insights={snapshot.insights} />
     {snapshot.books.length ? <View style={styles.covers}>{snapshot.books.map((book,index) => <View key={index} style={styles.coverSlot}>
       <View style={styles.cover}><Ionicons name="book-outline" size={16} color={colors.gold} />
         <BookCoverImage googleBookId={book.googleBookId} isbn={book.isbn} existingCoverUrl={book.coverUrl} resizeMode="cover" style={styles.image} accessibilityLabel={book.title} />

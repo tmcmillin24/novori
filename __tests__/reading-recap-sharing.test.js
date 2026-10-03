@@ -9,7 +9,8 @@ function load(file, requireFn = () => { throw Error('Unexpected dependency'); })
     { exports, require:requireFn, Date, Math, Number, Error, console, Intl:{DateTimeFormat:()=>({resolvedOptions:()=>({timeZone:'America/Chicago'})})} });
   return exports;
 }
-const card = load('reading-recap-card.ts');
+const insights = load('reading-insights.ts');
+const card = load('reading-recap-card.ts', name => name === './reading-insights' ? insights : (() => { throw Error(name); })());
 const snapshot = { schemaVersion:1,kind:'month',periodStart:'2024-03-01',periodEndExclusive:'2024-04-01',throughDate:'2024-03-31',finishedBooks:2,daysRead:4,bestStreak:3,
   books:[{googleBookId:'stored-book',isbn:'9781234567897',title:'Story',coverUrl:'https://example.com/original.jpg'}] };
 function harness({signedIn=true,error=null,data=snapshot}={}) {

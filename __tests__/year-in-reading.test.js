@@ -16,7 +16,7 @@ const summary = { year: 2026, months: Array.from({ length: 12 }, (_, monthIndex)
 test('one own-account summary request uses the phone timezone without provider imports', async () => {
   const h = harness({ data: summary });
   expect(await h.api.getYearInReading(2026)).toEqual(summary);
-  expect(h.calls).toEqual([{ name: 'get_year_in_reading', args: { reading_year: 2026, reader_timezone: 'America/Chicago' } }]);
+  expect(h.calls).toEqual([{ name: 'get_year_in_reading_insights', args: { reading_year: 2026, reader_timezone: 'America/Chicago' } }]);
 });
 test.each([1969, 9999, 2026.5, NaN, '2026'])('invalid year %s makes no request', async year => {
   const h = harness(); await expect(h.api.getYearInReading(year)).rejects.toThrow('calendar year'); expect(h.calls).toEqual([]);

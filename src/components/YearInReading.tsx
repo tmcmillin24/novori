@@ -7,6 +7,7 @@ import { useNovoriTheme } from '../context/theme-context';
 import { getReadingGoalBooks, type ReadingGoalBook } from '../lib/reading-goal-books';
 import { getBusiestReadingMonth, getYearInReading, type ReadingYearSummary } from '../lib/year-in-reading';
 import BookCoverImage from './BookCoverImage';
+import ReadingInsightStats from './ReadingInsightStats';
 
 type Props = {
   year: number; onYearChange: (year: number) => void; onOpenMonth: (monthIndex: number) => void;
@@ -178,6 +179,7 @@ export default function YearInReading({ year, onYearChange, onOpenMonth, refresh
           </View>
           <Text style={styles.note}>Tap a month to open its recap.</Text>
         </View>
+        <ReadingInsightStats insights={summary.insights} />
         <FinishedYearShelf key={`${year}:${revision}`} summary={summary} colors={colors} />
         <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={11} color={colors.mutedText} /><Text style={styles.note}>Your year in reading is private.</Text></View>
       </> : null}
