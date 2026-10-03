@@ -40,6 +40,7 @@ export default function CreateClubScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] =
     useState('');
+  const [rules, setRules] = useState('');
   const [privacy, setPrivacy] =
     useState<ClubPrivacy>('public');
   const [
@@ -81,6 +82,7 @@ export default function CreateClubScreen() {
     trimmedName.length >= 3 &&
     trimmedName.length <= 60 &&
     trimmedDescription.length <= 1000 &&
+    rules.trim().length <= 2000 &&
     !saving;
 
   const clubInitial =
@@ -252,6 +254,7 @@ export default function CreateClubScreen() {
       setSaving(true);
 
       const club = await createClub({
+        rules: rules.trim(),
         name: trimmedName,
         description:
           trimmedDescription,
@@ -502,6 +505,7 @@ export default function CreateClubScreen() {
             <TextInput
               value={name}
               onChangeText={setName}
+              accessibilityLabel="Club name"
               placeholder="Fantasy After Dark"
               placeholderTextColor={
                 colors.mutedText
@@ -538,6 +542,15 @@ export default function CreateClubScreen() {
               {description.length}/1000
             </Text>
           </View>
+
+          <Text style={styles.label}>CLUB RULES · OPTIONAL</Text>
+          <View style={styles.inputCard}>
+            <TextInput value={rules} onChangeText={setRules} maxLength={2000} multiline textAlignVertical="top"
+              accessibilityLabel="Club rules" placeholder="Set the tone: be kind, label spoilers, stay on topic…"
+              placeholderTextColor={colors.mutedText} style={styles.descriptionInput} />
+            <Text style={styles.counter}>{rules.length}/2000</Text>
+          </View>
+          <Text style={styles.helpText}>Visible on your club page, including before someone joins.</Text>
 
           <Text style={styles.label}>
             GENRES
@@ -724,13 +737,14 @@ export default function CreateClubScreen() {
             />
 
             <Text style={styles.infoText}>
-              Club cover images, invitations, posts, events, and Reading Circles will build on this foundation.
+              Create a welcoming space to read, share ideas, and find your next great book together.
             </Text>
           </View>
 
           <Pressable
             disabled={!canCreate}
             onPress={handleCreate}
+            accessibilityRole="button" accessibilityLabel="Create club"
             style={({ pressed }) => [
               styles.createButton,
               !canCreate &&
@@ -999,6 +1013,7 @@ function createStyles(colors: NovoriColors) {
         'Inter_600SemiBold',
       fontSize: 11,
     },
+    helpText: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 17, marginBottom: 8 },
     inputCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,

@@ -2,6 +2,7 @@ import {
   ClubGenreKey,
 } from '../constants/club-genres';
 import { supabase } from './supabase';
+import { validateClubRules } from './club-home';
 
 export type ClubPrivacy =
   | 'public'
@@ -17,6 +18,7 @@ export type Club = {
   owner_id: string;
   name: string;
   description: string;
+  rules?: string;
   privacy: ClubPrivacy;
   genres: ClubGenreKey[];
   cover_url: string | null;
@@ -123,6 +125,7 @@ async function getCurrentUserId() {
 export async function createClub(input: {
   name: string;
   description: string;
+  rules?: string;
   privacy: ClubPrivacy;
   genres?: ClubGenreKey[];
 }) {
@@ -134,6 +137,8 @@ export async function createClub(input: {
 
   const description =
     input.description.trim();
+
+  const rules = validateClubRules(input.rules);
 
   const genres =
     Array.from(
@@ -175,6 +180,7 @@ export async function createClub(input: {
           userId,
         name,
         description,
+        rules,
         privacy:
           input.privacy,
         genres,
@@ -195,6 +201,7 @@ export async function updateClub(
   input: {
     name: string;
     description: string;
+    rules?: string;
     privacy: ClubPrivacy;
     genres?: ClubGenreKey[];
   }
@@ -207,6 +214,8 @@ export async function updateClub(
 
   const description =
     input.description.trim();
+
+  const rules = validateClubRules(input.rules);
 
   const genres =
     Array.from(
@@ -246,6 +255,7 @@ export async function updateClub(
       .update({
         name,
         description,
+        ...(input.rules !== undefined ? { rules } : {}),
         privacy:
           input.privacy,
         genres,

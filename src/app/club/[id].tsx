@@ -1,3 +1,6 @@
+import ClubHomeCard from '../../components/ClubHomeCard';
+import ClubOptionsSheet from '../../components/ClubOptionsSheet';
+import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
@@ -523,6 +526,13 @@ export default function ClubDetailScreen() {
       null
     );
 
+  const [clubMenuVisible, setClubMenuVisible] = useState(false);
+  const [rulesExpanded, setRulesExpanded] = useState(false);
+  const [membersVisible, setMembersVisible] = useState(false);
+  const [managementVisible, setManagementVisible] = useState(false);
+  const pendingMemberScroll = useRef(false);
+  const membersSectionY = useRef(0);
+
   const invitePanelY =
     useRef(0);
 
@@ -530,6 +540,11 @@ export default function ClubDetailScreen() {
     typeof params.id === 'string'
       ? params.id
       : '';
+
+  useEffect(() => {
+    setClubMenuVisible(false); setRulesExpanded(false); setMembersVisible(false); setManagementVisible(false);
+    setInvitePanelOpen(false); pendingMemberScroll.current = false;
+  }, [clubId]);
 
   const loadClub = useCallback(
     async () => {
@@ -4726,8 +4741,28 @@ export default function ClubDetailScreen() {
         )
       : [];
 
-  const initial =
-    club.name.charAt(0).toUpperCase();
+  const canViewMembers = club.privacy === 'public' || isMember;
+  const clubActions = getClubHomeActions(role,canViewMembers,Boolean(club.rules?.trim()));
+  function editClub() {
+    if (isOwner) router.push({ pathname: '/edit-club', params: { clubId: club!.id } });
+  }
+  function toggleManagement(next = !managementVisible) {
+    if (!isManager) return;
+    setManagementVisible(next); setMembersVisible(next); setMembersExpanded(next); setInvitePanelOpen(next);
+    if (!next) { setInviteQuery(''); setInviteResults([]); }
+  }
+  function handleClubAction(action: ClubHomeAction) {
+    if (!clubActions.includes(action)) return;
+    if (action === 'edit') editClub();
+    else if (action === 'rules') { setRulesExpanded(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }
+    else if (action === 'members') {
+      if (membersVisible) clubScrollRef.current?.scrollTo({ y: Math.max(0,membersSectionY.current-12), animated: true });
+      else pendingMemberScroll.current = true;
+      setMembersVisible(true); setMembersExpanded(true);
+    }
+    else if (action === 'manage') { toggleManagement(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }
+    else if (action === 'leave') confirmLeave();
+  }
 
   return (
     <SafeAreaView
@@ -4757,7 +4792,8 @@ export default function ClubDetailScreen() {
           Club
         </Text>
 
-        <View style={styles.headerSpacer} />
+        {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }}
+          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text} /></Pressable> : <View style={styles.headerSpacer} />}
       </View>
 
       <ScrollView
@@ -4793,176 +4829,10 @@ export default function ClubDetailScreen() {
           />
         }
       >
-        {club.cover_url ? (
-          <Pressable
-            onPress={() =>
-              setClubImageOpen(
-                true
-              )
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Enlarge club photo"
-            style={({ pressed }) => [
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <Image
-              source={{
-                uri: club.cover_url,
-              }}
-              style={styles.clubCover}
-            />
-          </Pressable>
-        ) : (
-          <View
-            style={styles.clubCoverFallback}
-          >
-            <Text
-              style={styles.clubCoverInitial}
-            >
-              {initial}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.titleBlock}>
-          <View style={styles.badgeRow}>
-            <View style={styles.privacyBadge}>
-              <Ionicons
-                name={
-                  club.privacy === 'public'
-                    ? 'earth-outline'
-                    : 'lock-closed-outline'
-                }
-                size={13}
-                color={colors.gold}
-              />
-
-              <Text
-                style={styles.privacyBadgeText}
-              >
-                {club.privacy === 'public'
-                  ? 'Public'
-                  : 'Private'}
-              </Text>
-            </View>
-
-            {role ? (
-              <View style={styles.roleBadge}>
-                <Text
-                  style={styles.roleBadgeText}
-                >
-                  {roleLabel(role)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Text style={styles.clubName}>
-            {club.name}
-          </Text>
-
-          <View style={styles.memberCountRow}>
-            <Ionicons
-              name="people-outline"
-              size={16}
-              color={colors.mutedText}
-            />
-
-            <Text style={styles.memberCountText}>
-              {club.member_count}{' '}
-              {club.member_count === 1
-                ? 'member'
-                : 'members'}
-            </Text>
-          </View>
-
-          {club.genres?.length ? (
-            <View
-              style={
-                styles.genreRow
-              }
-            >
-              {club.genres.map(
-                (genre) => (
-                  <View
-                    key={
-                      genre
-                    }
-                    style={
-                      styles.genreBadge
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.genreBadgeText
-                      }
-                    >
-                      {
-                        getClubGenreLabel(
-                          genre
-                        )
-                      }
-                    </Text>
-                  </View>
-                )
-              )}
-            </View>
-          ) : null}
-
-          {isOwner ? (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname:
-                    '/edit-club',
-                  params: {
-                    clubId:
-                      club.id,
-                  },
-                })
-              }
-              style={({ pressed }) => [
-                styles.editGenresLink,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="pencil-outline"
-                size={
-                  13
-                }
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.editGenresText
-                }
-              >
-                Edit club
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {club.description ? (
-            <Text
-              style={styles.description}
-            >
-              {club.description}
-            </Text>
-          ) : (
-            <Text
-              style={styles.descriptionMuted}
-            >
-              No club description yet.
-            </Text>
-          )}
-        </View>
+        <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded}
+          membersVisible={membersVisible} managementVisible={managementVisible} pendingRequests={managerJoinRequests.length} pendingInvites={managerInvites.length}
+          onPhoto={() => setClubImageOpen(true)} onRules={() => setRulesExpanded(value => !value)}
+          onMembers={() => { setMembersVisible(value => !value); setMembersExpanded(true); }} onManage={() => toggleManagement()} onEdit={editClub} />
 
         {pendingInvite &&
         !isMember ? (
@@ -5076,41 +4946,7 @@ export default function ClubDetailScreen() {
           </View>
         ) : null}
 
-        {isOwner ? (
-          <View style={styles.ownerButton}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={17}
-              color={colors.gold}
-            />
-
-            <Text style={styles.ownerButtonText}>
-              You own this club
-            </Text>
-          </View>
-        ) : isMember ? (
-          <Pressable
-            disabled={membershipLoading}
-            onPress={confirmLeave}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            {membershipLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={colors.text}
-              />
-            ) : (
-              <Text
-                style={styles.secondaryButtonText}
-              >
-                Leave Club
-              </Text>
-            )}
-          </Pressable>
-        ) : pendingInvite ? (
+        {isMember ? null : pendingInvite ? (
           null
         ) : club.privacy ===
           'private' ? (
@@ -5209,7 +5045,7 @@ export default function ClubDetailScreen() {
           </Pressable>
         )}
 
-        {isManager &&
+        {isManager && managementVisible &&
         managerJoinRequests.length >
           0 ? (
           <View
@@ -5269,7 +5105,7 @@ export default function ClubDetailScreen() {
           </View>
         ) : null}
 
-        {isManager ? (
+        {isManager && managementVisible ? (
           <View
             onLayout={(event) => {
               invitePanelY.current =
@@ -5623,6 +5459,14 @@ export default function ClubDetailScreen() {
           </View>
         ) : (
           <>
+        {membersVisible ? <View onLayout={event => {
+          membersSectionY.current = event.nativeEvent.layout.y;
+          if (pendingMemberScroll.current) {
+            const y = event.nativeEvent.layout.y;
+            pendingMemberScroll.current = false;
+            requestAnimationFrame(() => clubScrollRef.current?.scrollTo({ y: Math.max(0,y-12), animated: true }));
+          }
+        }}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             Members
@@ -5729,9 +5573,11 @@ export default function ClubDetailScreen() {
           )}
         </View>
 
+        </View> : null}
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
-            Club Activity
+            Club conversation
           </Text>
 
           <Text style={styles.sectionMeta}>
@@ -5752,7 +5598,7 @@ export default function ClubDetailScreen() {
             />
 
             <Text style={styles.activityTitle}>
-              No posts yet.
+              A place for your next great discussion
             </Text>
 
             <Text style={styles.activityText}>
@@ -5796,6 +5642,9 @@ export default function ClubDetailScreen() {
           </>
         )}
       </ScrollView>
+
+      <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
+        hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)} />
 
       <Modal
         visible={
@@ -6925,7 +6774,7 @@ function createStyles(colors: NovoriColors) {
       maxWidth: 720,
       alignSelf: 'center',
       paddingHorizontal: 20,
-      paddingTop: 24,
+      paddingTop: 14,
       paddingBottom: 90,
     },
     contentInviteOpen: {

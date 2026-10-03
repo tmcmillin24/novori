@@ -93,6 +93,8 @@ export default function EditClubScreen() {
   ] =
     useState('');
 
+  const [rules, setRules] = useState('');
+
   const [
     privacy,
     setPrivacy,
@@ -195,6 +197,7 @@ export default function EditClubScreen() {
             data.description ??
             ''
           );
+          setRules(data.rules ?? '');
           setPrivacy(
             data.privacy
           );
@@ -246,6 +249,8 @@ export default function EditClubScreen() {
   const trimmedDescription =
     description.trim();
 
+  const trimmedRules = rules.trim();
+
   const canSave =
     Boolean(
       club
@@ -258,6 +263,7 @@ export default function EditClubScreen() {
       60 &&
     trimmedDescription.length <=
       1000 &&
+    trimmedRules.length <= 2000 &&
     !saving;
 
   const clubInitial =
@@ -474,6 +480,7 @@ export default function EditClubScreen() {
           description:
             trimmedDescription,
           privacy,
+          rules: trimmedRules,
           genres:
             selectedGenres,
         }
@@ -638,6 +645,7 @@ export default function EditClubScreen() {
             onPress={
               saveClub
             }
+            accessibilityRole="button" accessibilityLabel="Save club changes"
             style={({
               pressed,
             }) => [
@@ -850,6 +858,15 @@ export default function EditClubScreen() {
               {description.length}/1000
             </Text>
           </View>
+
+          <Text style={styles.label}>CLUB RULES · OPTIONAL</Text>
+          <View style={styles.inputCard}>
+            <TextInput value={rules} onChangeText={setRules} maxLength={2000} multiline textAlignVertical="top"
+              accessibilityLabel="Club rules" placeholder="Set the tone: be kind, label spoilers, stay on topic…"
+              placeholderTextColor={colors.mutedText} style={styles.descriptionInput} />
+            <Text style={styles.counter}>{rules.length}/2000</Text>
+          </View>
+          <Text style={styles.helpText}>Visible on your club page, including before someone joins.</Text>
 
           <Text
             style={
