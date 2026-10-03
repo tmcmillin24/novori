@@ -1,6 +1,7 @@
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import {
   useFocusEffect,
   useLocalSearchParams,
@@ -3372,6 +3373,7 @@ export default function PostDetailScreen() {
             </View>
 
             <PostTypeIdentifier
+              readingRecap={Boolean(post.reading_recap)}
               postType={
                 post.post_type
               }
@@ -3440,6 +3442,8 @@ export default function PostDetailScreen() {
                 )
               )
             ) : null}
+
+            {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
             {post.post_type ===
               'book_stack' &&

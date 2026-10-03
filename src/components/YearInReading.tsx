@@ -98,6 +98,7 @@ function FinishedYearShelf({ summary, colors }: { summary: ReadingYearSummary; c
 }
 
 export default function YearInReading({ year, onYearChange, onOpenMonth, refreshRevision, onRefreshComplete }: Props) {
+  const router = useRouter();
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [summary, setSummary] = useState<ReadingYearSummary | null>(null);
@@ -157,6 +158,8 @@ export default function YearInReading({ year, onYearChange, onOpenMonth, refresh
           </View> : null}
           {!summary.daysRead && !summary.finishedBooks ? <Text style={styles.heroNote}>Every story starts somewhere. Your check-ins and finished books will build this year.</Text>
             : <Text style={styles.heroNote}>{year === Number(summary.asOfDate.slice(0, 4)) ? 'A year still being written.' : 'A chapter worth looking back on.'}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Share Year in Reading" onPress={() => router.push({ pathname: '/share-reading-recap', params: { kind: 'year', periodStart: `${year}-01-01` } })}
+            style={({ pressed }) => [styles.share, pressed && styles.pressed]}><Ionicons name="share-social-outline" size={16} color={colors.gold} /><Text style={styles.shareText}>Share your year</Text></Pressable>
         </View></View>
         <View style={styles.card}>
           <View style={styles.sectionHeading}><Ionicons name="calendar-outline" size={16} color={colors.gold} /><Text style={styles.sectionTitle}>Your reading rhythm</Text></View>
@@ -200,6 +203,8 @@ function createStyles(colors: NovoriColors) {
     stat: { flex: 1, alignItems: 'center', gap: 3 }, statDivider: { width: StyleSheet.hairlineWidth, height: 48, backgroundColor: colors.border },
     statNumber: { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 26 }, statLabel: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10 },
     heroNote: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 8 },
+    share: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: `${colors.gold}40`, backgroundColor: `${colors.gold}08` },
+    shareText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
     goal: { alignSelf: 'stretch', marginTop: 4 }, goalHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 },
     goalTrack: { height: 6, borderRadius: 3, backgroundColor: colors.elevated, overflow: 'hidden' }, goalFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 3 },
     goalCelebration: { color: colors.gold, fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 7, textAlign: 'center' },

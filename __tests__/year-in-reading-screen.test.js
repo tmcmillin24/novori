@@ -126,3 +126,14 @@ test('weekly recap links keep their existing destination and never load annual d
   expect(button('Weekly recap').props.accessibilityState.selected).toBe(true);
   expect(getReadingActivityMonth).toHaveBeenCalled(); expect(getYearInReading).not.toHaveBeenCalled();
 });
+test('the year share action passes the selected calendar year without publishing', async () => {
+  await render(); await press('Share Year in Reading');
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/share-reading-recap', params: { kind: 'year', periodStart: '2026-01-01' } });
+});
+test('weekly and monthly share actions pass their exact local period starts', async () => {
+  mockParams = { mode: 'week', referenceDate: '2026-09-30' }; await render(<ReadingRecapsScreen />);
+  await press('Share reading recap');
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/share-reading-recap', params: { kind: 'week', periodStart: '2026-09-28' } });
+  await press('Monthly recap'); await press('Share reading recap');
+  expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/share-reading-recap', params: { kind: 'month', periodStart: '2026-09-01' } });
+});

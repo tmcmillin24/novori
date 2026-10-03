@@ -1,6 +1,7 @@
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import {
   useFocusEffect,
   useLocalSearchParams,
@@ -1740,6 +1741,7 @@ export default function ReaderProfileScreen() {
           }
         >
           <PostTypeIdentifier
+            readingRecap={Boolean(post.reading_recap)}
             postType={
               post.post_type
             }
@@ -1751,13 +1753,15 @@ export default function ReaderProfileScreen() {
             }
           />
 
-        <Text
+        {post.body.trim() ? <Text
           style={
             styles.postBody
           }
         >
           {post.body}
-        </Text>
+        </Text> : null}
+
+        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
         {post.post_type ===
           'book_stack' &&

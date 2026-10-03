@@ -5,6 +5,9 @@ import {
 export function getPostEditRoute(
   post: FeedPost
 ) {
+  if (post.reading_recap) {
+    return { pathname: '/share-reading-recap' as const, params: { editPostId: post.id } };
+  }
   if (
     post.post_type ===
     'question'

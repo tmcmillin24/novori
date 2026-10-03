@@ -16,11 +16,12 @@ type Props = {
   clubName?: string | null;
   clubCoverUrl?: string | null;
   author?: PostComposerProfile | null;
+  readingRecap?: boolean;
 };
 
 // The feed's outer post card, with composition controls in place of post actions.
 export default function EditablePostCard({
-  children, postType, clubId = null, clubName, clubCoverUrl, author,
+  children, postType, clubId = null, clubName, clubCoverUrl, author, readingRecap = false,
 }: Props) {
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -54,7 +55,7 @@ export default function EditablePostCard({
         </View>
       </View>
       <View style={styles.content}>
-        <PostTypeIdentifier postType={postType} colors={colors} />
+        <PostTypeIdentifier postType={postType} colors={colors} readingRecap={readingRecap} />
         {children}
       </View>
       <View style={styles.footer} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

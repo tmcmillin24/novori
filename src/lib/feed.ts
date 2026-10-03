@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { parseReadingRecapSnapshot, type ReadingRecapSnapshot } from './reading-recap-card';
 
 let postMutationVersion = 0;
 
@@ -36,6 +37,7 @@ export type FeedPost = {
   post_image_url: string | null;
   rating: number | null;
   book_stack_id: string | null;
+  reading_recap?: ReadingRecapSnapshot | null;
   created_at: string;
   updated_at: string;
   author_display_name: string | null;
@@ -112,7 +114,7 @@ async function getCurrentUserId() {
   return user.id;
 }
 
-async function attachPostImageUrls(
+export async function attachPostImageUrls(
   posts: FeedPost[]
 ): Promise<FeedPost[]> {
   if (
@@ -127,19 +129,26 @@ async function attachPostImageUrls(
         post.id
     );
 
-  const {
+  let {
     data,
     error,
   } =
     await supabase
       .from('posts')
       .select(
-        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id'
+        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap'
       )
       .in(
         'id',
         postIds
       );
+
+  // Preserve existing media if an older server has not installed sharing yet.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    const legacy = await supabase.from('posts')
+      .select('id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id').in('id', postIds);
+    data = legacy.data as typeof data; error = legacy.error;
+  }
 
   if (error) {
     console.warn(
@@ -172,6 +181,7 @@ async function attachPostImageUrls(
         (row) => [
           row.id as string,
           {
+            readingRecap: parseReadingRecapSnapshot(row.reading_recap),
             imageUrl:
               (row.post_image_url ??
                 null) as
@@ -229,6 +239,7 @@ async function attachPostImageUrls(
 
       return {
         ...post,
+        reading_recap: metadata?.readingRecap ?? parseReadingRecapSnapshot(post.reading_recap),
         post_image_url:
           metadata
             ?.imageUrl ??

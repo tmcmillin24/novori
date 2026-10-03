@@ -44,6 +44,7 @@ import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import FeedPostImage from '../../components/FeedPostImage';
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 
 import {
@@ -5915,6 +5916,7 @@ export default function HomeScreen() {
           }
         >
           <PostTypeIdentifier
+            readingRecap={Boolean(post.reading_recap)}
             postType={
               post.post_type
             }
@@ -5973,6 +5975,8 @@ export default function HomeScreen() {
               )
             )
           ) : null}
+
+          {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
           {post.post_type ===
             'book_stack' &&

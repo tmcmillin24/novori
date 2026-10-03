@@ -1,5 +1,6 @@
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import {
   useFocusEffect,
   useLocalSearchParams,
@@ -3702,6 +3703,7 @@ export default function ClubDetailScreen() {
         </Pressable>
 
         <PostTypeIdentifier
+          readingRecap={Boolean(post.reading_recap)}
           postType={
             post.post_type
           }
@@ -3733,7 +3735,7 @@ export default function ClubDetailScreen() {
               </Text>
             ) : null}
           </>
-        ) : (
+        ) : post.body.trim() ? (
           <Text
             style={
               styles.postBody
@@ -3741,7 +3743,9 @@ export default function ClubDetailScreen() {
           >
             {post.body}
           </Text>
-        )}
+        ) : null}
+
+        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
         {post.post_image_url ? (
           <FeedPostImage

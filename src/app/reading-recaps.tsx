@@ -45,6 +45,7 @@ import {
   ReadingRecapJourneyEvent,
 } from '../lib/reading-recaps';
 import { parseRecapReferenceDate } from '../lib/reading-reminders';
+import { getRecapSharePeriod } from '../lib/reading-recap-card';
 
 type RecapMode =
   | 'week'
@@ -1691,6 +1692,12 @@ export default function ReadingRecapsScreen() {
                   ) : null}
                 </View>
               ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Share reading recap"
+                disabled={getPeriodBounds(mode,referenceDate).start > new Date()}
+                onPress={() => router.push({ pathname: '/share-reading-recap', params: { kind: mode, periodStart: getRecapSharePeriod(mode,referenceDate) } })}
+                style={({ pressed }) => [styles.recapShare, pressed && styles.pressed]}>
+                <Ionicons name="share-social-outline" size={16} color={colors.gold} /><Text style={styles.recapShareText}>Share recap</Text>
+              </Pressable>
             </View>
 
             <View
@@ -2565,6 +2572,8 @@ function createStyles(
         'center',
     },
 
+    recapShare: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    recapShareText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
     supportingStats: {
       flexDirection:
         'row',

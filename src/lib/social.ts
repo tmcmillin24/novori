@@ -3,6 +3,7 @@ import {
 } from './clubs';
 import {
   FeedPost,
+  attachPostImageUrls,
 } from './feed';
 import { supabase } from './supabase';
 
@@ -379,10 +380,7 @@ export async function getReaderProfilePosts(
     throw error;
   }
 
-  return (
-    data ??
-    []
-  ) as FeedPost[];
+  return attachPostImageUrls((data ?? []) as FeedPost[]);
 }
 
 export async function getReaderPublicClubs(
