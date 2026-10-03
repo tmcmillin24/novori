@@ -1,4 +1,6 @@
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
+import { discussionRevealKey } from '../../lib/club-discussion';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -271,6 +273,8 @@ export default function PostDetailScreen() {
     useState<
       PostComment[]
     >([]);
+  const [revealedDiscussion,setRevealedDiscussion] = useState('');
+  const discussionSpoilersHidden = Boolean(post?.club_discussion?.contains_spoilers && revealedDiscussion !== discussionRevealKey(post.club_discussion));
 
   const [
     currentUserId,
@@ -3375,6 +3379,8 @@ export default function PostDetailScreen() {
 
             <PostTypeIdentifier
           event={Boolean(post.club_event)}
+          discussion={Boolean(post.club_discussion)}
+          poll={post.club_discussion?.kind==='poll'}
           announcement={post.is_club_announcement}
               readingRecap={Boolean(post.reading_recap)}
               postType={
@@ -3432,7 +3438,7 @@ export default function PostDetailScreen() {
                   </>
                 );
               })()
-            ) : post.body.trim() ? (
+            ) : post.body.trim() && !post.club_discussion ? (
               renderExplicitContentWarning(
                 post.body,
                 'post',
@@ -3446,6 +3452,7 @@ export default function PostDetailScreen() {
               )
             ) : null}
 
+            {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion} detail revealed={!discussionSpoilersHidden} onReveal={()=>setRevealedDiscussion(discussionRevealKey(post.club_discussion!))} onStateChange={row=>setPost(current=>current?{...current,club_discussion:row}:current)}/> : null}
             {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
@@ -3667,6 +3674,7 @@ export default function PostDetailScreen() {
             </View>
           </View>
 
+          {!discussionSpoilersHidden ? <>
           <View
             style={
               styles.commentsHeader
@@ -3798,9 +3806,10 @@ export default function PostDetailScreen() {
               </Text>
             </View>
           )}
+          </> : null}
         </ScrollView>
 
-        <KeyboardStickyView
+        {!discussionSpoilersHidden ? <KeyboardStickyView
           offset={{
             closed:
               0,
@@ -3987,7 +3996,7 @@ export default function PostDetailScreen() {
             </Pressable>
           </View>
           </View>
-        </KeyboardStickyView>
+        </KeyboardStickyView> : null}
       </View>
 
       {commentActionTarget ? (

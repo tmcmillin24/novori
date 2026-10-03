@@ -6,6 +6,7 @@ import useEventClock from '../../hooks/use-event-clock';
 import { getClubEvents } from '../../lib/club-events';
 import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import ClubPinnedPosts from '../../components/ClubPinnedPosts';
 import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
 import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
@@ -3767,6 +3768,8 @@ export default function ClubDetailScreen() {
 
         <PostTypeIdentifier
           event={Boolean(post.club_event)}
+          discussion={Boolean(post.club_discussion)}
+          poll={post.club_discussion?.kind==='poll'}
           announcement={post.is_club_announcement}
           readingRecap={Boolean(post.reading_recap)}
           postType={
@@ -3800,7 +3803,7 @@ export default function ClubDetailScreen() {
               </Text>
             ) : null}
           </>
-        ) : post.body.trim() ? (
+        ) : post.body.trim() && !post.club_discussion ? (
           <Text
             style={
               styles.postBody
@@ -3810,6 +3813,7 @@ export default function ClubDetailScreen() {
           </Text>
         ) : null}
 
+        {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
         {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
@@ -5517,6 +5521,7 @@ export default function ClubDetailScreen() {
         <View style={styles.clubTabBar}>{(['posts','events','books'] as const).map(tab=><Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab==='posts'?'Club Posts tab':tab==='events'?'Club Events tab':'Club Books tab'} accessibilityState={{selected:clubTab===tab}} onPress={()=>setClubTab(tab)} style={[styles.clubTab,clubTab===tab&&styles.clubTabSelected]}><Ionicons name={tab==='posts'?'chatbubbles-outline':tab==='events'?'calendar-outline':'book-outline'} size={16} color={clubTab===tab?colors.gold:colors.mutedText}/><Text style={[styles.clubTabText,clubTab===tab&&{color:colors.gold}]}>{tab==='posts'?'Posts':tab==='events'?'Events':'Books'}</Text></Pressable>)}</View>
         <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager}/>
         {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open club discussions and polls" onPress={()=>router.push({pathname:'/club-discussions',params:{clubId:club.id}})} style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44,marginBottom:12,paddingHorizontal:13,borderRadius:12,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}}><Ionicons name="chatbubbles-outline" size={17} color={colors.gold}/><Text style={{flex:1,color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:12}}>Discussions & polls</Text><Ionicons name="chevron-forward" size={16} color={colors.mutedText}/></Pressable>
         {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={()=>router.push({pathname:'/club-event/[id]',params:{id:nextEvent.id}})}/> : null}
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy}
           onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}

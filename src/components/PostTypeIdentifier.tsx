@@ -19,6 +19,8 @@ type Props = {
   readingRecap?: boolean;
   announcement?: boolean;
   event?: boolean;
+  discussion?: boolean;
+  poll?: boolean;
 };
 
 type Identity = {
@@ -77,9 +79,11 @@ export default function PostTypeIdentifier({
   readingRecap = false,
   announcement = false,
   event = false,
+  discussion = false,
+  poll = false,
 }: Props) {
   const identity =
-    event ? { label: 'CLUB EVENT',icon: 'calendar-outline' as const } : announcement ? { label: 'ANNOUNCEMENT', icon: 'megaphone-outline' as const } : readingRecap ? { label: 'READING RECAP', icon: 'sparkles-outline' as const } : getIdentity(
+    poll ? {label:'CLUB POLL',icon:'stats-chart-outline' as const} : discussion ? {label:'BOOK DISCUSSION',icon:'chatbubbles-outline' as const} : event ? { label: 'CLUB EVENT',icon: 'calendar-outline' as const } : announcement ? { label: 'ANNOUNCEMENT', icon: 'megaphone-outline' as const } : readingRecap ? { label: 'READING RECAP', icon: 'sparkles-outline' as const } : getIdentity(
       postType
     );
 

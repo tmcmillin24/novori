@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
 import type { FeedPost } from '../lib/feed';
+import { clubDiscussionPreview } from '../lib/club-discussion';
 
 type Props = { posts: FeedPost[]; canManage: boolean; busy: boolean; onOpen: (postId: string) => void; onManage: (post: FeedPost) => void };
 
@@ -23,9 +24,9 @@ export default function ClubPinnedPosts({ posts,canManage,busy,onOpen,onManage }
   return <View style={styles.section}>
     <View style={styles.heading}><Ionicons name="pin" size={14} color={colors.gold} /><Text style={styles.title}>PINNED · {posts.length}</Text></View>
     {posts.map((post,index) => <View key={post.id} style={[styles.card,index === posts.length - 1 && styles.lastCard]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open pinned post: ${post.club_event?.title || post.body.trim().slice(0,80) || post.book_title || 'Book stack'}`} onPress={() => onOpen(post.id)} style={({ pressed }) => [styles.open,pressed && styles.pressed]}>
-        <Text style={styles.label}>{post.club_event ? 'CLUB EVENT' : post.is_club_announcement ? 'ANNOUNCEMENT' : post.reading_recap ? 'READING RECAP' : post.post_type.replace('_',' ').toUpperCase()}</Text>
-        <Text style={styles.body} numberOfLines={2}>{post.club_event?.title || post.body.trim() || post.book_title || 'Book stack'}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open pinned post: ${post.club_discussion ? clubDiscussionPreview(post.club_discussion) : post.club_event?.title || post.body.trim().slice(0,80) || post.book_title || 'Book stack'}`} onPress={() => onOpen(post.id)} style={({ pressed }) => [styles.open,pressed && styles.pressed]}>
+        <Text style={styles.label}>{post.club_discussion ? post.club_discussion.kind==='poll'?'CLUB POLL':'CLUB DISCUSSION' : post.club_event ? 'CLUB EVENT' : post.is_club_announcement ? 'ANNOUNCEMENT' : post.reading_recap ? 'READING RECAP' : post.post_type.replace('_',' ').toUpperCase()}</Text>
+        <Text style={styles.body} numberOfLines={2}>{post.club_discussion ? clubDiscussionPreview(post.club_discussion) : post.club_event?.title || post.body.trim() || post.book_title || 'Book stack'}</Text>
         <Text style={styles.author} numberOfLines={1}>{post.author_display_name || post.author_username || 'Novori Reader'}</Text>
       </Pressable>
       {canManage ? <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Manage pin: ${post.id}`} onPress={() => onManage(post)} style={({ pressed }) => [styles.manage,pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={18} color={colors.mutedText} /></Pressable> : null}

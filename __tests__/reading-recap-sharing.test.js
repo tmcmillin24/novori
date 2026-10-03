@@ -72,13 +72,13 @@ test('recap posts open their own editor while ordinary posts keep their editor',
 test('existing post media query hydrates recap metadata in the same batch',async()=>{
   const calls=[];
   const supabase={from:table=>({select:columns=>({in:async(field,ids)=>{calls.push({table,columns,field,ids});return{data:[{id:'post-1',reading_recap:snapshot,post_image_url:'photo.jpg',book_stack_id:'stack-1'}],error:null};}})})};
-  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./club-event'?load('club-event.ts'):card);
+  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./club-event'?load('club-event.ts'):name==='./club-discussion'?load('club-discussion.ts'):card);
   const result=await api.attachPostImageUrls([{id:'post-1',body:'Hello'}]);
   expect(calls).toHaveLength(1);expect(result[0]).toMatchObject({reading_recap:snapshot,post_image_url:'photo.jpg',book_stack_id:'stack-1'});
 });
 test('an older database preserves existing post media without inventing a recap',async()=>{
   let reads=0;
   const supabase={from:()=>({select:()=>({in:async()=>++reads===1?{error:{code:'42703'}}:{data:[{id:'post-1',post_image_url:'photo.jpg'}],error:null}})})};
-  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./club-event'?load('club-event.ts'):card);
+  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./club-event'?load('club-event.ts'):name==='./club-discussion'?load('club-discussion.ts'):card);
   const result=await api.attachPostImageUrls([{id:'post-1'}]);expect(result[0].post_image_url).toBe('photo.jpg');expect(result[0].reading_recap).toBeNull();
 });

@@ -3,7 +3,7 @@ import { Pressable,Text,View } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
 import { formatClubReadDates,type ClubRead } from '../lib/club-read';
 import BookCoverImage from './BookCoverImage';
-export default function ClubReadCard({read,onOpen,onOptions}:{read:ClubRead;onOpen?:()=>void;onOptions?:()=>void}) {
+export default function ClubReadCard({read,onOpen,onOptions,onDiscuss}:{read:ClubRead;onOpen?:()=>void;onOptions?:()=>void;onDiscuss?:()=>void}) {
   const {colors}=useNovoriTheme(),current=read.status==='current',dates=formatClubReadDates(read);
   return <View style={{backgroundColor:colors.surface,borderWidth:1,borderColor:current?`${colors.gold}55`:colors.border,borderRadius:18,overflow:'hidden',width:current?'100%':236}}>
     <View style={{height:3,backgroundColor:current?colors.gold:`${colors.gold}40`}}/>
@@ -15,6 +15,7 @@ export default function ClubReadCard({read,onOpen,onOptions}:{read:ClubRead;onOp
       </Pressable>
       {dates?<Text style={{color:colors.secondaryText,fontFamily:'Inter_500Medium',fontSize:11,lineHeight:17,marginTop:13}}>{dates}</Text>:null}
       {read.note?<Text numberOfLines={current?undefined:3} style={{color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:12,lineHeight:19,marginTop:10}}>{read.note}</Text>:null}
+      {onDiscuss?<Pressable accessibilityRole="button" accessibilityLabel={`Discuss book: ${read.book.title}`} onPress={onDiscuss} style={{flexDirection:'row',alignItems:'center',gap:6,paddingTop:13,paddingBottom:4}}><Ionicons name="chatbubbles-outline" size={15} color={colors.gold}/><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11}}>Discuss this book</Text></Pressable>:null}
     </View>
   </View>;
 }

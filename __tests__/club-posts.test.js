@@ -30,7 +30,7 @@ test('only owner and admin roles manage club posts',()=>{const h=harness();for(c
 function feedHarness({rows=[],signedIn=true}={}){
   const calls=[];const query={insert:value=>{calls.push(['insert',value]);return query;},update:value=>{calls.push(['update',value]);return query;},eq:()=>query,select:value=>{calls.push(['select',value]);return query;},in:async()=>({data:rows,error:null}),single:async()=>({data:{id:'post'},error:null})};
   const supabase={auth:{getUser:async()=>({data:{user:signedIn?{id:'owner'}:null}})},from:()=>query};
-  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./reading-recap-card'?{parseReadingRecapSnapshot:value=>value??null}:name==='./club-event'?load('club-event.ts',()=>{throw Error('Provider import')}):(()=>{throw Error('No cover/provider dependency '+name)})());return {api,calls};
+  const api=load('feed.ts',name=>name==='./supabase'?{supabase}:name==='./reading-recap-card'?{parseReadingRecapSnapshot:value=>value??null}:name==='./club-event'?load('club-event.ts',()=>{throw Error('Provider import')}):name==='./club-discussion'?load('club-discussion.ts',()=>{throw Error('Provider import')}):(()=>{throw Error('No cover/provider dependency '+name)})());return {api,calls};
 }
 test('announcement publication uses the ordinary post write with stored media',async()=>{
   const h=feedHarness();await h.api.createPost({body:' Welcome! ',clubId:'c1',isClubAnnouncement:true,bookCoverUrl:'stored-cover',bookAuthors:['Author']});

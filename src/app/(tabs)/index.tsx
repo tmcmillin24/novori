@@ -1,4 +1,5 @@
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -5918,6 +5919,8 @@ export default function HomeScreen() {
         >
           <PostTypeIdentifier
           event={Boolean(post.club_event)}
+          discussion={Boolean(post.club_discussion)}
+          poll={post.club_discussion?.kind==='poll'}
           announcement={post.is_club_announcement}
             readingRecap={Boolean(post.reading_recap)}
             postType={
@@ -5965,7 +5968,7 @@ export default function HomeScreen() {
                 </View>
               ) : null}
             </>
-          ) : post.body.trim() ? (
+          ) : post.body.trim() && !post.club_discussion ? (
             renderExplicitContentWarning(
               post.body,
               'post',
@@ -5979,6 +5982,7 @@ export default function HomeScreen() {
             )
           ) : null}
 
+          {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
           {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 

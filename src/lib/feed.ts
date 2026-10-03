@@ -1,4 +1,5 @@
 import { parseClubEvent,type ClubEvent } from './club-event';
+import { parseClubDiscussion,type ClubDiscussion } from './club-discussion';
 import { supabase } from './supabase';
 import { parseReadingRecapSnapshot, type ReadingRecapSnapshot } from './reading-recap-card';
 
@@ -41,6 +42,7 @@ export type FeedPost = {
   reading_recap?: ReadingRecapSnapshot | null;
   is_club_announcement?: boolean;
   club_event?: ClubEvent | null;
+  club_discussion?: ClubDiscussion | null;
   created_at: string;
   updated_at: string;
   author_display_name: string | null;
@@ -139,13 +141,18 @@ export async function attachPostImageUrls(
     await supabase
       .from('posts')
       .select(
-        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement, club_event:club_events!club_events_post_id_fkey(id,club_id,post_id,created_by,title,description,starts_at,ends_at,timezone,kind,location,meeting_url,book,cancelled_at,created_at,updated_at)'
+        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement, club_event:club_events!club_events_post_id_fkey(id,club_id,post_id,created_by,title,description,starts_at,ends_at,timezone,kind,location,meeting_url,book,cancelled_at,created_at,updated_at), club_discussion:club_discussions!club_discussions_post_id_fkey(id,club_id,post_id,read_id,created_by,kind,title,prompt,book,contains_spoilers,spoiler_label,options,closed_at,voting_started_at,created_at,updated_at)'
       )
       .in(
         'id',
         postIds
       );
 
+  // Keep event and existing media metadata on servers awaiting Phase 5.
+  if (['42703','42P01','PGRST200','PGRST204','PGRST205'].includes(error?.code ?? '')) {
+    const legacyDiscussions = await supabase.from('posts').select('id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement, club_event:club_events!club_events_post_id_fkey(id,club_id,post_id,created_by,title,description,starts_at,ends_at,timezone,kind,location,meeting_url,book,cancelled_at,created_at,updated_at)').in('id',postIds);
+    data = legacyDiscussions.data as typeof data;error = legacyDiscussions.error;
+  }
   // Preserve all existing post metadata if the event relationship is not installed yet.
   if (['42703','42P01','PGRST200','PGRST204','PGRST205'].includes(error?.code ?? '')) {
     const legacyEvents = await supabase.from('posts').select('id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement').in('id',postIds);
@@ -198,6 +205,7 @@ export async function attachPostImageUrls(
           row.id as string,
           {
             clubEvent: parseClubEvent(row.club_event),
+            clubDiscussion: parseClubDiscussion(row.club_discussion),
             announcement: row.is_club_announcement === true,
             readingRecap: parseReadingRecapSnapshot(row.reading_recap),
             imageUrl:
@@ -258,6 +266,7 @@ export async function attachPostImageUrls(
       return {
         ...post,
         club_event: metadata?.clubEvent ?? parseClubEvent(post.club_event),
+        club_discussion: metadata?.clubDiscussion ?? parseClubDiscussion(post.club_discussion),
         is_club_announcement: metadata?.announcement ?? post.is_club_announcement ?? false,
         reading_recap: metadata?.readingRecap ?? parseReadingRecapSnapshot(post.reading_recap),
         post_image_url:

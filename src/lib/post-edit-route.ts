@@ -5,6 +5,7 @@ import {
 export function getPostEditRoute(
   post: FeedPost
 ) {
+  if (post.club_discussion) return {pathname:'/create-club-discussion' as const,params:{clubId:post.club_discussion.club_id,discussionId:post.club_discussion.id}};
   if (post.club_event) return {pathname:'/create-club-event' as const,params:{clubId:post.club_event.club_id,eventId:post.club_event.id}};
   if (post.reading_recap) {
     return { pathname: '/share-reading-recap' as const, params: { editPostId: post.id } };

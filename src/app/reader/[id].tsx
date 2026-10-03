@@ -1,4 +1,5 @@
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -1743,6 +1744,8 @@ export default function ReaderProfileScreen() {
         >
           <PostTypeIdentifier
           event={Boolean(post.club_event)}
+          discussion={Boolean(post.club_discussion)}
+          poll={post.club_discussion?.kind==='poll'}
           announcement={post.is_club_announcement}
             readingRecap={Boolean(post.reading_recap)}
             postType={
@@ -1756,7 +1759,7 @@ export default function ReaderProfileScreen() {
             }
           />
 
-        {post.body.trim() ? <Text
+        {post.body.trim() && !post.club_discussion ? <Text
           style={
             styles.postBody
           }
@@ -1764,6 +1767,7 @@ export default function ReaderProfileScreen() {
           {post.body}
         </Text> : null}
 
+        {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
         {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
         {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
 
