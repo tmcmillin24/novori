@@ -11,6 +11,11 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter,
 jest.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', ScrollView: 'ScrollView',
   Text: 'Text', TextInput: 'TextInput', View: 'View', RefreshControl: 'RefreshControl',
+  FlatList: require('react').forwardRef((props, ref) => {
+    const React = require('react');
+    React.useImperativeHandle(ref, () => ({ scrollToOffset: jest.fn() }), []);
+    return React.createElement('FlatList', props, props.renderItem({ item: props.data[props.extraData.page] }));
+  }),
   KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'ios', select: options => options.ios ?? options.default },
   TurboModuleRegistry: { get: () => null },
   AccessibilityInfo: { isReduceMotionEnabled: async () => true, addEventListener: () => ({ remove: jest.fn() }) },
@@ -56,7 +61,16 @@ afterEach(async () => {
   if (view) await act(async () => view.unmount());
   view = null; jest.useRealTimers(); consoleError.mockRestore();
 });
-async function render() { await act(async () => { view = renderer.create(<ReadingGoalsScreen />); }); }
+async function render() {
+  await act(async () => { view = renderer.create(<ReadingGoalsScreen />); });
+  await act(async () => {
+    for (const node of view.root.findAllByType('View').filter(node => node.props.testID?.endsWith('-goal-carousel-viewport'))) {
+      node.props.onLayout({ nativeEvent: { layout: { width: 300 } } });
+    }
+  });
+}
+function carousel(title) { return view.root.findAllByType('FlatList').find(node => node.props.accessibilityLabel === `${title} book carousel`); }
+async function swipe(title, page) { await act(async () => carousel(title).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: page * 300 } } })); }
 function button(label) { return view.root.findAllByType('Pressable').find(node => node.props.accessibilityLabel === label); }
 function field(label) { return view.root.findAllByType('TextInput').find(node => node.props.accessibilityLabel === label); }
 async function fill(label, value) { await act(async () => field(label).props.onChangeText(value)); }
@@ -115,19 +129,20 @@ test('one finished book in a four-book monthly goal uses one canonical cover and
   const bar = view.root.findAllByType('View').find(node => node.props.accessibilityValue?.text === '1 of 4 books');
   expect(bar.props.accessibilityValue).toMatchObject({ now: 1, max: 4 });
   expect(button('Monthly Goal: next shelf')).toBeUndefined();
+  expect(carousel('Monthly Goal').props.scrollEnabled).toBe(false);
 });
 
-test('large goals browse individual books locally without refetching progress', async () => {
+test('large goals swipe and return through accessibility without refetching loaded progress or covers', async () => {
   targets.set(key('annual','2026-01-01'),10000);
   await render();
   const initialCalls = getReadingGoalsProgress.mock.calls.length;
   const initialCoverCalls = getReadingGoalBooks.mock.calls.length;
-  await press('Annual Goal: next shelf');
+  await swipe('Annual Goal',1);
   const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 7–12 of 10000: 0 finished, 6 to go.');
   expect(shelf).toBeDefined();
   expect(getReadingGoalsProgress).toHaveBeenCalledTimes(initialCalls);
   expect(saveReadingGoal).not.toHaveBeenCalled();
-  await press('Annual Goal: previous shelf');
+  await act(async () => carousel('Annual Goal').props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } }));
   expect(getReadingGoalBooks).toHaveBeenCalledTimes(initialCoverCalls);
   expect(view.root.findAllByType('View').some(node => node.props.accessibilityLabel === 'Books 1–6 of 10000: 4 finished, 2 to go.')).toBe(true);
 });
@@ -138,7 +153,9 @@ test('a late cover response for a different shelf cannot show the wrong book', a
   const pending = new Map();
   getReadingGoalBooks.mockImplementation((kind,period,offset) => kind === 'monthly' ? Promise.resolve([]) : new Promise(resolve => pending.set(offset,resolve)));
   await render();
-  await press('Annual Goal: previous shelf');
+  expect(carousel('Annual Goal').props.initialScrollIndex).toBe(2);
+  expect(carousel('Annual Goal').props.getItemLayout(null,2)).toEqual({ length: 300, offset: 600, index: 2 });
+  await swipe('Annual Goal',1);
   const cover = id => ({ completionId:id, userBookId:id, googleBookId:id, isbn:null, title:id, coverUrl:'https://example.com/stored.jpg' });
   await act(async () => pending.get(6)([cover('current-shelf-book')]));
   await act(async () => pending.get(12)([cover('old-shelf-book')]));
