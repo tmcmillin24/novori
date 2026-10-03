@@ -147,12 +147,12 @@ test('large member lists scroll inside the card while small clubs stay natural h
 });
 
 test('club tabs keep posts and events separate and managers can create events',async()=>{
-  await render();await press('Club Events tab');expect(button('Create club event')).toBeDefined();expect(button('Create club announcement')).toBeUndefined();
+  await render();await press('Club Events tab');expect(button('Create club event')).toBeDefined();expect(button('Create club announcement')).toBeDefined();
   await press('Create club event');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-event',params:{clubId:'club-1'}});
   await press('Club Posts tab');expect(button('Create club announcement')).toBeDefined();expect(getClubEvents).toHaveBeenCalledTimes(1);
 });
 test('books tab loads the shared lineup only when opened and provides manager controls',async()=>{
   await render();expect(getClubReads).not.toHaveBeenCalled();await press('Club Books tab');expect(getClubReads).toHaveBeenCalledTimes(1);
-  expect(button('Add club read')).toBeDefined();expect(button('Create club announcement')).toBeUndefined();expect(button('Create club event')).toBeUndefined();
+  expect(button('Add club read')).toBeDefined();expect(button('Create club announcement')).toBeDefined();expect(button('Create club event')).toBeUndefined();
   await press('Choose current club read');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/edit-club-read',params:{clubId:'club-1',status:'current'}});
 });

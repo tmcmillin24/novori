@@ -1,6 +1,7 @@
 import ClubEventCard from '../../components/ClubEventCard';
 import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubBooksBoard from '../../components/ClubBooksBoard';
+import ClubTabActions from '../../components/ClubTabActions';
 import useEventClock from '../../hooks/use-event-clock';
 import { getClubEvents } from '../../lib/club-events';
 import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
@@ -5439,43 +5440,6 @@ export default function ClubDetailScreen() {
           </View>
         ) : null}
 
-        {isMember && clubTab === 'posts' ? (
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname:
-                  '/create-post',
-                params: {
-                  clubId:
-                    club.id,
-                },
-              })
-            }
-            style={({ pressed }) => [
-              styles.postInClubButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="create-outline"
-              size={18}
-              color={colors.background}
-            />
-
-            <Text
-              style={styles.postInClubButtonText}
-            >
-              Post in Club
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {isManager && clubTab === 'posts' ? <Pressable accessibilityRole="button" accessibilityLabel="Create club announcement"
-          onPress={() => router.push({ pathname: '/create-post',params: { clubId: club.id,announcement: '1' } })}
-          style={({ pressed }) => [styles.announcementButton,pressed && styles.pressed]}>
-          <Ionicons name="megaphone-outline" size={16} color={colors.gold} /><Text style={styles.announcementButtonText}>Make an announcement</Text>
-        </Pressable> : null}
-
         {club.privacy ===
           'private' &&
         !isMember ? (
@@ -5551,7 +5515,8 @@ export default function ClubDetailScreen() {
         </View> : null}
 
         <View style={styles.clubTabBar}>{(['posts','events','books'] as const).map(tab=><Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab==='posts'?'Club Posts tab':tab==='events'?'Club Events tab':'Club Books tab'} accessibilityState={{selected:clubTab===tab}} onPress={()=>setClubTab(tab)} style={[styles.clubTab,clubTab===tab&&styles.clubTabSelected]}><Ionicons name={tab==='posts'?'chatbubbles-outline':tab==='events'?'calendar-outline':'book-outline'} size={16} color={clubTab===tab?colors.gold:colors.mutedText}/><Text style={[styles.clubTabText,clubTab===tab&&{color:colors.gold}]}>{tab==='posts'?'Posts':tab==='events'?'Events':'Books'}</Text></Pressable>)}</View>
-        {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow}/> : <>
+        <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager}/>
+        {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
         {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={()=>router.push({pathname:'/club-event/[id]',params:{id:nextEvent.id}})}/> : null}
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy}
           onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}
@@ -8224,21 +8189,6 @@ function createStyles(colors: NovoriColors) {
       textAlign: 'center',
       padding: 24,
     },
-    postInClubButton: {
-      minHeight: 46,
-      borderRadius: 14,
-      backgroundColor: colors.gold,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 7,
-      marginTop: 12,
-    },
-    postInClubButtonText: {
-      color: colors.background,
-      fontFamily: 'Inter_700Bold',
-      fontSize: 13,
-    },
     postList: {
       gap: 11,
     },
@@ -8254,8 +8204,6 @@ function createStyles(colors: NovoriColors) {
       alignItems: 'flex-start',
     },
     postPinButton: { position: 'absolute',right: 44,top: 9,width: 34,height: 34,alignItems: 'center',justifyContent: 'center',zIndex: 2 },
-    announcementButton: { minHeight: 44,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 7,marginBottom: 8 },
-    announcementButtonText: { fontFamily: 'Inter_600SemiBold',fontSize: 12,color: colors.gold },
     postHeaderShare: {
       position: 'absolute',
       top: 9,
