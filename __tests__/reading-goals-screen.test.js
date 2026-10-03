@@ -57,7 +57,7 @@ async function press(label) { await act(async () => button(label).props.onPress(
 
 test('annual and monthly forms save their own period and refresh actual goal progress', async () => {
   await render();
-  await press('Annual Goal: 24 books');
+  await fill('Annual Goal book target','24');
   expect(field('Annual Goal book target').props.value).toBe('24');
   expect(saveReadingGoal).not.toHaveBeenCalled();
   await press('Save Annual Goal');
@@ -95,4 +95,27 @@ test('a late response for the previous year cannot replace the year the reader h
   await act(async () => pending[0].resolve(response(pending[0].annual,pending[0].monthly,9)));
   const bars = view.root.findAllByType('View').filter(node => node.props.accessibilityRole === 'progressbar');
   expect(bars[0].props.accessibilityValue.text).toBe('2 of 24 books');
+});
+
+test('one finished book in a four-book monthly goal fills exactly one of four spines', async () => {
+  targets.set(key('monthly','2026-10-01'),4);
+  await render();
+  const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 1–4 of 4: 1 finished, 3 to go.');
+  expect(shelf).toBeDefined();
+  const bar = view.root.findAllByType('View').find(node => node.props.accessibilityValue?.text === '1 of 4 books');
+  expect(bar.props.accessibilityValue).toMatchObject({ now: 1, max: 4 });
+  expect(button('Monthly Goal: next shelf')).toBeUndefined();
+});
+
+test('large goals browse individual books locally without refetching progress', async () => {
+  targets.set(key('annual','2026-01-01'),10000);
+  await render();
+  const initialCalls = getReadingGoalsProgress.mock.calls.length;
+  await press('Annual Goal: next shelf');
+  const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 13–24 of 10000: 0 finished, 12 to go.');
+  expect(shelf).toBeDefined();
+  expect(getReadingGoalsProgress).toHaveBeenCalledTimes(initialCalls);
+  expect(saveReadingGoal).not.toHaveBeenCalled();
+  await press('Annual Goal: previous shelf');
+  expect(view.root.findAllByType('View').some(node => node.props.accessibilityLabel === 'Books 1–12 of 10000: 4 finished, 8 to go.')).toBe(true);
 });

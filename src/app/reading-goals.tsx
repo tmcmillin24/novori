@@ -17,21 +17,62 @@ type GoalCardProps = {
   onSave: (value: string) => Promise<boolean>; onRemove: () => Promise<void>;
 };
 
-// Decorative spines represent progress, rather than individual books or cover images.
-function GoalShelf({ fraction, complete, colors }: { fraction: number; complete: boolean; colors: NovoriColors }) {
+// One spine always represents one book. Browse large goals twelve books at a time.
+function GoalShelf({ goal, title, colors }: { goal: ReadingGoalProgress; title: string; colors: NovoriColors }) {
   const styles = createStyles(colors);
-  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.shelf}>
-    <View style={styles.spines}>
-      {[34, 43, 38, 48, 40, 45, 35, 42].map((height, index) => {
-        const filled = (index + 1) / 8 <= fraction;
-        return <View key={index} style={[styles.spine, { height, backgroundColor: filled ? index % 2 ? colors.softGold : colors.gold : colors.elevated,
-          borderColor: filled ? colors.gold : colors.border, transform: [{ rotate: index === 7 ? '9deg' : '0deg' }] }]}>
-          <View style={[styles.spineLine, { backgroundColor: filled ? colors.background : colors.border }]} />
-        </View>;
-      })}
+  const total = Math.max(goal.targetBooks ?? 0, goal.finishedBooks);
+  const pageCount = Math.max(1, Math.ceil(total / 12));
+  const currentShelf = Math.min(pageCount - 1, Math.floor(Math.max(0, goal.finishedBooks - 1) / 12));
+  const [selectedShelf, setSelectedShelf] = useState(currentShelf);
+  useEffect(() => { setSelectedShelf(currentShelf); }, [goal.finishedBooks, goal.targetBooks, currentShelf]);
+  const page = Math.min(selectedShelf, pageCount - 1);
+  const first = page * 12;
+  const visibleBooks = Array.from({ length: Math.min(12, total - first) }, (_, index) => first + index + 1);
+  const filled = visibleBooks.filter(number => number <= goal.finishedBooks).length;
+  const range = total > 0 ? `Books ${first + 1}–${first + visibleBooks.length} of ${total}` : '';
+  const complete = goal.targetBooks !== null && goal.finishedBooks >= goal.targetBooks;
+
+  return <View style={styles.shelf}>
+    <View style={styles.shelfHeading}>
+      <Ionicons name="library-outline" size={13} color={colors.gold} />
+      <Text style={styles.shelfTitle}>YOUR STORY SHELF</Text>
+      {complete ? <Ionicons name="sparkles" size={16} color={colors.gold} /> : <Text style={styles.shelfKey}>1 spine = 1 book</Text>}
     </View>
-    <View style={styles.shelfBase} />
-    {complete ? <View style={styles.shelfStar}><Ionicons name="sparkles" size={20} color={colors.gold} /></View> : null}
+    {total > 0 ? <>
+      <View accessible accessibilityLabel={`${range}: ${filled} finished, ${visibleBooks.length - filled} to go.`}>
+        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.spines}>
+          {visibleBooks.map(number => {
+            const finished = number <= goal.finishedBooks;
+            const bonus = goal.targetBooks !== null && number > goal.targetBooks;
+            return <View key={number} style={styles.spineSlot}>
+              <View style={[styles.spine, { height: [40, 48, 44, 54][(number - 1) % 4],
+                backgroundColor: finished ? number % 2 ? colors.gold : colors.softGold : colors.surface,
+                borderColor: finished ? colors.gold : colors.border }]}>
+                {bonus ? <Ionicons name="star" size={8} color={colors.background} /> : null}
+                <View style={[styles.spineLine, { backgroundColor: finished ? colors.background : colors.border }]} />
+                <View style={[styles.spineLine, { backgroundColor: finished ? colors.background : colors.border }]} />
+              </View>
+              <Text style={[styles.spineNumber, finished && { color: colors.gold }]}>{number}</Text>
+            </View>;
+          })}
+        </View>
+        <View style={styles.shelfBase} />
+      </View>
+      {pageCount > 1 ? <View style={styles.shelfNavigation}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${title}: previous shelf`} disabled={page === 0}
+          onPress={() => setSelectedShelf(page - 1)} style={({ pressed }) => [styles.shelfArrow, page === 0 && styles.disabled, pressed && styles.pressed]}>
+          <Ionicons name="chevron-back" size={15} color={colors.gold} />
+        </Pressable>
+        <Text style={styles.shelfRange}>{range}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${title}: next shelf`} disabled={page === pageCount - 1}
+          onPress={() => setSelectedShelf(page + 1)} style={({ pressed }) => [styles.shelfArrow, page === pageCount - 1 && styles.disabled, pressed && styles.pressed]}>
+          <Ionicons name="chevron-forward" size={15} color={colors.gold} />
+        </Pressable>
+      </View> : null}
+    </> : <View style={styles.emptyShelf}>
+      <Ionicons name="book-outline" size={27} color={colors.gold} />
+      <Text style={styles.emptyShelfCopy}>Your next story starts here.</Text>
+    </View>}
   </View>;
 }
 
@@ -64,7 +105,6 @@ function GoalCard({ kind, periodStart, goal, busy, loading, onShift, onSave, onR
     : new Date(year, month - 1, 1, 12).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const display = goal ? getGoalProgressDisplay(goal) : null;
   const showEditor = goal !== null && (editing || goal.targetBooks === null);
-  const presets = kind === 'annual' ? [12, 24, 52] : [1, 2, 4];
 
   return <View style={[styles.card, display?.complete && styles.cardComplete]}>
     <View style={styles.cardTop}>
@@ -95,8 +135,8 @@ function GoalCard({ kind, periodStart, goal, busy, loading, onShift, onSave, onR
           </View>
           <Text style={styles.description}>book{goal.finishedBooks === 1 ? '' : 's'} finished</Text>
         </View>
-        <GoalShelf fraction={display?.fraction ?? 0} complete={display?.complete ?? false} colors={colors} />
       </View>
+      <GoalShelf goal={goal} title={title} colors={colors} />
       {goal.targetBooks !== null && display ? <>
         <View style={styles.progressHeader}>
           <Text style={styles.progressLabel}>{display.complete ? 'You did it!' : 'Your reading is adding up'}</Text>
@@ -111,15 +151,6 @@ function GoalCard({ kind, periodStart, goal, busy, loading, onShift, onSave, onR
           : `${display.remaining} more book${display.remaining === 1 ? '' : 's'} to reach your goal`}</Text>
       </> : <Text style={styles.progressCopy}>A little reading, a shelf full of stories. Pick your pace.</Text>}
       {showEditor ? <View style={styles.editor}>
-        <View style={styles.presetRow}>
-          <Text style={styles.inputLabel}>Aim for</Text>
-          {presets.map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`${title}: ${value} books`}
-            accessibilityState={{ selected: draft === String(value), disabled: busy || loading }} disabled={busy || loading}
-            onPress={() => setDraft(String(value))} style={({ pressed }) => [styles.preset, draft === String(value) && styles.presetSelected, pressed && styles.pressed]}>
-            <Text style={[styles.presetText, draft === String(value) && styles.presetTextSelected]}>{value}</Text>
-          </Pressable>)}
-          <Text style={styles.presetHint}>or your own</Text>
-        </View>
         <View style={styles.editorRow}>
           <TextInput accessibilityLabel={`${title} book target`} value={draft} onChangeText={setDraft}
             keyboardType="number-pad" placeholder="Book target"
@@ -306,22 +337,28 @@ function createStyles(colors: NovoriColors) {
     finishedCount: { color: colors.gold, fontSize: 38, fontFamily: 'PlayfairDisplay_600SemiBold' },
     targetCount: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 16 },
     description: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11 },
-    shelf: { width: 102, paddingTop: 8, paddingHorizontal: 3 }, spines: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 50 },
-    spine: { width: 9, borderWidth: 1, borderRadius: 2, justifyContent: 'flex-end', paddingBottom: 6 },
-    spineLine: { height: 2, marginHorizontal: 1, opacity: 0.6 }, shelfBase: { height: 3, borderRadius: 2, backgroundColor: colors.border, marginTop: 2 },
-    shelfStar: { position: 'absolute', right: 0, top: -4 },
+    shelf: { backgroundColor: colors.elevated, borderRadius: 12, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 8, marginTop: 7 },
+    shelfHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+    shelfTitle: { flex: 1, color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 8, letterSpacing: 0.5 },
+    shelfKey: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 9 },
+    spines: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3, paddingTop: 3 },
+    spineSlot: { flex: 1, maxWidth: 32, minWidth: 0, alignItems: 'center' },
+    spine: { width: '75%', maxWidth: 22, borderWidth: 1, borderRadius: 3, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 5, gap: 2 },
+    spineLine: { height: 2, width: '65%', opacity: 0.6 },
+    spineNumber: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 8, marginTop: 4 },
+    shelfBase: { height: 3, borderRadius: 2, backgroundColor: colors.border, marginTop: 3 },
+    shelfNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: -6 },
+    shelfArrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    shelfRange: { flex: 1, textAlign: 'center', color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 10 },
+    emptyShelf: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingVertical: 9 },
+    emptyShelfCopy: { flex: 1, color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11 },
     progressHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 6 },
     progressLabel: { flex: 1, color: colors.secondaryText, fontFamily: 'Inter_500Medium', fontSize: 10 },
     progressPercent: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 11 },
     progressTrack: { height: 6, borderRadius: 6, backgroundColor: colors.elevated, overflow: 'hidden' },
     progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 6 },
     progressCopy: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 16, marginTop: 7 },
-    editor: { marginTop: 10 }, presetRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
-    inputLabel: { color: colors.secondaryText, fontFamily: 'Inter_500Medium', fontSize: 10, marginRight: 1 },
-    preset: { minWidth: 44, minHeight: 44, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    presetSelected: { borderColor: colors.gold, backgroundColor: colors.gold },
-    presetText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 }, presetTextSelected: { color: colors.background },
-    presetHint: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10 },
+    editor: { marginTop: 10 },
     editorRow: { flexDirection: 'row', gap: 8 },
     input: { flex: 1, minWidth: 65, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 14 },
     save: { backgroundColor: colors.gold, borderRadius: 11, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', minHeight: 44, flexDirection: 'row', gap: 5 },
