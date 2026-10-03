@@ -87,9 +87,9 @@ test('network failure retries and sign-out clears successful device registration
   expect(h.calls).toHaveLength(3);
 });
 
-test('time zone synchronization keeps existing disabled reminders and custom time', async () => {
+test('time zone synchronization keeps existing disabled reminders at the fixed time', async () => {
   const saved = { user_id: 'reader-1', daily_checkin: false, still_reading: false,
-    weekly_recap: true, monthly_recap: false, reminder_time: '21:15:00', timezone: 'America/Chicago' };
+    weekly_recap: true, monthly_recap: false, reminder_time: '18:00:00', timezone: 'America/Chicago' };
   const h = harness({ row: saved });
   expect(await h.api.getReadingReminderPreferences()).toEqual(saved);
   expect(h.calls[0].args).toEqual({ device_timezone: 'America/Chicago' });
@@ -109,16 +109,12 @@ test('signed-out readers cannot read or write reminder preferences', async () =>
   expect(h.calls).toEqual([]);
 });
 
-test.each(['24:00', '23:60', '9:00', '20:00:01', '20:00junk', ''])('invalid reminder time %s cannot be saved', async (time) => {
+test('callers cannot override the fixed reminder time when changing a reminder toggle', async () => {
   const h = harness();
-  await expect(h.api.updateReadingReminderPreferences({ reminder_time: time })).rejects.toThrow('Enter a time');
-  expect(h.calls).toEqual([]);
-});
-
-test.each(['00:00', '23:59', '20:00:00'])('valid reminder time %s is normalized', async (time) => {
-  const h = harness();
-  await h.api.updateReadingReminderPreferences({ reminder_time: time });
-  expect(h.calls.find((call) => typeof call.value === 'object').value.reminder_time).toBe(`${time.slice(0,5)}:00`);
+  await h.api.updateReadingReminderPreferences({ reminder_time: '21:15:00', daily_checkin: false });
+  const patch = h.calls.find((call) => typeof call.value === 'object').value;
+  expect(patch).not.toHaveProperty('reminder_time');
+  expect(patch.daily_checkin).toBe(false);
 });
 
 const reminder = (kind, reference_date = '2026-09-30') => ({ type: 'system', entity_type: 'reading_reminder',

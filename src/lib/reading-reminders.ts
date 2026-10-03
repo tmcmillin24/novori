@@ -11,12 +11,6 @@ export function getDeviceTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-export function parseReminderTime(value: string): string | null {
-  const match = /^(\d{2}):(\d{2})(?::00)?$/.exec(value.trim());
-  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return null;
-  return `${match[1]}:${match[2]}:00`;
-}
-
 export function parseRecapReferenceDate(value: unknown): Date | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split('-').map(Number);
@@ -88,18 +82,13 @@ export function resetReadingReminderDeviceSync() {
 }
 
 export async function updateReadingReminderPreferences(
-  changes: Partial<Pick<ReadingReminderPreferences, ReadingReminderKind | 'reminder_time'>>,
+  changes: Partial<Pick<ReadingReminderPreferences, ReadingReminderKind>>,
 ): Promise<ReadingReminderPreferences> {
   const userId = await currentUserId();
   // Only explicitly changed values are written; another device's choices are preserved.
   const patch: Record<string, unknown> = { user_id: userId, timezone: getDeviceTimezone() };
   for (const key of ['daily_checkin', 'still_reading', 'weekly_recap', 'monthly_recap'] as const) {
     if (typeof changes[key] === 'boolean') patch[key] = changes[key];
-  }
-  if (changes.reminder_time !== undefined) {
-    const time = parseReminderTime(changes.reminder_time);
-    if (!time) throw new Error('Enter a time from 00:00 to 23:59.');
-    patch.reminder_time = time;
   }
   const { data, error } = await supabase.from('reading_reminder_preferences')
     .upsert(patch, { onConflict: 'user_id', defaultToNull: false })

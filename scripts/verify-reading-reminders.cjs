@@ -2,12 +2,13 @@
 // Test dependency only (the mobile app gains no dependencies):
 // npm install --prefix /tmp/novori-reminder-check @electric-sql/pglite@0.5.8
 // NOVORI_PGLITE_MODULE=/tmp/novori-reminder-check/node_modules/@electric-sql/pglite \
-//   node scripts/verify-reading-reminders.cjs /path/to/40-reading-reminders.sql.txt [/path/to/41-reading-reminder-defaults.sql.txt]
+//   node scripts/verify-reading-reminders.cjs /path/to/40-reading-reminders.sql.txt [/path/to/41-reading-reminder-defaults.sql.txt] [/path/to/42-reading-reminder-fixed-time.sql.txt]
 const { PGlite } = require(process.env.NOVORI_PGLITE_MODULE || '@electric-sql/pglite');
 const fs = require('fs');
 const assert = require('node:assert/strict');
 const sqlPath = process.argv[2];
 const defaultsSqlPath = process.argv[3];
+const fixedTimeSqlPath = process.argv[4];
 if (!sqlPath) throw new Error('Pass the path to 40-reading-reminders.sql.txt. This verifier runs only in embedded PostgreSQL.');
 const db = new PGlite();
 let checks = 0;
@@ -156,6 +157,29 @@ async function reset(prefs, timezone = 'UTC', time = '20:00') {
   await expectQuery('select count(*)::int from public.reading_reminder_preferences',1,'own upsert allowed');
   await assert.rejects(db.query(`update public.reading_reminder_preferences set user_id='${id}' where user_id='${other}'`), /row-level security/); checks++;
   await assert.rejects(db.query("update public.reading_reminder_preferences set timezone='Bad/Timezone'"), /valid IANA/); checks++;
+  if (fixedTimeSqlPath) {
+    if (!defaultsSqlPath) throw new Error('Pass the defaults SQL before the fixed-time SQL.');
+    await reset('weekly_recap','America/Chicago','21:15');
+    const fixedSql = fs.readFileSync(fixedTimeSqlPath,'utf8');
+    await db.exec(fixedSql); await db.exec(fixedSql); checks++;
+    await expectQuery("select reminder_time::text from public.reading_reminder_preferences",'18:00:00','custom time reset to 6 PM');
+    await expectQuery('select daily_checkin from public.reading_reminder_preferences',false,'fixed time keeps opt-out');
+    await expectQuery('select weekly_recap from public.reading_reminder_preferences',true,'fixed time keeps enabled recap');
+    await expectQuery("select enabled_since->>'weekly_recap' from public.reading_reminder_preferences",'2026-08-01Z','fixed time keeps original activation');
+    await expectQuery("select timezone from public.reading_reminder_preferences",'America/Chicago','fixed time keeps phone zone');
+    await assert.rejects(db.query("update public.reading_reminder_preferences set reminder_time='21:15'"), /check constraint/); checks++;
+    await db.exec(`set role authenticated; set request.jwt.claim.sub='${id}'`);
+    await assert.rejects(db.query("update public.reading_reminder_preferences set reminder_time='21:15'"), /permission denied/); checks++;
+    await expectQuery("select public.sync_reading_reminder_device('America/Los_Angeles')->>'reminder_time'",'18:00:00','zone sync retains fixed hour');
+    await db.exec(`insert into public.reading_reminder_preferences(user_id,daily_checkin,timezone)
+      values ('${id}',true,'America/Los_Angeles') on conflict(user_id)
+      do update set user_id=excluded.user_id,daily_checkin=excluded.daily_checkin,timezone=excluded.timezone`);
+    await expectQuery('select daily_checkin from public.reading_reminder_preferences',true,'toggle upsert still allowed');
+    await db.exec('reset role');
+    await expectQuery("select public.novori_generate_reading_reminders('2026-10-04 00:59Z')",0,'no reminder before local 6 PM');
+    await expectQuery("select public.novori_generate_reading_reminders('2026-10-04 01:00Z')",1,'reminder due at local 6 PM');
+    await expectQuery("select metadata->>'local_date' from public.notifications",'2026-10-03','fixed hour uses phone local day');
+  }
   console.log(`PASS: ${checks} PostgreSQL reminder checks (Cron installation excluded).`);
   await db.close();
 })().catch(async error => { console.error(error); await db.close(); process.exitCode=1; });
