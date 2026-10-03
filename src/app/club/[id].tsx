@@ -1,3 +1,6 @@
+import ClubPinnedPosts from '../../components/ClubPinnedPosts';
+import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
+import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
 import ClubHomeCard from '../../components/ClubHomeCard';
 import ClubOptionsSheet from '../../components/ClubOptionsSheet';
 import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
@@ -77,7 +80,6 @@ import {
 } from '../../lib/clubs';
 import {
   FeedPost,
-  getClubPosts,
   PostVoteValue,
   splitQuestionPostBody,
   togglePostVote,
@@ -526,6 +528,10 @@ export default function ClubDetailScreen() {
       null
     );
 
+  const [pinnedPosts,setPinnedPosts] = useState<FeedPost[]>([]);
+  const [pinTarget,setPinTarget] = useState<FeedPost | null>(null);
+  const [pinBusy,setPinBusy] = useState(false);
+
   const [clubMenuVisible, setClubMenuVisible] = useState(false);
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [membersVisible, setMembersVisible] = useState(false);
@@ -541,7 +547,11 @@ export default function ClubDetailScreen() {
       ? params.id
       : '';
 
+  const pinClubIdRef = useRef(clubId);
+  pinClubIdRef.current = clubId;
+
   useEffect(() => {
+    setPinnedPosts([]); setPinTarget(null);
     setClubMenuVisible(false); setRulesExpanded(false); setMembersVisible(false); setManagementVisible(false);
     setInvitePanelOpen(false); pendingMemberScroll.current = false;
   }, [clubId]);
@@ -603,6 +613,7 @@ export default function ClubDetailScreen() {
         let postData:
           FeedPost[] =
             [];
+        let pinnedData: FeedPost[] = [];
 
         if (
           canReadPrivateContent
@@ -615,16 +626,14 @@ export default function ClubDetailScreen() {
               getClubMembers(
                 clubId
               ),
-              getClubPosts(
-                clubId
-              ),
+              getClubConversation(clubId),
             ]);
 
           memberData =
             loadedMembers;
 
-          postData =
-            loadedPosts;
+          postData = loadedPosts.posts;
+          pinnedData = loadedPosts.pinnedPosts;
         }
 
         const manager =
@@ -660,6 +669,7 @@ export default function ClubDetailScreen() {
         setClubPosts(
           postData
         );
+        setPinnedPosts(pinnedData);
         setPendingInvite(
           pendingInviteData
         );
@@ -3606,6 +3616,19 @@ export default function ClubDetailScreen() {
     }
   }
 
+  async function handleClubPin(postId: string,pinned: boolean,replacePostId?: string) {
+    if (pinBusy || !club || !['owner','admin'].includes(club.membership_role ?? '')) return;
+    try {
+      setPinBusy(true);
+      await setClubPostPin(club.id,postId,pinned,replacePostId);
+      const pins = await getClubPins(club.id);
+      const nextPins = await resolveClubPinnedPosts(club.id,pins,[...pinnedPosts,...clubPosts]);
+      if (pinClubIdRef.current === club.id) setPinnedPosts(nextPins);
+    } catch (error) {
+      Alert.alert('Could not update pins',(error as { message?: string } | null)?.message || 'Reload the club and try again.');
+    } finally { setPinBusy(false); }
+  }
+
   function renderClubPost(
     post: FeedPost
   ) {
@@ -3645,6 +3668,7 @@ export default function ClubDetailScreen() {
           }
           style={({ pressed }) => [
             styles.postHeader,
+            { paddingRight: club?.membership_role === 'owner' || club?.membership_role === 'admin' ? 66 : 32 },
             pressed &&
               styles.pressed,
           ]}
@@ -3717,7 +3741,14 @@ export default function ClubDetailScreen() {
           />
         </Pressable>
 
+        {club?.membership_role === 'owner' || club?.membership_role === 'admin' ? <Pressable disabled={pinBusy}
+          accessibilityRole="button" accessibilityLabel={`Pin options: ${post.id}`} hitSlop={8}
+          onPress={() => { Keyboard.dismiss(); setPinTarget(post); }} style={({ pressed }) => [styles.postPinButton,pressed && styles.pressed]}>
+          <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold} />
+        </Pressable> : null}
+
         <PostTypeIdentifier
+          announcement={post.is_club_announcement}
           readingRecap={Boolean(post.reading_recap)}
           postType={
             post.post_type
@@ -5419,6 +5450,12 @@ export default function ClubDetailScreen() {
           </Pressable>
         ) : null}
 
+        {isManager ? <Pressable accessibilityRole="button" accessibilityLabel="Create club announcement"
+          onPress={() => router.push({ pathname: '/create-post',params: { clubId: club.id,announcement: '1' } })}
+          style={({ pressed }) => [styles.announcementButton,pressed && styles.pressed]}>
+          <Ionicons name="megaphone-outline" size={16} color={colors.gold} /><Text style={styles.announcementButtonText}>Make an announcement</Text>
+        </Pressable> : null}
+
         {club.privacy ===
           'private' &&
         !isMember ? (
@@ -5575,6 +5612,10 @@ export default function ClubDetailScreen() {
 
         </View> : null}
 
+        <ClubPinnedPosts posts={pinnedPosts} canManage={isManager} busy={pinBusy}
+          onOpen={postId => router.push({ pathname: '/post/[id]',params: { id: postId } })}
+          onManage={post => { Keyboard.dismiss(); setPinTarget(post); }} />
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             Club conversation
@@ -5642,6 +5683,9 @@ export default function ClubDetailScreen() {
           </>
         )}
       </ScrollView>
+
+      <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={pinnedPosts} busy={pinBusy}
+        onPin={(postId,pinned,replacePostId) => void handleClubPin(postId,pinned,replacePostId)} onDismiss={() => setPinTarget(null)} />
 
       <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
         hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)} />
@@ -8257,6 +8301,9 @@ function createStyles(colors: NovoriColors) {
       flexDirection: 'row',
       alignItems: 'flex-start',
     },
+    postPinButton: { position: 'absolute',right: 44,top: 9,width: 34,height: 34,alignItems: 'center',justifyContent: 'center',zIndex: 2 },
+    announcementButton: { minHeight: 44,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 7,marginBottom: 14 },
+    announcementButtonText: { fontFamily: 'Inter_600SemiBold',fontSize: 12,color: colors.gold },
     postHeaderShare: {
       position: 'absolute',
       top: 9,

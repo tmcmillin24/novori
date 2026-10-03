@@ -38,6 +38,7 @@ export type FeedPost = {
   rating: number | null;
   book_stack_id: string | null;
   reading_recap?: ReadingRecapSnapshot | null;
+  is_club_announcement?: boolean;
   created_at: string;
   updated_at: string;
   author_display_name: string | null;
@@ -136,12 +137,19 @@ export async function attachPostImageUrls(
     await supabase
       .from('posts')
       .select(
-        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap'
+        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement'
       )
       .in(
         'id',
         postIds
       );
+
+  // Older servers may not have club announcements yet; keep recap/media hydration.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    const recap = await supabase.from('posts')
+      .select('id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap').in('id', postIds);
+    data = recap.data as typeof data; error = recap.error;
+  }
 
   // Preserve existing media if an older server has not installed sharing yet.
   if (error?.code === '42703' || error?.code === 'PGRST204') {
@@ -181,6 +189,7 @@ export async function attachPostImageUrls(
         (row) => [
           row.id as string,
           {
+            announcement: row.is_club_announcement === true,
             readingRecap: parseReadingRecapSnapshot(row.reading_recap),
             imageUrl:
               (row.post_image_url ??
@@ -239,6 +248,7 @@ export async function attachPostImageUrls(
 
       return {
         ...post,
+        is_club_announcement: metadata?.announcement ?? post.is_club_announcement ?? false,
         reading_recap: metadata?.readingRecap ?? parseReadingRecapSnapshot(post.reading_recap),
         post_image_url:
           metadata
@@ -546,6 +556,7 @@ export async function createPost(input: {
   body: string;
   clubId?: string | null;
   postType?: FeedPostType;
+  isClubAnnouncement?: boolean;
   googleBookId?: string | null;
   bookTitle?: string | null;
   bookCoverUrl?: string | null;
@@ -561,6 +572,10 @@ export async function createPost(input: {
 
   const body =
     input.body.trim();
+
+  if (input.isClubAnnouncement && (!input.clubId || (input.postType ?? 'post') !== 'post')) {
+    throw new Error('Announcements must be posted to a club.');
+  }
 
   const allowsEmptyBody =
     input.postType ===
@@ -585,6 +600,7 @@ export async function createPost(input: {
     await supabase
       .from('posts')
       .insert({
+        ...(input.isClubAnnouncement ? { is_club_announcement: true } : {}),
         author_id:
           userId,
         club_id:

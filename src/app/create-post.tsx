@@ -1,3 +1,5 @@
+import PostTypeIdentifier from '../components/PostTypeIdentifier';
+import { canManageClubPosts } from '../lib/club-posts';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -171,8 +173,12 @@ export default function CreatePostScreen() {
   const params =
     useLocalSearchParams<{
       clubId?: string;
+      announcement?: string;
       editPostId?: string;
     }>();
+
+  const requestedAnnouncement = params.announcement === '1';
+  const [announcement, setAnnouncement] = useState(requestedAnnouncement);
 
   const requestedClubId =
     typeof params.clubId ===
@@ -442,6 +448,8 @@ export default function CreatePostScreen() {
             return;
           }
 
+          setAnnouncement(editingPost.is_club_announcement === true);
+
           setBody(
             editingPost.body
           );
@@ -557,6 +565,7 @@ export default function CreatePostScreen() {
     editPostId,
     isEditing,
     requestedClubId,
+    requestedAnnouncement,
     router,
   ]);
 
@@ -654,7 +663,8 @@ export default function CreatePostScreen() {
     trimmedBody.length <=
       4000 &&
     !saving &&
-    !loadingEditPost;
+    !loadingEditPost &&
+    (!announcement || (!loadingClubs && destination.type === 'club' && clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role))));
 
   const profileSelected =
     destination.type ===
@@ -987,6 +997,7 @@ export default function CreatePostScreen() {
       }
 
       const postPayload = {
+        ...(announcement ? { isClubAnnouncement: true } : {}),
         body:
           trimmedBody,
         clubId,
@@ -1151,14 +1162,15 @@ export default function CreatePostScreen() {
               }
             >
               {isEditing
-                ? 'Edit Post'
-                : 'Create Post'}
+                ? (announcement ? 'Edit Announcement' : 'Edit Post')
+                : (announcement ? 'Announcement' : 'Create Post')}
             </Text>
 
             <Pressable
               disabled={
                 !canPost
               }
+              accessibilityRole="button" accessibilityLabel={isEditing ? 'Save post' : 'Publish post'}
               onPress={
                 handlePost
               }
@@ -1212,7 +1224,8 @@ export default function CreatePostScreen() {
               styles.content
             }
           >
-            {!isEditing ? (
+            {announcement && !loadingClubs && !clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role)) ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>Only the club owner and admins can publish announcements.</Text> : null}
+            {!isEditing && !announcement ? (
               <>
             <Pressable
               onPress={() =>
@@ -1667,6 +1680,7 @@ export default function CreatePostScreen() {
                   styles.feedPreviewContent
                 }
               >
+                {announcement ? <PostTypeIdentifier postType="post" announcement colors={colors} /> : null}
                 <TextInput
                   value={
                     body
@@ -1674,7 +1688,8 @@ export default function CreatePostScreen() {
                   onChangeText={
                     setBody
                   }
-                  placeholder="Share something with readers..."
+                  accessibilityLabel="Post text"
+                  placeholder={announcement ? "Share an announcement with your club…" : "Share something with readers..."}
                   placeholderTextColor={
                     colors.mutedText
                   }

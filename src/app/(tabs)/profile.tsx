@@ -2301,6 +2301,7 @@ export default function ProfileScreen() {
                   }
                 >
                   <PostTypeIdentifier
+          announcement={post.is_club_announcement}
                     readingRecap={Boolean(post.reading_recap)}
                     postType={
                       post.post_type

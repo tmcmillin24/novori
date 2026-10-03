@@ -4,6 +4,8 @@ import { Alert } from 'react-native';
 import CreateReadingUpdateScreen from '../src/app/create-reading-update';
 import CreateBookStackScreen from '../src/app/create-book-stack';
 import AskReadersScreen from '../src/app/ask-readers';
+import CreatePostScreen from '../src/app/create-post';
+import PostTypeIdentifier from '../src/components/PostTypeIdentifier';
 import EditablePostCard from '../src/components/EditablePostCard';
 import PostDestinationPicker from '../src/components/PostDestinationPicker';
 import BookStackShowcase from '../src/components/BookStackShowcase';
@@ -43,6 +45,9 @@ jest.mock('react-native', () => ({
   useWindowDimensions: () => ({ width: 390, height: 844 }),
 }));
 jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
+jest.mock('expo-image-picker',()=>({}));
+jest.mock('../src/components/PhotoSourceSheet',()=> 'PhotoSourceSheet');
+jest.mock('../src/components/PostPhotoCropper',()=> 'PostPhotoCropper');
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
 jest.mock('react-native-keyboard-controller', () => ({ KeyboardAwareScrollView: 'KeyboardAwareScrollView' }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 0 }) }));
@@ -313,4 +318,23 @@ test.each(['Save stack to profile without posting', 'Save and publish Book Stack
   expect(createBookStack).not.toHaveBeenCalled();
   expect(createPost).not.toHaveBeenCalled();
   expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+test('announcement composer is the editable post card, locks its club, and publishes directly',async()=>{
+  mockParams={clubId:'club-1',announcement:'1'};getMyClubs.mockResolvedValue([{id:'club-1',name:'Our readers',membership_role:'admin',cover_url:'club-photo'}]);
+  await renderScreen(CreatePostScreen);await fill('Post text','Next meeting is Friday.');expect(button('Publish post').props.disabled).toBe(false);
+  expect(view.root.findByType(PostTypeIdentifier).props.announcement).toBe(true);
+  expect(view.root.findAllByType('Text').some(node=>node.props.children==='POST TO')).toBe(false);
+  await press('Publish post');expect(createPost).toHaveBeenCalledWith(expect.objectContaining({body:'Next meeting is Friday.',clubId:'club-1',isClubAnnouncement:true}));
+  expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/club/[id]',params:{id:'club-1'}});expect(Alert.alert).not.toHaveBeenCalled();
+});
+test('members and invalid club destinations cannot publish announcements',async()=>{
+  mockParams={clubId:'club-1',announcement:'1'};getMyClubs.mockResolvedValue([{id:'club-1',name:'Our readers',membership_role:'member'}]);
+  await renderScreen(CreatePostScreen);await fill('Post text','Hello');expect(button('Publish post').props.disabled).toBe(true);await press('Publish post');expect(createPost).not.toHaveBeenCalled();
+});
+test('editing an announcement preserves stored covers, authors, and the fixed destination',async()=>{
+  mockParams={editPostId:'post-1'};getMyClubs.mockResolvedValue([{id:'club-1',name:'Our readers',membership_role:'owner'}]);
+  getPostDetail.mockResolvedValue({id:'post-1',author_id:'reader',club_id:'club-1',is_club_announcement:true,body:'Original',book_title:'Book',google_book_id:'cached-book',book_cover_url:'cached-cover',book_authors:['Stored author']});
+  await renderScreen(CreatePostScreen);expect(field('Post text').props.value).toBe('Original');await fill('Post text','Updated');await press('Save post');
+  expect(updatePost).toHaveBeenCalledWith('post-1',expect.objectContaining({clubId:'club-1',body:'Updated',bookCoverUrl:'cached-cover',bookAuthors:['Stored author']}));expect(searchNovoriBooks).not.toHaveBeenCalled();
 });

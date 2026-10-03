@@ -7,6 +7,7 @@ import ClubHomeCard from '../src/components/ClubHomeCard';
 import ClubOptionsSheet from '../src/components/ClubOptionsSheet';
 import { getClub, getClubMembers, getPendingClubInvitesForManager, updateClub, createClub } from '../src/lib/clubs';
 import { getClubPosts } from '../src/lib/feed';
+import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/club-posts';
 
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>({id:'club-1',clubId:'club-1'}),useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
@@ -35,12 +36,13 @@ jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{u
 jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),uploadClubCover:jest.fn(),getClub:jest.fn(),getClubMembers:jest.fn(),getPendingClubInvite:async()=>null,getPendingPrivateClubRequest:async()=>null,
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
 jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn()}));
+jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
 jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();getClub.mockResolvedValue(base);
   getClubMembers.mockResolvedValue([{user_id:'owner',role:'owner',display_name:'Founder Person',username:'owner',avatar_url:null},{user_id:'member',role:'member',display_name:'Member Reader',username:'member',avatar_url:null}]);
-  updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
+  updateClub.mockResolvedValue(base);createClub.mockResolvedValue(base);getClubPosts.mockResolvedValue([]);getClubConversation.mockImplementation(async()=>({posts:await getClubPosts(),pinnedPosts:[]}));getClubPins.mockResolvedValue([]);setClubPostPin.mockResolvedValue();getPendingClubInvitesForManager.mockResolvedValue([]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});
 });
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;silence.mockRestore();});
 async function render(element=<ClubDetailScreen/>){await act(async()=>{view=renderer.create(element);});}
@@ -101,4 +103,29 @@ test('creating a club includes optional rules without a separate save flow',asyn
   await render(<CreateClubScreen/>);const inputs=view.root.findAllByType('TextInput');
   await act(async()=>{inputs.find(node=>node.props.accessibilityLabel==='Club name').props.onChangeText('New Readers');inputs.find(node=>node.props.accessibilityLabel==='Club rules').props.onChangeText(' Be kind. ');});
   await press('Create club');expect(createClub).toHaveBeenCalledWith(expect.objectContaining({name:'New Readers',rules:'Be kind.'}));
+});
+
+const postFixture={id:'post-1',author_id:'owner',club_id:'club-1',post_type:'post',body:'Next meeting on Friday.',book_title:null,author_display_name:'Founder Person',created_at:new Date().toISOString(),comment_count:0,vote_score:0,viewer_vote:0,is_club_announcement:true};
+test('manager can start an announcement and pin an existing post',async()=>{
+  getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[]});getClubPins.mockResolvedValue([{post_id:'post-1'}]);
+  await render();await press('Create club announcement');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{clubId:'club-1',announcement:'1'}});
+  await press('Pin options: post-1');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,undefined);
+  expect(text()).toContain('PINNED');expect(button('Open pinned post: Next meeting on Friday.')).toBeDefined();
+});
+test('full pin picker replaces a chosen post and unpin uses the same animation',async()=>{
+  const pins=[1,2,3].map(i=>({...postFixture,id:'old-'+i,body:'Old pin '+i}));getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:pins});
+  getClubPins.mockResolvedValue([{post_id:'old-1'},{post_id:'old-3'},{post_id:'post-1'}]);await render();
+  await press('Pin options: post-1');expect(button('Pin post')).toBeUndefined();await press('Replace: Old pin 2');
+  expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,'old-2');
+  await press('Manage pin: post-1');getClubPins.mockResolvedValue([]);await press('Unpin post');
+  expect(setClubPostPin).toHaveBeenLastCalledWith('club-1','post-1',false,undefined);expect(text()).not.toContain('PINNED');
+});
+test('members can open old pinned posts but have no announcement or pin controls',async()=>{
+  getClub.mockResolvedValue({...base,membership_role:'member'});getClubConversation.mockResolvedValue({posts:[],pinnedPosts:[postFixture]});
+  await render();expect(button('Create club announcement')).toBeUndefined();expect(button('Manage pin: post-1')).toBeUndefined();
+  await press('Open pinned post: Next meeting on Friday.');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});
+});
+test('pin failures preserve the visible pins',async()=>{
+  getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[postFixture]});setClubPostPin.mockRejectedValue(new Error('Permission changed.'));
+  await render();await press('Pin options: post-1');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
 });

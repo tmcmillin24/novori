@@ -5916,6 +5916,7 @@ export default function HomeScreen() {
           }
         >
           <PostTypeIdentifier
+          announcement={post.is_club_announcement}
             readingRecap={Boolean(post.reading_recap)}
             postType={
               post.post_type
