@@ -7,6 +7,7 @@ const fs = require('fs');
 const assert = require('node:assert/strict');
 const sqlPath = process.argv[2];
 if (!sqlPath) throw new Error('Pass the separate reading goals SQL path.');
+const bookSqlPath = process.argv[3];
 const db = new PGlite();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 let checks = 0;
@@ -113,6 +114,37 @@ async function reject(sql, pattern) { await assert.rejects(db.query(sql),pattern
   await db.exec('reset role; set role anon');
   await reject('select * from public.reading_goals',/permission denied/);
   await reject(`select ${progress()}`,/permission denied/);
+  if (bookSqlPath) {
+    await db.exec(`reset role;
+      alter table public.user_books add column google_book_id text, add column title text, add column isbn text, add column cover_url text;
+      update public.user_books set google_book_id='google-'||id::text,title='Story '||id::text,isbn='9781234567897',cover_url='https://example.com/stored.jpg';`);
+    const bookSql = fs.readFileSync(bookSqlPath,'utf8');
+    await db.exec(bookSql); await db.exec(bookSql); checks++;
+    const books = (kind='annual',period='2025-01-01',offset=0,limit=6,zone='America/Chicago') =>
+      `public.get_reading_goal_books('${kind}','${period}','${zone}',${offset},${limit})`;
+    await db.exec(`set role authenticated; set request.jwt.claim.sub='${id(1)}'`);
+    await check(`select jsonb_array_length(${books()})`,6,'cover pages are bounded');
+    await check(`select jsonb_array_length(${books('annual','2025-01-01',6)})`,5,'last cover page is partial');
+    await check(`select jsonb_array_length(${books('monthly','2025-10-01')})`,4,'monthly covers match corrected completion count');
+    for (const [kind,period,zone] of [['annual','2025-01-01','America/Chicago'],['monthly','2025-10-01','America/Chicago'],
+      ['monthly','2025-11-01','UTC'],['monthly','2024-02-01','America/Chicago'],['monthly','2025-03-01','America/Chicago']]) {
+      const count = `${progress(period.slice(0,4),period,zone)}->'${kind}'->>'finishedBooks'`;
+      await check(`select jsonb_array_length(${books(kind,period,0,12,zone)})=(${count})::int`,true,'covers match counts across boundaries');
+    }
+    const yearly = (await db.query(`select ${books('annual','2025-01-01',0,12)} as books`)).rows[0].books;
+    assert.equal(yearly.filter(b=>b.userBookId===id(10)).length,2,'rereads keep separate covers'); checks++;
+    assert.equal(new Set(yearly.map(b=>b.completionId)).size,11,'no legacy duplicate or skipped completion'); checks++;
+    assert.ok(yearly.every(b=>b.coverUrl==='https://example.com/stored.jpg' && b.isbn==='9781234567897' && b.googleBookId)); checks++;
+    await check(`select jsonb_array_length(${books('annual','2099-01-01')})`,0,'future finishes excluded');
+    await check(`select jsonb_array_length(${books('annual','2025-01-01',10000)})`,0,'out-of-range cover page is empty');
+    for(const call of [books('weekly'),books('annual','2025-02-01'),books('monthly','2025-10-02'),books('annual','2025-01-01',-1),
+      books('annual','2025-01-01',0,13),books('annual','2025-01-01',0,0),books('annual','2025-01-01',0,6,'Invalid/Zone')]) await reject('select '+call,/calendar|page|IANA/);
+    await db.exec(`set request.jwt.claim.sub='${id(2)}'`);
+    await check(`select jsonb_array_length(${books()})`,1,'other reader sees only own cover');
+    await check(`select ${books()}->0->>'userBookId'`,id(30),'another reader cannot obtain first reader book identity');
+    await db.exec("set request.jwt.claim.sub=''"); await reject('select '+books(),/Sign in/);
+    await db.exec('reset role; set role anon'); await reject('select '+books(),/permission denied/);
+  }
   console.log(`PASS: ${checks} PostgreSQL goal checks.`);
   await db.close();
 })().catch(async error => { console.error(error); await db.close(); process.exitCode=1; });

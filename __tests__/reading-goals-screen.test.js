@@ -1,6 +1,7 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import ReadingGoalsScreen from '../src/app/reading-goals';
+import { getReadingGoalBooks } from '../src/lib/reading-goal-books';
 import { getReadingGoalsProgress, saveReadingGoal, removeReadingGoal } from '../src/lib/reading-goals';
 
 const mockRouter = { back: jest.fn() };
@@ -22,6 +23,8 @@ jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView
 jest.mock('../src/context/theme-context', () => ({
   useNovoriTheme: () => ({ colors: require('../src/constants/novori-theme').DARK_COLORS }),
 }));
+jest.mock('../src/components/BookCoverImage', () => 'BookCoverImage');
+jest.mock('../src/lib/reading-goal-books', () => ({ getReadingGoalBooks: jest.fn() }));
 jest.mock('../src/components/ValidationWarningSheet', () => 'ValidationWarningSheet');
 jest.mock('../src/lib/supabase', () => ({ supabase: {} }));
 jest.mock('../src/lib/reading-goals', () => ({ ...jest.requireActual('../src/lib/reading-goals'),
@@ -40,6 +43,10 @@ beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   jest.useFakeTimers(); jest.setSystemTime(new Date('2026-10-03T03:25:00Z')); jest.clearAllMocks();
   targets = new Map();
+  getReadingGoalBooks.mockImplementation(async (kind, period, offset) => Array.from({ length: 6 }, (_, index) => ({
+    completionId: `${kind}:${period}:${offset + index}`, userBookId: `book-${offset + index}`,
+    googleBookId: `${kind}-book-${offset + index}`, isbn: '9781234567897', title: `Story ${offset + index + 1}`, coverUrl: 'https://example.com/stored-cover.jpg',
+  })));
   getReadingGoalsProgress.mockImplementation(async (annual, monthly) => response(annual, monthly));
   saveReadingGoal.mockImplementation(async (kind, period, target) => { targets.set(key(kind, period), target); });
   removeReadingGoal.mockImplementation(async (kind, period) => { targets.delete(key(kind, period)); });
@@ -97,11 +104,14 @@ test('a late response for the previous year cannot replace the year the reader h
   expect(bars[0].props.accessibilityValue.text).toBe('2 of 24 books');
 });
 
-test('one finished book in a four-book monthly goal fills exactly one of four spines', async () => {
+test('one finished book in a four-book monthly goal uses one canonical cover and three placeholders', async () => {
   targets.set(key('monthly','2026-10-01'),4);
   await render();
   const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 1–4 of 4: 1 finished, 3 to go.');
   expect(shelf).toBeDefined();
+  const covers = shelf.findAllByType('BookCoverImage');
+  expect(covers).toHaveLength(1);
+  expect(covers[0].props).toMatchObject({ googleBookId: 'monthly-book-0', isbn: '9781234567897', existingCoverUrl: 'https://example.com/stored-cover.jpg' });
   const bar = view.root.findAllByType('View').find(node => node.props.accessibilityValue?.text === '1 of 4 books');
   expect(bar.props.accessibilityValue).toMatchObject({ now: 1, max: 4 });
   expect(button('Monthly Goal: next shelf')).toBeUndefined();
@@ -111,11 +121,28 @@ test('large goals browse individual books locally without refetching progress', 
   targets.set(key('annual','2026-01-01'),10000);
   await render();
   const initialCalls = getReadingGoalsProgress.mock.calls.length;
+  const initialCoverCalls = getReadingGoalBooks.mock.calls.length;
   await press('Annual Goal: next shelf');
-  const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 13–24 of 10000: 0 finished, 12 to go.');
+  const shelf = view.root.findAllByType('View').find(node => node.props.accessibilityLabel === 'Books 7–12 of 10000: 0 finished, 6 to go.');
   expect(shelf).toBeDefined();
   expect(getReadingGoalsProgress).toHaveBeenCalledTimes(initialCalls);
   expect(saveReadingGoal).not.toHaveBeenCalled();
   await press('Annual Goal: previous shelf');
-  expect(view.root.findAllByType('View').some(node => node.props.accessibilityLabel === 'Books 1–12 of 10000: 4 finished, 8 to go.')).toBe(true);
+  expect(getReadingGoalBooks).toHaveBeenCalledTimes(initialCoverCalls);
+  expect(view.root.findAllByType('View').some(node => node.props.accessibilityLabel === 'Books 1–6 of 10000: 4 finished, 2 to go.')).toBe(true);
+});
+
+test('a late cover response for a different shelf cannot show the wrong book', async () => {
+  targets.set(key('annual','2026-01-01'),24);
+  getReadingGoalsProgress.mockImplementation(async (annual, monthly) => response(annual,monthly,13));
+  const pending = new Map();
+  getReadingGoalBooks.mockImplementation((kind,period,offset) => kind === 'monthly' ? Promise.resolve([]) : new Promise(resolve => pending.set(offset,resolve)));
+  await render();
+  await press('Annual Goal: previous shelf');
+  const cover = id => ({ completionId:id, userBookId:id, googleBookId:id, isbn:null, title:id, coverUrl:'https://example.com/stored.jpg' });
+  await act(async () => pending.get(6)([cover('current-shelf-book')]));
+  await act(async () => pending.get(12)([cover('old-shelf-book')]));
+  const covers = view.root.findAllByType('BookCoverImage');
+  expect(covers.some(node => node.props.googleBookId === 'current-shelf-book')).toBe(true);
+  expect(covers.some(node => node.props.googleBookId === 'old-shelf-book')).toBe(false);
 });

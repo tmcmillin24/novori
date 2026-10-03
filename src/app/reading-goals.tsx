@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BookCoverImage from '../components/BookCoverImage';
+import { getReadingGoalBooks, ReadingGoalBook } from '../lib/reading-goal-books';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
@@ -13,66 +15,79 @@ import { getGoalPeriodStart, getGoalProgressDisplay, getReadingGoalsProgress, pa
 
 type GoalCardProps = {
   kind: ReadingGoalKind; periodStart: string; goal: ReadingGoalProgress | null;
-  busy: boolean; loading: boolean; onShift: (amount: number) => void;
+  busy: boolean; loading: boolean; coverRevision: number; onShift: (amount: number) => void;
   onSave: (value: string) => Promise<boolean>; onRemove: () => Promise<void>;
 };
 
-// One spine always represents one book. Browse large goals twelve books at a time.
-function GoalShelf({ goal, title, colors }: { goal: ReadingGoalProgress; title: string; colors: NovoriColors }) {
+// Numbered slots represent individual finishes, using the shared canonical cover component.
+function GoalShelf({ goal, title, colors, revision }: { goal: ReadingGoalProgress; title: string; colors: NovoriColors; revision: number }) {
   const styles = createStyles(colors);
+  const pageSize = 6;
   const total = Math.max(goal.targetBooks ?? 0, goal.finishedBooks);
-  const pageCount = Math.max(1, Math.ceil(total / 12));
-  const currentShelf = Math.min(pageCount - 1, Math.floor(Math.max(0, goal.finishedBooks - 1) / 12));
-  const [selectedShelf, setSelectedShelf] = useState(currentShelf);
-  useEffect(() => { setSelectedShelf(currentShelf); }, [goal.finishedBooks, goal.targetBooks, currentShelf]);
-  const page = Math.min(selectedShelf, pageCount - 1);
-  const first = page * 12;
-  const visibleBooks = Array.from({ length: Math.min(12, total - first) }, (_, index) => first + index + 1);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const currentShelf = Math.min(pageCount - 1, Math.floor(Math.max(0, goal.finishedBooks - 1) / pageSize));
+  const shelfKey = `${goal.kind}:${goal.periodStart}:${goal.finishedBooks}:${goal.targetBooks}`;
+  const [selection, setSelection] = useState({ key: shelfKey, page: currentShelf });
+  const [retry, setRetry] = useState(0);
+  const cache = useRef(new Map<number, Promise<ReadingGoalBook[]>>());
+  const [covers, setCovers] = useState<{ key: string; books: ReadingGoalBook[]; failed: boolean } | null>(null);
+  const page = Math.min(selection.key === shelfKey ? selection.page : currentShelf, pageCount - 1);
+  const first = page * pageSize;
+  const requestKey = `${revision}:${goal.kind}:${goal.periodStart}:${goal.finishedBooks}:${first}:${retry}`;
+  useEffect(() => { cache.current = new Map(); }, [revision, goal.kind, goal.periodStart, goal.finishedBooks]);
+  useEffect(() => {
+    if (first >= goal.finishedBooks) return;
+    let active = true;
+    const pages = cache.current;
+    let request = pages.get(first);
+    if (!request) { request = getReadingGoalBooks(goal.kind, goal.periodStart, first, pageSize); pages.set(first, request); }
+    void request.then(books => { if (active) setCovers({ key: requestKey, books, failed: false }); })
+      .catch(() => { pages.delete(first); if (active) setCovers({ key: requestKey, books: [], failed: true }); });
+    return () => { active = false; };
+  }, [requestKey, first, goal.kind, goal.periodStart, goal.finishedBooks]);
+  const books = covers?.key === requestKey ? covers.books : [];
+  const visibleBooks = Array.from({ length: Math.min(pageSize, total - first) }, (_, index) => first + index + 1);
   const filled = visibleBooks.filter(number => number <= goal.finishedBooks).length;
   const range = total > 0 ? `Books ${first + 1}–${first + visibleBooks.length} of ${total}` : '';
   const complete = goal.targetBooks !== null && goal.finishedBooks >= goal.targetBooks;
 
   return <View style={styles.shelf}>
     <View style={styles.shelfHeading}>
-      <Ionicons name="library-outline" size={13} color={colors.gold} />
+      <Ionicons name="library-outline" size={12} color={colors.gold} />
       <Text style={styles.shelfTitle}>YOUR STORY SHELF</Text>
-      {complete ? <Ionicons name="sparkles" size={16} color={colors.gold} /> : <Text style={styles.shelfKey}>1 spine = 1 book</Text>}
+      {complete ? <Ionicons name="sparkles" size={14} color={colors.gold} /> : null}
     </View>
-    {total > 0 ? <>
-      <View accessible accessibilityLabel={`${range}: ${filled} finished, ${visibleBooks.length - filled} to go.`}>
-        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.spines}>
-          {visibleBooks.map(number => {
-            const finished = number <= goal.finishedBooks;
-            const bonus = goal.targetBooks !== null && number > goal.targetBooks;
-            return <View key={number} style={styles.spineSlot}>
-              <View style={[styles.spine, { height: [40, 48, 44, 54][(number - 1) % 4],
-                backgroundColor: finished ? number % 2 ? colors.gold : colors.softGold : colors.surface,
-                borderColor: finished ? colors.gold : colors.border }]}>
-                {bonus ? <Ionicons name="star" size={8} color={colors.background} /> : null}
-                <View style={[styles.spineLine, { backgroundColor: finished ? colors.background : colors.border }]} />
-                <View style={[styles.spineLine, { backgroundColor: finished ? colors.background : colors.border }]} />
-              </View>
-              <Text style={[styles.spineNumber, finished && { color: colors.gold }]}>{number}</Text>
-            </View>;
-          })}
-        </View>
-        <View style={styles.shelfBase} />
+    {total > 0 ? <View style={styles.coverShelfRow}>
+      {pageCount > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`${title}: previous shelf`} disabled={page === 0}
+        onPress={() => setSelection({ key: shelfKey, page: page - 1 })} style={({ pressed }) => [styles.shelfArrow, page === 0 && styles.disabled, pressed && styles.pressed]}>
+        <Ionicons name="chevron-back" size={17} color={colors.gold} />
+      </Pressable> : null}
+      <View accessible accessibilityLabel={`${range}: ${filled} finished, ${visibleBooks.length - filled} to go.`} style={styles.miniCovers}>
+        {visibleBooks.map((number, index) => {
+          const finished = number <= goal.finishedBooks;
+          const book = finished ? books[index] : null;
+          const bonus = goal.targetBooks !== null && number > goal.targetBooks;
+          return <View key={number} style={styles.coverSlot}>
+            <View style={[styles.miniCover, finished && { borderColor: colors.gold }]}>
+              <Ionicons name={finished ? 'checkmark' : 'book-outline'} size={13} color={finished ? colors.gold : colors.mutedText} />
+              {book ? <BookCoverImage googleBookId={book.googleBookId} isbn={book.isbn} existingCoverUrl={book.coverUrl}
+                resizeMode="cover" style={styles.coverImage} accessibilityLabel={book.title} /> : null}
+              {bonus ? <View style={styles.bonusStar}><Ionicons name="star" size={9} color={colors.gold} /></View> : null}
+            </View>
+            <Text style={[styles.coverNumber, finished && { color: colors.gold }]}>{number}</Text>
+          </View>;
+        })}
       </View>
-      {pageCount > 1 ? <View style={styles.shelfNavigation}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${title}: previous shelf`} disabled={page === 0}
-          onPress={() => setSelectedShelf(page - 1)} style={({ pressed }) => [styles.shelfArrow, page === 0 && styles.disabled, pressed && styles.pressed]}>
-          <Ionicons name="chevron-back" size={15} color={colors.gold} />
-        </Pressable>
-        <Text style={styles.shelfRange}>{range}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${title}: next shelf`} disabled={page === pageCount - 1}
-          onPress={() => setSelectedShelf(page + 1)} style={({ pressed }) => [styles.shelfArrow, page === pageCount - 1 && styles.disabled, pressed && styles.pressed]}>
-          <Ionicons name="chevron-forward" size={15} color={colors.gold} />
-        </Pressable>
-      </View> : null}
-    </> : <View style={styles.emptyShelf}>
-      <Ionicons name="book-outline" size={27} color={colors.gold} />
+      {pageCount > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`${title}: next shelf`} disabled={page === pageCount - 1}
+        onPress={() => setSelection({ key: shelfKey, page: page + 1 })} style={({ pressed }) => [styles.shelfArrow, page === pageCount - 1 && styles.disabled, pressed && styles.pressed]}>
+        <Ionicons name="chevron-forward" size={17} color={colors.gold} />
+      </Pressable> : null}
+    </View> : <View style={styles.emptyShelf}>
+      <Ionicons name="book-outline" size={24} color={colors.gold} />
       <Text style={styles.emptyShelfCopy}>Your next story starts here.</Text>
     </View>}
+    {covers?.key === requestKey && covers.failed ? <Pressable accessibilityRole="button" accessibilityLabel={`${title}: retry covers`}
+      onPress={() => setRetry(value => value + 1)} style={styles.coverRetry}><Text style={styles.coverRetryText}>Tap to reload covers</Text></Pressable> : null}
   </View>;
 }
 
@@ -93,7 +108,7 @@ function GoalProgress({ fraction, style }: { fraction: number; style: object }) 
   return <Animated.View style={[style, { width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />;
 }
 
-function GoalCard({ kind, periodStart, goal, busy, loading, onShift, onSave, onRemove }: GoalCardProps) {
+function GoalCard({ kind, periodStart, goal, busy, loading, coverRevision, onShift, onSave, onRemove }: GoalCardProps) {
   const { colors } = useNovoriTheme();
   const styles = createStyles(colors);
   const [editing, setEditing] = useState(false);
@@ -133,10 +148,10 @@ function GoalCard({ kind, periodStart, goal, busy, loading, onShift, onSave, onR
             <Text style={styles.finishedCount}>{goal.finishedBooks}</Text>
             {goal.targetBooks !== null ? <Text style={styles.targetCount}>/ {goal.targetBooks}</Text> : null}
           </View>
-          <Text style={styles.description}>book{goal.finishedBooks === 1 ? '' : 's'} finished</Text>
+          <Text style={styles.description}>books read</Text>
         </View>
       </View>
-      <GoalShelf goal={goal} title={title} colors={colors} />
+      <GoalShelf goal={goal} title={title} colors={colors} revision={coverRevision} />
       {goal.targetBooks !== null && display ? <>
         <View style={styles.progressHeader}>
           <Text style={styles.progressLabel}>{display.complete ? 'You did it!' : 'Your reading is adding up'}</Text>
@@ -181,6 +196,7 @@ export default function ReadingGoalsScreen() {
   const [monthlyStart, setMonthlyStart] = useState(() => getGoalPeriodStart('monthly'));
   const [progress, setProgress] = useState<ReadingGoalsProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [coverRevision, setCoverRevision] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -200,7 +216,7 @@ export default function ReadingGoalsScreen() {
     try {
       const selected = selectedPeriods.current;
       const next = await getReadingGoalsProgress(selected.annualStart, selected.monthlyStart);
-      if (version === loadVersion.current) setProgress(next);
+      if (version === loadVersion.current) { setProgress(next); setCoverRevision(value => value + 1); }
     } catch {
       if (version === loadVersion.current) setError('Reading goals are temporarily unavailable. Tap to try again.');
     } finally { if (version === loadVersion.current) { setLoading(false); setRefreshing(false); } }
@@ -284,11 +300,11 @@ export default function ReadingGoalsScreen() {
           </View>
         </View>
         {error ? <Pressable accessibilityRole="button" onPress={() => { void load(); }} style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></Pressable> : null}
-        <GoalCard key={`annual:${annualStart}`} kind="annual" periodStart={annualStart} busy={busy} loading={loading}
+        <GoalCard key={`annual:${annualStart}`} kind="annual" periodStart={annualStart} busy={busy} loading={loading} coverRevision={coverRevision}
           goal={progress?.annual.periodStart === annualStart ? progress.annual : null}
           onShift={amount => setAnnualStart(shiftGoalPeriod('annual', annualStart, amount))}
           onSave={value => save('annual', value)} onRemove={() => remove('annual')} />
-        <GoalCard key={`monthly:${monthlyStart}`} kind="monthly" periodStart={monthlyStart} busy={busy} loading={loading}
+        <GoalCard key={`monthly:${monthlyStart}`} kind="monthly" periodStart={monthlyStart} busy={busy} loading={loading} coverRevision={coverRevision}
           goal={progress?.monthly.periodStart === monthlyStart ? progress.monthly : null}
           onShift={amount => setMonthlyStart(shiftGoalPeriod('monthly', monthlyStart, amount))}
           onSave={value => save('monthly', value)} onRemove={() => remove('monthly')} />
@@ -321,7 +337,7 @@ function createStyles(colors: NovoriColors) {
     intro: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, marginTop: 3 },
     heroMark: { width: 54, height: 58, borderRadius: 18, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
     heroSpark: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.background, padding: 3, borderRadius: 12 },
-    card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 14, overflow: 'hidden' },
+    card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 12, overflow: 'hidden' },
     cardComplete: { borderColor: colors.gold },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     icon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
@@ -329,41 +345,42 @@ function createStyles(colors: NovoriColors) {
     cardSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 2 },
     completeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 5, backgroundColor: colors.elevated, borderRadius: 10 },
     completeText: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 10 },
-    periodRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 7, backgroundColor: colors.elevated, borderRadius: 11 },
+    periodRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5, backgroundColor: colors.elevated, borderRadius: 11 },
     arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     period: { flex: 1, textAlign: 'center', color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-    readingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 7, marginBottom: 3 }, countBlock: { flex: 1 },
+    readingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 0, marginBottom: 0 }, countBlock: { flex: 1 },
     countRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 5 },
-    finishedCount: { color: colors.gold, fontSize: 38, fontFamily: 'PlayfairDisplay_600SemiBold' },
+    finishedCount: { color: colors.gold, fontSize: 36, lineHeight: 40, fontFamily: 'PlayfairDisplay_600SemiBold' },
     targetCount: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 16 },
     description: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11 },
-    shelf: { backgroundColor: colors.elevated, borderRadius: 12, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 8, marginTop: 7 },
-    shelfHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+    shelf: { backgroundColor: colors.elevated, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 6, marginTop: 5 },
+    shelfHeading: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 4, marginBottom: 4 },
     shelfTitle: { flex: 1, color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 8, letterSpacing: 0.5 },
-    shelfKey: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 9 },
-    spines: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3, paddingTop: 3 },
-    spineSlot: { flex: 1, maxWidth: 32, minWidth: 0, alignItems: 'center' },
-    spine: { width: '75%', maxWidth: 22, borderWidth: 1, borderRadius: 3, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 5, gap: 2 },
-    spineLine: { height: 2, width: '65%', opacity: 0.6 },
-    spineNumber: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 8, marginTop: 4 },
-    shelfBase: { height: 3, borderRadius: 2, backgroundColor: colors.border, marginTop: 3 },
-    shelfNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: -6 },
-    shelfArrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    shelfRange: { flex: 1, textAlign: 'center', color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 10 },
-    emptyShelf: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingVertical: 9 },
+    coverShelfRow: { flexDirection: 'row', alignItems: 'center' },
+    miniCovers: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 3 },
+    coverSlot: { flex: 1, maxWidth: 40, minWidth: 0, alignItems: 'center' },
+    miniCover: { width: '100%', maxWidth: 36, aspectRatio: 2 / 3, borderWidth: 1, borderColor: colors.border, borderRadius: 5,
+      backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    coverImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 4 },
+    coverNumber: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 8, marginTop: 3 },
+    bonusStar: { position: 'absolute', right: 0, top: 0, backgroundColor: colors.surface, padding: 2, borderBottomLeftRadius: 4 },
+    shelfArrow: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    emptyShelf: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 4 },
     emptyShelfCopy: { flex: 1, color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11 },
-    progressHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 6 },
+    coverRetry: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    coverRetryText: { color: colors.gold, fontFamily: 'Inter_500Medium', fontSize: 10 },
+    progressHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, marginBottom: 4 },
     progressLabel: { flex: 1, color: colors.secondaryText, fontFamily: 'Inter_500Medium', fontSize: 10 },
     progressPercent: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 11 },
     progressTrack: { height: 6, borderRadius: 6, backgroundColor: colors.elevated, overflow: 'hidden' },
     progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 6 },
-    progressCopy: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 16, marginTop: 7 },
-    editor: { marginTop: 10 },
+    progressCopy: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 15, marginTop: 4 },
+    editor: { marginTop: 6 },
     editorRow: { flexDirection: 'row', gap: 8 },
     input: { flex: 1, minWidth: 65, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 14 },
     save: { backgroundColor: colors.gold, borderRadius: 11, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', minHeight: 44, flexDirection: 'row', gap: 5 },
     saveText: { color: colors.background, fontFamily: 'Inter_700Bold', fontSize: 12 }, disabled: { opacity: 0.55 }, pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-    actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 7 },
+    actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 3 },
     editButton: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, paddingHorizontal: 10, borderRadius: 11, backgroundColor: colors.elevated },
     textButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
     primaryAction: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 11 }, secondaryAction: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11 },
