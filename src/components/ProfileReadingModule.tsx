@@ -852,30 +852,25 @@ export default function ProfileReadingModule({
           <View style={styles.destinationIcon}><Ionicons name="calendar-outline" size={18} color={colors.gold} /></View>
           <View style={styles.destinationCopy}>
             <Text style={styles.destinationTitle}>Reading Tracker</Text>
-            <Text style={styles.destinationSubtitle}>See your reading days in motion</Text>
+            <Text style={styles.destinationSubtitle}>Your reading calendar</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
         </Pressable>
         <View style={styles.destinationPair}>
           <Pressable onPress={() => router.push('/reading-recaps')}
-            style={({ pressed }) => [styles.destinationTile, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.destinationLink, pressed && styles.pressed]}
             accessibilityRole="button" accessibilityLabel="Open Reading Recaps">
-            <View style={styles.destinationTileTop}>
-              <View style={[styles.destinationIcon, styles.tileIcon]}><Ionicons name="sparkles-outline" size={17} color={colors.gold} /></View>
-              <Ionicons name="chevron-forward" size={15} color={colors.mutedText} />
-            </View>
-            <Text style={styles.destinationTileTitle}>Reading Recaps</Text>
-            <Text style={styles.destinationTileSubtitle}>Weeks &amp; months</Text>
+            <Ionicons name="sparkles-outline" size={16} color={colors.gold} />
+            <Text style={styles.destinationLinkTitle}>Reading Recaps</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.mutedText} />
           </Pressable>
+          <View style={styles.destinationLinkDivider} />
           <Pressable onPress={() => router.push('/reading-goals')}
-            style={({ pressed }) => [styles.destinationTile, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.destinationLink, pressed && styles.pressed]}
             accessibilityRole="button" accessibilityLabel="Open Reading Goals">
-            <View style={styles.destinationTileTop}>
-              <View style={[styles.destinationIcon, styles.tileIcon]}><Ionicons name="flag-outline" size={17} color={colors.gold} /></View>
-              <Ionicons name="chevron-forward" size={15} color={colors.mutedText} />
-            </View>
-            <Text style={styles.destinationTileTitle}>Reading Goals</Text>
-            <Text style={styles.destinationTileSubtitle}>Annual &amp; monthly</Text>
+            <Ionicons name="flag-outline" size={16} color={colors.gold} />
+            <Text style={styles.destinationLinkTitle}>Reading Goals</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.mutedText} />
           </Pressable>
         </View>
       </View></View>
@@ -1168,19 +1163,15 @@ function createStyles(
         4,
     },
 
-    destination: { minHeight: 60, flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10,
-      backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 13 },
-    destinationIcon: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, borderColor: `${colors.gold}30`,
-      backgroundColor: `${colors.gold}12`, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+    destination: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6 },
+    destinationIcon: { width: 28, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
     destinationCopy: { flex: 1, paddingRight: 8 },
     destinationTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12.5 },
     destinationSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, marginTop: 2 },
-    destinationPair: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 8 },
-    destinationTile: { flex: 1, minWidth: 0, padding: 10, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
-    destinationTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-    tileIcon: { width: 30, height: 30, borderRadius: 10, marginRight: 0 },
-    destinationTileTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16, marginTop: 7 },
-    destinationTileSubtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 9.5, lineHeight: 14, marginTop: 2 },
+    destinationPair: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    destinationLink: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 10 },
+    destinationLinkDivider: { width: StyleSheet.hairlineWidth, height: 20, backgroundColor: colors.border, marginHorizontal: 5 },
+    destinationLinkTitle: { flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 11.5, lineHeight: 16 },
 
     pressed: {
       opacity:
