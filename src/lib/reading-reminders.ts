@@ -55,12 +55,36 @@ async function currentUserId() {
 
 export async function getReadingReminderPreferences(): Promise<ReadingReminderPreferences> {
   const userId = await currentUserId();
-  const { data, error } = await supabase.from('reading_reminder_preferences')
-    .select('user_id,daily_checkin,still_reading,weekly_recap,monthly_recap,reminder_time,timezone')
-    .eq('user_id', userId).maybeSingle();
+  return registerReadingReminderDevice(userId, getDeviceTimezone());
+}
+
+async function registerReadingReminderDevice(userId: string, timezone: string): Promise<ReadingReminderPreferences> {
+  const { data, error } = await supabase.rpc('sync_reading_reminder_device', { device_timezone: timezone });
   if (error) throw error;
-  return data ?? { user_id: userId, daily_checkin: false, still_reading: false, weekly_recap: false,
-    monthly_recap: false, reminder_time: '20:00:00', timezone: getDeviceTimezone() };
+  if (!data || data.user_id !== userId) throw new Error('Could not synchronize reading reminders. Please try again.');
+  return data;
+}
+
+// Only this reminder registration is memoized. Book and provider caching is untouched.
+// Foreground checks do no network work when this reader and time zone were already synced.
+const syncedDeviceZones = new Map<string, string>();
+const deviceSyncs = new Map<string, Promise<void>>();
+
+export function syncReadingReminderDevice(userId: string): Promise<void> {
+  const timezone = getDeviceTimezone();
+  if (syncedDeviceZones.get(userId) === timezone) return Promise.resolve();
+  const key = `${userId}:${timezone}`;
+  const pending = deviceSyncs.get(key);
+  if (pending) return pending;
+  const sync = registerReadingReminderDevice(userId, timezone).then(() => {
+    syncedDeviceZones.set(userId, timezone);
+  }).finally(() => { deviceSyncs.delete(key); });
+  deviceSyncs.set(key, sync);
+  return sync;
+}
+
+export function resetReadingReminderDeviceSync() {
+  syncedDeviceZones.clear();
 }
 
 export async function updateReadingReminderPreferences(

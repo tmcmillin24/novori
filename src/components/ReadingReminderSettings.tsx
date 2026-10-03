@@ -14,7 +14,7 @@ const OPTIONS: { key: ReadingReminderKind; title: string; detail: string }[] = [
 export default function ReadingReminderSettings() {
   const { colors } = useNovoriTheme();
   const [preferences, setPreferences] = useState<ReadingReminderPreferences | null>(null);
-  const [time, setTime] = useState('20:00');
+  const [time, setTime] = useState('18:00');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -50,7 +50,7 @@ export default function ReadingReminderSettings() {
   return <View style={styles.section}>
     <Text style={[styles.label, { color: colors.mutedText }]}>READING REMINDERS</Text>
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Text style={[styles.description, { color: colors.secondaryText }]}>Optional reminders in your Novori notification inbox. These do not send phone push notifications.</Text>
+      <Text style={[styles.description, { color: colors.secondaryText }]}>Reading reminders start on at 6 p.m. in your phone’s time zone. Change the time or turn any reminder off here. These appear in Novori’s inbox, not as phone push notifications.</Text>
       {loading ? <ActivityIndicator color={colors.gold} /> : failed || !preferences ?
         <Pressable accessibilityRole="button" onPress={retry} style={styles.retry}>
           <Text style={{ color: colors.gold }}>Reminders unavailable. Tap to retry.</Text>
@@ -64,13 +64,13 @@ export default function ReadingReminderSettings() {
               onValueChange={(value) => save({ [key]: value })} trackColor={{ false: colors.elevated, true: colors.gold }} />
           </View>)}
           <Text style={[styles.title, { color: colors.text }]}>Reminder Time</Text>
-          <Text style={[styles.detail, { color: colors.secondaryText }]}>24-hour time · {preferences.timezone}. Delivery can take up to 15 minutes. Saving uses this device’s time zone.</Text>
+          <Text style={[styles.detail, { color: colors.secondaryText }]}>24-hour time · {preferences.timezone}. Delivery can take up to 15 minutes. Your phone’s time zone updates when you reopen Novori.</Text>
           <View style={styles.timeRow}>
             <TextInput accessibilityLabel="Reminder time in 24-hour format" value={time} onChangeText={setTime}
-              placeholder="20:00" placeholderTextColor={colors.mutedText} maxLength={5} editable={!saving}
+              placeholder="18:00" placeholderTextColor={colors.mutedText} maxLength={5} editable={!saving}
               keyboardType="numbers-and-punctuation" style={[styles.input, { color: colors.text, borderColor: colors.border }]} />
             <Pressable accessibilityRole="button" disabled={saving} onPress={() => {
-              if (!parseReminderTime(time)) { Alert.alert('Enter a valid time', 'Use 24-hour time, such as 20:00.'); return; }
+              if (!parseReminderTime(time)) { Alert.alert('Enter a valid time', 'Use 24-hour time, such as 18:00.'); return; }
               save({ reminder_time: time });
             }} style={styles.retry}>
               <Text style={{ color: colors.gold }}>{saving ? 'Saving…' : 'Save Time'}</Text>

@@ -20,6 +20,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
 import {
   NovoriThemeProvider,
@@ -99,6 +100,7 @@ export default function RootLayout() {
     >
       <KeyboardProvider>
         <NovoriThemeProvider>
+          <ReadingReminderDeviceSync />
           <AppNavigator />
         </NovoriThemeProvider>
       </KeyboardProvider>

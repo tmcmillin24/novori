@@ -2,11 +2,12 @@
 // Test dependency only (the mobile app gains no dependencies):
 // npm install --prefix /tmp/novori-reminder-check @electric-sql/pglite@0.5.8
 // NOVORI_PGLITE_MODULE=/tmp/novori-reminder-check/node_modules/@electric-sql/pglite \
-//   node scripts/verify-reading-reminders.cjs /path/to/40-reading-reminders.sql.txt
+//   node scripts/verify-reading-reminders.cjs /path/to/40-reading-reminders.sql.txt [/path/to/41-reading-reminder-defaults.sql.txt]
 const { PGlite } = require(process.env.NOVORI_PGLITE_MODULE || '@electric-sql/pglite');
 const fs = require('fs');
 const assert = require('node:assert/strict');
 const sqlPath = process.argv[2];
+const defaultsSqlPath = process.argv[3];
 if (!sqlPath) throw new Error('Pass the path to 40-reading-reminders.sql.txt. This verifier runs only in embedded PostgreSQL.');
 const db = new PGlite();
 let checks = 0;
@@ -23,14 +24,16 @@ async function reset(prefs, timezone = 'UTC', time = '20:00') {
     public.reading_checkins, public.reading_checkpoints, public.reading_notes, public.reading_sessions, public.user_books, public.posts;
     insert into public.user_books values ('${book}','${id}','reading');
     insert into public.reading_sessions values ('${journey}','${id}','${book}',1,'active','2026-08-01','2026-08-01','2026-08-01',null,null);
-    insert into public.reading_reminder_preferences(user_id,${prefs},timezone,reminder_time)
-      values ('${id}',true,'${timezone}','${time}');
     alter table public.reading_reminder_preferences disable trigger novori_reading_reminder_preferences_guard;
+    insert into public.reading_reminder_preferences(user_id,daily_checkin,still_reading,weekly_recap,monthly_recap,timezone,reminder_time)
+      values ('${id}',false,false,false,false,'${timezone}','${time}');
+    update public.reading_reminder_preferences set ${prefs}=true;
     update public.reading_reminder_preferences set enabled_since = '{"daily_checkin":"2026-08-01Z","still_reading":"2026-08-01Z","weekly_recap":"2026-08-01Z","monthly_recap":"2026-08-01Z"}';
     alter table public.reading_reminder_preferences enable trigger novori_reading_reminder_preferences_guard;`);
 }
 (async () => {
   await db.exec(`create role anon; create role authenticated; create schema auth;
+    grant usage on schema auth to authenticated;
     create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     insert into auth.users values ('${id}'),('${other}');
@@ -49,6 +52,28 @@ async function reset(prefs, timezone = 'UTC', time = '20:00') {
   let sql = fs.readFileSync(sqlPath,'utf8').replace(/create extension if not exists pg_cron;[\s\S]*?commit;/, 'commit;')
     .replace(/select jobname, schedule, active from cron.job where jobname = 'novori-reading-reminders';/, '');
   await db.exec(sql); await db.exec(sql); checks++;
+  if (defaultsSqlPath) {
+    const defaultsSql = fs.readFileSync(defaultsSqlPath,'utf8');
+    await reset('weekly_recap','America/Chicago','21:15');
+    await db.exec(defaultsSql); await db.exec(defaultsSql); checks++;
+    await expectQuery('select daily_checkin from public.reading_reminder_preferences',false,'migration preserves opt-out');
+    await expectQuery("select reminder_time::text from public.reading_reminder_preferences",'21:15:00','migration preserves custom time');
+    await db.exec(`set role authenticated; set request.jwt.claim.sub='${id}'`);
+    await expectQuery("select public.sync_reading_reminder_device('America/Los_Angeles')->>'timezone'",'America/Los_Angeles','phone zone updated');
+    await expectQuery('select daily_checkin from public.reading_reminder_preferences',false,'zone sync preserves opt-out');
+    await expectQuery("select reminder_time::text from public.reading_reminder_preferences",'21:15:00','zone sync preserves custom time');
+    await db.exec(`set request.jwt.claim.sub='${other}'`);
+    await expectQuery("select public.sync_reading_reminder_device('America/Chicago')->>'reminder_time'",'18:00:00','new reader at 6 PM');
+    await expectQuery('select daily_checkin and still_reading and weekly_recap and monthly_recap from public.reading_reminder_preferences',true,'all new reader defaults on');
+    await expectQuery("select enabled_since ?& array['daily_checkin','still_reading','weekly_recap','monthly_recap'] from public.reading_reminder_preferences",true,'enable timestamps generated');
+    await db.exec('update public.reading_reminder_preferences set daily_checkin=false');
+    await db.query("select public.sync_reading_reminder_device('America/New_York')");
+    await expectQuery('select daily_checkin from public.reading_reminder_preferences',false,'returning reader opt-out retained');
+    await assert.rejects(db.query("select public.sync_reading_reminder_device('Invalid/Zone')"), /valid IANA/); checks++;
+    await db.exec("set request.jwt.claim.sub=''");
+    await assert.rejects(db.query("select public.sync_reading_reminder_device('UTC')"), /Sign in/); checks++;
+    await db.exec('reset role');
+  }
   await reset('daily_checkin');
   await expectQuery("select public.novori_generate_reading_reminders('2026-10-03 19:59Z')",0,'before chosen time');
   await expectQuery("select public.novori_generate_reading_reminders('2026-10-03 20:00Z')",1,'daily due');
