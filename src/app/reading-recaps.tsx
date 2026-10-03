@@ -5,6 +5,7 @@ import {
 
 import {
   useRouter,
+  useLocalSearchParams,
 } from 'expo-router';
 import {
   useCallback,
@@ -42,6 +43,7 @@ import {
   ReadingRecapJourneyData,
   ReadingRecapJourneyEvent,
 } from '../lib/reading-recaps';
+import { parseRecapReferenceDate } from '../lib/reading-reminders';
 
 type RecapMode =
   | 'week'
@@ -780,6 +782,7 @@ function getContinuingSubtitle(
 }
 
 export default function ReadingRecapsScreen() {
+  const params = useLocalSearchParams<{ mode?: string; referenceDate?: string }>();
   const router =
     useRouter();
 
@@ -798,7 +801,7 @@ export default function ReadingRecapsScreen() {
     setMode,
   ] =
     useState<RecapMode>(
-      'month'
+      params.mode === 'week' ? 'week' : 'month'
     );
 
   const [
@@ -807,8 +810,15 @@ export default function ReadingRecapsScreen() {
   ] =
     useState(
       () =>
-        new Date()
+        parseRecapReferenceDate(params.referenceDate) ?? new Date()
     );
+
+  useEffect(() => {
+    const requestedDate = parseRecapReferenceDate(params.referenceDate);
+    if (!requestedDate) return;
+    setMode(params.mode === 'week' ? 'week' : 'month');
+    setReferenceDate(requestedDate);
+  }, [params.mode, params.referenceDate]);
 
   const [
     months,

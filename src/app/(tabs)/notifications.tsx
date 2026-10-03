@@ -48,6 +48,7 @@ import {
   getPendingFollowRequestCount,
 } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
+import { getReadingReminderDestination, getReadingReminderKind } from '../../lib/reading-reminders';
 
 function formatRelativeTime(value: string) {
   const difference =
@@ -81,6 +82,10 @@ function getNotificationIcon(
   item:
     NovoriNotification
 ): keyof typeof Ionicons.glyphMap {
+  const reminder = getReadingReminderKind(item);
+  if (reminder === 'daily_checkin') return 'checkmark-circle-outline';
+  if (reminder === 'still_reading') return 'book-outline';
+  if (reminder) return 'calendar-outline';
   if (
     item.type ===
       'post_vote' ||
@@ -906,6 +911,12 @@ export default function NotificationsScreen() {
           updateError
         );
       }
+    }
+
+    const reminderDestination = getReadingReminderDestination(item);
+    if (reminderDestination) {
+      router.push(reminderDestination);
+      return;
     }
 
     if (

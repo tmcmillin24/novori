@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import ReadingReminderSettings from '../components/ReadingReminderSettings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -896,6 +897,8 @@ export default function NotificationSettingsScreen() {
             }
           />
         </View>
+
+        <ReadingReminderSettings />
 
         <View
           style={
