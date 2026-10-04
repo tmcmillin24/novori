@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { openNovoriWebsite, NOVORI_APP_VERSION } from '../lib/support-links';
 
 import {
     Alert,
@@ -43,6 +44,8 @@ function AboutRow({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
@@ -294,10 +297,18 @@ export default function AboutNovoriScreen() {
                   styles.rowSubtitle
                 }
               >
-                1.0.0
+                {NOVORI_APP_VERSION}
               </Text>
             </View>
           </View>
+        </View>
+
+        <View style={[styles.card, { marginTop: 12 }]}>
+          <AboutRow icon="globe-outline" title="Visit Novori" subtitle="novori.link" colors={colors}
+            onPress={() => { void openNovoriWebsite(); }} />
+          <View style={styles.divider} />
+          <AboutRow icon="help-circle-outline" title="Help & Support" subtitle="A little help for your next chapter" colors={colors}
+            onPress={() => router.push('/help-support')} />
         </View>
 
         <Text
@@ -501,7 +512,9 @@ function createStyles(
       borderColor:
         colors.border,
       padding: 20,
-      marginTop: 28,
+      marginTop: 22,
+      borderTopWidth: 3,
+      borderTopColor: colors.gold,
     },
 
     missionLabel: {
@@ -554,7 +567,7 @@ function createStyles(
     },
 
     row: {
-      minHeight: 76,
+      minHeight: 70,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,
@@ -562,7 +575,7 @@ function createStyles(
     },
 
     infoRow: {
-      minHeight: 76,
+      minHeight: 70,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,

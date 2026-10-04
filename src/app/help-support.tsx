@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { contactNovoriSupport, openNovoriWebsite, NOVORI_SUPPORT_URL, NOVORI_SUPPORT_EMAIL, NOVORI_APP_VERSION } from '../lib/support-links';
 
 import {
     Alert,
@@ -42,6 +43,8 @@ function SupportRow({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
@@ -112,26 +115,9 @@ export default function HelpSupportScreen() {
     );
   }
 
-  function contactSupport() {
-    Alert.alert(
-      'Contact Support',
-      'Direct Novori support email will be connected here before launch.'
-    );
-  }
-
-  function reportProblem() {
-    Alert.alert(
-      'Report a Problem',
-      'Bug reporting will be connected here. Later, Novori can automatically include useful app and device information with the report.'
-    );
-  }
-
-  function featureRequest() {
-    Alert.alert(
-      'Feature Request',
-      'Feature requests will be connected here so readers can suggest improvements to Novori.'
-    );
-  }
+  function contactSupport() { void contactNovoriSupport(); }
+  function reportProblem() { void contactNovoriSupport('problem'); }
+  function featureRequest() { void contactNovoriSupport('suggestion'); }
 
   return (
     <SafeAreaView
@@ -238,7 +224,7 @@ export default function HelpSupportScreen() {
             onPress={() =>
               showHelpTopic(
                 'Account & Login',
-                'Help articles for account access, email verification, password recovery, and account settings will live here.'
+                'Use Forgot password on the sign-in screen to reset your password. Open the newest email on your phone. You can also change your password in Settings → Password & Security.'
               )
             }
           />
@@ -255,7 +241,7 @@ export default function HelpSupportScreen() {
             onPress={() =>
               showHelpTopic(
                 'Books & Library',
-                'Help for adding books, reading statuses, reviews, ratings, shelves, and library management will live here.'
+                'Find a book in Discover and add it to your library. Use its reading status to mark it TBR, Reading, Read, or DNF. Open the book from your library to update progress, write private notes, or leave a review.'
               )
             }
           />
@@ -272,7 +258,7 @@ export default function HelpSupportScreen() {
             onPress={() =>
               showHelpTopic(
                 'Clubs & Community',
-                'Help for following readers, joining clubs, discussions, groups, and community events will live here.'
+                'Explore clubs in Discover or Home → Clubs. Join a club to take part in its conversations and RSVP to events. Use the Post to selector when creating a post to choose your feed or a joined club.'
               )
             }
           />
@@ -289,7 +275,7 @@ export default function HelpSupportScreen() {
             onPress={() =>
               showHelpTopic(
                 'Privacy & Safety',
-                'Help for privacy controls, blocking users, reporting content, account safety, and Nearby privacy will live here.'
+                'Manage profile and reading visibility in Settings → Privacy. Use the options on a reader profile to block or report someone, and post options to report content. Nearby visibility is optional.'
               )
             }
           />
@@ -337,12 +323,17 @@ export default function HelpSupportScreen() {
           <SupportRow
             icon="mail-outline"
             title="Contact Support"
-            subtitle="Get help directly from the Novori team"
+            subtitle={NOVORI_SUPPORT_EMAIL}
             colors={colors}
             onPress={
               contactSupport
             }
           />
+        </View>
+
+        <View style={[styles.card, { marginTop: 14 }]}>
+          <SupportRow icon="globe-outline" title="Help on the web" subtitle="novori.link/support" colors={colors}
+            onPress={() => { void openNovoriWebsite(NOVORI_SUPPORT_URL); }} />
         </View>
 
         <View
@@ -372,10 +363,7 @@ export default function HelpSupportScreen() {
                 styles.infoText
               }
             >
-              Direct support and
-              searchable help articles
-              will be added as Novori
-              moves closer to release.
+              Email us with the details or visit our support website. For a problem, include the steps that led to it and a screenshot if helpful.
             </Text>
           </View>
         </View>
@@ -385,7 +373,7 @@ export default function HelpSupportScreen() {
             styles.versionText
           }
         >
-          Novori 1.0.0
+          Novori {NOVORI_APP_VERSION}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -513,7 +501,7 @@ function createStyles(
     },
 
     row: {
-      minHeight: 76,
+      minHeight: 70,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 14,
