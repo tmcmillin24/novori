@@ -103,9 +103,9 @@ export default function SettingsScreen() {
         <SettingsRow icon="call-outline" title="Recovery Phone" subtitle="Optional account recovery" comingSoon/>
       </SettingsSection>
       <SettingsSection icon="help-circle-outline" title="About & support">
-        <SettingsRow icon="information-circle-outline" title="About Novori" subtitle="Read. Discuss. Belong." onPress={() => Alert.alert('Novori', 'Read. Discuss. Belong.\n\nA home for your books, your people, and the conversations between chapters.')}/>
+        <SettingsRow icon="information-circle-outline" title="About Novori" subtitle="Read. Discuss. Belong." onPress={() => router.push('/about-novori')}/>
         <SettingsDivider/>
-        <SettingsRow icon="help-circle-outline" title="Help & Support" comingSoon/>
+        <SettingsRow icon="help-circle-outline" title="Help & Support" subtitle="Get help, report a problem, or share an idea" onPress={() => router.push('/help-support')}/>
       </SettingsSection>
       <SettingsSection icon="log-out-outline" title="Account actions">
         <SettingsRow icon="log-out-outline" title="Sign Out" onPress={confirmSignOut}/>
