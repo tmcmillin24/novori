@@ -39,7 +39,7 @@ export function useCommentSheetMotion(options:Options){
       requestAnimationFrame(()=>{
         if(generation!==entranceGeneration.value)return;
         backdrop.value=withTiming(1,{duration:180,easing:Easing.out(Easing.cubic)});
-        translateY.value=withTiming(0,{duration:270,easing:opening},finished=>{
+        translateY.value=withTiming(0,{duration:245,easing:opening},finished=>{
           if(finished && generation===entranceGeneration.value){moving.value=false;runOnJS(done)();}
         });
       });
