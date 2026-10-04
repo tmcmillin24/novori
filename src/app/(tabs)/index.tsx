@@ -1,3 +1,4 @@
+import {openCommentConversation} from '../../lib/open-comment-conversation';
 import CommentsWindowOverlay from '../../components/CommentsWindowOverlay';
 import {useCommentSheetContinuation} from '../../lib/use-comment-sheet-continuation';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
@@ -1503,6 +1504,17 @@ export default function HomeScreen() {
     commentsContentOpacity.setValue(1);
   },[commentsEntranceTranslateY,commentsBackdropOpacity,commentsContentOpacity]);
   const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef,prepareCommentsResume);
+  function stopCommentsMotionForNavigation(){
+    commentsSheetHeight.stopAnimation();
+    commentsEntranceTranslateY.stopAnimation();
+    commentsBackdropOpacity.stopAnimation();
+    commentsContentOpacity.stopAnimation();
+    commentsResultOpacity.stopAnimation();
+    commentsSheetAnimating.current=false;
+    commentsEntranceTranslateY.setValue(0);
+    commentsContentOpacity.setValue(1);
+  }
+
 
   function openCommentsSheet(
     post: FeedPost
@@ -4131,8 +4143,7 @@ export default function HomeScreen() {
             if (!commentsPost) return;
             const id=commentsPost.id;
             preserveHomeStateOnNextBlur.current=true;
-            Keyboard.dismiss();
-            commentsContinuation.suspend(()=>router.push({pathname: '/post/[id]/conversation', params: {id, threadId: comment.id, commentId: comment.id}}));
+            openCommentConversation(destination=>router.push(destination),id,comment.id,{stopMotion:stopCommentsMotionForNavigation,suspend:commentsContinuation.suspend});
           }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>View conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
         ) : visibleChildren.length >
         0 ? (

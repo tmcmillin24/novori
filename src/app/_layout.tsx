@@ -68,7 +68,9 @@ function AppNavigator() {
             backgroundColor: colors.background,
           },
         }}
-      />
+      >
+        <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
+      </Stack>
     </View>
   );
 }

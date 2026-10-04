@@ -1,3 +1,4 @@
+import {openCommentConversation} from '../../lib/open-comment-conversation';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
 import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
@@ -684,7 +685,7 @@ export default function PostDetailScreen() {
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
   const activeReplyTarget=replyTo;
   const activeReplyComment=activeReplyTarget?threadData.nodes.get(activeReplyTarget.id):null;
-  function openConversation(commentId:string){router.push({pathname:'/post/[id]/conversation',params:{id:postId,threadId:commentId,commentId}});}
+  function openConversation(commentId:string){openCommentConversation(destination=>router.push(destination),postId,commentId);}
 
 
   async function refresh() {
