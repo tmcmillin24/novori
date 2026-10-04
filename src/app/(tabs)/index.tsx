@@ -1,4 +1,4 @@
-import {openCommentConversation} from '../../lib/open-comment-conversation';
+import {openCommentConversation,hideCommentSheetForNavigation} from '../../lib/open-comment-conversation';
 import CommentsWindowOverlay from '../../components/CommentsWindowOverlay';
 import {useCommentSheetContinuation} from '../../lib/use-comment-sheet-continuation';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
@@ -1496,6 +1496,7 @@ export default function HomeScreen() {
     }
   }
 
+  const commentsOverlayRoot=useRef<View|null>(null);
   const commentsListRef=useRef<ScrollView|null>(null);
   const prepareCommentsResume=useCallback(()=>{
     commentsEntranceTranslateY.stopAnimation();
@@ -1505,14 +1506,16 @@ export default function HomeScreen() {
   },[commentsEntranceTranslateY,commentsBackdropOpacity,commentsContentOpacity]);
   const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef,prepareCommentsResume);
   function stopCommentsMotionForNavigation(){
+    hideCommentSheetForNavigation(commentsOverlayRoot.current,()=>{
     commentsSheetHeight.stopAnimation();
     commentsEntranceTranslateY.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
     commentsContentOpacity.stopAnimation();
     commentsResultOpacity.stopAnimation();
     commentsSheetAnimating.current=false;
-    commentsEntranceTranslateY.setValue(0);
-    commentsContentOpacity.setValue(1);
+    commentsBackdropOpacity.setValue(0);
+    commentsContentOpacity.setValue(0);
+    });
   }
 
 
@@ -7012,7 +7015,7 @@ export default function HomeScreen() {
         visible={
           commentsModalVisible
         }
-        onShow={()=>animateCommentsSheetIn(commentsContinuation.onShow())}
+        onShow={()=>{commentsOverlayRoot.current?.setNativeProps({style:{opacity:1}});animateCommentsSheetIn(commentsContinuation.onShow());}}
         onDismiss={
           handleCommentsModalDismiss
         }
@@ -7020,10 +7023,8 @@ export default function HomeScreen() {
           closeCommentsSheet
         }
       >
-        <View
-          style={
-            styles.commentsModalRoot
-          }
+        <View ref={commentsOverlayRoot} collapsable={false}
+          style={[styles.commentsModalRoot,{opacity:1}]}
         >
           <View
             style={
