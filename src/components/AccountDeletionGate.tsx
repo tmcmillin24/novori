@@ -1,3 +1,4 @@
+import {isAccountUnavailableError,isDeletedAuthUserError} from '../lib/account-session-errors';
 import { usePathname, useRootNavigationState, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -30,10 +31,10 @@ export default function AccountDeletionGate() {
         if (mounted && version === sequence.current) { pendingUser.current = latest.state === 'active' ? null : session.user.id; setStatus(latest); }
       } catch (error) {
         // Missing rollout RPCs or a network failure never imply that an account was deleted.
-        if ((error as { code?: string }).code === '42501') {
+        if (isAccountUnavailableError(error) || (error as {code?:string}).code === '42501') {
           const { data, error: accountError } = await supabase.auth.getUser();
           if (!mounted || version !== sequence.current) return;
-          if ((!accountError && !data.user) || (accountError && ['user_not_found', 'session_not_found'].includes(accountError.code ?? ''))) {
+          if (isDeletedAuthUserError(error) || (!accountError && !data.user) || isAccountUnavailableError(accountError)) {
             await clearDeletedAccountLocalData(session.user.id).catch(() => {});
             if (!mounted || version !== sequence.current) return;
             await supabase.auth.signOut({ scope: 'local' });

@@ -47,3 +47,9 @@ test('switching from a paused account to an active account clears the old restri
  await act(async () => { mockAuthEvent('SIGNED_IN'); jest.advanceTimersByTime(0); });
  expect(mockRouter.replace).not.toHaveBeenCalledWith('/delete-account');
 });
+
+test('a stale JWT from a deleted user is cleared even when the RPC rejects before SQL executes',async()=>{
+ getAccountDeletionStatus.mockRejectedValue({name:'AuthApiError',code:'user_not_found',message:'User from sub claim in JWT does not exist'});
+ supabase.auth.getUser.mockResolvedValue({data:{user:null},error:{code:'user_not_found'}});
+ await render();expect(supabase.auth.signOut).toHaveBeenCalledWith({scope:'local'});expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
+});

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
@@ -60,10 +60,16 @@ export default function DeleteAccountScreen() {
     </Pressable>;
   }
   const pending = status && status.state !== 'active';
+  useEffect(()=>{
+    if(!pending)return;
+    const subscription=BackHandler.addEventListener('hardwareBackPress',()=>true);
+    return ()=>subscription.remove();
+  },[pending]);
   const canCancel = status?.can_cancel && !!status.delete_after && new Date(status.delete_after).getTime() > Date.now();
   const deadline = status?.delete_after ? new Date(status.delete_after).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' }) : '';
   return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-    <SettingsHeader title="Delete account"/>
+    <Stack.Screen options={{gestureEnabled:!loading&&!pending}}/>
+    <SettingsHeader title="Delete account" backDisabled={loading || !!pending}/>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <SettingsIntro icon="person-remove-outline" title={pending ? 'Your account is paused.' : 'Leaving your reading space?'} detail={pending ? 'Your profile is hidden and account activity is paused while deletion is scheduled.' : 'You can take seven days to change your mind, or choose permanent deletion now.'}/>
       {loading ? <View style={styles.centered}><ActivityIndicator color={colors.gold}/></View> : error ? <View style={styles.centered}><Text style={styles.errorText}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry deletion status" style={styles.retry} onPress={() => void load()}><Text style={styles.retryText}>Try again</Text></Pressable></View> : status ? pending ? <>

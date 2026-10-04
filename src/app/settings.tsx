@@ -7,6 +7,7 @@ import { SettingsDivider, SettingsHeader, SettingsIntro, SettingsSection, Settin
 import { useNovoriTheme } from '../context/theme-context';
 import { getExplicitLanguagePreference, setExplicitLanguagePreference } from '../lib/content-filter';
 import { signOutCurrentDevice } from '../lib/sign-out';
+import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { supabase } from '../lib/supabase';
 
@@ -32,6 +33,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, theme } = useNovoriTheme();
   const styles = settingsStyles(colors);
+  const [signOutConfirmation,setSignOutConfirmation]=useState(false);
+  const [signingOut,setSigningOut]=useState(false);
   const [signOutError, setSignOutError] = useState('');
   const [email, setEmail] = useState('');
   const [allowExplicitLanguage, setAllowExplicitLanguage] = useState(false);
@@ -71,14 +74,13 @@ export default function SettingsScreen() {
   }
 
   async function signOut() {
-    try { await signOutCurrentDevice(); router.replace('/auth'); }
-    catch (error) { setSignOutError((error as Error).message || 'Please try again.'); }
+    if(signingOut)return;
+    setSigningOut(true);
+    try { await signOutCurrentDevice(); setSignOutConfirmation(false); router.replace('/auth'); }
+    catch (error) { setSignOutConfirmation(false); setSignOutError((error as Error).message || 'Please try again.'); }
+    finally {setSigningOut(false);}
   }
-  function confirmSignOut() {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out of Novori?', [
-      { text: 'Cancel', style: 'cancel' }, { text: 'Sign Out', style: 'destructive', onPress: signOut },
-    ]);
-  }
+  function confirmSignOut() {setSignOutConfirmation(true);}
 
   return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
     <SettingsHeader title="Settings"/>
@@ -114,6 +116,7 @@ export default function SettingsScreen() {
       </SettingsSection>
       <Text style={[localStyles.footer, { color: colors.mutedText }]}>NOVORI · READ. DISCUSS. BELONG.</Text>
     </ScrollView>
+    <DeletePostConfirmSheet visible={signOutConfirmation} icon="log-out-outline" title="Sign out of Novori?" message="You can sign back in whenever you’re ready." confirmLabel="Sign out" busy={signingOut} onConfirm={signOut} onDismiss={()=>{if(!signingOut)setSignOutConfirmation(false);}}/>
     <ValidationWarningSheet visible={!!signOutError} title="Could not sign out" message={signOutError} onDismiss={() => setSignOutError('')}/>
   </SafeAreaView>;
 }

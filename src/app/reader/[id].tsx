@@ -1,3 +1,7 @@
+import {useFeedLanguagePreference} from '../../hooks/use-feed-language-preference';
+import FeedPostCard from '../../components/FeedPostCard';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
+import {getPostEditRoute} from '../../lib/post-edit-route';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -64,6 +68,7 @@ import {
   followReader,
   PostVoteValue,
   togglePostVote,
+  deletePost,
   splitQuestionPostBody,
   unfollowReader,
 } from '../../lib/feed';
@@ -81,6 +86,7 @@ import {
 import {
   ReportReason,
   submitProfileReport,
+  submitPostReport,
 } from '../../lib/reports';
 import {
   blockReader,
@@ -165,6 +171,7 @@ const PROFILE_REPORT_REASONS:
   ];
 
 export default function ReaderProfileScreen() {
+  const feedLanguage=useFeedLanguagePreference();
   const router =
     useRouter();
 
@@ -403,6 +410,10 @@ export default function ReaderProfileScreen() {
   const reportEntranceStarted =
     useRef(false);
 
+  const [reportPostTarget,setReportPostTarget]=useState<FeedPost|null>(null);
+  const [ownPostTarget,setOwnPostTarget]=useState<FeedPost|null>(null);
+  const [ownPostDeleting,setOwnPostDeleting]=useState(false);
+  const [ownDeleteConfirmation,setOwnDeleteConfirmation]=useState(false);
   const loadReader =
     useCallback(
       async () => {
@@ -753,7 +764,7 @@ export default function ReaderProfileScreen() {
     ])
   );
 
-  function openProfileReport() {
+  function openProfileReport(post?:FeedPost) {
     if (
       !profile ||
       profile.is_self ||
@@ -787,6 +798,7 @@ export default function ReaderProfileScreen() {
       0
     );
 
+    setReportPostTarget(post??null);
     setReportTargetProfile(
       profile
     );
@@ -968,16 +980,14 @@ export default function ReaderProfileScreen() {
         true
       );
 
-      await submitProfileReport(
-        reportTargetProfile.id,
-        reason
-      );
+      if(reportPostTarget)await submitPostReport(reportPostTarget.id,reason);
+      else await submitProfileReport(reportTargetProfile.id,reason);
 
       dismissProfileReport(
         () => {
           Alert.alert(
             'Report submitted',
-            'Thanks for letting us know. The profile has been added to the moderation queue.'
+            reportPostTarget?'Thanks for letting us know. The post has been added to the moderation queue.':'Thanks for letting us know. The profile has been added to the moderation queue.'
           );
         }
       );
@@ -1588,462 +1598,7 @@ export default function ReaderProfileScreen() {
     }
   }
 
-  function renderPost(
-    post: FeedPost
-  ) {
-    const questionContent = post.post_type === 'question' ? splitQuestionPostBody(post.body) : null;
-    const displayName =
-      post.author_display_name
-        ?.trim() ||
-      post.author_username
-        ?.trim() ||
-      profile?.display_name
-        ?.trim() ||
-      profile?.username
-        ?.trim() ||
-      'Novori Reader';
-
-    const username =
-      post.author_username
-        ?.trim()
-        ? `@${post.author_username.trim()}`
-        : profile?.username
-            ?.trim()
-        ? `@${profile.username.trim()}`
-        : '';
-
-    const avatarUrl =
-      post.author_avatar_url ||
-      profile?.avatar_url ||
-      null;
-
-    const initial =
-      displayName
-        .charAt(0)
-        .toUpperCase();
-
-    return (
-      <View
-        key={
-          post.id
-        }
-        style={
-          styles.postCard
-        }
-      >
-        <View
-          style={
-            styles.postHeader
-          }
-        >
-          {avatarUrl ? (
-            <Image
-              source={{
-                uri:
-                  avatarUrl,
-              }}
-              style={
-                styles.postAvatar
-              }
-            />
-          ) : (
-            <View
-              style={
-                styles.postAvatarFallback
-              }
-            >
-              <Text
-                style={
-                  styles.postAvatarText
-                }
-              >
-                {initial}
-              </Text>
-            </View>
-          )}
-
-          <View
-            style={
-              styles.postAuthorCopy
-            }
-          >
-            <View
-              style={
-                styles.postIdentity
-              }
-            >
-              <Text
-                style={
-                  styles.postAuthorName
-                }
-                numberOfLines={1}
-              >
-                {displayName}
-              </Text>
-
-              {username ? (
-                <Text
-                  style={
-                    styles.postUsername
-                  }
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {username}
-                </Text>
-              ) : null}
-            </View>
-
-            <Text
-              style={
-                styles.postTime
-              }
-              numberOfLines={1}
-            >
-              {post.club_name
-                ? `in ${post.club_name} · `
-                : 'posted to their profile · '}
-              {formatTime(
-                post.created_at
-              )}
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={() =>
-              void shareRenderedPost(
-                post.id
-              )
-            }
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Share post"
-            style={({ pressed }) => [
-              styles.postHeaderShare,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={18}
-              color={
-                colors.mutedText
-              }
-            />
-          </Pressable>
-        </View>
-
-        <View
-          style={
-            styles.postContent
-          }
-        >
-          <PostTypeIdentifier
-          event={Boolean(post.club_event)}
-          discussion={Boolean(post.club_discussion)}
-          poll={post.club_discussion?.kind==='poll'}
-          announcement={post.is_club_announcement}
-            readingRecap={Boolean(post.reading_recap)}
-            postType={
-              post.post_type
-            }
-            rating={
-              post.rating
-            }
-            colors={
-              colors
-            }
-          />
-
-        {questionContent ? <>
-          <Text style={[styles.postBody, { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 19, lineHeight: 26 }]}>{questionContent.question}</Text>
-          {questionContent.context ? <Text style={[styles.postBody, { fontSize: 14, lineHeight: 21, marginTop: 8 }]}>{questionContent.context}</Text> : null}
-        </> : post.body.trim() && !post.club_discussion ? <Text
-          style={
-            styles.postBody
-          }
-        >
-          {post.body}
-        </Text> : null}
-
-        {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
-        {post.club_event ? <ClubEventPostAttachment event={post.club_event} /> : null}
-        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap} /> : null}
-
-        {post.post_type ===
-          'book_stack' &&
-        post.book_stack_id ? (
-          <BookStackPostAttachment
-            stackId={
-              post.book_stack_id
-            }
-          />
-        ) : null}
-
-        {post.post_image_url ? (
-          <FeedPostImage
-            uri={
-              post.post_image_url
-            }
-            colors={
-              colors
-            }
-          />
-        ) : null}
-
-        {post.book_title ? (
-          post.post_image_url &&
-          post.google_book_id ? (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname:
-                    '/book/[id]',
-                  params: {
-                    id:
-                      post.google_book_id!,
-                    source:
-                      'shared',
-                  },
-                })
-              }
-              style={({ pressed }) => [
-                styles.compactBookLink,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="book-outline"
-                size={14}
-                color={
-                  colors.gold
-                }
-              />
-
-              <View
-                style={
-                  styles.compactBookCopy
-                }
-              >
-                <Text
-                  style={
-                    styles.bookTitle
-                  }
-                  numberOfLines={1}
-                >
-                  {
-                    post.book_title
-                  }
-                </Text>
-
-                {post.book_authors?.length ? (
-                  <Text
-                    style={
-                      styles.bookAuthor
-                    }
-                    numberOfLines={1}
-                  >
-                    {post.book_authors.join(
-                      ', '
-                    )}
-                  </Text>
-                ) : null}
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={17}
-                color={
-                  colors.mutedText
-                }
-              />
-            </Pressable>
-          ) : (
-          <View
-            style={
-              styles.bookCard
-            }
-          >
-            {(post.google_book_id || post.book_cover_url) ? (
-              <BookCoverImage
-                googleBookId={post.google_book_id}
-                existingCoverUrl={post.book_cover_url}
-                style={
-                  styles.bookCover
-                }
-              />
-            ) : (
-              <View
-                style={
-                  styles.bookCoverFallback
-                }
-              >
-                <Ionicons
-                  name="book-outline"
-                  size={
-                    18
-                  }
-                  color={
-                    colors.gold
-                  }
-                />
-              </View>
-            )}
-
-            <View
-              style={
-                styles.bookCopy
-              }
-            >
-              <Text
-                style={
-                  styles.bookTitle
-                }
-                numberOfLines={
-                  2
-                }
-              >
-                {
-                  post.book_title
-                }
-              </Text>
-
-              {post.rating ? (
-                <Text
-                  style={
-                    styles.bookRating
-                  }
-                >
-                  ★{' '}
-                  {
-                    post.rating
-                  }
-                </Text>
-              ) : null}
-            </View>
-          </View>
-          )
-        ) : null}
-
-        </View>
-
-        <View
-          style={
-            styles.postVoteRow
-          }
-        >
-          <Pressable accessibilityRole="button" accessibilityLabel="Open post and comments" onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })} style={styles.postVoteButton}>
-            <Ionicons name="chatbubble-outline" size={20} color={colors.mutedText}/>
-            <Text style={styles.postVoteScore}>{post.comment_count ?? 0}</Text>
-          </Pressable>
-
-          <Pressable
-            disabled={
-              votingPostId ===
-              post.id
-            }
-            onPress={() =>
-              handlePostVote(
-                post.id,
-                1
-              )
-            }
-            hitSlop={
-              8
-            }
-            style={({ pressed }) => [
-              styles.postVoteButton,
-              post.viewer_vote ===
-                1 &&
-                styles.postVoteButtonActive,
-              pressed &&
-                styles.pressed,
-              votingPostId ===
-                post.id &&
-                styles.postVoteButtonDisabled,
-            ]}
-          >
-            <Ionicons
-              name={
-                post.viewer_vote ===
-                1
-                  ? 'arrow-up-circle'
-                  : 'arrow-up-circle-outline'
-              }
-              size={
-                20
-              }
-              color={
-                post.viewer_vote ===
-                1
-                  ? colors.gold
-                  : colors.mutedText
-              }
-            />
-          </Pressable>
-
-          <Text
-            style={[
-              styles.postVoteScore,
-              post.viewer_vote !==
-                0 &&
-                styles.postVoteScoreActive,
-            ]}
-          >
-            {post.vote_score ??
-              0}
-          </Text>
-
-          <Pressable
-            disabled={
-              votingPostId ===
-              post.id
-            }
-            onPress={() =>
-              handlePostVote(
-                post.id,
-                -1
-              )
-            }
-            hitSlop={
-              8
-            }
-            style={({ pressed }) => [
-              styles.postVoteButton,
-              post.viewer_vote ===
-                -1 &&
-                styles.postVoteButtonActive,
-              pressed &&
-                styles.pressed,
-              votingPostId ===
-                post.id &&
-                styles.postVoteButtonDisabled,
-            ]}
-          >
-            <Ionicons
-              name={
-                post.viewer_vote ===
-                -1
-                  ? 'arrow-down-circle'
-                  : 'arrow-down-circle-outline'
-              }
-              size={
-                20
-              }
-              color={
-                post.viewer_vote ===
-                -1
-                  ? colors.gold
-                  : colors.mutedText
-              }
-            />
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  function renderPost(post:FeedPost){return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.is_self?profile.id:null} votingPostId={votingPostId} onComments={post=>router.push({pathname:'/post/[id]',params:{id:post.id}})} onVote={handlePostVote} onMore={post=>{if(profile?.is_self)setOwnPostTarget(post);else openProfileReport(post);}} onShare={post=>{void shareRenderedPost(post.id);}}/>;}
 
   function renderBook(
     book:
@@ -3510,7 +3065,7 @@ export default function ReaderProfileScreen() {
           }
         }}
         onReport={
-          openProfileReport
+          () => openProfileReport()
         }
         onShare={() =>
           void shareProfile()
@@ -3875,7 +3430,7 @@ export default function ReaderProfileScreen() {
                       styles.reportTitle
                     }
                   >
-                    Report profile
+                    {reportPostTarget?'Report post':'Report profile'}
                   </Text>
 
                   <Text
@@ -3883,7 +3438,7 @@ export default function ReaderProfileScreen() {
                       styles.reportSubtitle
                     }
                   >
-                    Why are you reporting this profile?
+                    {reportPostTarget?'Why are you reporting this post?':'Why are you reporting this profile?'}
                   </Text>
                 </View>
 
@@ -4020,6 +3575,9 @@ export default function ReaderProfileScreen() {
         }
         shape="circle"
       />
+      <DeletePostConfirmSheet visible={!!ownPostTarget} icon="ellipsis-horizontal" title={ownDeleteConfirmation?'Delete post?':'Post options'} message={ownDeleteConfirmation?'This post and its comments will be permanently deleted. This cannot be undone.':'Manage your post.'} confirmLabel={ownDeleteConfirmation?'Delete permanently':'Delete post'} busy={ownPostDeleting} onDismiss={()=>{if(!ownPostDeleting){setOwnPostTarget(null);setOwnDeleteConfirmation(false);}}} onConfirm={async()=>{if(!ownPostTarget)return;if(!ownDeleteConfirmation){setOwnDeleteConfirmation(true);return;}setOwnPostDeleting(true);try{await deletePost(ownPostTarget.id);setPosts(current=>current.filter(post=>post.id!==ownPostTarget.id));setOwnPostTarget(null);setOwnDeleteConfirmation(false);}catch{Alert.alert('Could not delete post','Please try again.');}finally{setOwnPostDeleting(false);}}}>
+        {!ownDeleteConfirmation&&ownPostTarget?<Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={()=>{const route=getPostEditRoute(ownPostTarget);setOwnPostTarget(null);router.push(route);}} style={{paddingVertical:14,alignItems:'center'}}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold'}}>Edit post</Text></Pressable>:null}
+      </DeletePostConfirmSheet>
     </SafeAreaView>
   );
 }

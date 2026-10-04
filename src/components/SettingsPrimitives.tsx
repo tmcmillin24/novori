@@ -7,13 +7,13 @@ import { useNovoriTheme } from '../context/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-export function SettingsHeader({ title }: { title: string }) {
+export function SettingsHeader({ title, backDisabled=false }: { title: string; backDisabled?:boolean }) {
   const router = useRouter();
   const { colors } = useNovoriTheme();
   const styles = settingsStyles(colors);
   return <View style={styles.header}>
-    <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={8} onPress={() => router.back()} style={styles.backButton}>
-      <Ionicons name="chevron-back" size={24} color={colors.text}/>
+    <Pressable accessibilityRole="button" accessibilityLabel="Go back" accessibilityState={{disabled:backDisabled}} disabled={backDisabled} hitSlop={8} onPress={() => {if(!backDisabled)router.back();}} style={styles.backButton}>
+      {!backDisabled?<Ionicons name="chevron-back" size={24} color={colors.text}/>:null}
     </Pressable>
     <Text style={styles.headerTitle}>{title}</Text>
     <View style={styles.backButton}/>

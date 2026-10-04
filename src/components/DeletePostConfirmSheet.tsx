@@ -3,6 +3,7 @@ import {
     useEffect,
     useMemo,
     useRef,
+    type ReactNode,
 } from 'react';
 import {
     ActivityIndicator,
@@ -27,6 +28,7 @@ import {
 } from '../context/theme-context';
 
 type Props = {
+  children?: ReactNode;
   icon?: keyof typeof Ionicons.glyphMap;
   title?: string;
   message?: string;
@@ -39,6 +41,7 @@ type Props = {
 };
 
 export default function DeletePostConfirmSheet({
+  children,
   icon = 'trash-outline',
   title = 'Delete post?',
   message = 'This post and its comments will be permanently deleted. This can’t be undone.',
@@ -569,6 +572,7 @@ export default function DeletePostConfirmSheet({
             >
               {message}
             </Text>
+            {children}
 
             <View
               style={

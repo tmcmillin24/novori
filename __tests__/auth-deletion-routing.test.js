@@ -6,6 +6,7 @@ import {getAccountDeletionStatus} from '../src/lib/account-deletion';
 const mockRouter={replace:jest.fn(),push:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter}));
 jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},Keyboard:{addListener:()=>({remove:jest.fn()}),dismiss:jest.fn()},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',ScrollView:'ScrollView',TextInput:'TextInput',StyleSheet:{create:v=>v},Alert:{alert:jest.fn()}}));
+jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView'}));
 jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
@@ -18,3 +19,5 @@ async function submit(){await act(async()=>{view=renderer.create(<AuthScreen/>);
 test('a paused account signs directly into deletion instead of briefly mounting Home',async()=>{getAccountDeletionStatus.mockResolvedValue({state:'pending'});await submit();expect(mockRouter.replace).toHaveBeenCalledWith('/delete-account');});
 test('an active account still opens Home',async()=>{await submit();expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');});
 test('invalid deleted-account credentials use the animated Novori warning',async()=>{supabase.auth.signInWithPassword.mockResolvedValue({error:new Error('Invalid login credentials')});await submit();expect(view.root.findByType('ValidationWarningSheet').props).toMatchObject({visible:true,title:'Could not sign in',message:'Invalid login credentials'});expect(mockRouter.replace).not.toHaveBeenCalled();});
+
+test('the password eye reveals and hides the existing value without submitting',async()=>{await act(async()=>{view=renderer.create(<AuthScreen/>);});const input=()=>view.root.findAllByType('TextInput').find(n=>n.props.placeholder==='Password');await act(async()=>input().props.onChangeText('TypedPassword'));expect(input().props.secureTextEntry).toBe(true);await act(async()=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel==='Show password').props.onPress());expect(input().props.secureTextEntry).toBe(false);expect(input().props.value).toBe('TypedPassword');await act(async()=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel==='Hide password').props.onPress());expect(input().props.secureTextEntry).toBe(true);expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();});

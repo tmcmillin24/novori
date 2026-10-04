@@ -11,6 +11,7 @@ import {supabase} from '../src/lib/supabase';
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter}));
 jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',ScrollView:'ScrollView',Switch:'Switch',StyleSheet:{create:v=>v,hairlineWidth:.5},Alert:{alert:jest.fn()}}));
+jest.mock('../src/components/DeletePostConfirmSheet',()=> 'DeletePostConfirmSheet');
 jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView'}));
@@ -40,7 +41,7 @@ test('Settings keeps real destinations together and marks unavailable account op
 test('explicit-language preference preserves save, error recovery, and sign-out confirmation',async()=>{
  await render(<SettingsScreen/>);await change('Allow explicit language',true);expect(setExplicitLanguagePreference).toHaveBeenCalledWith(true);expect(toggle('Allow explicit language').props.value).toBe(true);
  setExplicitLanguagePreference.mockRejectedValue(new Error('Offline'));await change('Allow explicit language',false);expect(toggle('Allow explicit language').props.value).toBe(true);
- await press('Sign Out');expect(supabase.auth.signOut).not.toHaveBeenCalled();const actions=Alert.alert.mock.calls.find(c=>c[0]==='Sign Out')[2];await act(async()=>actions.find(a=>a.text==='Sign Out').onPress());expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
+ await press('Sign Out');expect(supabase.auth.signOut).not.toHaveBeenCalled();const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);expect(Alert.alert).not.toHaveBeenCalledWith('Sign Out',expect.anything(),expect.anything());await act(async()=>sheet.props.onConfirm());expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
 });
 test('notification preferences preserve existing opt-outs and expose only working switches',async()=>{
  await render(<NotificationSettingsScreen/>);expect(text()).toContain('4 of 6 activity alerts on');expect(toggle('New Followers').props.value).toBe(false);expect(toggle('Weekly Recap').props.value).toBe(false);

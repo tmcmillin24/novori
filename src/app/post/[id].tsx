@@ -4522,9 +4522,9 @@ function createStyles(
     continueConversation:{flexDirection:'row',alignItems:'center',gap:7,minHeight:36,paddingVertical:7},
     continueConversationText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11},
     commentThreadNested:{marginLeft:14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border},
-    threadList: {gap:4},
-    commentThread: {gap:2},
-    commentCard: {backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingVertical:8,paddingHorizontal:0},
+    threadList: {gap:2},
+    commentThread: {gap:1},
+    commentCard: {backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingVertical:6,paddingHorizontal:0},
     commentCardHighlighted: {backgroundColor:`${colors.gold}10`},
     commentCardActionAccent: {
       position:

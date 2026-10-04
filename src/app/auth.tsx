@@ -1,3 +1,4 @@
+import {Ionicons} from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   useEffect,
@@ -36,6 +37,7 @@ export default function AuthScreen() {
   const styles = createStyles(colors);
   const router = useRouter();
 
+  const [passwordVisible,setPasswordVisible]=useState(false);
   const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(null);
   const [mode, setMode] =
     useState<AuthMode>('sign-in');
@@ -316,6 +318,7 @@ export default function AuthScreen() {
   }
 
   function switchMode() {
+    setPasswordVisible(false);
     setMode(
       isSignUp
         ? 'sign-in'
@@ -546,9 +549,11 @@ export default function AuthScreen() {
               textContentType="emailAddress"
             />
 
+            <View style={styles.passwordField}>
             <TextInput
               style={[
                 styles.input,
+                styles.passwordWithToggle,
                 !isSignUp &&
                   styles.passwordInputSignIn,
               ]}
@@ -562,7 +567,7 @@ export default function AuthScreen() {
               onChangeText={
                 setPassword
               }
-              secureTextEntry
+              secureTextEntry={!passwordVisible}
               autoCapitalize="none"
               autoCorrect={
                 false
@@ -573,6 +578,11 @@ export default function AuthScreen() {
                   : 'password'
               }
             />
+
+              <Pressable accessibilityRole="button" accessibilityLabel={passwordVisible?'Hide password':'Show password'} accessibilityState={{selected:passwordVisible}} onPress={()=>setPasswordVisible(value=>!value)} style={styles.passwordVisibilityButton}>
+                <Ionicons name={passwordVisible?'eye-off-outline':'eye-outline'} size={21} color={colors.mutedText}/>
+              </Pressable>
+            </View>
 
             {isSignUp ? (
               <TextInput
@@ -804,6 +814,9 @@ const createStyles = (colors: NovoriColors) => StyleSheet.create({
         24,
     },
 
+    passwordField:{position:'relative'},
+    passwordWithToggle:{paddingRight:56},
+    passwordVisibilityButton:{position:'absolute',right:6,top:4,width:44,height:44,alignItems:'center',justifyContent:'center'},
     input: {
       minHeight:
         52,

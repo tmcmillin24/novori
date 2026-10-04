@@ -1,3 +1,4 @@
+import {isAccountUnavailableError} from '../lib/account-session-errors';
 import {
   Ionicons,
 } from '@expo/vector-icons';
@@ -174,6 +175,7 @@ export default function ProfileReadingModule({
           } catch (
             checkinLoadError
           ) {
+            if(isAccountUnavailableError(checkinLoadError))return;
             console.error(
               'Could not load daily reading check-in:',
               checkinLoadError
