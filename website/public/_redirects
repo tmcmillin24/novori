@@ -1,3 +1,3 @@
-/book/* /share/index.html 200
-/post/* /share/index.html 200
-/stack/* /share/index.html 200
+/book/* /share/ 200
+/post/* /share/ 200
+/stack/* /share/ 200
