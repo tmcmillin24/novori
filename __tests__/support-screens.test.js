@@ -4,6 +4,7 @@ import HelpSupportScreen from '../src/app/help-support';
 import AboutNovoriScreen from '../src/app/about-novori';
 import { contactNovoriSupport, openNovoriWebsite } from '../src/lib/support-links';
 const mockRouter = { back: jest.fn(), push: jest.fn() };
+jest.mock('../src/components/ValidationWarningSheet', () => 'ValidationWarningSheet');
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
@@ -28,4 +29,18 @@ test('about links reach the website and in-app help without changing existing le
   await press('Visit Novori'); expect(openNovoriWebsite).toHaveBeenCalledWith();
   await press('Help & Support'); expect(mockRouter.push).toHaveBeenCalledWith('/help-support');
   expect(text()).toContain('2.3.4'); expect(text()).toContain('Read. Discuss. Belong.');
+});
+
+test('each help topic opens and dismisses the shared animated sheet with its own content', async () => {
+  await act(async () => { view = renderer.create(<HelpSupportScreen />); });
+  for (const title of ['Account & Login', 'Books & Library', 'Clubs & Community', 'Privacy & Safety']) {
+    await press(title);
+    const sheet = view.root.findByType('ValidationWarningSheet');
+    expect(sheet.props.visible).toBe(true);
+    expect(sheet.props.title).toBe(title);
+    expect(sheet.props.message.length).toBeGreaterThan(0);
+    expect(sheet.props.icon).toBe('help-circle-outline');
+    await act(async () => sheet.props.onDismiss());
+    expect(view.root.findByType('ValidationWarningSheet').props.visible).toBe(false);
+  }
 });

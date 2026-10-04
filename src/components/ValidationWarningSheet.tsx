@@ -11,9 +11,11 @@ type Props = {
   title: string;
   message: string;
   onDismiss: () => void;
+  icon?: keyof typeof Ionicons.glyphMap;
+  dismissLabel?: string;
 };
 
-export default function ValidationWarningSheet({ visible, title, message, onDismiss }: Props) {
+export default function ValidationWarningSheet({ visible, title, message, onDismiss, icon = 'alert-circle-outline', dismissLabel = 'Dismiss warning' }: Props) {
   const { colors } = useNovoriTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -99,10 +101,10 @@ export default function ValidationWarningSheet({ visible, title, message, onDism
           style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12), opacity: sheetOpacity, transform: [{ translateY }] }]}>
           <Pressable onPress={(event) => event.stopPropagation()}>
             <View style={styles.handle} />
-            <View style={styles.icon}><Ionicons name="alert-circle-outline" size={23} color={colors.gold} /></View>
+            <View style={styles.icon}><Ionicons name={icon} size={23} color={colors.gold} /></View>
             <Text style={styles.title} accessibilityRole="header">{title}</Text>
             <Text style={styles.message}>{message}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss warning" onPress={closeSmoothly}
+            <Pressable accessibilityRole="button" accessibilityLabel={dismissLabel} onPress={closeSmoothly}
               style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
               <Text style={styles.buttonText}>Got it</Text>
             </Pressable>

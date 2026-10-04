@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { contactNovoriSupport, openNovoriWebsite, NOVORI_SUPPORT_URL, NOVORI_SUPPORT_EMAIL, NOVORI_APP_VERSION } from '../lib/support-links';
 
 import {
-    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -105,14 +106,13 @@ export default function HelpSupportScreen() {
   const styles =
     createStyles(colors);
 
+  const [helpTopic, setHelpTopic] = useState<{ title: string; message: string } | null>(null);
+
   function showHelpTopic(
     title: string,
     message: string
   ) {
-    Alert.alert(
-      title,
-      message
-    );
+    setHelpTopic({ title, message });
   }
 
   function contactSupport() { void contactNovoriSupport(); }
@@ -376,6 +376,8 @@ export default function HelpSupportScreen() {
           Novori {NOVORI_APP_VERSION}
         </Text>
       </ScrollView>
+      <ValidationWarningSheet visible={Boolean(helpTopic)} title={helpTopic?.title ?? ''} message={helpTopic?.message ?? ''}
+        icon="help-circle-outline" dismissLabel="Close help topic" onDismiss={() => setHelpTopic(null)} />
     </SafeAreaView>
   );
 }
