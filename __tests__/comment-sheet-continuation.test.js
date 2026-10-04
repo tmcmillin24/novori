@@ -22,3 +22,7 @@ test('a new sheet resets the saved offset and normal dismissal keeps its normal 
 test('tiny dots repeat down the measured branch without becoming a solid line',async()=>{
  await act(async()=>{view=renderer.create(<CommentBranchGuide/>);});const rail=view.root.findAllByType('View')[0];await act(async()=>rail.props.onLayout({nativeEvent:{layout:{height:45}}}));const dots=view.root.findAllByType('View').slice(1);expect(dots).toHaveLength(5);expect(dots.map(dot=>Object.assign({},...dot.props.style).top)).toEqual([0,9,18,27,36]);expect(Object.assign({},...dots[0].props.style)).toMatchObject({width:2,height:2,borderRadius:1});expect(rail.props.pointerEvents).toBe('none');
 });
+
+test('native dismissal schedules navigation for the next frame and duplicate dismissal events do not push twice',async()=>{
+ const frames=[];global.requestAnimationFrame=callback=>{frames.push(callback);return frames.length;};await act(async()=>{view=renderer.create(<Harness/>);});const navigate=jest.fn();api.suspend(navigate);api.onDismiss();api.onDismiss();expect(navigate).not.toHaveBeenCalled();expect(frames).toHaveLength(1);frames.shift()();expect(navigate).toHaveBeenCalledTimes(1);mockFocus();expect(setVisible).toHaveBeenLastCalledWith(true);
+});

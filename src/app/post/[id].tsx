@@ -2238,7 +2238,7 @@ export default function PostDetailScreen() {
 
   if (loading && (requestedThreadId || targetCommentId)) {
     return <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
-      <View style={styles.header}>
+      <View style={[styles.header,styles.conversationHeader]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={()=>router.back()} style={[styles.headerButton,styles.focusedHeaderBack]}><Ionicons name="chevron-back" size={24} color={colors.text}/></Pressable>
         <Text style={[styles.headerTitle,styles.focusedHeaderTitle]}>Conversation</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to post" onPress={()=>router.dismissTo({pathname:'/post/[id]',params:{id:postId}})} style={styles.focusedHeaderAction}><Text style={styles.backToPost}>Back to post</Text></Pressable>
@@ -2419,7 +2419,7 @@ export default function PostDetailScreen() {
     >
       <View
         style={
-          styles.header
+          [styles.header,focusedThreadId && styles.conversationHeader]
         }
       >
         <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen"
@@ -3832,6 +3832,7 @@ function createStyles(
     keyboardView: {
       flex: 1,
     },
+    conversationHeader:{width:'100%',maxWidth:720,alignSelf:'center',paddingHorizontal:16},
     conversationLoading:{height:44,flexDirection:'row',alignItems:'center',gap:8},
     conversationPlaceholder:{paddingVertical:14,gap:9},
     placeholderLine:{height:9,borderRadius:5,backgroundColor:colors.surface},

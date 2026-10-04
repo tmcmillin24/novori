@@ -1060,25 +1060,7 @@ export default function HomeScreen() {
       }
 
       commentsResultOpacity.stopAnimation();
-      commentsResultOpacity.setValue(
-        0
-      );
-
-      Animated.timing(
-        commentsResultOpacity,
-        {
-          toValue:
-            1,
-          duration:
-            60,
-          easing:
-            Easing.out(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ).start();
+      commentsResultOpacity.setValue(1);
     },
     [
       commentsInitialLoadReady,
@@ -1517,7 +1499,7 @@ export default function HomeScreen() {
     commentsEntranceTranslateY.stopAnimation();
     commentsEntranceTranslateY.setValue(commentsSheetCurrentHeight.current);
     commentsBackdropOpacity.setValue(0);
-    commentsContentOpacity.setValue(0);
+    commentsContentOpacity.setValue(1);
   },[commentsEntranceTranslateY,commentsBackdropOpacity,commentsContentOpacity]);
   const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef,prepareCommentsResume);
 
@@ -1562,19 +1544,11 @@ export default function HomeScreen() {
       commentsPartialHeight
     );
 
-    commentsEntranceTranslateY.setValue(
-      Math.max(
-        0,
-        commentsPartialHeight -
-          commentsEntranceStartHeight
-      )
-    );
+    commentsEntranceTranslateY.setValue(commentsPartialHeight);
     commentsBackdropOpacity.setValue(
       0
     );
-    commentsContentOpacity.setValue(
-      0
-    );
+    commentsContentOpacity.setValue(1);
 
     commentsSheetCurrentHeight.current =
       commentsPartialHeight;
@@ -1658,21 +1632,6 @@ export default function HomeScreen() {
             1,
           duration:
             180,
-          easing:
-            Easing.out(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-      Animated.timing(
-        commentsContentOpacity,
-        {
-          toValue:
-            1,
-          duration:
-            65,
           easing:
             Easing.out(
               Easing.cubic
@@ -1857,16 +1816,15 @@ export default function HomeScreen() {
     commentsSheetAnimating.current =
       true;
 
-    commentsSheetHeight.stopAnimation();
+    commentsEntranceTranslateY.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
     commentsContentOpacity.stopAnimation();
 
     Animated.parallel([
       Animated.timing(
-        commentsSheetHeight,
+        commentsEntranceTranslateY,
         {
-          toValue:
-            0,
+          toValue: commentsSheetCurrentHeight.current,
           duration:
             235,
           easing:
@@ -1876,8 +1834,7 @@ export default function HomeScreen() {
               0.67,
               1
             ),
-          useNativeDriver:
-            false,
+          useNativeDriver: true,
         }
       ),
       Animated.timing(
@@ -1887,21 +1844,6 @@ export default function HomeScreen() {
             0,
           duration:
             210,
-          easing:
-            Easing.in(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-      Animated.timing(
-        commentsContentOpacity,
-        {
-          toValue:
-            0,
-          duration:
-            90,
           easing:
             Easing.in(
               Easing.cubic
@@ -7302,11 +7244,7 @@ export default function HomeScreen() {
               >
                 {commentsError?<View style={{paddingHorizontal:14,paddingVertical:8}}><Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12}}>{commentsError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading comments" onPress={()=>{if(commentsPost)void loadCommentsSheet(commentsPost.id,true);}}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:6}}>Try again</Text></Pressable></View>:null}
                 {!commentsInitialLoadReady ? (
-                  <View
-                    style={
-                      styles.commentsLoading
-                    }
-                  />
+                  <View style={styles.commentsLoading}><ActivityIndicator accessibilityLabel="Loading comments" size="small" color={colors.gold}/></View>
                 ) : (
                   <Animated.View
                     style={[
