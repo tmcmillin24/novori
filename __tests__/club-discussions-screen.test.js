@@ -13,7 +13,7 @@ import {supabase} from '../src/lib/supabase';
 import {blockReader} from '../src/lib/social';
 import {getPostComments,createPostComment,deletePostComment,toggleCommentVote,updatePostComment} from '../src/lib/comments';
 
-let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn()};
+let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn(),setParams:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
 jest.mock('react-native',()=>({
  useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
@@ -59,6 +59,7 @@ const button=label=>view.root.findAllByType('Pressable').find(n=>n.props.accessi
 const field=label=>view.root.findAllByType('TextInput').find(n=>n.props.accessibilityLabel===label);
 async function press(label){expect(button(label)).toBeDefined();await act(async()=>button(label).props.onPress());}
 async function fill(label,value){await act(async()=>field(label).props.onChangeText(value));}
+async function chooseReply(id){await act(async()=>button('Comment: '+id).props.onLongPress());const reply=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Reply'));expect(reply).toBeDefined();await act(async()=>reply.props.onPress());}
 const text=()=>view.root.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
 
 test('member fills the discussion card directly and posts with the stored club read',async()=>{
@@ -105,15 +106,15 @@ test('compact post comments stop indenting and link to a focused conversation',a
  expect(text()).toContain('Reply at depth 2');expect(text()).not.toContain('Reply at depth 3');await press('Continue conversation: chain-2');
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1',threadId:'chain-2',commentId:'chain-2'}});
 });
-test('focused conversation shows only its branch and posts directly to that comment',async()=>{
+test('focused conversation includes ancestor context and replies only after explicit selection',async()=>{
  mockParams={id:'post-1',threadId:'chain-2',commentId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'unrelated',body:'Unrelated conversation.'}]);
  createPostComment.mockResolvedValue('new-reply');await render(<PostDetailScreen/>);
- expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).not.toContain('Reply at depth 1');expect(text()).not.toContain('Unrelated conversation.');
- await fill('Comment reply text','A focused reply.');await press('Send comment');
+ expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).toContain('Reply at depth 0');expect(text()).toContain('Reply at depth 1');expect(text()).not.toContain('Replying to');expect(text()).not.toContain('Unrelated conversation.');
+ await chooseReply('chain-2');await fill('Comment reply text','A focused reply.');await press('Send comment');
  expect(createPostComment).toHaveBeenCalledWith('post-1','A focused reply.','chain-2');await press('View all post comments');expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});
 });
 test('deep notification targets open a readable branch automatically',async()=>{
- mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Focused conversation');expect(text()).toContain('Reply at depth 5');expect(text()).not.toContain('Reply at depth 0');
+ mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Focused conversation');expect(text()).toContain('Reply at depth 5');expect(text()).toContain('Reply at depth 0');expect(text()).toContain('Reply at depth 4');
 });
 test('missing focused comments cannot accidentally publish to the post root',async()=>{
  mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('View all post comments')).toBeDefined();
@@ -124,7 +125,7 @@ test('focused routes preserve spoiler protection for the comment branch',async()
 
 test.each(['name','avatar','empty space'])('notification thread opens comment actions when holding the %s',async area=>{
  mockParams={id:'post-1',commentId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
- expect(button('Reply to comment: comment-1')).toBeUndefined();expect(button('Comment options: comment-1')).toBeUndefined();
+ expect(button('Reply to comment: comment-1')).toBeDefined();expect(button('Comment options: comment-1')).toBeUndefined();
  const body=button('Comment: comment-1');
  let card=body.parent;while(card.type!=='Pressable')card=card.parent;
  const target=area==='name'?button('View reader: Another Reader'):area==='avatar'?button('View reader avatar: Another Reader'):card;
@@ -133,7 +134,7 @@ test.each(['name','avatar','empty space'])('notification thread opens comment ac
 });
 test('focused notification replies use the Home placeholder and quote the parent comment',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
- expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');
+ expect(field('Comment reply text').props.placeholder).toBe('Choose a comment to reply…');expect(field('Comment reply text').props.editable).toBe(false);expect(text()).not.toContain('Replying to');await chooseReply('comment-1');expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');
  const composer=view.root.findByType('KeyboardStickyView');const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
  expect(composerText).toContain('Replying to Another Reader');expect(composerText).toContain(comment.body);
  const backdrop=composer.findAllByType('View').find(n=>n.props.pointerEvents==='none'&&n.props.style?.height===844);expect(backdrop).toBeDefined();expect(backdrop.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
@@ -150,11 +151,11 @@ test('a transient preference failure does not emit the red error overlay',async(
 });
 test('a saved comment survives a failed follow-up read without restoring the draft or reporting a failed save',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment]).mockRejectedValueOnce(new Error('Network connection lost'));createPostComment.mockResolvedValue('confirmed-comment');await render(<PostDetailScreen/>);
- await fill('Comment reply text','My saved reply');await press('Send comment');
+ await chooseReply('comment-1');await fill('Comment reply text','My saved reply');await press('Send comment');
  expect(createPostComment).toHaveBeenCalledWith('post-1','My saved reply','comment-1');expect(text()).toContain('My saved reply');expect(text()).toContain('Your comment was saved.');expect(field('Comment reply text').props.value).toBe('');expect(require('react-native').Alert.alert).not.toHaveBeenCalled();expect(button('Comment: confirmed-comment')).toBeDefined();
 });
 test('a failing write restores its draft and rapid repeated taps create only one request',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const write=deferred();createPostComment.mockReturnValue(write.promise);await render(<PostDetailScreen/>);await fill('Comment reply text','Keep my draft');
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const write=deferred();createPostComment.mockReturnValue(write.promise);await render(<PostDetailScreen/>);await chooseReply('comment-1');await fill('Comment reply text','Keep my draft');
  const send=button('Send comment').props.onPress;let first;
  await act(async()=>{first=send();await send();});expect(createPostComment).toHaveBeenCalledTimes(1);expect(text()).toContain('Keep my draft');
  await act(async()=>{write.reject(new Error('Could not connect'));await first;});expect(field('Comment reply text').props.value).toBe('Keep my draft');expect(text()).toContain('Replying to Another Reader');expect(require('react-native').Alert.alert).toHaveBeenCalledWith('Could not comment','Could not connect');
@@ -187,9 +188,32 @@ test('comment voting applies the server result and blocked/deleted rows cannot e
 });
 
 test('voting on another comment during a pending save cannot strand the saved reply with a temporary ID',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment]).mockRejectedValueOnce(new Error('Network connection lost'));const write=deferred();createPostComment.mockReturnValue(write.promise);toggleCommentVote.mockResolvedValue({viewer_vote:1,vote_score:1,upvote_count:1,downvote_count:0});await render(<PostDetailScreen/>);await fill('Comment reply text','Saved while voting');let sending;
- await act(async()=>{sending=button('Send comment').props.onPress();});expect(field('Comment reply text').props.editable).toBe(false);await press('Upvote comment: comment-1');await act(async()=>{write.resolve('saved-comment');await sending;});expect(button('Comment: saved-comment')).toBeDefined();expect(field('Comment reply text').props.editable).toBe(true);expect(text()).toContain('Your comment was saved.');
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment]).mockRejectedValueOnce(new Error('Network connection lost'));const write=deferred();createPostComment.mockReturnValue(write.promise);toggleCommentVote.mockResolvedValue({viewer_vote:1,vote_score:1,upvote_count:1,downvote_count:0});await render(<PostDetailScreen/>);await chooseReply('comment-1');await fill('Comment reply text','Saved while voting');let sending;
+ await act(async()=>{sending=button('Send comment').props.onPress();});expect(field('Comment reply text').props.editable).toBe(false);await press('Upvote comment: comment-1');await act(async()=>{write.resolve('saved-comment');await sending;});expect(button('Comment: saved-comment')).toBeDefined();expect(field('Comment reply text').props.editable).toBe(false);expect(text()).not.toContain('Replying to');expect(text()).toContain('Your comment was saved.');
 });
 test('blocking masks a parent immediately and preserves another reader’s replies during a failed refresh',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment,{...comment,id:'child',author_id:'member-3',parent_comment_id:comment.id,body:'Unblocked child'}]).mockRejectedValueOnce(new Error('Network connection lost'));blockReader.mockResolvedValue();await render(<PostDetailScreen/>);await act(async()=>button('Comment: comment-1').props.onLongPress());const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Block reader'));expect(action).toBeDefined();await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(110));const sheet=view.root.findByType('BlockReaderConfirmSheet');await act(async()=>sheet.props.onConfirm());expect(blockReader).toHaveBeenCalledWith('member-2');expect(text()).toContain('Blocked reader · This comment is hidden.');expect(text()).not.toContain(comment.body);expect(text()).toContain('Unblocked child');
+});
+
+test('focused views cannot post automatically to either the selected comment or the post root',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(field('Comment reply text').props.editable).toBe(false);expect(button('Send comment').props.disabled).toBe(true);await fill('Comment reply text','No automatic reply');await press('Send comment');expect(createPostComment).not.toHaveBeenCalled();expect(text()).not.toContain('Replying to');
+});
+test('reply branches expand three at a time and collapse without retrieving the thread again',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const replies=Array.from({length:8},(_,i)=>({...comment,id:'reply-'+i,parent_comment_id:'comment-1',body:'Branch reply '+i,vote_score:8-i}));getPostComments.mockResolvedValue([comment,...replies]);await render(<PostDetailScreen/>);
+ expect(text()).toContain('Branch reply 2');expect(text()).not.toContain('Branch reply 3');expect(button('Show more replies: comment-1')).toBeDefined();await press('Show more replies: comment-1');expect(text()).toContain('Branch reply 5');expect(text()).not.toContain('Branch reply 6');await press('Show more replies: comment-1');expect(text()).toContain('Branch reply 7');expect(button('Show more replies: comment-1')).toBeUndefined();await press('Show fewer replies: comment-1');expect(text()).not.toContain('Branch reply 3');expect(getPostComments).toHaveBeenCalledTimes(1);
+});
+test('selected chains include the original parent but exclude siblings at every ancestor level',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'root-sibling',parent_comment_id:'chain-0',body:'Root sibling branch'},{...comment,id:'middle-sibling',parent_comment_id:'chain-1',body:'Middle sibling branch'}]);await render(<PostDetailScreen/>);for(const depth of [0,1,2,3,4])expect(text()).toContain('Reply at depth '+depth);expect(text()).not.toContain('Root sibling branch');expect(text()).not.toContain('Middle sibling branch');expect(text()).not.toContain('Reply at depth 5');expect(button('Continue conversation: chain-4')).toBeDefined();expect(text()).not.toContain('Replying to');
+});
+test('explicitly replying to an ancestor keeps the newly saved branch in view',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());createPostComment.mockResolvedValue('new-branch');await render(<PostDetailScreen/>);await chooseReply('chain-0');await fill('Comment reply text','Reply to the original parent');await press('Send comment');expect(createPostComment).toHaveBeenCalledWith('post-1','Reply to the original parent','chain-0');expect(mockRouter.setParams).toHaveBeenCalledWith({threadId:'new-branch',commentId:'new-branch'});
+});
+
+test('reply arrow explicitly selects its comment and submits to that parent',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});createPostComment.mockResolvedValue('arrow-reply');await render(<PostDetailScreen/>);expect(text()).not.toContain('Replying to');await press('Reply to comment: comment-1');expect(text()).toContain('Replying to Another Reader');expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');await fill('Comment reply text','Arrow reply');await press('Send comment');expect(createPostComment).toHaveBeenCalledWith('post-1','Arrow reply','comment-1');
+});
+test('siblings stay aligned and only a reply to one sibling creates a deeper branch',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const siblings=Array.from({length:3},(_,i)=>({...comment,id:'sibling-'+i,parent_comment_id:'comment-1',body:'Sibling '+i,vote_score:3-i}));getPostComments.mockResolvedValue([comment,...siblings,{...comment,id:'grandchild',parent_comment_id:'sibling-2',body:'Reply to third sibling'}]);await render(<PostDetailScreen/>);
+ const container=id=>{let node=button('Comment: '+id).parent;while(node.type!=='Pressable')node=node.parent;return node.parent;};const margin=node=>Object.assign({},...[node.props.style].flat()).marginLeft??0;
+ expect(margin(container('comment-1'))).toBe(0);for(const sibling of siblings)expect(margin(container(sibling.id))).toBe(14);expect(margin(container('grandchild'))).toBe(14);let ancestor=container('grandchild').parent;while(ancestor&&ancestor!==container('sibling-2'))ancestor=ancestor.parent;expect(ancestor).toBe(container('sibling-2'));
 });

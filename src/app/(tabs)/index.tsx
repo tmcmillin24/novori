@@ -4,7 +4,7 @@ import {getAccountEntryRoute} from '../../lib/account-entry';
 import {isAccountUnavailableError} from '../../lib/account-session-errors';
 import {signOutCurrentDevice} from '../../lib/sign-out';
 import FeedPostCard from '../../components/FeedPostCard';
-import {getCommentBranchIds,buildCommentThreads, countThreadReplies, getCommentDepthLimit} from '../../lib/comment-conversations';
+import {COMMENT_REPLY_BATCH_SIZE,getCommentBranchIds,buildCommentThreads, countThreadReplies, getCommentDepthLimit} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -664,7 +664,7 @@ export default function HomeScreen() {
     useState<
       Record<
         string,
-        boolean
+        number
       >
     >({});
 
@@ -2223,20 +2223,8 @@ export default function HomeScreen() {
     );
   }
 
-  function toggleReplies(
-    commentId: string
-  ) {
-    setExpandedReplyThreads(
-      (
-        current
-      ) => ({
-        ...current,
-        [commentId]:
-          !current[
-            commentId
-          ],
-      })
-    );
+  function toggleReplies(commentId:string){
+    setExpandedReplyThreads(current=>({...current,[commentId]:(current[commentId]??COMMENT_REPLY_BATCH_SIZE)+COMMENT_REPLY_BATCH_SIZE}));
   }
 
   async function submitSheetComment() {
@@ -2476,6 +2464,7 @@ export default function HomeScreen() {
 
       const confirmedId=await createPostComment(postId,cleaned,parentId);
       if(commentsViewGeneration.current!==writeGeneration || activeCommentsPostId.current!==postId)return;
+      if(parentId)setExpandedReplyThreads(current=>({...current,[parentId]:Math.max(current[parentId]??COMMENT_REPLY_BATCH_SIZE,(sheetThreadData.nodes.get(parentId)?.children.length??0)+1)}));
       if(typeof confirmedId==='string')setSheetComments(current=>current.some(item=>item.id===confirmedId)?current.filter(item=>item.id!==optimisticId):current.map(item=>item.id===optimisticId?{...item,id:confirmedId}:item));
       const request=commentsReadSequence.current;
       void getPostComments(postId).then(comments=>{
@@ -3895,20 +3884,9 @@ export default function HomeScreen() {
 
     const children = sheetThreadData.nodes.get(comment.id)?.children ?? [];
 
-    const expanded =
-      Boolean(
-        expandedReplyThreads[
-          comment.id
-        ]
-      );
-
-    const visibleChildren =
-      expanded
-        ? children
-        : children.slice(
-            0,
-            2
-          );
+    const visibleLimit=expandedReplyThreads[comment.id]??COMMENT_REPLY_BATCH_SIZE;
+    const expanded=visibleLimit>COMMENT_REPLY_BATCH_SIZE;
+    const visibleChildren=children.slice(0,visibleLimit);
 
     const hiddenCount =
       Math.max(
@@ -4207,7 +4185,7 @@ export default function HomeScreen() {
                   />
                 </Pressable>
               </View>
-
+              {!comment.is_deleted && <Pressable accessibilityRole="button" accessibilityLabel={`Reply to comment: ${comment.id}`} disabled={submittingComment || comment.id.startsWith('optimistic-')} onPress={() => startReply(comment)} delayLongPress={220} onLongPress={() => openCommentActions(comment)} hitSlop={6} style={styles.commentVoteButton}><Ionicons name="return-down-forward-outline" size={18} color={colors.mutedText}/></Pressable>}
             </View>
           </View>
           </>}
@@ -4241,7 +4219,7 @@ export default function HomeScreen() {
 
         {depth < sheetDepthLimit && hiddenCount >
         0 ? (
-          <Pressable
+          <Pressable accessibilityRole="button" accessibilityLabel={`Show more replies: ${comment.id}`}
             onPress={() =>
               toggleReplies(
                 comment.id
@@ -4264,23 +4242,15 @@ export default function HomeScreen() {
                 styles.viewMoreRepliesText
               }
             >
-              View {hiddenCount}{' '}
-              more{' '}
-              {hiddenCount ===
-              1
-                ? 'reply'
-                : 'replies'}
+              Show more replies · {hiddenCount}
             </Text>
           </Pressable>
-        ) : depth < sheetDepthLimit && expanded &&
+        ) : null}
+        {depth < sheetDepthLimit && expanded &&
           children.length >
-            2 ? (
-          <Pressable
-            onPress={() =>
-              toggleReplies(
-                comment.id
-              )
-            }
+            COMMENT_REPLY_BATCH_SIZE ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Show fewer replies: ${comment.id}`}
+            onPress={()=>setExpandedReplyThreads(current=>({...current,[comment.id]:COMMENT_REPLY_BATCH_SIZE}))}
             style={({ pressed }) => [
               styles.viewMoreRepliesButton,
               pressed &&
@@ -4298,7 +4268,7 @@ export default function HomeScreen() {
                 styles.viewMoreRepliesText
               }
             >
-              Hide replies
+              Show fewer replies
             </Text>
           </Pressable>
         ) : null}

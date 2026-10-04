@@ -2,6 +2,21 @@ import type { PostComment } from './comments';
 
 export type CommentThread = PostComment & { children: CommentThread[] };
 
+export const COMMENT_REPLY_BATCH_SIZE=3;
+
+/** Follow actual tree edges so missing parents and broken cycles stay safe. */
+export function getCommentAncestorPath(nodes:Map<string,CommentThread>,commentId:string){
+  const parents=new Map<string,CommentThread>();
+  for(const node of nodes.values())for(const child of node.children)parents.set(child.id,node);
+  const path:CommentThread[]=[];
+  const seen=new Set<string>([commentId]);
+  let parent=parents.get(commentId);
+  while(parent && !seen.has(parent.id)){
+    path.push(parent);seen.add(parent.id);parent=parents.get(parent.id);
+  }
+  return path.reverse();
+}
+
 /** IDs removed by a cascading comment deletion, without recursion or cycle risk. */
 export function getCommentBranchIds(comments:PostComment[],rootId:string){
   const children=new Map<string,string[]>();
@@ -62,16 +77,7 @@ export function countThreadReplies(thread: CommentThread) {
   return count;
 }
 
-export function getFocusedConversationId(comments: PostComment[], requested: string, target: string, limit: number) {
-  if (requested) return requested;
-  const nodes = new Map(comments.map(comment => [comment.id, comment]));
-  let current = nodes.get(target);
-  let depth = 0;
-  const seen = new Set<string>();
-  while (current?.parent_comment_id && nodes.has(current.parent_comment_id) && !seen.has(current.id)) {
-    seen.add(current.id);
-    depth++;
-    current = nodes.get(current.parent_comment_id);
-  }
-  return depth > limit ? (nodes.get(target)?.parent_comment_id ?? target) : '';
+export function getFocusedConversationId(_comments: PostComment[], requested: string, target: string, _limit: number) {
+  // A notification's target must remain visible even beyond the collapsed reply batch.
+  return requested || target || '';
 }

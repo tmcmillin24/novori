@@ -1,6 +1,6 @@
 import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
-import {getCommentBranchIds,buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
+import {COMMENT_REPLY_BATCH_SIZE,getCommentAncestorPath,getCommentBranchIds,buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import { discussionRevealKey } from '../../lib/club-discussion';
@@ -729,9 +729,10 @@ export default function PostDetailScreen() {
   const threadData=useMemo(()=>buildCommentThreads(comments,commentSort),[comments,commentSort]);
   const focusedThreadId=getFocusedConversationId(comments,requestedThreadId,targetCommentId,commentDepthLimit);
   const focusedThread=threadData.nodes.get(focusedThreadId);
+  const focusedAncestors=useMemo(()=>getCommentAncestorPath(threadData.nodes,focusedThreadId),[threadData,focusedThreadId]);
+  const [visibleReplyCounts,setVisibleReplyCounts]=useState<Record<string,number>>({});
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
-  const focusedReplyTarget=focusedThread?{id:focusedThread.id,name:focusedThread.author_display_name?.trim()||focusedThread.author_username?.trim()||'Novori Reader'}:null;
-  const activeReplyTarget=replyTo??focusedReplyTarget;
+  const activeReplyTarget=replyTo;
   const activeReplyComment=activeReplyTarget?threadData.nodes.get(activeReplyTarget.id):null;
   function openConversation(commentId:string){router.push({pathname:'/post/[id]',params:{id:postId,threadId:commentId,commentId}});}
 
@@ -1033,7 +1034,7 @@ export default function PostDetailScreen() {
   async function submitComment() {
     if (
       !post ||
-      submitting || commentSubmitInFlight.current
+      submitting || commentSubmitInFlight.current || (focusedThreadId && !replyTo && !editingComment)
     ) {
       return;
     }
@@ -1242,6 +1243,8 @@ export default function PostDetailScreen() {
       const confirmedId=await createPostComment(postIdForComment,cleaned,parentId);
       if(!mounted.current || viewPostId.current!==postIdForComment)return;
       if(typeof confirmedId==='string'){
+        if(parentId)setVisibleReplyCounts(current=>({...current,[parentId]:Math.max(current[parentId]??COMMENT_REPLY_BATCH_SIZE,(threadData.nodes.get(parentId)?.children.length??0)+1)}));
+        if(focusedAncestors.some(item=>item.id===parentId))router.setParams({threadId:confirmedId,commentId:confirmedId});
         const missingLocalComment=!commentsState.current.some(item=>item.id===optimisticId || item.id===confirmedId);
         if(missingLocalComment)setPost(current=>current?{...current,comment_count:(current.comment_count??0)+1}:current);
         setComments(current=>current.some(item=>item.id===confirmedId)?current.filter(item=>item.id!==optimisticId):current.some(item=>item.id===optimisticId)?current.map(item=>item.id===optimisticId?{...item,id:confirmedId}:item):[...current,{...optimisticComment,id:confirmedId}]);
@@ -2266,14 +2269,21 @@ export default function PostDetailScreen() {
     );
   }
 
-  function renderComment(comment:ThreadComment,depth=0){
+  function renderComment(comment:ThreadComment,depth=0,contextOnly=false){
     const name=comment.author_display_name?.trim()||comment.author_username?.trim()||'Novori Reader';
     const nested=depth>0;
-    const children=comment.children.length?(depth<commentDepthLimit?comment.children.map(child=>renderComment(child,depth+1)):
+    const limit=visibleReplyCounts[comment.id]??COMMENT_REPLY_BATCH_SIZE;
+    const visibleChildren=comment.children.slice(0,limit);
+    const hiddenCount=comment.children.length-visibleChildren.length;
+    const children=contextOnly?null:comment.children.length?(depth<commentDepthLimit?<>
+      {visibleChildren.map(child=>renderComment(child,depth+1))}
+      {hiddenCount>0?<Pressable accessibilityRole="button" accessibilityLabel={`Show more replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:limit+COMMENT_REPLY_BATCH_SIZE}))} style={styles.continueConversation}><Ionicons name="add-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Show more replies · {hiddenCount}</Text></Pressable>:null}
+      {limit>COMMENT_REPLY_BATCH_SIZE?<Pressable accessibilityRole="button" accessibilityLabel={`Show fewer replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:COMMENT_REPLY_BATCH_SIZE}))} style={styles.continueConversation}><Text style={styles.continueConversationText}>Show fewer replies</Text></Pressable>:null}
+    </>:
       <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} onPress={()=>openConversation(comment.id)} style={styles.continueConversation}>
         <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Continue conversation · {countThreadReplies(comment)} more {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
-    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
+    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested,contextOnly&&{marginLeft:Math.min(depth,commentDepthLimit)*14}]}>
       <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
@@ -2296,6 +2306,7 @@ export default function PostDetailScreen() {
               <Text style={[styles.commentVoteScore,comment.viewer_vote!==0&&styles.commentVoteScoreActive]}>{comment.vote_score??0}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||comment.id.startsWith('optimistic-')||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={21} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
             </View>
+            {!comment.is_deleted && <Pressable accessibilityRole="button" accessibilityLabel={`Reply to comment: ${comment.id}`} disabled={submitting || comment.id.startsWith('optimistic-')} onPress={() => startReply(comment)} delayLongPress={220} onLongPress={() => openCommentActions(comment)} hitSlop={6} style={styles.commentVoteButton}><Ionicons name="return-down-forward-outline" size={18} color={colors.mutedText}/></Pressable>}
           </View>
           </View>
         </View>}
@@ -2458,7 +2469,7 @@ export default function PostDetailScreen() {
       .trim()
       .length <=
       2000 &&
-    !submitting;
+    !submitting && Boolean(!focusedThreadId || replyTo || editingComment);
 
   return (
     <SafeAreaView
@@ -3071,7 +3082,7 @@ export default function PostDetailScreen() {
           {focusedThreadId?<View style={styles.conversationContext}>
             <Text style={styles.conversationContextTitle}>Focused conversation</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="View all post comments" onPress={()=>router.replace({pathname:'/post/[id]',params:{id:postId}})} style={styles.continueConversation}><Ionicons name="arrow-back-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View all comments</Text></Pressable>
-            {focusedThread?.parent_comment_id?<Pressable accessibilityRole="button" accessibilityLabel="View parent conversation" onPress={()=>openConversation(focusedThread.parent_comment_id!)} style={styles.continueConversation}><Text style={styles.continueConversationText}>View parent conversation</Text></Pressable>:null}
+            <Text style={styles.conversationContextHint}>Tap a reply arrow to reply. Hold a comment for more actions.</Text>
           </View>:null}
           <View
             style={
@@ -3091,7 +3102,7 @@ export default function PostDetailScreen() {
                 styles.commentsCountLabel
               }
             >
-              {focusedThread?countThreadReplies(focusedThread)+1:comments.length}
+              {focusedThread?countThreadReplies(focusedThread)+focusedAncestors.length+1:comments.length}
             </Text>
           </View>
 
@@ -3158,14 +3169,10 @@ export default function PostDetailScreen() {
           {thread.length >
           0 ? (
             <View onLayout={event=>setCommentAreaWidth(event.nativeEvent.layout.width)} style={styles.threadList}>
-              {thread.map(
-                (
-                  comment
-                ) =>
-                  renderComment(
-                    comment
-                  )
-              )}
+              {focusedAncestors.map((comment,index)=>renderComment(comment,index,true))}
+              <View style={focusedAncestors.length?{marginLeft:Math.min(focusedAncestors.length,commentDepthLimit)*14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border}:undefined}>
+                {thread.map(comment=>renderComment(comment))}
+              </View>
             </View>
           ) : (
             <View
@@ -3284,7 +3291,7 @@ export default function PostDetailScreen() {
               styles.composer
             }
           >
-            <TextInput accessibilityLabel="Comment reply text" editable={!submitting}
+            <TextInput accessibilityLabel="Comment reply text" editable={!submitting && Boolean(!focusedThreadId || activeReplyTarget || editingComment)}
               ref={
                 commentInputRef
               }
@@ -3301,6 +3308,8 @@ export default function PostDetailScreen() {
                   ? 'Edit your comment…'
                   : activeReplyTarget
                   ? 'Write a reply…'
+                  : focusedThreadId
+                  ? 'Choose a comment to reply…'
                   : 'Add a comment…'
               }
               placeholderTextColor={
@@ -4404,6 +4413,7 @@ function createStyles(
         11,
     },
     conversationContext:{paddingVertical:10,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border,marginBottom:8},
+    conversationContextHint:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12,marginTop:4},
     conversationContextTitle:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:13},
     continueConversation:{flexDirection:'row',alignItems:'center',gap:7,minHeight:36,paddingVertical:7},
     continueConversationText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11},
