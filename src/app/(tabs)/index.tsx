@@ -1,3 +1,5 @@
+import {useCommentSheetContinuation} from '../../lib/use-comment-sheet-continuation';
+import CommentBranchGuide from '../../components/CommentBranchGuide';
 import {isTransientReadError} from '../../lib/session-read-cache';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
 import {getAccountEntryRoute} from '../../lib/account-entry';
@@ -1510,9 +1512,13 @@ export default function HomeScreen() {
     }
   }
 
+  const commentsListRef=useRef<ScrollView|null>(null);
+  const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef);
+
   function openCommentsSheet(
     post: FeedPost
   ) {
+    commentsContinuation.reset();
     activeCommentsPostId.current=post.id;
     commentsViewGeneration.current+=1;
     if (post.club_discussion?.contains_spoilers) {
@@ -1688,6 +1694,7 @@ export default function HomeScreen() {
   }
 
   function handleCommentsModalDismiss() {
+    if(commentsContinuation.onDismiss())return;
     commentsResultOpacity.stopAnimation();
     commentsEmptyOpacity.stopAnimation();
     commentsResultOpacity.setValue(
@@ -3889,7 +3896,7 @@ export default function HomeScreen() {
           },
         ]}
       >
-        {visualDepth?<View pointerEvents="none" style={styles.commentBranchDot}/>:null}
+        {visualDepth?<CommentBranchGuide/>:null}
         <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted)openCommentActions(comment);}}
           style={[
             styles.sheetComment,
@@ -4174,8 +4181,9 @@ export default function HomeScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={`View conversation: ${comment.id}`} style={styles.continueSheetConversation} onPress={() => {
             if (!commentsPost) return;
             const id=commentsPost.id;
-            closeCommentsSheet();
-            router.push({pathname: '/post/[id]/conversation', params: {id, threadId: comment.id, commentId: comment.id}});
+            preserveHomeStateOnNextBlur.current=true;
+            Keyboard.dismiss();
+            commentsContinuation.suspend(()=>router.push({pathname: '/post/[id]/conversation', params: {id, threadId: comment.id, commentId: comment.id}}));
           }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>View conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
         ) : visibleChildren.length >
         0 ? (
@@ -7046,9 +7054,7 @@ export default function HomeScreen() {
         }
         transparent
         animationType="none"
-        onShow={
-          animateCommentsSheetIn
-        }
+        onShow={()=>{if(!commentsContinuation.onShow())animateCommentsSheetIn();}}
         onDismiss={
           handleCommentsModalDismiss
         }
@@ -7307,7 +7313,7 @@ export default function HomeScreen() {
                   >
                     {rootComments.length >
                     0 ? (
-                      <ScrollView
+                      <ScrollView ref={commentsListRef} onScroll={event=>commentsContinuation.onScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}
                         onTouchStart={
                           handleCommentComposerOutsideTouch
                         }
@@ -10169,7 +10175,6 @@ function createStyles(
     },
     continueSheetConversation: {minHeight:32,flexDirection:'row',alignItems:'center',gap:6,marginLeft:23,paddingVertical:5},
     continueSheetConversationText: {color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11,flexShrink:1},
-    commentBranchDot:{position:'absolute',left:0,top:18,width:5,height:5,borderRadius:3,backgroundColor:colors.gold,opacity:0.55},
     sheetCommentThread: { gap: 1,
     },
     sheetComment: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 4,

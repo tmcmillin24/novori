@@ -1,3 +1,4 @@
+import CommentBranchGuide from '../../components/CommentBranchGuide';
 import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
@@ -2256,7 +2257,7 @@ export default function PostDetailScreen() {
         <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View conversation · {countThreadReplies(comment)} {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
     return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
-      {nested?<View pointerEvents="none" style={styles.commentBranchDot}/>:null}
+      {nested?<CommentBranchGuide/>:null}
       <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
@@ -3053,13 +3054,7 @@ export default function PostDetailScreen() {
               styles.commentsHeader
             }
           >
-            <Text
-              style={
-                styles.commentsTitle
-              }
-            >
-              {focusedThreadId?'Conversation':'Comments'}
-            </Text>
+            {!focusedThreadId?<Text style={styles.commentsTitle}>Comments</Text>:null}
 
             <Text
               style={
@@ -4379,7 +4374,6 @@ function createStyles(
     continueConversationBranch:{marginLeft:23},
     continueConversationText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11},
     commentThreadNested:{marginLeft:14,paddingLeft:9},
-    commentBranchDot:{position:'absolute',left:0,top:18,width:5,height:5,borderRadius:3,backgroundColor:colors.gold,opacity:0.55},
     backToPost:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12},
     threadList: {gap:2},
     commentThread: {gap:1},

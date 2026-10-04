@@ -234,3 +234,7 @@ test('focused reading hides the post and composer until Reply is chosen, then ca
 test('comment deletion can be cancelled without issuing a write',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([{...comment,is_own:true}]);await render(<PostDetailScreen/>);await act(async()=>button('Comment: comment-1').props.onLongPress());const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Delete'));await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(110));const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);await act(async()=>sheet.props.onDismiss());expect(view.root.findByType('DeletePostConfirmSheet').props.visible).toBe(false);expect(deletePostComment).not.toHaveBeenCalled();
 });
+
+test('focused conversations have one title instead of repeating the header',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(view.root.findAllByType('Text').filter(node=>node.props.children==='Conversation')).toHaveLength(1);
+});
