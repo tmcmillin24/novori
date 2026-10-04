@@ -1,6 +1,7 @@
 import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
-import {COMMENT_REPLY_BATCH_SIZE,getCommentAncestorPath,getCommentBranchIds,buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
+import {COMMENT_REPLY_BATCH_SIZE,getCommentBranchIds,buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import { discussionRevealKey } from '../../lib/club-discussion';
@@ -729,7 +730,7 @@ export default function PostDetailScreen() {
   const threadData=useMemo(()=>buildCommentThreads(comments,commentSort),[comments,commentSort]);
   const focusedThreadId=getFocusedConversationId(comments,requestedThreadId,targetCommentId,commentDepthLimit);
   const focusedThread=threadData.nodes.get(focusedThreadId);
-  const focusedParent=useMemo(()=>{const path=getCommentAncestorPath(threadData.nodes,focusedThreadId);return path[path.length-1];},[threadData,focusedThreadId]);
+  const [deleteCommentTarget,setDeleteCommentTarget]=useState<ThreadComment|null>(null);
   const [visibleReplyCounts,setVisibleReplyCounts]=useState<Record<string,number>>({});
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
   const activeReplyTarget=replyTo;
@@ -1955,36 +1956,7 @@ export default function PostDetailScreen() {
     }
   }
 
-  function confirmDelete(
-    comment:
-      ThreadComment
-  ) {
-    Alert.alert(
-      'Delete comment?',
-      comment.children.length >
-        0
-        ? 'This will also remove replies underneath this comment.'
-        : 'This comment will be permanently removed.',
-      [
-        {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Delete',
-          style:
-            'destructive',
-          onPress: () =>
-            removeComment(
-              comment.id
-            ),
-        },
-      ]
-    );
-  }
+  function confirmDelete(comment:ThreadComment){setDeleteCommentTarget(comment);}
 
   async function removeComment(
     commentId: string
@@ -2032,6 +2004,7 @@ export default function PostDetailScreen() {
         'Could not delete comment',
         'Please try again.'
       );
+      throw deleteError;
     } finally {
       setDeletingCommentId(
         null
@@ -2283,6 +2256,7 @@ export default function PostDetailScreen() {
         <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View conversation · {countThreadReplies(comment)} {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
     return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
+      {nested?<View pointerEvents="none" style={styles.commentBranchDot}/>:null}
       <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
@@ -2517,11 +2491,7 @@ export default function PostDetailScreen() {
           {focusedThreadId?'Conversation':'Post'}
         </Text>
 
-        <View
-          style={
-            styles.headerButton
-          }
-        />
+        {focusedThreadId?<Pressable accessibilityRole="button" accessibilityLabel="Back to post" onPress={()=>router.dismissTo({pathname:'/post/[id]',params:{id:postId}})} hitSlop={8}><Text style={styles.backToPost}>Back to post</Text></Pressable>:<View style={styles.headerButton}/>}
       </View>
 
       {loadWarning?<View style={{paddingHorizontal:16,paddingVertical:8,backgroundColor:colors.background}}><Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12}}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={()=>void loadData(false,true)}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:6}}>Try again</Text></Pressable></View>:null}
@@ -2577,7 +2547,7 @@ export default function PostDetailScreen() {
             />
           }
         >
-          <View
+          {!focusedThreadId ? <View
             style={
               styles.postCard
             }
@@ -3075,15 +3045,9 @@ export default function PostDetailScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </View> : discussionSpoilersHidden && post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion} detail revealed={false} onReveal={()=>setRevealedDiscussion(discussionRevealKey(post.club_discussion!))}/> : null}
 
           {!discussionSpoilersHidden ? <>
-          {focusedThreadId?<View style={styles.conversationContext}>
-            <Text style={styles.conversationContextTitle}>Conversation</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="View all post comments" onPress={()=>router.replace({pathname:'/post/[id]',params:{id:postId}})} style={styles.continueConversation}><Ionicons name="arrow-back-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View all comments</Text></Pressable>
-            {focusedParent?<Pressable accessibilityRole="button" accessibilityLabel="View parent comment" onPress={()=>openConversation(focusedParent.id)} style={styles.continueConversation}><Ionicons name="arrow-up-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View parent comment</Text></Pressable>:null}
-            <Text style={styles.conversationContextHint}>Tap a reply arrow to reply. Hold a comment for more actions.</Text>
-          </View>:null}
           <View
             style={
               styles.commentsHeader
@@ -3207,7 +3171,7 @@ export default function PostDetailScreen() {
           </> : null}
         </ScrollView>
 
-        {!discussionSpoilersHidden && (!focusedThreadId || focusedThread) ? <KeyboardStickyView
+        {!discussionSpoilersHidden && (!focusedThreadId || (focusedThread && (activeReplyTarget || editingComment))) ? <KeyboardStickyView
           offset={{
             closed:
               0,
@@ -3305,8 +3269,6 @@ export default function PostDetailScreen() {
                   ? 'Edit your comment…'
                   : activeReplyTarget
                   ? 'Write a reply…'
-                  : focusedThreadId
-                  ? 'Choose a comment to reply…'
                   : 'Add a comment…'
               }
               placeholderTextColor={
@@ -3363,6 +3325,7 @@ export default function PostDetailScreen() {
           </View>
           </View>
         </KeyboardStickyView> : null}
+        <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async()=>{if(deleteCommentTarget)await removeComment(deleteCommentTarget.id);}} onDismiss={()=>setDeleteCommentTarget(null)}/>
       </View>
 
       {commentActionTarget ? (
@@ -4415,7 +4378,9 @@ function createStyles(
     continueConversation:{flexDirection:'row',alignItems:'center',gap:7,minHeight:36,paddingVertical:7},
     continueConversationBranch:{marginLeft:23},
     continueConversationText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11},
-    commentThreadNested:{marginLeft:14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border},
+    commentThreadNested:{marginLeft:14,paddingLeft:9},
+    commentBranchDot:{position:'absolute',left:0,top:18,width:5,height:5,borderRadius:3,backgroundColor:colors.gold,opacity:0.55},
+    backToPost:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12},
     threadList: {gap:2},
     commentThread: {gap:1},
     commentCard: {backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingVertical:4,paddingHorizontal:0},

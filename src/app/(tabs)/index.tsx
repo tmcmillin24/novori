@@ -2569,33 +2569,9 @@ export default function HomeScreen() {
     }
   }
 
-  function confirmDeleteComment(
-    comment:
-      PostComment
-  ) {
-    Alert.alert(
-      'Delete comment?',
-      'This comment and any replies underneath it will be removed.',
-      [
-        {
-          text:
-            'Cancel',
-          style:
-            'cancel',
-        },
-        {
-          text:
-            'Delete',
-          style:
-            'destructive',
-          onPress: () =>
-            void removeSheetComment(
-              comment.id
-            ),
-        },
-      ]
-    );
-  }
+  const [deleteCommentTarget,setDeleteCommentTarget]=useState<PostComment|null>(null);
+
+  function confirmDeleteComment(comment:PostComment){setDeleteCommentTarget(comment);}
 
   async function removeSheetComment(
     commentId: string
@@ -2646,6 +2622,7 @@ export default function HomeScreen() {
         'Could not delete comment',
         'Please try again.'
       );
+      throw error;
     } finally {
       setDeletingCommentId(
         null
@@ -3909,11 +3886,10 @@ export default function HomeScreen() {
               visualDepth *
               14,
             paddingLeft: visualDepth ? 9 : 0,
-            borderLeftWidth: visualDepth ? StyleSheet.hairlineWidth : 0,
-            borderLeftColor: colors.border,
           },
         ]}
       >
+        {visualDepth?<View pointerEvents="none" style={styles.commentBranchDot}/>:null}
         <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted)openCommentActions(comment);}}
           style={[
             styles.sheetComment,
@@ -6817,6 +6793,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
+      <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async()=>{if(deleteCommentTarget)await removeSheetComment(deleteCommentTarget.id);}} onDismiss={()=>setDeleteCommentTarget(null)}/>
       <DeletePostConfirmSheet
         visible={
           Boolean(
@@ -10192,6 +10169,7 @@ function createStyles(
     },
     continueSheetConversation: {minHeight:32,flexDirection:'row',alignItems:'center',gap:6,marginLeft:23,paddingVertical:5},
     continueSheetConversationText: {color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11,flexShrink:1},
+    commentBranchDot:{position:'absolute',left:0,top:18,width:5,height:5,borderRadius:3,backgroundColor:colors.gold,opacity:0.55},
     sheetCommentThread: { gap: 1,
     },
     sheetComment: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 4,
