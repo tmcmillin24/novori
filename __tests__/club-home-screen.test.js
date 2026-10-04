@@ -197,9 +197,12 @@ test('guide can recover from a failed preference load without changing mute or w
   getClubMemberExperience.mockRejectedValueOnce(new Error('Temporary outage.'));await render();await press('Open club options');await press('Club guide');expect(text()).toContain('MAKE YOURSELF AT HOME');expect(getClubMemberExperience).toHaveBeenCalledTimes(2);expect(setClubNotificationsEnabled).not.toHaveBeenCalled();expect(dismissClubWelcome).not.toHaveBeenCalled();
 });
 
-test('club options share the current club without changing membership',async()=>{
+test('header shares the current club while its options sheet stays closed',async()=>{
  await act(async()=>{view=renderer.create(<ClubDetailScreen/>);});
- const options=view.root.findByType(ClubOptionsSheet);
- await act(async()=>options.props.onShare());
+ expect(view.root.findByType(ClubOptionsSheet).props.visible).toBe(false);
+ await press('Share club');
+ expect(view.root.findByType(ClubOptionsSheet).props.visible).toBe(false);
+ await press('Open club options');
+ expect(view.root.findAllByType('Pressable').filter(node=>node.props.accessibilityLabel==='Share club')).toHaveLength(1);
  expect(require('../src/lib/share-links').shareClubLink).toHaveBeenCalledWith({clubId:base.id,name:base.name});
 });

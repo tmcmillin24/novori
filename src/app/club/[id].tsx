@@ -4862,6 +4862,7 @@ export default function ClubDetailScreen() {
       edges={['top']}
     >
       <View style={styles.header}>
+        <View style={styles.headerActions}>
         <Pressable
           onPress={() => router.back()}
           hitSlop={10}
@@ -4876,6 +4877,7 @@ export default function ClubDetailScreen() {
             color={colors.text}
           />
         </Pressable>
+        </View>
 
         <Text
           style={styles.headerTitle}
@@ -4884,8 +4886,14 @@ export default function ClubDetailScreen() {
           Club
         </Text>
 
-        {club ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }}
-          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text} /></Pressable> : <View style={styles.headerSpacer} />}
+        <View style={styles.headerActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Share club" onPress={() => { Keyboard.dismiss(); void handleShareClub(); }}
+            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+            <Ionicons name="share-social-outline" size={23} color={colors.text} />
+          </Pressable>
+          {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }}
+            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text} /></Pressable> : <View style={styles.headerSpacer} />}
+        </View>
       </View>
 
       <ScrollView
@@ -5639,7 +5647,7 @@ export default function ClubDetailScreen() {
       <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={visiblePinnedPosts} busy={pinBusy}
         onPin={(postId,pinned,replacePostId) => void handleClubPin(postId,pinned,replacePostId)} onDismiss={() => setPinTarget(null)} />
 
-      <ClubOptionsSheet onShare={() => void handleShareClub()} visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
+      <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
         notificationsEnabled={memberExperience?.notifications_enabled} globalNotificationsEnabled={memberExperience?.global_notifications_enabled} notificationsBusy={experienceBusy}
         hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)} />
       <ValidationWarningSheet visible={Boolean(experienceWarning)} title="Club preferences" message={experienceWarning} onDismiss={()=>setExperienceWarning('')}/>
@@ -6750,6 +6758,7 @@ function createStyles(colors: NovoriColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
+    headerActions: { width: 80, flexDirection: 'row', alignItems: 'center' },
     headerButton: {
       width: 40,
       height: 40,
