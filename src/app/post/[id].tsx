@@ -1,4 +1,5 @@
 import {openCommentConversation} from '../../lib/open-comment-conversation';
+import {conversationDestinationLaidOut} from '../../lib/conversation-handoff';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
 import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
@@ -2238,7 +2239,7 @@ export default function PostDetailScreen() {
   }
 
   if (loading && (requestedThreadId || targetCommentId)) {
-    return <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
+    return <SafeAreaView onLayout={()=>conversationDestinationLaidOut(postId,requestedThreadId||targetCommentId)} style={styles.safeArea} edges={['top','bottom']}>
       <View style={[styles.header,styles.conversationHeader]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={()=>router.back()} style={[styles.headerButton,styles.focusedHeaderBack]}><Ionicons name="chevron-back" size={24} color={colors.text}/></Pressable>
         <Text style={[styles.headerTitle,styles.focusedHeaderTitle]}>Conversation</Text>
@@ -2256,6 +2257,7 @@ export default function PostDetailScreen() {
   ) {
     return (
       <SafeAreaView
+        onLayout={()=>conversationDestinationLaidOut(postId,requestedThreadId||targetCommentId)}
         style={
           styles.safeArea
         }
@@ -2286,6 +2288,7 @@ export default function PostDetailScreen() {
   ) {
     return (
       <SafeAreaView
+        onLayout={()=>conversationDestinationLaidOut(postId,requestedThreadId||targetCommentId)}
         style={
           styles.safeArea
         }
@@ -2410,6 +2413,7 @@ export default function PostDetailScreen() {
 
   return (
     <SafeAreaView
+        onLayout={()=>conversationDestinationLaidOut(postId,requestedThreadId||targetCommentId)}
       style={
         styles.safeArea
       }
