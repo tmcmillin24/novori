@@ -1,141 +1,62 @@
+import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useRef } from 'react';
-import { Animated, Easing, Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
-
-export type ClubReadAction = 'edit'|'current'|'upcoming'|'past'|'remove';
+export type ClubReadAction = 'edit' | 'current' | 'upcoming' | 'past' | 'remove';
 type Action = ClubReadAction;
-type Props = { visible: boolean; bookTitle: string; status: 'current'|'upcoming'|'past'; onAction: (action:Action)=>void; onDismiss:()=>void };
-const actionDetails = {edit:{label:'Edit club read',icon:'create-outline'},current:{label:'Make current read',icon:'book-outline'},upcoming:{label:'Move to upcoming',icon:'time-outline'},past:{label:'Move to past reads',icon:'checkmark-circle-outline'},remove:{label:'Remove club read',icon:'trash-outline'}} as const;
-export default function ClubReadActionsSheet({visible,bookTitle,status,onAction,onDismiss}: Props) {
-  const details = {...actionDetails,past:{...actionDetails.past,label:status==='current'?'Finish club read':'Move to past reads'}};
-  const { colors } = useNovoriTheme();
-  const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const translateY = useRef(new Animated.Value(12)).current;
-  const sheetOpacity = useRef(new Animated.Value(0)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const sheetHeight = useRef(0);
-  const closing = useRef(false);
-  const pendingAction = useRef<(() => void) | undefined>(undefined);
-  const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
-
-  // Match Novori's existing fade, slide, and drag dismissal behavior.
-  function animateIn() {
-    closing.current = false;
-    pendingAction.current = undefined;
-    translateY.stopAnimation();
-    sheetOpacity.stopAnimation();
-    backdropOpacity.stopAnimation();
-    translateY.setValue(12);
-    sheetOpacity.setValue(0);
-    backdropOpacity.setValue(0);
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: 0, duration: 135, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(sheetOpacity, { toValue: 1, duration: 105, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 125, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }
-
-  function finishClose(finished: boolean) {
-    closing.current = false;
-    if (!finished) return;
-    translateY.setValue(12);
-    sheetOpacity.setValue(0);
-    backdropOpacity.setValue(0);
-    const action = pendingAction.current;
-    pendingAction.current = undefined;
-    onDismissRef.current();
-    action?.();
-  }
-
-  function closeSmoothly(action?: () => void) {
-    if (closing.current) return;
-    closing.current = true;
-    pendingAction.current = action;
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: 12, duration: 115, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(sheetOpacity, { toValue: 0, duration: 100, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 120, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-    ]).start(({ finished }) => finishClose(finished));
-  }
-
-  function dismissByGesture() {
-    if (closing.current) return;
-    closing.current = true;
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: Math.max(sheetHeight.current + 32, 420), duration: 190, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 0, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start(({ finished }) => finishClose(finished));
-  }
-
-  function restorePosition() {
-    Animated.parallel([
-      Animated.spring(translateY, { toValue: 0, damping: 24, stiffness: 220, mass: 0.9, useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
-  }
-
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => !closing.current && gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-    onPanResponderMove: (_, gesture) => {
-      translateY.setValue(Math.max(0, gesture.dy));
-      backdropOpacity.setValue(Math.max(0.18, 1 - Math.max(0, gesture.dy) / 520));
-    },
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dy > 88 || gesture.vy > 0.72) dismissByGesture();
-      else restorePosition();
-    },
-    onPanResponderTerminate: restorePosition,
-  }), [translateY, sheetOpacity, backdropOpacity]);
-
-  return (
-    <Modal visible={visible} transparent animationType="none" onShow={animateIn} onRequestClose={() => closeSmoothly()}>
+type Props = {
+    visible: boolean;
+    bookTitle: string;
+    status: 'current' | 'upcoming' | 'past';
+    onAction: (action: Action) => void;
+    onDismiss: () => void;
+};
+const actionDetails = { edit: { label: 'Edit club read', icon: 'create-outline' }, current: { label: 'Make current read', icon: 'book-outline' }, upcoming: { label: 'Move to upcoming', icon: 'time-outline' }, past: { label: 'Move to past reads', icon: 'checkmark-circle-outline' }, remove: { label: 'Remove club read', icon: 'trash-outline' } } as const;
+export default function ClubReadActionsSheet({ visible, bookTitle, status, onAction, onDismiss }: Props) {
+    const details = { ...actionDetails, past: { ...actionDetails.past, label: status === 'current' ? 'Finish club read' : 'Move to past reads' } };
+    const { colors } = useNovoriTheme();
+    const insets = useSafeAreaInsets();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+    const motion = useUiSheetMotion({ visible, busy: false, onDismiss: onDismiss });
+    const closeSmoothly = motion.close;
+    // Match Novori's existing fade, slide, and drag dismissal behavior.
+    return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
       <Pressable style={styles.backdrop} onPress={() => closeSmoothly()}>
-        <Animated.View pointerEvents="none" style={[styles.backdropVisual, { opacity: backdropOpacity }]} />
-        <Animated.View {...panResponder.panHandlers} accessibilityViewIsModal
-          onLayout={(event) => { sheetHeight.current = event.nativeEvent.layout.height; }}
-          style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12), opacity: sheetOpacity, transform: [{ translateY }] }]}>
+        <UiSheetBackdrop pointerEvents="none" style={[styles.backdropVisual, {}]} motion={motion}/>
+        <UiSheetSurface accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12) }]} motion={motion}>
           <Pressable onPress={(event) => event.stopPropagation()}>
-            <View style={styles.handle} />
+            <View style={styles.handle}/>
             <Text style={styles.title} accessibilityRole="header">{bookTitle}</Text>
             <Text style={styles.period}>Club read options</Text>
-            {(['edit','current','upcoming','past','remove'] as const).filter(action=>action!==status).map(action => <Pressable key={action} accessibilityRole="button"
-              accessibilityLabel={details[action].label} onPress={() => closeSmoothly(() => onAction(action))}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              <View style={styles.actionIcon}><Ionicons name={details[action].icon} size={20} color={action === 'remove' ? colors.danger : colors.gold} /></View>
+            {(['edit', 'current', 'upcoming', 'past', 'remove'] as const).filter(action => action !== status).map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={details[action].label} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+              <View style={styles.actionIcon}><Ionicons name={details[action].icon} size={20} color={action === 'remove' ? colors.danger : colors.gold}/></View>
               <Text style={[styles.actionText, action === 'remove' && { color: colors.danger }]}>{details[action].label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.mutedText} />
+              <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
             </Pressable>)}
-            {status!=='current'?<Text style={styles.note}>Making this the current read moves the previous one to past reads.</Text>:null}
-            <Pressable accessibilityRole="button" accessibilityLabel="Close club read options" onPress={() => closeSmoothly()}
-              style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+            {status !== 'current' ? <Text style={styles.note}>Making this the current read moves the previous one to past reads.</Text> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel="Close club read options" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>
-        </Animated.View>
+        </UiSheetSurface>
       </Pressable>
-    </Modal>
-  );
+    </UiSheetModal>);
 }
-
 function createStyles(colors: NovoriColors) {
-  return StyleSheet.create({
-    backdrop: { flex: 1, justifyContent: 'flex-end' },
-    backdropVisual: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.48)' },
-    sheet: { width: '100%', backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 10, overflow: 'hidden' },
-    handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 13 },
-    title: { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 21, textAlign: 'center' },
-    period: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 14 },
-    action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 12,
-      backgroundColor: colors.elevated, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-    actionIcon: { width: 28, alignItems: 'center' }, actionText: { flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-    note: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', marginTop: 4 },
-    cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-    cancelText: { color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-    pressed: { opacity: 0.76 },
-  });
+    return StyleSheet.create({
+        backdrop: { flex: 1, justifyContent: 'flex-end' },
+        backdropVisual: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.48)' },
+        sheet: { width: '100%', backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 10, overflow: 'hidden' },
+        handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 13 },
+        title: { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 21, textAlign: 'center' },
+        period: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 14 },
+        action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 12,
+            backgroundColor: colors.elevated, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+        actionIcon: { width: 28, alignItems: 'center' }, actionText: { flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+        note: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', marginTop: 4 },
+        cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+        cancelText: { color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+        pressed: { opacity: 0.76 },
+    });
 }

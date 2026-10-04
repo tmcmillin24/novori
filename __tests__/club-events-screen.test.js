@@ -1,3 +1,4 @@
+jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import CreateClubEventScreen from '../src/app/create-club-event';

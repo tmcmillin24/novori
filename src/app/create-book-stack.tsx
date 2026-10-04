@@ -1,3 +1,4 @@
+import {resolveStackDragTarget} from '../lib/stack-drag-target';
 import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -804,47 +805,7 @@ export default function CreateBookStackScreen() {
       return;
     }
 
-    const rowHeight =
-      72;
-
-    const rawPosition =
-      startIndex +
-      translationY /
-        rowHeight;
-
-    const targetIndex =
-      Math.max(
-        0,
-        Math.min(
-          items.length -
-            1,
-          Math.round(
-            rawPosition
-          )
-        )
-      );
-
-    const fraction =
-      rawPosition -
-      Math.floor(
-        rawPosition
-      );
-
-    const edge:
-      StackDropEdge =
-        translationY ===
-        0
-          ? null
-          : translationY >
-            0
-          ? fraction <
-            0.5
-            ? 'top'
-            : 'bottom'
-          : fraction >
-            0.5
-          ? 'bottom'
-          : 'top';
+    const {index: targetIndex, edge} = resolveStackDragTarget(startIndex, translationY, items.length);
 
     dragTargetIndexRef.current =
       targetIndex;
@@ -1321,6 +1282,7 @@ export default function CreateBookStackScreen() {
                         key={item.googleBookId}
                         item={item}
                         index={index}
+                        rowCount={items.length}
                         isDragging={draggingBookId === item.googleBookId}
                         dropEdge={dragTargetIndex === index ? dragTargetEdge : null}
                         onDragStart={startBookDrag}

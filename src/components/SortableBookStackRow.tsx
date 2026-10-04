@@ -1,3 +1,5 @@
+import {resolveStackDragTarget} from '../lib/stack-drag-target';
+import {scheduleOnRN} from 'react-native-worklets';
 import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -10,7 +12,6 @@ import {
 } from 'react-native-gesture-handler';
 import Animated, {
   LinearTransition,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -31,6 +32,7 @@ export type StackDropEdge =
 type Props = {
   item: BookStackDraftItem;
   index: number;
+  rowCount: number;
   isDragging: boolean;
   dropEdge: StackDropEdge;
   onDragStart: (
@@ -52,6 +54,7 @@ const ROW_HEIGHT =
 export default function SortableBookStackRow({
   item,
   index,
+  rowCount,
   isDragging,
   dropEdge,
   onDragStart,
@@ -64,6 +67,8 @@ export default function SortableBookStackRow({
     createStyles(
       colors
     );
+
+  const lastDropKey = useSharedValue('');
 
   const translateY =
     useSharedValue(
@@ -109,6 +114,7 @@ export default function SortableBookStackRow({
         160
       )
       .onStart(() => {
+        lastDropKey.value = `${index}:null`;
         scale.value =
           withSpring(
             1.025,
@@ -118,12 +124,7 @@ export default function SortableBookStackRow({
             }
           );
 
-        runOnJS(
-          onDragStart
-        )(
-          item.googleBookId,
-          index
-        );
+        scheduleOnRN(onDragStart,item.googleBookId,index);
       })
       .onUpdate(
         (
@@ -132,12 +133,12 @@ export default function SortableBookStackRow({
           translateY.value =
             event.translationY;
 
-          runOnJS(
-            onDragMove
-          )(
-            item.googleBookId,
-            event.translationY
-          );
+          const target = resolveStackDragTarget(index, event.translationY, rowCount);
+          const key = `${target.index}:${target.edge}`;
+          if (key !== lastDropKey.value) {
+            lastDropKey.value = key;
+            scheduleOnRN(onDragMove,item.googleBookId,event.translationY);
+          }
         }
       )
       .onFinalize(() => {
@@ -159,9 +160,7 @@ export default function SortableBookStackRow({
             }
           );
 
-        runOnJS(
-          onDragEnd
-        )();
+        scheduleOnRN(onDragEnd);
       });
 
   const animatedStyle =

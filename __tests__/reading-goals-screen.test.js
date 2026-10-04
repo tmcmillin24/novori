@@ -1,3 +1,4 @@
+jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},useSharedValue:value=>require('react').useRef({value}).current,useAnimatedStyle:fn=>fn(),withTiming:value=>value,cancelAnimation:jest.fn()}));
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import ReadingGoalsScreen from '../src/app/reading-goals';

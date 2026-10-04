@@ -1,7 +1,8 @@
+import {scheduleOnRN,scheduleOnUI} from 'react-native-worklets';
 import {useCallback,useEffect,useMemo,useRef} from 'react';
 import {Keyboard} from 'react-native';
 import {Gesture} from 'react-native-gesture-handler';
-import {cancelAnimation,Easing,runOnJS,runOnUI,useAnimatedStyle,useSharedValue,withTiming} from 'react-native-reanimated';
+import {cancelAnimation,Easing,useAnimatedStyle,useSharedValue,withTiming} from 'react-native-reanimated';
 import {resolveCommentSheetSnap,type CommentSheetSnap} from './comment-sheet-snap';
 
 const enter=Easing.bezier(0.22,1,0.36,1);
@@ -28,7 +29,7 @@ export function useCommentSheetMotion(options:Options){
     stop();height.value=value;translateY.value=value;backdrop.value=0;fullSnap.value=snap==='full';moving.value=true;
   },[stop,height,translateY,backdrop,fullSnap,moving]);
   const open=useCallback((done:()=>void)=>{
-    runOnUI(()=>{
+    scheduleOnUI(()=>{
       'worklet';
       const generation=++entranceGeneration.value;
       moving.value=true;
@@ -40,24 +41,24 @@ export function useCommentSheetMotion(options:Options){
         if(generation!==entranceGeneration.value)return;
         backdrop.value=withTiming(1,{duration:180,easing:Easing.out(Easing.cubic)});
         translateY.value=withTiming(0,{duration:245,easing:opening},finished=>{
-          if(finished && generation===entranceGeneration.value){moving.value=false;runOnJS(done)();}
+          if(finished && generation===entranceGeneration.value){moving.value=false;scheduleOnRN(done);}
         });
       });
-    })();
+    });
   },[moving,backdrop,translateY,height,entranceGeneration]);
   const close=useCallback((done:()=>void)=>{
     entranceGeneration.value+=1;
     cancelAnimation(height);moving.value=true;
     backdrop.value=withTiming(0,{duration:210,easing:Easing.in(Easing.cubic)});
     translateY.value=withTiming(height.value,{duration:235,easing:exit},finished=>{
-      if(finished){moving.value=false;runOnJS(done)();}
+      if(finished){moving.value=false;scheduleOnRN(done);}
     });
   },[height,moving,backdrop,translateY,entranceGeneration]);
   const snap=useCallback((target:CommentSheetSnap)=>{
     const value=target==='full'?full:partial;
     fullSnap.value=target==='full';moving.value=true;
     height.value=withTiming(value,{duration:target==='full'?235:220,easing:enter},finished=>{
-      if(finished){moving.value=false;runOnJS(settled)(value,target==='full');}
+      if(finished){moving.value=false;scheduleOnRN(settled,value,target==='full');}
     });
   },[full,partial,fullSnap,moving,height,settled]);
   const gestures=useMemo(()=>{
@@ -68,7 +69,7 @@ export function useCommentSheetMotion(options:Options){
         dragging.value=true;
         cancelAnimation(height);startHeight.value=height.value;
         keyboardLock.value=keyboardVisible.value;
-        if(keyboardLock.value)runOnJS(dismissKeyboard)();
+        if(keyboardLock.value)scheduleOnRN(dismissKeyboard);
       })
       .onUpdate(event=>{
         if(!dragging.value || moving.value || keyboardLock.value)return;
@@ -80,11 +81,11 @@ export function useCommentSheetMotion(options:Options){
         const currentSnap=fullSnap.value?'full':'partial';
         const target=keyboardLock.value?currentSnap:resolveCommentSheetSnap(currentSnap,height.value,partial,full,event.translationY,event.velocityY);
         keyboardLock.value=false;
-        if(target==='dismiss'){moving.value=true;runOnJS(dragDismiss)(height.value);return;}
+        if(target==='dismiss'){moving.value=true;scheduleOnRN(dragDismiss,height.value);return;}
         const value=target==='full'?full:partial;
         fullSnap.value=target==='full';moving.value=true;
         height.value=withTiming(value,{duration:target==='full'?235:220,easing:enter},finished=>{
-          if(finished){moving.value=false;runOnJS(settled)(value,target==='full');}
+          if(finished){moving.value=false;scheduleOnRN(settled,value,target==='full');}
         });
       })
       .onFinalize((_event,success)=>{
@@ -95,7 +96,7 @@ export function useCommentSheetMotion(options:Options){
         const value=isFull?full:partial;
         fullSnap.value=isFull;moving.value=true;
         height.value=withTiming(value,{duration:220,easing:enter},finished=>{
-          if(finished){moving.value=false;runOnJS(settled)(value,isFull);}
+          if(finished){moving.value=false;scheduleOnRN(settled,value,isFull);}
         });
       });
     return {header:makeGesture(),left:makeGesture(),right:makeGesture()};

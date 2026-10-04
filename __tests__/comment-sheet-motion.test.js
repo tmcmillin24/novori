@@ -5,6 +5,7 @@ import {useCommentSheetMotion} from '../src/lib/use-comment-sheet-motion';
 import {resolveCommentSheetSnap} from '../src/lib/comment-sheet-snap';
 let mockAnimations=[],mockFrames=[];
 jest.mock('react-native',()=>({Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:value=>value.ios??value.default},TurboModuleRegistry:{get:()=>null}}));
+jest.mock('react-native-worklets',()=>({scheduleOnRN:(callback,...args)=>callback(...args),scheduleOnUI:(callback,...args)=>callback(...args)}));
 jest.mock('react-native-reanimated',()=>({
  Easing:{bezier:()=>()=>0,out:value=>value,in:value=>value,cubic:()=>0},
  useSharedValue:value=>require('react').useRef({value}).current,

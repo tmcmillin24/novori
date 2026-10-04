@@ -1,3 +1,4 @@
+jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import EditClubReadScreen from '../src/app/edit-club-read';
