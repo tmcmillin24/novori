@@ -642,54 +642,6 @@ export default function PostDetailScreen() {
         targetCommentId
       );
 
-      const scrollTimer =
-        setTimeout(
-          () => {
-            const target =
-              commentRefs.current[
-                targetCommentId
-              ];
-
-            const scroll =
-              scrollRef.current;
-
-            if (
-              !target ||
-              !scroll
-            ) {
-              return;
-            }
-
-            target.measureInWindow(
-              (
-                _x,
-                targetY
-              ) => {
-                scroll.getNativeScrollRef()?.measureInWindow(
-                  (
-                    _scrollX,
-                    scrollY
-                  ) => {
-                    scroll.scrollTo({
-                      y:
-                        Math.max(
-                          0,
-                          scrollYRef.current +
-                            targetY -
-                            scrollY -
-                            90
-                        ),
-                      animated:
-                        true,
-                    });
-                  }
-                );
-              }
-            );
-          },
-          450
-        );
-
       const highlightTimer =
         setTimeout(
           () => {
@@ -707,10 +659,6 @@ export default function PostDetailScreen() {
         );
 
       return () => {
-        clearTimeout(
-          scrollTimer
-        );
-
         clearTimeout(
           highlightTimer
         );
@@ -2286,6 +2234,20 @@ export default function PostDetailScreen() {
         </View>}
       </Pressable>{children}
     </View>;
+  }
+
+  if (loading && (requestedThreadId || targetCommentId)) {
+    return <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={()=>router.back()} style={[styles.headerButton,styles.focusedHeaderBack]}><Ionicons name="chevron-back" size={24} color={colors.text}/></Pressable>
+        <Text style={[styles.headerTitle,styles.focusedHeaderTitle]}>Conversation</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to post" onPress={()=>router.dismissTo({pathname:'/post/[id]',params:{id:postId}})} style={styles.focusedHeaderAction}><Text style={styles.backToPost}>Back to post</Text></Pressable>
+      </View>
+      <View style={styles.scrollContent}>
+        <View style={styles.conversationLoading}><ActivityIndicator size="small" color={colors.gold}/><Text style={styles.commentsCountLabel}>Loading conversation…</Text></View>
+        {[0,1,2].map(index=><View key={index} accessible={false} style={[styles.conversationPlaceholder,index>0&&{marginLeft:23}]}><View style={[styles.placeholderLine,{width:'35%'}]}/><View style={[styles.placeholderLine,{width:'90%'}]}/><View style={[styles.placeholderLine,{width:'65%'}]}/></View>)}
+      </View>
+    </SafeAreaView>;
   }
 
   if (
@@ -3870,6 +3832,9 @@ function createStyles(
     keyboardView: {
       flex: 1,
     },
+    conversationLoading:{height:44,flexDirection:'row',alignItems:'center',gap:8},
+    conversationPlaceholder:{paddingVertical:14,gap:9},
+    placeholderLine:{height:9,borderRadius:5,backgroundColor:colors.surface},
     focusedHeaderBack:{width:88,alignItems:'flex-start'},
     focusedHeaderAction:{width:88,height:42,alignItems:'flex-end',justifyContent:'center'},
     focusedHeaderTitle:{flex:1,textAlign:'center',fontSize:18},
