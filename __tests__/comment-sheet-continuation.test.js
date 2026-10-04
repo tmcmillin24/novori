@@ -6,6 +6,7 @@ import CommentBranchGuide from '../src/components/CommentBranchGuide';
 let mockFocus;
 jest.mock('expo-router',()=>({useFocusEffect:callback=>{mockFocus=callback;}}));
 jest.mock('react-native',()=>({Platform:{OS:'ios'},View:'View',Modal:'Modal',StyleSheet:{create:value=>value}}));
+jest.mock('react-native-gesture-handler',()=>({GestureHandlerRootView:'GestureHandlerRootView'}));
 jest.mock('react-native-screens',()=>({FullWindowOverlay:'FullWindowOverlay'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:{gold:'#b9975b'}})}));
 let view,api;const prepareResume=jest.fn();const setVisible=jest.fn();const scrollTo=jest.fn();const scroll={current:{scrollTo}};

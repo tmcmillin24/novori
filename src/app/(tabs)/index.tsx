@@ -1,3 +1,6 @@
+import Reanimated from 'react-native-reanimated';
+import {GestureDetector} from 'react-native-gesture-handler';
+import {useCommentSheetMotion} from '../../lib/use-comment-sheet-motion';
 import {openCommentConversation,hideCommentSheetForNavigation} from '../../lib/open-comment-conversation';
 import CommentsWindowOverlay from '../../components/CommentsWindowOverlay';
 import {useCommentSheetContinuation} from '../../lib/use-comment-sheet-continuation';
@@ -696,26 +699,8 @@ export default function HomeScreen() {
       null
     );
 
-  const commentsSheetHeight =
-    useRef(
-      new Animated.Value(
-        0
-      )
-    ).current;
 
-  const commentsEntranceTranslateY =
-    useRef(
-      new Animated.Value(
-        0
-      )
-    ).current;
 
-  const commentsBackdropOpacity =
-    useRef(
-      new Animated.Value(
-        1
-      )
-    ).current;
 
 
   const commentsEmptyOpacity =
@@ -744,10 +729,6 @@ export default function HomeScreen() {
       0
     );
 
-  const commentsSheetGestureStartHeight =
-    useRef(
-      0
-    );
 
   const commentsSheetSnap =
     useRef<
@@ -757,8 +738,6 @@ export default function HomeScreen() {
   const commentsSheetAnimating =
     useRef(false);
 
-  const commentsKeyboardGestureLock =
-    useRef(false);
 
   const preserveHomeStateOnNextBlur =
     useRef(false);
@@ -1498,23 +1477,30 @@ export default function HomeScreen() {
 
   const commentsOverlayRoot=useRef<View|null>(null);
   const commentsListRef=useRef<ScrollView|null>(null);
+  const commentsMotion=useCommentSheetMotion({
+    partial:commentsPartialHeight,full:commentsFullHeight,keyboardVisible:commentsKeyboardVisible,
+    onSettled:(height,snap)=>{
+      commentsSheetCurrentHeight.current=height;
+      commentsSheetSnap.current=snap;
+      commentsSheetAnimating.current=false;
+    },
+    onDragDismiss:height=>{
+      commentsSheetCurrentHeight.current=height;
+      closeCommentsSheet();
+    },
+  });
   const prepareCommentsResume=useCallback(()=>{
-    commentsEntranceTranslateY.stopAnimation();
-    commentsEntranceTranslateY.setValue(commentsSheetCurrentHeight.current);
-    commentsBackdropOpacity.setValue(0);
+    commentsMotion.prepare(commentsSheetCurrentHeight.current,commentsSheetSnap.current);
     commentsContentOpacity.setValue(1);
-  },[commentsEntranceTranslateY,commentsBackdropOpacity,commentsContentOpacity]);
+  },[commentsMotion.prepare,commentsContentOpacity]);
   const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef,prepareCommentsResume);
   function stopCommentsMotionForNavigation(){
     hideCommentSheetForNavigation(commentsOverlayRoot.current,()=>{
-    commentsSheetHeight.stopAnimation();
-    commentsEntranceTranslateY.stopAnimation();
-    commentsBackdropOpacity.stopAnimation();
-    commentsContentOpacity.stopAnimation();
-    commentsResultOpacity.stopAnimation();
-    commentsSheetAnimating.current=false;
-    commentsBackdropOpacity.setValue(0);
-    commentsContentOpacity.setValue(0);
+      commentsMotion.stop();
+      commentsContentOpacity.stopAnimation();
+      commentsResultOpacity.stopAnimation();
+      commentsSheetAnimating.current=false;
+      commentsContentOpacity.setValue(0);
     });
   }
 
@@ -1529,9 +1515,6 @@ export default function HomeScreen() {
       router.push({pathname: '/post/[id]', params: {id: post.id}});
       return;
     }
-    commentsSheetHeight.stopAnimation();
-    commentsEntranceTranslateY.stopAnimation();
-    commentsBackdropOpacity.stopAnimation();
     commentsContentOpacity.stopAnimation();
     commentsResultOpacity.stopAnimation();
     commentsEmptyOpacity.stopAnimation();
@@ -1553,22 +1536,10 @@ export default function HomeScreen() {
       false
     );
 
-    // The sheet is already at its final resting height.
-    // Only the outer entrance wrapper moves, so the opening
-    // animation never performs JS-thread layout work.
-    commentsSheetHeight.setValue(
-      commentsPartialHeight
-    );
-
-    commentsEntranceTranslateY.setValue(commentsPartialHeight);
-    commentsBackdropOpacity.setValue(
-      0
-    );
+    commentsMotion.prepare(commentsPartialHeight);
     commentsContentOpacity.setValue(1);
 
     commentsSheetCurrentHeight.current =
-      commentsPartialHeight;
-    commentsSheetGestureStartHeight.current =
       commentsPartialHeight;
     commentsSheetSnap.current =
       'partial';
@@ -1618,64 +1589,16 @@ export default function HomeScreen() {
 
   function animateCommentsSheetIn(restoring=false) {
     commentsSheetAnimating.current=true;
-    commentsEntranceTranslateY.stopAnimation();
-    commentsBackdropOpacity.stopAnimation();
-    commentsContentOpacity.stopAnimation();
-
-    Animated.parallel([
-      Animated.timing(
-        commentsEntranceTranslateY,
-        {
-          toValue:
-            0,
-          duration:
-            285,
-          easing:
-            Easing.bezier(
-              0.22,
-              1,
-              0.36,
-              1
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-      Animated.timing(
-        commentsBackdropOpacity,
-        {
-          toValue:
-            1,
-          duration:
-            180,
-          easing:
-            Easing.out(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-    ]).start(({
-      finished,
-    }) => {
-      commentsSheetAnimating.current =
-        false;
-
-      if (finished) {
-        if(!restoring){
-          commentsSheetCurrentHeight.current = commentsPartialHeight;
-          commentsSheetGestureStartHeight.current = commentsPartialHeight;
-        }
-        setCommentsSheetEntranceReady(
-          true
-        );
-      }
+    commentsMotion.open(()=>{
+      commentsSheetAnimating.current=false;
+      if(!restoring)commentsSheetCurrentHeight.current=commentsPartialHeight;
+      setCommentsSheetEntranceReady(true);
     });
   }
 
   function handleCommentsModalDismiss() {
     if(commentsContinuation.onDismiss())return;
+    commentsMotion.stop();
     commentsResultOpacity.stopAnimation();
     commentsEmptyOpacity.stopAnimation();
     commentsResultOpacity.setValue(
@@ -1701,18 +1624,7 @@ export default function HomeScreen() {
       'partial';
     commentsSheetCurrentHeight.current =
       0;
-    commentsSheetGestureStartHeight.current =
-      0;
 
-    commentsSheetHeight.setValue(
-      0
-    );
-    commentsEntranceTranslateY.setValue(
-      0
-    );
-    commentsBackdropOpacity.setValue(
-      0
-    );
     commentsContentOpacity.setValue(
       0
     );
@@ -1746,58 +1658,6 @@ export default function HomeScreen() {
     );
   }
 
-  function snapCommentsSheet(
-    target:
-      'partial' | 'full'
-  ) {
-    const targetHeight =
-      target ===
-        'full'
-        ? commentsFullHeight
-        : commentsPartialHeight;
-
-    commentsSheetSnap.current =
-      target;
-    commentsSheetAnimating.current =
-      true;
-
-    commentsSheetHeight.stopAnimation();
-
-    Animated.timing(
-      commentsSheetHeight,
-      {
-        toValue:
-          targetHeight,
-        duration:
-          target ===
-            'full'
-            ? 235
-            : 220,
-        easing:
-          Easing.bezier(
-            0.22,
-            1,
-            0.36,
-            1
-          ),
-        useNativeDriver:
-          false,
-      }
-    ).start(({
-      finished,
-    }) => {
-      commentsSheetAnimating.current =
-        false;
-
-      if (finished) {
-        commentsSheetCurrentHeight.current =
-          targetHeight;
-        commentsSheetGestureStartHeight.current =
-          targetHeight;
-      }
-    });
-  }
-
   function handleCommentsBackdropPress() {
     if (
       editingComment ||
@@ -1818,337 +1678,18 @@ export default function HomeScreen() {
   }
 
   function closeCommentsSheet() {
+    if(commentsSheetAnimating.current)return;
     activeCommentsPostId.current=null;
     commentsViewGeneration.current+=1;
     commentsReadSequence.current+=1;
-    if (
-      commentsSheetAnimating.current
-    ) {
-      return;
-    }
-
     Keyboard.dismiss();
-
-    commentsSheetAnimating.current =
-      true;
-
-    commentsEntranceTranslateY.stopAnimation();
-    commentsBackdropOpacity.stopAnimation();
-    commentsContentOpacity.stopAnimation();
-
-    Animated.parallel([
-      Animated.timing(
-        commentsEntranceTranslateY,
-        {
-          toValue: commentsSheetCurrentHeight.current,
-          duration:
-            235,
-          easing:
-            Easing.bezier(
-              0.32,
-              0,
-              0.67,
-              1
-            ),
-          useNativeDriver: true,
-        }
-      ),
-      Animated.timing(
-        commentsBackdropOpacity,
-        {
-          toValue:
-            0,
-          duration:
-            210,
-          easing:
-            Easing.in(
-              Easing.cubic
-            ),
-          useNativeDriver:
-            true,
-        }
-      ),
-    ]).start(({
-      finished,
-    }) => {
-      if (!finished) {
-        commentsSheetAnimating.current =
-          false;
-        return;
-      }
-
-      commentsSheetCurrentHeight.current =
-        0;
-      commentsSheetGestureStartHeight.current =
-        0;
-
-      setCommentsModalVisible(
-        false
-      );
+    commentsSheetAnimating.current=true;
+    commentsMotion.close(()=>{
+      commentsSheetAnimating.current=false;
+      commentsSheetCurrentHeight.current=0;
+      setCommentsModalVisible(false);
     });
   }
-
-  const commentsSheetPanResponder =
-    useMemo(
-      () =>
-        PanResponder.create({
-          onStartShouldSetPanResponder:
-            () =>
-              !commentsSheetAnimating.current,
-
-          onStartShouldSetPanResponderCapture:
-            () =>
-              !commentsSheetAnimating.current,
-
-          onMoveShouldSetPanResponder:
-            () =>
-              !commentsSheetAnimating.current,
-
-          onMoveShouldSetPanResponderCapture:
-            () =>
-              !commentsSheetAnimating.current,
-
-          onPanResponderGrant:
-            () => {
-              commentsKeyboardGestureLock.current =
-                commentsKeyboardVisible;
-
-              if (
-                commentsKeyboardGestureLock.current
-              ) {
-                Keyboard.dismiss();
-
-                const lockedHeight =
-                  commentsSheetSnap.current ===
-                  'full'
-                    ? commentsFullHeight
-                    : commentsPartialHeight;
-
-                commentsSheetHeight.stopAnimation();
-                commentsSheetHeight.setValue(
-                  lockedHeight
-                );
-
-                commentsSheetCurrentHeight.current =
-                  lockedHeight;
-                commentsSheetGestureStartHeight.current =
-                  lockedHeight;
-
-                return;
-              }
-
-              commentsSheetHeight.stopAnimation(
-                (
-                  value
-                ) => {
-                  commentsSheetCurrentHeight.current =
-                    value;
-                  commentsSheetGestureStartHeight.current =
-                    value;
-                }
-              );
-
-              commentsSheetGestureStartHeight.current =
-                commentsSheetCurrentHeight.current;
-
-            },
-
-          onPanResponderMove: (
-            _event,
-            gesture
-          ) => {
-            if (
-              commentsKeyboardGestureLock.current
-            ) {
-              return;
-            }
-
-            const nextHeight =
-              Math.max(
-                0,
-                Math.min(
-                  commentsFullHeight,
-                  commentsSheetGestureStartHeight.current -
-                    gesture.dy
-                )
-              );
-
-            commentsSheetCurrentHeight.current =
-              nextHeight;
-
-            commentsSheetHeight.setValue(
-              nextHeight
-            );
-          },
-
-          onPanResponderRelease: (
-            _event,
-            gesture
-          ) => {
-            if (
-              commentsKeyboardGestureLock.current
-            ) {
-              commentsKeyboardGestureLock.current =
-                false;
-
-              snapCommentsSheet(
-                commentsSheetSnap.current
-              );
-              return;
-            }
-
-            const currentSnap =
-              commentsSheetSnap.current;
-
-            const currentHeight =
-              commentsSheetCurrentHeight.current;
-
-            const fullToPartialMidpoint =
-              commentsPartialHeight +
-              (
-                commentsFullHeight -
-                commentsPartialHeight
-              ) *
-                0.52;
-
-            const partialDismissThreshold =
-              commentsPartialHeight *
-              0.68;
-
-            // Keyboard dismissal is independent of sheet snapping.
-            // The sheet still always resolves to a valid resting point.
-            if (
-              commentsKeyboardVisible
-            ) {
-              Keyboard.dismiss();
-            }
-
-            if (
-              currentSnap ===
-              'full'
-            ) {
-              const shouldDismissFromFull =
-                currentHeight <=
-                  partialDismissThreshold ||
-                gesture.dy >
-                  220 ||
-                gesture.vy >
-                  1.05;
-
-              if (
-                shouldDismissFromFull
-              ) {
-                closeCommentsSheet();
-                return;
-              }
-
-              const shouldReturnPartial =
-                currentHeight <=
-                  fullToPartialMidpoint ||
-                gesture.dy >
-                  56 ||
-                gesture.vy >
-                  0.42;
-
-              if (
-                shouldReturnPartial
-              ) {
-                snapCommentsSheet(
-                  'partial'
-                );
-                return;
-              }
-
-              snapCommentsSheet(
-                'full'
-              );
-              return;
-            }
-
-            const shouldDismiss =
-              currentHeight <=
-                partialDismissThreshold ||
-              gesture.dy >
-                118 ||
-              gesture.vy >
-                0.92;
-
-            if (
-              shouldDismiss
-            ) {
-              closeCommentsSheet();
-              return;
-            }
-
-            const shouldExpand =
-              currentHeight >=
-                fullToPartialMidpoint ||
-              gesture.dy <
-                -42 ||
-              gesture.vy <
-                -0.38;
-
-            if (
-              shouldExpand
-            ) {
-              snapCommentsSheet(
-                'full'
-              );
-              return;
-            }
-
-            snapCommentsSheet(
-              'partial'
-            );
-          },
-
-          onPanResponderTerminationRequest:
-            () => false,
-
-          onPanResponderTerminate:
-            () => {
-              if (
-                commentsKeyboardGestureLock.current
-              ) {
-                commentsKeyboardGestureLock.current =
-                  false;
-
-                snapCommentsSheet(
-                  commentsSheetSnap.current
-                );
-                return;
-              }
-
-              const distanceToPartial =
-                Math.abs(
-                  commentsSheetCurrentHeight.current -
-                    commentsPartialHeight
-                );
-
-              const distanceToFull =
-                Math.abs(
-                  commentsSheetCurrentHeight.current -
-                    commentsFullHeight
-                );
-
-              snapCommentsSheet(
-                distanceToFull <
-                  distanceToPartial
-                  ? 'full'
-                  : 'partial'
-              );
-            },
-
-          onShouldBlockNativeResponder:
-            () => true,
-        }),
-      [
-        commentsFullHeight,
-        commentsKeyboardVisible,
-        commentsPartialHeight,
-        commentsSheetHeight,
-      ]
-    );
 
   function startComposerWithKeyboard(
     action:
@@ -7031,14 +6572,11 @@ export default function HomeScreen() {
               styles.commentsBackdrop
             }
           >
-            <Animated.View
+            <Reanimated.View
               pointerEvents="none"
               style={[
                 styles.commentsBackdropVisual,
-                {
-                  opacity:
-                    commentsBackdropOpacity,
-                },
+                commentsMotion.backdropStyle,
               ]}
             >
               <BlurView
@@ -7056,7 +6594,7 @@ export default function HomeScreen() {
                   styles.commentsBackdropDim
                 }
               />
-            </Animated.View>
+            </Reanimated.View>
 
             <Pressable
               style={
@@ -7067,27 +6605,17 @@ export default function HomeScreen() {
               }
             />
 
-            <Animated.View
+            <Reanimated.View
               pointerEvents="box-none"
               style={[
                 styles.commentsEntranceLayer,
-                {
-                  transform: [
-                    {
-                      translateY:
-                        commentsEntranceTranslateY,
-                    },
-                  ],
-                },
+                commentsMotion.entranceStyle,
               ]}
             >
-              <Animated.View
+              <Reanimated.View
                 style={[
                   styles.commentsSheet,
-                  {
-                    height:
-                      commentsSheetHeight,
-                  },
+                  commentsMotion.sheetStyle,
                 ]}
               >
                 <Animated.View
@@ -7099,8 +6627,8 @@ export default function HomeScreen() {
                     },
                   ]}
                 >
-              <View
-                {...commentsSheetPanResponder.panHandlers}
+              <GestureDetector gesture={commentsMotion.gestures.header}><View
+                collapsable={false}
                 onTouchStart={
                   handleCommentComposerOutsideTouch
                 }
@@ -7127,7 +6655,7 @@ export default function HomeScreen() {
                     Comments
                   </Text>
                 </View>
-              </View>
+              </View></GestureDetector>
 
               <View
                 onTouchStart={
@@ -7223,8 +6751,8 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-              <View
-                {...commentsSheetPanResponder.panHandlers}
+              <GestureDetector gesture={commentsMotion.gestures.left}><View
+                collapsable={false}
                 onTouchStart={
                   handleCommentComposerOutsideTouch
                 }
@@ -7232,10 +6760,10 @@ export default function HomeScreen() {
                   styles.commentsSideRail,
                   styles.commentsSideRailLeft,
                 ]}
-              />
+              /></GestureDetector>
 
-              <View
-                {...commentsSheetPanResponder.panHandlers}
+              <GestureDetector gesture={commentsMotion.gestures.right}><View
+                collapsable={false}
                 onTouchStart={
                   handleCommentComposerOutsideTouch
                 }
@@ -7243,7 +6771,7 @@ export default function HomeScreen() {
                   styles.commentsSideRail,
                   styles.commentsSideRailRight,
                 ]}
-              />
+              /></GestureDetector>
 
               <View
                 onTouchStart={
@@ -8081,8 +7609,8 @@ export default function HomeScreen() {
                 </View>
               ) : null}
 
-              </Animated.View>
-            </Animated.View>
+              </Reanimated.View>
+            </Reanimated.View>
           </View>
         </View>
       </CommentsWindowOverlay>
