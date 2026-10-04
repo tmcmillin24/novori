@@ -17,10 +17,10 @@ import PostTypeIdentifier from './PostTypeIdentifier';
 import ReadingRecapPostAttachment from './ReadingRecapPostAttachment';
 import ValidationWarningSheet from './ValidationWarningSheet';
 
-type Props={post:FeedPost;currentUserId?:string|null;votingPostId?:string|null;deletingPostId?:string|null;allowExplicitLanguage?:boolean;onAlwaysShow?:()=>Promise<void>;onComments:(post:FeedPost)=>void;onVote:(id:string,vote:PostVoteValue)=>void;onMore?:(post:FeedPost)=>void;onShare:(post:FeedPost)=>void;onReader?:(id:string)=>void;onClub?:(id:string)=>void;renderText?:(content:string,targetType:'post'|'comment',targetId:string,textStyle:any,isOwnContent?:boolean)=>ReactNode};
+type Props={post:FeedPost;currentUserId?:string|null;votingPostId?:string|null;deletingPostId?:string|null;allowExplicitLanguage?:boolean;onAlwaysShow?:()=>Promise<void>;onOpen?:(post:FeedPost)=>void;onComments:(post:FeedPost)=>void;onVote:(id:string,vote:PostVoteValue)=>void;onMore?:(post:FeedPost)=>void;onShare:(post:FeedPost)=>void;onReader?:(id:string)=>void;onClub?:(id:string)=>void;renderText?:(content:string,targetType:'post'|'comment',targetId:string,textStyle:any,isOwnContent?:boolean)=>ReactNode};
 
 // The same post markup and styles serve Home and both Profile Activity views.
-export default function FeedPostCard({post,currentUserId,votingPostId,deletingPostId,allowExplicitLanguage=false,onAlwaysShow,onComments:openCommentsSheet,onVote:handlePostVote,onMore,onShare:shareFeedPost,onReader,onClub,renderText}:Props){
+export default function FeedPostCard({post,currentUserId,votingPostId,deletingPostId,allowExplicitLanguage=false,onAlwaysShow,onOpen,onComments:openCommentsSheet,onVote:handlePostVote,onMore,onShare:shareFeedPost,onReader,onClub,renderText}:Props){
  const {colors}=useNovoriTheme();const router=useRouter();const styles=useMemo(()=>createStyles(colors),[colors]);
  const [revealedExplicitPosts,setRevealedExplicitPosts]=useState<Record<string,boolean>>({});
  const [localExplicit,setLocalExplicit]=useState(false);const [warning,setWarning]=useState('');
@@ -268,9 +268,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
           post.id
         }
         onPress={() =>
-          openCommentsSheet(
-            post
-          )
+          (onOpen ?? openCommentsSheet)(post)
         }
         style={({ pressed }) => [
           styles.feedPostCard,

@@ -13,7 +13,7 @@ import {getPostComments,createPostComment} from '../src/lib/comments';
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
 jest.mock('react-native',()=>({
- Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
+ useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
  Modal:p=>p.visible?require('react').createElement('Modal',p,p.children):null,Alert:{alert:jest.fn()},Keyboard:{addListener:()=>({remove:()=>{}}),dismiss:jest.fn()},StyleSheet:{create:v=>v,absoluteFill:{},hairlineWidth:.5},
  Animated:{View:'AnimatedView',Value:class{setValue(){}stopAnimation(){}interpolate(){return 0;}},parallel:()=>({start:f=>f?.({finished:true})}),timing:()=>({start:f=>f?.({finished:true})}),spring:()=>({start:f=>f?.({finished:true})})},
  Easing:{out:v=>v,in:v=>v,inOut:v=>v,cubic:()=>{},quad:()=>{}},PanResponder:{create:()=>({panHandlers:{}})},
@@ -117,4 +117,21 @@ test('missing focused comments cannot accidentally publish to the post root',asy
 });
 test('focused routes preserve spoiler protection for the comment branch',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
+});
+
+test.each(['name','avatar','empty space'])('notification thread opens comment actions when holding the %s',async area=>{
+ mockParams={id:'post-1',commentId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
+ expect(button('Reply to comment: comment-1')).toBeUndefined();expect(button('Comment options: comment-1')).toBeUndefined();
+ const body=button('Comment: comment-1');
+ let card=body.parent;while(card.type!=='Pressable')card=card.parent;
+ const target=area==='name'?button('View reader: Another Reader'):area==='avatar'?button('View reader avatar: Another Reader'):card;
+ await act(async()=>target.props.onLongPress());
+ expect(text()).toContain('Reply');expect(text()).toContain('Report');expect(text()).toContain('Block');expect(mockRouter.push).not.toHaveBeenCalled();
+});
+test('focused notification replies use the Home placeholder and quote the parent comment',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
+ expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');
+ const composer=view.root.findByType('KeyboardStickyView');const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
+ expect(composerText).toContain('Replying to Another Reader');expect(composerText).toContain(comment.body);
+ const backdrop=composer.findAllByType('View').find(n=>n.props.pointerEvents==='none'&&n.props.style?.height===844);expect(backdrop).toBeDefined();expect(backdrop.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
 });

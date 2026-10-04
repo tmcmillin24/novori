@@ -21,3 +21,20 @@ test('an active account still opens Home',async()=>{await submit();expect(mockRo
 test('invalid deleted-account credentials use the animated Novori warning',async()=>{supabase.auth.signInWithPassword.mockResolvedValue({error:new Error('Invalid login credentials')});await submit();expect(view.root.findByType('ValidationWarningSheet').props).toMatchObject({visible:true,title:'Could not sign in',message:'Invalid login credentials'});expect(mockRouter.replace).not.toHaveBeenCalled();});
 
 test('the password eye reveals and hides the existing value without submitting',async()=>{await act(async()=>{view=renderer.create(<AuthScreen/>);});const input=()=>view.root.findAllByType('TextInput').find(n=>n.props.placeholder==='Password');await act(async()=>input().props.onChangeText('TypedPassword'));expect(input().props.secureTextEntry).toBe(true);await act(async()=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel==='Show password').props.onPress());expect(input().props.secureTextEntry).toBe(false);expect(input().props.value).toBe('TypedPassword');await act(async()=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel==='Hide password').props.onPress());expect(input().props.secureTextEntry).toBe(true);expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();});
+
+test('signup has independent eyes for both typed passwords and resets visibility on mode changes',async()=>{
+ await act(async()=>{view=renderer.create(<AuthScreen/>);});
+ const switchMode=()=>view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Create one'||t.props.children==='Sign in'));
+ await act(async()=>switchMode().props.onPress());
+ const input=placeholder=>view.root.findAllByType('TextInput').find(n=>n.props.placeholder===placeholder);
+ await act(async()=>{input('Password').props.onChangeText('FirstPassword');input('Confirm password').props.onChangeText('SecondPassword');});
+ const press=label=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel===label).props.onPress();
+ await act(async()=>press('Show confirm password'));
+ expect(input('Confirm password').props.secureTextEntry).toBe(false);expect(input('Password').props.secureTextEntry).toBe(true);
+ await act(async()=>press('Show password'));
+ expect(input('Password').props.secureTextEntry).toBe(false);expect(input('Confirm password').props.value).toBe('SecondPassword');
+ await act(async()=>press('Hide confirm password'));
+ expect(input('Confirm password').props.secureTextEntry).toBe(true);expect(input('Password').props.value).toBe('FirstPassword');
+ await act(async()=>switchMode().props.onPress());expect(input('Password').props.secureTextEntry).toBe(true);
+ expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();
+});

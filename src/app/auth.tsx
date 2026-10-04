@@ -38,6 +38,7 @@ export default function AuthScreen() {
   const router = useRouter();
 
   const [passwordVisible,setPasswordVisible]=useState(false);
+  const [confirmPasswordVisible,setConfirmPasswordVisible]=useState(false);
   const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(null);
   const [mode, setMode] =
     useState<AuthMode>('sign-in');
@@ -319,6 +320,7 @@ export default function AuthScreen() {
 
   function switchMode() {
     setPasswordVisible(false);
+    setConfirmPasswordVisible(false);
     setMode(
       isSignUp
         ? 'sign-in'
@@ -585,9 +587,10 @@ export default function AuthScreen() {
             </View>
 
             {isSignUp ? (
+              <View style={styles.passwordField}>
               <TextInput
                 style={
-                  styles.input
+                  [styles.input, styles.passwordWithToggle]
                 }
                 placeholder="Confirm password"
                 placeholderTextColor={
@@ -599,7 +602,7 @@ export default function AuthScreen() {
                 onChangeText={
                   setConfirmPassword
                 }
-                secureTextEntry
+                secureTextEntry={!confirmPasswordVisible}
                 autoCapitalize="none"
                 autoCorrect={
                   false
@@ -610,6 +613,10 @@ export default function AuthScreen() {
                   handleSubmit
                 }
               />
+              <Pressable accessibilityRole="button" accessibilityLabel={confirmPasswordVisible?'Hide confirm password':'Show confirm password'} accessibilityState={{selected:confirmPasswordVisible}} onPress={()=>setConfirmPasswordVisible(value=>!value)} style={styles.passwordVisibilityButton}>
+                <Ionicons name={confirmPasswordVisible?'eye-off-outline':'eye-outline'} size={21} color={colors.mutedText}/>
+              </Pressable>
+              </View>
             ) : null}
 
             {!isSignUp ? (

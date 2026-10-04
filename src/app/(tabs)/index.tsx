@@ -1,3 +1,4 @@
+import ReplyComposerContext from '../../components/ReplyComposerContext';
 import {getAccountEntryRoute} from '../../lib/account-entry';
 import {isAccountUnavailableError} from '../../lib/account-session-errors';
 import {signOutCurrentDevice} from '../../lib/sign-out';
@@ -3948,7 +3949,7 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <View
+        <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted)openCommentActions(comment);}}
           style={[
             styles.sheetComment,
           ]}
@@ -3968,6 +3969,8 @@ export default function HomeScreen() {
           ) : null}
           <Pressable
             disabled={comment.is_deleted}
+            delayLongPress={220}
+            onLongPress={()=>openCommentActions(comment)}
             onPress={() => {
               closeCommentsSheet();
 
@@ -4020,6 +4023,8 @@ export default function HomeScreen() {
             >
               <Pressable
                 disabled={comment.is_deleted}
+                delayLongPress={220}
+                onLongPress={()=>openCommentActions(comment)}
                 onPress={() => {
                   closeCommentsSheet();
 
@@ -4115,7 +4120,7 @@ export default function HomeScreen() {
                   styles.commentVoteControl
                 }
               >
-                <Pressable
+                <Pressable delayLongPress={220} onLongPress={()=>openCommentActions(comment)}
                   disabled={
                     comment.is_deleted || Boolean(
                       votingCommentIds[
@@ -4172,7 +4177,7 @@ export default function HomeScreen() {
                     0}
                 </Text>
 
-                <Pressable
+                <Pressable delayLongPress={220} onLongPress={()=>openCommentActions(comment)}
                   disabled={
                     comment.is_deleted || Boolean(
                       votingCommentIds[
@@ -4220,7 +4225,7 @@ export default function HomeScreen() {
 
             </View>
           </View>
-        </View>
+        </Pressable>
 
         {children.length > 0 && depth >= sheetDepthLimit ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} style={styles.continueSheetConversation} onPress={() => {
@@ -5609,7 +5614,7 @@ export default function HomeScreen() {
   }
 
   function renderFeedPost(post:FeedPost){
- return <FeedPostCard key={post.id} post={post} currentUserId={currentUserId} votingPostId={votingPostId} deletingPostId={deletingPostId} onComments={openCommentsSheet} onVote={handlePostVote} onMore={post=>post.author_id===currentUserId?openOwnPostOptions(post):openPostReport(post)} onShare={shareFeedPost} onReader={openReader} onClub={openClub} renderText={renderExplicitContentWarning}/>;
+ return <FeedPostCard key={post.id} post={post} currentUserId={currentUserId} votingPostId={votingPostId} deletingPostId={deletingPostId} onOpen={post=>router.push({pathname:'/post/[id]',params:{id:post.id}})} onComments={openCommentsSheet} onVote={handlePostVote} onMore={post=>post.author_id===currentUserId?openOwnPostOptions(post):openPostReport(post)} onShare={shareFeedPost} onReader={openReader} onClub={openClub} renderText={renderExplicitContentWarning}/>;
  }
 
   function renderFeed() {
@@ -7464,6 +7469,7 @@ export default function HomeScreen() {
                   },
                 ]}
               >
+                <View pointerEvents="none" style={{position:'absolute',top:0,left:0,right:0,height:windowHeight,backgroundColor:colors.background}}/>
                 {editingComment ? (
                   <View
                     style={
@@ -7498,46 +7504,7 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                 ) : replyTarget ? (
-                  <View
-                    style={
-                      styles.replyingToRow
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.replyingToText
-                      }
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      Replying to{' '}
-                      {replyTarget.author_display_name
-                        ?.trim() ||
-                        replyTarget.author_username
-                          ?.trim() ||
-                        'reader'}
-                    </Text>
-
-                    <Pressable
-                      onPress={
-                        resetTemporaryCommentComposer
-                      }
-                      hitSlop={
-                        8
-                      }
-                    >
-                      <Ionicons
-                        name="close-circle"
-                        size={
-                          18
-                        }
-                        color={
-                          colors.mutedText
-                        }
-                      />
-                    </Pressable>
-                  </View>
+                  <ReplyComposerContext name={replyTarget.author_display_name?.trim() || replyTarget.author_username?.trim() || 'reader'} body={replyTarget.body} hideBody={!replyTarget.is_own && !allowExplicitLanguage && containsExplicitLanguage(replyTarget.body) && !isExplicitContentRevealed('comment',replyTarget.id)} onCancel={resetTemporaryCommentComposer}/>
                 ) : composerResetting ? (
                   <View
                     pointerEvents="none"

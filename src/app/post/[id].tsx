@@ -1,3 +1,4 @@
+import ReplyComposerContext from '../../components/ReplyComposerContext';
 import {buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
@@ -34,6 +35,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import {
@@ -814,6 +816,7 @@ export default function PostDetailScreen() {
     ]
   );
 
+  const {height:windowHeight}=useWindowDimensions();
   const [commentAreaWidth,setCommentAreaWidth]=useState(360);
   const commentDepthLimit=getCommentDepthLimit(commentAreaWidth);
   const requestedThreadId=typeof params.threadId==='string'?params.threadId:'';
@@ -823,6 +826,7 @@ export default function PostDetailScreen() {
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
   const focusedReplyTarget=focusedThread?{id:focusedThread.id,name:focusedThread.author_display_name?.trim()||focusedThread.author_username?.trim()||'Novori Reader'}:null;
   const activeReplyTarget=replyTo??focusedReplyTarget;
+  const activeReplyComment=activeReplyTarget?threadData.nodes.get(activeReplyTarget.id):null;
   function openConversation(commentId:string){router.push({pathname:'/post/[id]',params:{id:postId,threadId:commentId,commentId}});}
 
 
@@ -2356,14 +2360,16 @@ export default function PostDetailScreen() {
         <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Continue conversation · {countThreadReplies(comment)} more {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
     return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
-      <View style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
+      <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
-        {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<>
+        {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View reader avatar: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>openReader(comment.author_id)} style={styles.commentAvatarButton}>{comment.author_avatar_url?<Image source={{uri:comment.author_avatar_url}} style={styles.commentAvatar}/>:<View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}</Pressable>
+          <View style={styles.commentAuthorCopy}>
           <View style={styles.commentHeader}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`View reader: ${name}`} disabled={comment.is_deleted} onPress={()=>openReader(comment.author_id)} style={styles.commentIdentity}>
-              {comment.author_avatar_url?<Image source={{uri:comment.author_avatar_url}} style={styles.commentAvatar}/>:<View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}
+            <Pressable accessibilityRole="button" accessibilityLabel={`View reader: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>openReader(comment.author_id)} style={styles.commentIdentity}>
               <Text style={styles.commentAuthorName} numberOfLines={1}>{name}</Text>
             </Pressable>
+            {comment.author_username?<Text style={styles.commentUsername} numberOfLines={1}>@{comment.author_username}</Text>:null}
             <Text style={styles.commentTime}>· {formatRelativeTime(comment.created_at)}</Text>
             {comment.updated_at!==comment.created_at?<Text style={styles.commentTime}>· edited</Text>:null}
           </View>
@@ -2372,15 +2378,14 @@ export default function PostDetailScreen() {
           </Pressable>
           <View style={styles.commentFooter}>
             <View style={styles.commentVoteControl}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={17} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={21} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
               <Text style={[styles.commentVoteScore,comment.viewer_vote!==0&&styles.commentVoteScoreActive]}>{comment.vote_score??0}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={17} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={21} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Reply to comment: ${comment.id}`} onPress={()=>startReply(comment)} style={styles.replyButton}><Ionicons name="chatbubble-outline" size={13} color={colors.mutedText}/><Text style={styles.replyButtonText}>Reply</Text></Pressable>
-            {!comment.is_deleted ? <Pressable accessibilityRole="button" accessibilityLabel={`Comment options: ${comment.id}`} onPress={()=>openCommentActions(comment)} style={styles.commentVoteButton}><Ionicons name="ellipsis-horizontal" size={17} color={colors.mutedText}/></Pressable> : null}
           </View>
-        </>}
-      </View>{children}
+          </View>
+        </View>}
+      </Pressable>{children}
     </View>;
   }
 
@@ -3296,6 +3301,7 @@ export default function PostDetailScreen() {
               styles.composerWrap
             }
           >
+          <View pointerEvents="none" style={{position:'absolute',top:0,left:0,right:0,height:windowHeight,backgroundColor:colors.background}}/>
           {editingComment ? (
             <View
               style={
@@ -3330,42 +3336,7 @@ export default function PostDetailScreen() {
               </Pressable>
             </View>
           ) : activeReplyTarget ? (
-            <View
-              style={
-                styles.replyingRow
-              }
-            >
-              <Text
-                style={
-                  styles.replyingText
-                }
-                numberOfLines={
-                  1
-                }
-              >
-                Replying to{' '}
-                {activeReplyTarget.name}
-              </Text>
-
-              {replyTo?<Pressable
-                onPress={
-                  resetTemporaryCommentComposer
-                }
-                hitSlop={
-                  8
-                }
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={
-                    18
-                  }
-                  color={
-                    colors.mutedText
-                  }
-                />
-              </Pressable>:null}
-            </View>
+            <ReplyComposerContext name={activeReplyTarget.name} body={activeReplyComment?.body ?? ''} hideBody={Boolean(activeReplyComment && !activeReplyComment.is_own && !allowExplicitLanguage && containsExplicitLanguage(activeReplyComment.body) && !isExplicitContentRevealed('comment',activeReplyComment.id))} onCancel={replyTo?resetTemporaryCommentComposer:undefined}/>
           ) : composerResetting ? (
             <View
               pointerEvents="none"
@@ -3414,7 +3385,7 @@ export default function PostDetailScreen() {
                   : editingComment
                   ? 'Edit your comment…'
                   : activeReplyTarget
-                  ? `Reply to ${activeReplyTarget.name}…`
+                  ? 'Write a reply…'
                   : 'Add a comment…'
               }
               placeholderTextColor={
@@ -4524,7 +4495,7 @@ function createStyles(
     commentThreadNested:{marginLeft:14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border},
     threadList: {gap:2},
     commentThread: {gap:1},
-    commentCard: {backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingVertical:6,paddingHorizontal:0},
+    commentCard: {backgroundColor:'transparent',borderWidth:0,borderRadius:0,paddingVertical:4,paddingHorizontal:0},
     commentCardHighlighted: {backgroundColor:`${colors.gold}10`},
     commentCardActionAccent: {
       position:
@@ -4554,9 +4525,11 @@ function createStyles(
       backgroundColor:
         colors.elevated,
     },
+    commentRow:{flexDirection:'row',alignItems:'flex-start'},
+    commentAvatarButton:{marginRight:9},
     commentHeader: {flexDirection:'row',alignItems:'center',gap:3},
-    commentAvatar: {width:23,height:23,borderRadius:12,backgroundColor:colors.elevated,marginRight:2},
-    commentAvatarFallback: {width:23,height:23,borderRadius:12,backgroundColor:colors.elevated,alignItems:'center',justifyContent:'center',marginRight:2},
+    commentAvatar: {width:24,height:24,borderRadius:12,backgroundColor:colors.elevated,marginRight:0},
+    commentAvatarFallback: {width:24,height:24,borderRadius:12,backgroundColor:colors.elevated,alignItems:'center',justifyContent:'center',marginRight:0},
     commentAvatarText: {color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:10},
     commentAuthorCopy: {
       flex:
@@ -4571,7 +4544,7 @@ function createStyles(
       fontFamily:
         'Inter_700Bold',
       fontSize:
-        12,
+        13,
       flexShrink:
         1,
     },
@@ -4581,11 +4554,11 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        10,
+        11.5,
       flexShrink:
         1,
     },
-    commentTime: {color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,marginLeft:4},
+    commentTime: {color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10.5,marginLeft:0},
     commentDelete: {
       width:
         30,
@@ -4598,7 +4571,7 @@ function createStyles(
       marginLeft:
         4,
     },
-    commentBody: {color:colors.text,fontFamily:'Inter_400Regular',fontSize:14,lineHeight:20,marginTop:5},
+    commentBody: {color:colors.text,fontFamily:'Inter_400Regular',fontSize:14,lineHeight:20,marginTop:3},
     explicitContentWrap: {
       position:
         'relative',
@@ -4714,7 +4687,7 @@ function createStyles(
       color:
         colors.background,
     },
-    commentFooter: {flexDirection:'row',alignItems:'center',gap:13,marginTop:4},
+    commentFooter: {flexDirection:'row',alignItems:'center',gap:12,marginTop:3},
     commentVoteControl: {
       flexDirection:
         'row',
@@ -4730,13 +4703,13 @@ function createStyles(
     },
     commentVoteScore: {
       minWidth:
-        14,
+        18,
       color:
         colors.mutedText,
       fontFamily:
         'Inter_600SemiBold',
       fontSize:
-        9,
+        12,
       textAlign:
         'center',
     },
@@ -4852,9 +4825,9 @@ function createStyles(
     },
     composer: {
       minHeight:
-        44,
+        52,
       maxHeight:
-        110,
+        122,
       flexDirection:
         'row',
       alignItems:
@@ -4866,9 +4839,9 @@ function createStyles(
       borderColor:
         colors.border,
       borderRadius:
-        16,
+        20,
       paddingLeft:
-        13,
+        14,
       paddingRight:
         5,
       paddingVertical:
@@ -4878,31 +4851,31 @@ function createStyles(
       flex:
         1,
       minHeight:
-        32,
+        40,
       maxHeight:
-        96,
+        108,
       color:
         colors.text,
       fontFamily:
         'Inter_400Regular',
       fontSize:
-        13,
+        15,
       lineHeight:
-        18,
+        20,
       paddingTop:
-        7,
+        10,
       paddingBottom:
-        6,
+        9,
       paddingRight:
         8,
     },
     sendButton: {
       width:
-        34,
+        40,
       height:
-        34,
+        40,
       borderRadius:
-        17,
+        20,
       backgroundColor:
         colors.gold,
       alignItems:
