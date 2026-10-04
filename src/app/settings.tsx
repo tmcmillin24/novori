@@ -99,8 +99,6 @@ export default function SettingsScreen() {
         <SettingsRow icon="mail-outline" title="Email" value={email || '—'}/>
         <SettingsDivider/>
         <SettingsRow icon="lock-closed-outline" title="Password & Security" subtitle="Password, verified email, and signed-in devices" onPress={() => router.push('/password-security')}/>
-        <SettingsDivider/>
-        <SettingsRow icon="call-outline" title="Recovery Phone" subtitle="Optional account recovery" comingSoon/>
       </SettingsSection>
       <SettingsSection icon="help-circle-outline" title="About & support">
         <SettingsRow icon="information-circle-outline" title="About Novori" subtitle="Read. Discuss. Belong." onPress={() => router.push('/about-novori')}/>
