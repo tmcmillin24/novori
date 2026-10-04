@@ -228,7 +228,7 @@ export default function AboutNovoriScreen() {
               styles.missionLabel
             }
           >
-            OUR IDEA
+            OUR STORY
           </Text>
 
           <Text
@@ -236,8 +236,7 @@ export default function AboutNovoriScreen() {
               styles.missionTitle
             }
           >
-            Reading is better when
-            it becomes a conversation.
+            It started with my wife.
           </Text>
 
           <Text
@@ -245,13 +244,19 @@ export default function AboutNovoriScreen() {
               styles.missionText
             }
           >
-            Discover books, share
-            reactions, join discussions,
-            connect with other readers,
-            and build a reading life
-            that feels social without
-            losing the books at the
-            center of it.
+            Novori started as something I wanted to build for my wife. She was using different apps to track her reading goals, keep notes and summaries, and organize her personal library. I wanted to bring those pieces together in one place.
+          </Text>
+
+          <Text style={styles.missionText}>
+            I've always loved creating things, and the idea grew from there. Adding a social side felt like a fun way to connect readers through the books they love, the thoughts they share, and the clubs they build together.
+          </Text>
+
+          <Text style={styles.missionText}>
+            What began as a tool for her became something I hoped could be useful to others, too: a home for your reading life, with space to make it your own and people to share it with.
+          </Text>
+
+          <Text style={styles.storySignature}>
+            — Tristan, creator of Novori
           </Text>
         </View>
 
@@ -542,6 +547,14 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       marginTop: 10,
+    },
+
+    storySignature: {
+      color: colors.gold,
+      fontSize: 12,
+      lineHeight: 18,
+      fontFamily: 'Inter_600SemiBold',
+      marginTop: 16,
     },
 
     sectionLabel: {
