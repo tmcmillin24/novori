@@ -3,12 +3,12 @@ import renderer,{act} from 'react-test-renderer';
 import {Keyboard} from 'react-native';
 import {useCommentSheetMotion} from '../src/lib/use-comment-sheet-motion';
 import {resolveCommentSheetSnap} from '../src/lib/comment-sheet-snap';
-let mockAnimations=[];
+let mockAnimations=[],mockFrames=[];
 jest.mock('react-native',()=>({Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:value=>value.ios??value.default},TurboModuleRegistry:{get:()=>null}}));
 jest.mock('react-native-reanimated',()=>({
  Easing:{bezier:()=>()=>0,out:value=>value,in:value=>value,cubic:()=>0},
  useSharedValue:value=>require('react').useRef({value}).current,
- useAnimatedStyle:read=>({read}),runOnJS:callback=>callback,cancelAnimation:jest.fn(),
+ useAnimatedStyle:read=>({read}),runOnJS:callback=>callback,runOnUI:callback=>callback,cancelAnimation:jest.fn(),
  withTiming:(value,config,callback)=>{mockAnimations.push({value,config,callback});return value;},
 }));
 jest.mock('react-native-gesture-handler',()=>({Gesture:{Pan:()=>{
@@ -20,9 +20,9 @@ let view,api;
 const onSettled=jest.fn(),onDragDismiss=jest.fn();
 function Harness({keyboardVisible=false}){api=useCommentSheetMotion({partial:700,full:850,keyboardVisible,onSettled,onDragDismiss});return null;}
 async function mount(keyboardVisible=false){await act(async()=>{view=renderer.create(<Harness keyboardVisible={keyboardVisible}/>);});}
-function finish(){const pending=mockAnimations;mockAnimations=[];pending.forEach(animation=>animation.callback?.(true));}
+function finish(){const frames=mockFrames;mockFrames=[];frames.forEach(callback=>callback());const pending=mockAnimations;mockAnimations=[];pending.forEach(animation=>animation.callback?.(true));}
 function open(){api.prepare(700);api.open(()=>{});finish();}
-beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;mockAnimations=[];jest.clearAllMocks();});
+beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;mockAnimations=[];mockFrames=[];global.requestAnimationFrame=callback=>{mockFrames.push(callback);return mockFrames.length;};jest.clearAllMocks();});
 afterEach(async()=>{await act(async()=>view?.unmount());view=null;});
 test('drag frames update shared height without calling JavaScript completion handlers; release snaps once',async()=>{
  await mount();open();const pan=api.gestures.header.handlers;pan.onStart();
@@ -48,3 +48,13 @@ test.each([
  ['partial',700,0,0,'partial'],['partial',780,-80,-500,'full'],['partial',650,130,0,'dismiss'],
  ['full',850,0,0,'full'],['full',760,70,500,'partial'],['full',450,230,1100,'dismiss'],
 ])('keeps the existing %s snap thresholds', (snap,height,dy,velocity,target)=>expect(resolveCommentSheetSnap(snap,height,700,850,dy,velocity)).toBe(target));
+
+test('opening first commits a fully offscreen sheet, then starts its continuous rise on the next UI frame',async()=>{
+ await mount();api.prepare(700);const done=jest.fn();api.open(done);
+ const topOfSheet=1000-api.sheetStyle.read().height+api.entranceStyle.read().transform[0].translateY;
+ expect(topOfSheet).toBeGreaterThan(1000);expect(mockAnimations).toHaveLength(0);expect(done).not.toHaveBeenCalled();
+ const frame=mockFrames.shift();frame();expect(mockAnimations).toHaveLength(2);expect(api.entranceStyle.read().transform[0].translateY).toBe(0);finish();expect(done).toHaveBeenCalledTimes(1);
+});
+test('navigation cancellation before the first frame cannot restart an opening animation',async()=>{
+ await mount();api.prepare(700);const done=jest.fn();api.open(done);api.stop();finish();expect(mockAnimations).toHaveLength(0);expect(done).not.toHaveBeenCalled();
+});

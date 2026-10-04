@@ -1,10 +1,11 @@
 import {useCallback,useEffect,useMemo,useRef} from 'react';
 import {Keyboard} from 'react-native';
 import {Gesture} from 'react-native-gesture-handler';
-import {cancelAnimation,Easing,runOnJS,useAnimatedStyle,useSharedValue,withTiming} from 'react-native-reanimated';
+import {cancelAnimation,Easing,runOnJS,runOnUI,useAnimatedStyle,useSharedValue,withTiming} from 'react-native-reanimated';
 import {resolveCommentSheetSnap,type CommentSheetSnap} from './comment-sheet-snap';
 
 const enter=Easing.bezier(0.22,1,0.36,1);
+const opening=Easing.bezier(0.32,0,0.18,1);
 const exit=Easing.bezier(0.32,0,0.67,1);
 type Options={partial:number;full:number;keyboardVisible:boolean;onSettled:(height:number,snap:CommentSheetSnap)=>void;onDragDismiss:(height:number)=>void};
 
@@ -15,30 +16,43 @@ export function useCommentSheetMotion(options:Options){
   const height=useSharedValue(0),translateY=useSharedValue(0),backdrop=useSharedValue(0);
   const moving=useSharedValue(false),fullSnap=useSharedValue(false),startHeight=useSharedValue(0),keyboardLock=useSharedValue(false);
   const dragging=useSharedValue(false);
+  const entranceGeneration=useSharedValue(0);
   const keyboardVisible=useSharedValue(options.keyboardVisible);
   useEffect(()=>{keyboardVisible.value=options.keyboardVisible;},[options.keyboardVisible,keyboardVisible]);
   const settled=useCallback((value:number,isFull:boolean)=>callbacks.current.onSettled(value,isFull?'full':'partial'),[]);
   const dragDismiss=useCallback((value:number)=>callbacks.current.onDragDismiss(value),[]);
   const dismissKeyboard=useCallback(()=>Keyboard.dismiss(),[]);
-  const stop=useCallback(()=>{cancelAnimation(height);cancelAnimation(translateY);cancelAnimation(backdrop);moving.value=false;dragging.value=false;},[height,translateY,backdrop,moving,dragging]);
+  const stop=useCallback(()=>{entranceGeneration.value+=1;cancelAnimation(height);cancelAnimation(translateY);cancelAnimation(backdrop);moving.value=false;dragging.value=false;},[height,translateY,backdrop,moving,dragging,entranceGeneration]);
   useEffect(()=>stop,[stop]);
   const prepare=useCallback((value:number,snap:CommentSheetSnap='partial')=>{
     stop();height.value=value;translateY.value=value;backdrop.value=0;fullSnap.value=snap==='full';moving.value=true;
   },[stop,height,translateY,backdrop,fullSnap,moving]);
   const open=useCallback((done:()=>void)=>{
-    moving.value=true;
-    backdrop.value=withTiming(1,{duration:180,easing:Easing.out(Easing.cubic)});
-    translateY.value=withTiming(0,{duration:285,easing:enter},finished=>{
-      if(finished){moving.value=false;runOnJS(done)();}
-    });
-  },[moving,backdrop,translateY]);
+    runOnUI(()=>{
+      'worklet';
+      const generation=++entranceGeneration.value;
+      moving.value=true;
+      // Commit the fully hidden start before advancing the animation clock.
+      // The extra pixel keeps the rounded top edge below the window boundary.
+      translateY.value=height.value+1;
+      backdrop.value=0;
+      requestAnimationFrame(()=>{
+        if(generation!==entranceGeneration.value)return;
+        backdrop.value=withTiming(1,{duration:180,easing:Easing.out(Easing.cubic)});
+        translateY.value=withTiming(0,{duration:270,easing:opening},finished=>{
+          if(finished && generation===entranceGeneration.value){moving.value=false;runOnJS(done)();}
+        });
+      });
+    })();
+  },[moving,backdrop,translateY,height,entranceGeneration]);
   const close=useCallback((done:()=>void)=>{
+    entranceGeneration.value+=1;
     cancelAnimation(height);moving.value=true;
     backdrop.value=withTiming(0,{duration:210,easing:Easing.in(Easing.cubic)});
     translateY.value=withTiming(height.value,{duration:235,easing:exit},finished=>{
       if(finished){moving.value=false;runOnJS(done)();}
     });
-  },[height,moving,backdrop,translateY]);
+  },[height,moving,backdrop,translateY,entranceGeneration]);
   const snap=useCallback((target:CommentSheetSnap)=>{
     const value=target==='full'?full:partial;
     fullSnap.value=target==='full';moving.value=true;
