@@ -734,7 +734,7 @@ export default function PostDetailScreen() {
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
   const activeReplyTarget=replyTo;
   const activeReplyComment=activeReplyTarget?threadData.nodes.get(activeReplyTarget.id):null;
-  function openConversation(commentId:string){router.push({pathname:'/post/[id]',params:{id:postId,threadId:commentId,commentId}});}
+  function openConversation(commentId:string){router.push({pathname:'/post/[id]/conversation',params:{id:postId,threadId:commentId,commentId}});}
 
 
   async function refresh() {
@@ -2277,13 +2277,13 @@ export default function PostDetailScreen() {
     const hiddenCount=comment.children.length-visibleChildren.length;
     const children=contextOnly?null:comment.children.length?(depth<commentDepthLimit?<>
       {visibleChildren.map(child=>renderComment(child,depth+1))}
-      {hiddenCount>0?<Pressable accessibilityRole="button" accessibilityLabel={`Show more replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:limit+COMMENT_REPLY_BATCH_SIZE}))} style={styles.continueConversation}><Ionicons name="add-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Show more replies · {hiddenCount}</Text></Pressable>:null}
-      {limit>COMMENT_REPLY_BATCH_SIZE?<Pressable accessibilityRole="button" accessibilityLabel={`Show fewer replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:COMMENT_REPLY_BATCH_SIZE}))} style={styles.continueConversation}><Text style={styles.continueConversationText}>Show fewer replies</Text></Pressable>:null}
+      {hiddenCount>0?<Pressable accessibilityRole="button" accessibilityLabel={`Show more replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:limit+COMMENT_REPLY_BATCH_SIZE}))} style={[styles.continueConversation,styles.continueConversationBranch]}><Ionicons name="add-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Show more replies · {hiddenCount}</Text></Pressable>:null}
+      {limit>COMMENT_REPLY_BATCH_SIZE?<Pressable accessibilityRole="button" accessibilityLabel={`Show fewer replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:COMMENT_REPLY_BATCH_SIZE}))} style={[styles.continueConversation,styles.continueConversationBranch]}><Text style={styles.continueConversationText}>Show fewer replies</Text></Pressable>:null}
     </>:
-      <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} onPress={()=>openConversation(comment.id)} style={styles.continueConversation}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} onPress={()=>openConversation(comment.id)} style={[styles.continueConversation,styles.continueConversationBranch]}>
         <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Continue conversation · {countThreadReplies(comment)} more {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
-    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested,contextOnly&&{marginLeft:Math.min(depth,commentDepthLimit)*14}]}>
+    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested,contextOnly&&{marginLeft:depth>0?Math.min(depth,commentDepthLimit)*23-9:0}]}>
       <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
@@ -2486,7 +2486,7 @@ export default function PostDetailScreen() {
           styles.header
         }
       >
-        <Pressable
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen"
           onPress={() =>
             router.back()
           }
@@ -3170,7 +3170,7 @@ export default function PostDetailScreen() {
           0 ? (
             <View onLayout={event=>setCommentAreaWidth(event.nativeEvent.layout.width)} style={styles.threadList}>
               {focusedAncestors.map((comment,index)=>renderComment(comment,index,true))}
-              <View style={focusedAncestors.length?{marginLeft:Math.min(focusedAncestors.length,commentDepthLimit)*14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border}:undefined}>
+              <View style={focusedAncestors.length?{marginLeft:Math.min(focusedAncestors.length,commentDepthLimit)*23-9,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border}:undefined}>
                 {thread.map(comment=>renderComment(comment))}
               </View>
             </View>
@@ -4416,6 +4416,7 @@ function createStyles(
     conversationContextHint:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12,marginTop:4},
     conversationContextTitle:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:13},
     continueConversation:{flexDirection:'row',alignItems:'center',gap:7,minHeight:36,paddingVertical:7},
+    continueConversationBranch:{marginLeft:23},
     continueConversationText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11},
     commentThreadNested:{marginLeft:14,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border},
     threadList: {gap:2},

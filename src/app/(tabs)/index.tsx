@@ -3908,6 +3908,9 @@ export default function HomeScreen() {
             marginLeft:
               visualDepth *
               14,
+            paddingLeft: visualDepth ? 9 : 0,
+            borderLeftWidth: visualDepth ? StyleSheet.hairlineWidth : 0,
+            borderLeftColor: colors.border,
           },
         ]}
       >
@@ -4196,7 +4199,7 @@ export default function HomeScreen() {
             if (!commentsPost) return;
             const id=commentsPost.id;
             closeCommentsSheet();
-            router.push({pathname: '/post/[id]', params: {id, threadId: comment.id, commentId: comment.id}});
+            router.push({pathname: '/post/[id]/conversation', params: {id, threadId: comment.id, commentId: comment.id}});
           }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>Continue conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} more replies</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
         ) : visibleChildren.length >
         0 ? (
@@ -10187,7 +10190,7 @@ function createStyles(
       marginTop:
         3,
     },
-    continueSheetConversation: {minHeight:32,flexDirection:'row',alignItems:'center',gap:6,marginLeft:14,paddingVertical:5},
+    continueSheetConversation: {minHeight:32,flexDirection:'row',alignItems:'center',gap:6,marginLeft:23,paddingVertical:5},
     continueSheetConversationText: {color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:11,flexShrink:1},
     sheetCommentThread: { gap: 1,
     },
@@ -10385,7 +10388,7 @@ function createStyles(
     },
     sheetReplies: { gap:2,
     },
-    viewMoreRepliesButton: { minHeight:28,flexDirection:'row',alignItems:'center',gap:7,marginLeft:33,
+    viewMoreRepliesButton: { minHeight:28,flexDirection:'row',alignItems:'center',gap:7,marginLeft:23,
     },
     replyGuide: {
       width:

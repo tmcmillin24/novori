@@ -104,7 +104,7 @@ const chain=()=>Array.from({length:6},(_,i)=>({...comment,id:'chain-'+i,parent_c
 test('compact post comments stop indenting and link to a focused conversation',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);
  expect(text()).toContain('Reply at depth 2');expect(text()).not.toContain('Reply at depth 3');await press('Continue conversation: chain-2');
- expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1',threadId:'chain-2',commentId:'chain-2'}});
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]/conversation',params:{id:'post-1',threadId:'chain-2',commentId:'chain-2'}});
 });
 test('focused conversation includes ancestor context and replies only after explicit selection',async()=>{
  mockParams={id:'post-1',threadId:'chain-2',commentId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'unrelated',body:'Unrelated conversation.'}]);
@@ -216,4 +216,10 @@ test('siblings stay aligned and only a reply to one sibling creates a deeper bra
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const siblings=Array.from({length:3},(_,i)=>({...comment,id:'sibling-'+i,parent_comment_id:'comment-1',body:'Sibling '+i,vote_score:3-i}));getPostComments.mockResolvedValue([comment,...siblings,{...comment,id:'grandchild',parent_comment_id:'sibling-2',body:'Reply to third sibling'}]);await render(<PostDetailScreen/>);
  const container=id=>{let node=button('Comment: '+id).parent;while(node.type!=='Pressable')node=node.parent;return node.parent;};const margin=node=>Object.assign({},...[node.props.style].flat()).marginLeft??0;
  expect(margin(container('comment-1'))).toBe(0);for(const sibling of siblings)expect(margin(container(sibling.id))).toBe(14);expect(margin(container('grandchild'))).toBe(14);let ancestor=container('grandchild').parent;while(ancestor&&ancestor!==container('sibling-2'))ancestor=ancestor.parent;expect(ancestor).toBe(container('sibling-2'));
+});
+
+test('continued conversation sibling rows share one inset and Back pops the previous screen',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain().slice(0,3),...Array.from({length:3},(_,i)=>({...comment,id:'focused-sibling-'+i,parent_comment_id:'chain-2',body:'Focused sibling '+i}))]);await render(<PostDetailScreen/>);
+ const container=id=>{let node=button('Comment: '+id).parent;while(node.type!=='Pressable')node=node.parent;return node.parent;};const inset=node=>{const style=Object.assign({},...[node.props.style].flat());return (style.marginLeft??0)+(style.paddingLeft??0);};
+ expect(inset(container('chain-0'))).toBe(0);expect(inset(container('chain-1'))).toBe(23);expect(inset(container('chain-2').parent)).toBe(46);for(let i=0;i<3;i++)expect(inset(container('focused-sibling-'+i))).toBe(23);await press('Back to previous screen');expect(mockRouter.back).toHaveBeenCalledTimes(1);expect(mockRouter.replace).not.toHaveBeenCalled();
 });
