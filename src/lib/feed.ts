@@ -122,6 +122,7 @@ async function getCurrentUserId() {
 export async function attachPostImageUrls(
   posts: FeedPost[]
 ): Promise<FeedPost[]> {
+  posts = posts.map(post => post.author_id ? post : { ...post, author_id: '', body: 'This post was deleted.', author_display_name: 'Deleted user', author_username: null, author_avatar_url: null });
   if (
     posts.length === 0
   ) {

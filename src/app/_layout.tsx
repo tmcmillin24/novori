@@ -20,6 +20,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import AccountDeletionGate from '../components/AccountDeletionGate';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
 import {
@@ -57,6 +58,7 @@ function AppNavigator() {
         backgroundColor: colors.background,
       }}
     >
+      <AccountDeletionGate />
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{

@@ -108,7 +108,7 @@ export default function SettingsScreen() {
       <SettingsSection icon="log-out-outline" title="Account actions">
         <SettingsRow icon="log-out-outline" title="Sign Out" onPress={confirmSignOut}/>
         <SettingsDivider/>
-        <SettingsRow icon="person-remove-outline" title="Deactivate Account" danger comingSoon/>
+        <SettingsRow icon="person-remove-outline" title="Delete account" subtitle="Seven-day grace period or permanent deletion" danger onPress={() => router.push('/delete-account')}/>
       </SettingsSection>
       <Text style={[localStyles.footer, { color: colors.mutedText }]}>NOVORI · READ. DISCUSS. BELONG.</Text>
     </ScrollView>

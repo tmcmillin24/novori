@@ -12,6 +12,7 @@ export default function ReadingReminderDeviceSync() {
     function sync(userId?: string) {
       if (!mounted || !userId) return;
       void syncReadingReminderDevice(userId).catch((error) => {
+        if (error?.code === '42501' && error?.message?.includes('Account unavailable')) return;
         // Missing rollout SQL/network errors must never block signing in or navigation.
         console.warn('Reading reminder device sync unavailable:', error);
       });

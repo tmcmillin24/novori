@@ -845,6 +845,7 @@ export default function PostDetailScreen() {
   function openReader(
     readerId: string
   ) {
+    if (!readerId) return;
     router.push({
       pathname:
         '/reader/[id]',
@@ -952,6 +953,7 @@ export default function PostDetailScreen() {
     voteValue:
       CommentVoteValue
   ) {
+    if (comment.is_deleted) return;
     if (
       comment.id.startsWith(
         'optimistic-'
@@ -1497,6 +1499,7 @@ export default function PostDetailScreen() {
     comment:
       ThreadComment
   ) {
+    if (comment.is_deleted) return;
     if (
       commentActionTarget ||
       commentActionClosing.current
@@ -2357,24 +2360,24 @@ export default function PostDetailScreen() {
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<>
           <View style={styles.commentHeader}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`View reader: ${name}`} onPress={()=>openReader(comment.author_id)} style={styles.commentIdentity}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`View reader: ${name}`} disabled={comment.is_deleted} onPress={()=>openReader(comment.author_id)} style={styles.commentIdentity}>
               {comment.author_avatar_url?<Image source={{uri:comment.author_avatar_url}} style={styles.commentAvatar}/>:<View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}
               <Text style={styles.commentAuthorName} numberOfLines={1}>{name}</Text>
             </Pressable>
             <Text style={styles.commentTime}>· {formatRelativeTime(comment.created_at)}</Text>
             {comment.updated_at!==comment.created_at?<Text style={styles.commentTime}>· edited</Text>:null}
           </View>
-          <Pressable accessibilityLabel={`Comment: ${comment.id}`} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} style={styles.commentHoldTarget}>
+          <Pressable accessibilityLabel={`Comment: ${comment.id}`} delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted)openCommentActions(comment);}} style={styles.commentHoldTarget}>
             {renderExplicitContentWarning(comment.body,'comment',comment.id,styles.commentBody,comment.is_own)}
           </Pressable>
           <View style={styles.commentFooter}>
             <View style={styles.commentVoteControl}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={17} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={17} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
               <Text style={[styles.commentVoteScore,comment.viewer_vote!==0&&styles.commentVoteScoreActive]}>{comment.vote_score??0}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={17} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={17} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={`Reply to comment: ${comment.id}`} onPress={()=>startReply(comment)} style={styles.replyButton}><Ionicons name="chatbubble-outline" size={13} color={colors.mutedText}/><Text style={styles.replyButtonText}>Reply</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Comment options: ${comment.id}`} onPress={()=>openCommentActions(comment)} style={styles.commentVoteButton}><Ionicons name="ellipsis-horizontal" size={17} color={colors.mutedText}/></Pressable>
+            {!comment.is_deleted ? <Pressable accessibilityRole="button" accessibilityLabel={`Comment options: ${comment.id}`} onPress={()=>openCommentActions(comment)} style={styles.commentVoteButton}><Ionicons name="ellipsis-horizontal" size={17} color={colors.mutedText}/></Pressable> : null}
           </View>
         </>}
       </View>{children}

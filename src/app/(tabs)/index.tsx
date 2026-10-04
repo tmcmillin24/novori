@@ -1415,6 +1415,7 @@ export default function HomeScreen() {
   function openReader(
     readerId: string
   ) {
+    if (!readerId) return;
     router.push({
       pathname:
         '/reader/[id]',
@@ -2751,6 +2752,7 @@ export default function HomeScreen() {
     comment:
       PostComment
   ) {
+    if (comment.is_deleted) return;
     if (
       commentActionTarget ||
       commentActionClosing.current
@@ -3321,6 +3323,7 @@ export default function HomeScreen() {
     voteValue:
       CommentVoteValue
   ) {
+    if (comment.is_deleted) return;
     if (
       comment.id.startsWith(
         'optimistic-'
@@ -3951,6 +3954,7 @@ export default function HomeScreen() {
             />
           ) : null}
           <Pressable
+            disabled={comment.is_deleted}
             onPress={() => {
               closeCommentsSheet();
 
@@ -4002,6 +4006,7 @@ export default function HomeScreen() {
               }
             >
               <Pressable
+                disabled={comment.is_deleted}
                 onPress={() => {
                   closeCommentsSheet();
 
@@ -4099,7 +4104,7 @@ export default function HomeScreen() {
               >
                 <Pressable
                   disabled={
-                    Boolean(
+                    comment.is_deleted || Boolean(
                       votingCommentIds[
                         comment.id
                       ]
@@ -4156,7 +4161,7 @@ export default function HomeScreen() {
 
                 <Pressable
                   disabled={
-                    Boolean(
+                    comment.is_deleted || Boolean(
                       votingCommentIds[
                         comment.id
                       ]

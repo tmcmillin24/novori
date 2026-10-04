@@ -34,6 +34,7 @@ export type PostComment = {
     | string
     | null;
   is_own: boolean;
+  is_deleted?: boolean;
   is_blocked_author?:
     boolean;
   upvote_count: number;
@@ -104,6 +105,9 @@ function normalizeComment(
 ): PostComment {
   return {
     ...(row as unknown as PostComment),
+    author_id: typeof row.author_id === 'string' ? row.author_id : '',
+    is_deleted: !row.author_id,
+    ...(!row.author_id ? { body: 'This comment was deleted.', author_display_name: 'Deleted user', author_username: null, author_avatar_url: null, is_own: false } : {}),
     upvote_count:
       Number(
         row.upvote_count ??

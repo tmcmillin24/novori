@@ -3510,6 +3510,7 @@ export default function ClubDetailScreen() {
   function openReader(
     readerId: string
   ) {
+    if (!readerId) return;
     router.push({
       pathname:
         '/reader/[id]',
