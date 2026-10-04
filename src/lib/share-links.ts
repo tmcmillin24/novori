@@ -142,3 +142,30 @@ export async function shareBookLink({
     url,
   ));
 }
+
+export function getProfileShareUrl(readerId: string) {
+  return buildShareUrl(`/reader/${encodeURIComponent(readerId)}`);
+}
+
+export async function shareProfileLink({ readerId, name }: { readerId: string; name?: string | null }) {
+  const label = name?.trim();
+  await Share.share(shareContent(label ? `Check out ${label} on Novori` : 'Check out this reader on Novori', getProfileShareUrl(readerId)));
+}
+
+export function getClubShareUrl(clubId: string) {
+  return buildShareUrl(`/club/${encodeURIComponent(clubId)}`);
+}
+
+export async function shareClubLink({ clubId, name }: { clubId: string; name?: string | null }) {
+  const label = name?.trim();
+  await Share.share(shareContent(label ? `Join ${label} on Novori` : 'Check out this club on Novori', getClubShareUrl(clubId)));
+}
+
+export function getClubEventShareUrl(eventId: string) {
+  return buildShareUrl(`/club-event/${encodeURIComponent(eventId)}`);
+}
+
+export async function shareClubEventLink({ eventId, title }: { eventId: string; title?: string | null }) {
+  const label = title?.trim();
+  await Share.share(shareContent(label ? `Check out ${label} on Novori` : 'Check out this club event on Novori', getClubEventShareUrl(eventId)));
+}

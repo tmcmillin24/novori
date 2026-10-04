@@ -26,7 +26,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -68,6 +67,7 @@ import {
   unfollowReader,
 } from '../../lib/feed';
 import {
+  shareProfileLink,
   sharePostLink,
 } from '../../lib/share-links';
 import {
@@ -1164,12 +1164,7 @@ export default function ReaderProfileScreen() {
     );
 
     try {
-      await Share.share({
-        message:
-          username
-            ? `Check out ${name} (${username}) on Novori.`
-            : `Check out ${name} on Novori.`,
-      });
+      await shareProfileLink({ readerId: profile.id, name: username ? `${name} (${username})` : name });
     } catch (
       shareError
     ) {

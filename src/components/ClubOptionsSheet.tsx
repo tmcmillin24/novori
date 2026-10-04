@@ -11,6 +11,7 @@ import { useNovoriTheme } from '../context/theme-context';
 type Props = {
   visible: boolean; clubName: string; role: ClubRole | null; canViewMembers: boolean; hasRules: boolean; busy: boolean;
   onAction: (action: ClubHomeAction) => void; onDismiss: () => void;
+  onShare?: () => void;
   notificationsEnabled?: boolean; globalNotificationsEnabled?: boolean; notificationsBusy?: boolean;
 };
 const actionDetails: Record<ClubHomeAction, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -21,7 +22,7 @@ const actionDetails: Record<ClubHomeAction, { label: string; icon: keyof typeof 
   notification_settings: {label:'Notification settings',icon:'settings-outline'},
 };
 
-export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, notificationsEnabled=true,globalNotificationsEnabled=true,notificationsBusy=false,onAction, onDismiss }: Props) {
+export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, onShare, notificationsEnabled=true,globalNotificationsEnabled=true,notificationsBusy=false,onAction, onDismiss }: Props) {
   const { colors } = useNovoriTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -114,6 +115,12 @@ export default function ClubOptionsSheet({ visible, clubName, role, canViewMembe
             <View style={styles.handle} />
             <Text style={styles.title} accessibilityRole="header">{clubName}</Text>
             <Text style={styles.period}>Club options</Text>
+            {onShare ? <Pressable accessibilityRole="button" accessibilityLabel="Share club" onPress={() => closeSmoothly(onShare)}
+              style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+              <View style={styles.actionIcon}><Ionicons name="share-social-outline" size={20} color={colors.gold} /></View>
+              <Text style={styles.actionText}>Share club</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.mutedText} />
+            </Pressable> : null}
             {getClubHomeActions(role,canViewMembers,hasRules).map(action => <Pressable key={action} accessibilityRole="button"
               accessibilityLabel={action==='notifications'?(notificationsEnabled?'Mute club notifications':'Unmute club notifications'):actionDetails[action].label} disabled={(busy && action === 'leave')||(notificationsBusy && action==='notifications')} onPress={() => closeSmoothly(() => onAction(action))}
               style={({ pressed }) => [styles.action, pressed && styles.pressed]}>

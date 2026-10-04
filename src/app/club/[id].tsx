@@ -107,6 +107,7 @@ import {
   supabase,
 } from '../../lib/supabase';
 import {
+  shareClubLink,
   sharePostLink,
 } from '../../lib/share-links';
 
@@ -4824,6 +4825,11 @@ export default function ClubDetailScreen() {
     setManagementVisible(next); setMembersVisible(next); setInvitePanelOpen(next);
     if (!next) { setInviteQuery(''); setInviteResults([]); }
   }
+  async function handleShareClub() {
+    if (!club) return;
+    try { await shareClubLink({ clubId: club.id, name: club.name }); }
+    catch { Alert.alert('Could not share club', 'Please try again.'); }
+  }
   function handleClubAction(action: ClubHomeAction) {
     if (!clubActions.includes(action)) return;
     if (action === 'edit') editClub();
@@ -4878,7 +4884,7 @@ export default function ClubDetailScreen() {
           Club
         </Text>
 
-        {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }}
+        {club ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }}
           style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text} /></Pressable> : <View style={styles.headerSpacer} />}
       </View>
 
@@ -5633,7 +5639,7 @@ export default function ClubDetailScreen() {
       <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={visiblePinnedPosts} busy={pinBusy}
         onPin={(postId,pinned,replacePostId) => void handleClubPin(postId,pinned,replacePostId)} onDismiss={() => setPinTarget(null)} />
 
-      <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
+      <ClubOptionsSheet onShare={() => void handleShareClub()} visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers}
         notificationsEnabled={memberExperience?.notifications_enabled} globalNotificationsEnabled={memberExperience?.global_notifications_enabled} notificationsBusy={experienceBusy}
         hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)} />
       <ValidationWarningSheet visible={Boolean(experienceWarning)} title="Club preferences" message={experienceWarning} onDismiss={()=>setExperienceWarning('')}/>

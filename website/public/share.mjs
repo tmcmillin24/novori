@@ -36,7 +36,7 @@ if (item) {
   });
 } else {
   title.textContent = 'This link looks incomplete.';
-  description.textContent = 'Ask the sender to share the book, post, or book stack again from Novori.';
+  description.textContent = 'Ask the sender to share the item again from Novori.';
   document.title = 'Link issue · Novori';
   help.hidden = false;
 }

@@ -21,3 +21,10 @@ test('malformed encoding and control characters fail cleanly', () => {
     assert.equal(getSharedItem(path), null);
   }
 });
+
+test('profiles, clubs, and events open their existing app routes', () => {
+  for (const kind of ['reader', 'club', 'club-event']) {
+    assert.equal(getSharedItem(`/${kind}/id%3Fvalue/`).appUrl, `novori://${kind}/id%3Fvalue`);
+    assert.equal(getSharedItem(`/${kind}/id/extra`), null);
+  }
+});

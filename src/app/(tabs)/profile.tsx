@@ -23,7 +23,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -92,6 +91,7 @@ import {
   UserBook,
 } from '../../lib/user-books';
 import {
+  shareProfileLink,
   shareBookStackLink,
   sharePostLink,
 } from '../../lib/share-links';
@@ -1242,10 +1242,8 @@ export default function ProfileScreen() {
 
   async function handleShareProfile() {
     try {
-      await Share.share({
-        message:
-          `Check out ${username} on Novori.`,
-      });
+      if (!profile?.id) return;
+      await shareProfileLink({ readerId: profile.id, name: username });
     } catch {
       Alert.alert(
         'Could not share profile',

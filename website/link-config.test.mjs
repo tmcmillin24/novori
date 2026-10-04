@@ -7,7 +7,7 @@ test('no placeholder association or nonexistent store URL is emitted before setu
 });
 test('Apple association identifies the actual app and only permits shared-item paths', () => {
   const result = getLinkConfig({ NOVORI_APPLE_TEAM_ID: 'ABCDE12345' }, 'com.anonymous.Novori');
-  assert.deepEqual(result.association.applinks.details, [{ appID: 'ABCDE12345.com.anonymous.Novori', paths: ['/book/*', '/post/*', '/stack/*'] }]);
+  assert.deepEqual(result.association.applinks.details, [{ appID: 'ABCDE12345.com.anonymous.Novori', paths: ['/book/*', '/post/*', '/stack/*', '/reader/*', '/club/*', '/club-event/*'] }]);
 });
 test('store fallback accepts a real listing format and rejects arbitrary destinations', () => {
   assert.equal(getLinkConfig({ NOVORI_IOS_APP_STORE_URL: 'https://apps.apple.com/us/app/novori/id123456789' }, 'app').download.ios, 'https://apps.apple.com/us/app/novori/id123456789');

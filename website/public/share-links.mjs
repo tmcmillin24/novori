@@ -1,7 +1,7 @@
-const labels = { book: 'book', post: 'post', stack: 'book stack' };
+const labels = { book: 'book', post: 'post', stack: 'book stack', reader: 'reader profile', club: 'club', 'club-event': 'club event' };
 
 export function getSharedItem(pathname) {
-  const match = /^\/(book|post|stack)\/([^/]+)\/?$/.exec(pathname);
+  const match = /^\/(book|post|stack|reader|club|club-event)\/([^/]+)\/?$/.exec(pathname);
   if (!match) return null;
   let id;
   try {

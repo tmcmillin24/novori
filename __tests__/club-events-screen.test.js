@@ -3,6 +3,7 @@ import renderer,{act} from 'react-test-renderer';
 import CreateClubEventScreen from '../src/app/create-club-event';
 import ClubEventScreen from '../src/app/club-event/[id]';
 import ClubEventsBoard from '../src/components/ClubEventsBoard';
+import { shareClubEventLink } from '../src/lib/share-links';
 import { getClub } from '../src/lib/clubs';
 import { getClubEvent,getClubEvents,saveClubEvent,setClubEventRsvp,cancelClubEvent } from '../src/lib/club-events';
 import { getClubPins,setClubPostPin } from '../src/lib/club-posts';
@@ -10,6 +11,7 @@ import { getPostDetail } from '../src/lib/feed';
 import { searchNovoriBooks,resolveNovoriSearchBookCover } from '../src/lib/book-search';
 
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn()};
+jest.mock('../src/lib/share-links',()=>({shareClubEventLink:jest.fn(async()=>{})}));
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
 jest.mock('react-native',()=>({
   Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
@@ -83,4 +85,10 @@ test('event options use manager editor, pin picker, and cancellation confirmatio
 test('past events paginate and all cancelled entries remain accessible',async()=>{
  const page=Array.from({length:20},(_,i)=>({...event,id:'past-'+i,title:'Past '+i,cancelled_at:'2026-10-03'}));getClubEvents.mockResolvedValueOnce(page).mockResolvedValueOnce([{...event,id:'past-20',title:'Past 20',cancelled_at:'2026-10-03'}]);
  await render(<ClubEventsBoard clubId="club-1" upcoming={[]} canManage={false} now={Date.now()}/>);await press('Past club events');expect(button('Open event: Past 0')).toBeDefined();await press('Load more club events');expect(getClubEvents).toHaveBeenLastCalledWith('club-1','past',20);expect(button('Open event: Past 20')).toBeDefined();expect(button('Create club event')).toBeUndefined();
+});
+
+test('a visitor can share the exact loaded event without editing or fetching book metadata',async()=>{
+ mockParams={id:'event-1'};getClub.mockResolvedValue({...club,membership_role:null});await render(<ClubEventScreen/>);
+ await press('Share club event');expect(shareClubEventLink).toHaveBeenCalledWith({eventId:event.id,title:event.title});
+ expect(button('Open event options')).toBeUndefined();expect(searchNovoriBooks).not.toHaveBeenCalled();
 });

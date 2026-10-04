@@ -49,7 +49,7 @@ jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn()}));
 jest.mock('../src/lib/club-events',()=>({getClubEvents:jest.fn(),CLUB_EVENTS_PAGE_SIZE:20}));
 jest.mock('../src/lib/club-reads',()=>({getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
-jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({}));
+jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({shareClubLink:jest.fn(async()=>{})}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
 const experience={notifications_enabled:true,global_notifications_enabled:true,welcome_seen_at:'2026-10-03T19:00:00Z',current_read_id:'read-1',current_read_title:'Stored shared read'};
@@ -195,4 +195,11 @@ test('opening a welcome notification shows the guide once and dismissing survive
 });
 test('guide can recover from a failed preference load without changing mute or welcome state',async()=>{
   getClubMemberExperience.mockRejectedValueOnce(new Error('Temporary outage.'));await render();await press('Open club options');await press('Club guide');expect(text()).toContain('MAKE YOURSELF AT HOME');expect(getClubMemberExperience).toHaveBeenCalledTimes(2);expect(setClubNotificationsEnabled).not.toHaveBeenCalled();expect(dismissClubWelcome).not.toHaveBeenCalled();
+});
+
+test('club options share the current club without changing membership',async()=>{
+ await act(async()=>{view=renderer.create(<ClubDetailScreen/>);});
+ const options=view.root.findByType(ClubOptionsSheet);
+ await act(async()=>options.props.onShare());
+ expect(require('../src/lib/share-links').shareClubLink).toHaveBeenCalledWith({clubId:base.id,name:base.name});
 });

@@ -11,7 +11,7 @@ export function getLinkConfig(env, bundleId) {
   return {
     download: { ios: appStoreUrl },
     association: teamId ? {
-      applinks: { apps: [], details: [{ appID: `${teamId}.${bundleId}`, paths: ['/book/*', '/post/*', '/stack/*'] }] },
+      applinks: { apps: [], details: [{ appID: `${teamId}.${bundleId}`, paths: ['/book/*', '/post/*', '/stack/*', '/reader/*', '/club/*', '/club-event/*'] }] },
     } : null,
   };
 }

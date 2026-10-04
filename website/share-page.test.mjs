@@ -47,3 +47,12 @@ test('opening the app or leaving the page cancels store fallback', () => {
   r.listeners.pagehide();
   assert.equal(r.timers.size, 0);
 });
+
+test('profile, club, and event landing pages expose only their exact app destination', () => {
+  for (const kind of ['reader', 'club', 'club-event']) {
+    const p = page({ path: `/${kind}/123` });
+    assert.equal(p.elements.get('open-item').href, `novori://${kind}/123`);
+    assert.equal(p.elements.get('open-item').hidden, false);
+    assert.equal(p.timers.size, 0);
+  }
+});

@@ -1,7 +1,7 @@
 # Novori public website
 
 Static landing page, support page, and app-opening pages for shared books, posts,
-and stacks. No API credentials, analytics, database access, or external book API
+stacks, reader profiles, clubs, and club events. No API credentials, analytics, database access, or external book API
 requests are used. Shared pages do not expose post content or private stack data.
 Images use Novori's existing local branding asset.
 
@@ -29,7 +29,7 @@ Only after the domain and its routes are live, set the app's existing
 `EXPO_PUBLIC_NOVORI_SHARE_BASE_URL=https://novori.link` and rebuild/reload the app
 with that environment. Until then, the app's existing share behavior is unchanged.
 
-`/book/:id`, `/post/:id`, and `/stack/:id` show a button to open the exact item
+`/book/:id`, `/post/:id`, `/stack/:id`, `/reader/:id`, `/club/:id`, and `/club-event/:id` show a button to open the exact item
 using the app's existing `novori://` scheme. A visitor needs Novori installed.
 No App Store or TestFlight URL is invented. The browser pages do not fetch book
 metadata or covers; item access and visibility are resolved by the existing app.
@@ -58,3 +58,5 @@ link. This cannot reliably detect installation from JavaScript; iOS Universal
 Links handle installed-app routing. Browser/user choices can still keep a link
 on the web. Android verified App Links and Play Store fallback need their own
 signing identity and listing setup.
+
+Profiles share the reader ID, clubs share the club ID, and events share the event ID using existing app routes. Sharing does not grant access to private profiles, clubs, or events; the existing app/backend visibility checks still apply.

@@ -14,6 +14,7 @@ import { getClub,type ClubWithMembership } from '../../lib/clubs';
 import { canManageClubPosts,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
 import { getPostDetail,type FeedPost } from '../../lib/feed';
 import { getClubEvent,cancelClubEvent,setClubEventRsvp } from '../../lib/club-events';
+import { shareClubEventLink } from '../../lib/share-links';
 import { isUpcomingClubEvent,type ClubEvent,type ClubEventRsvp } from '../../lib/club-event';
 
 export default function ClubEventScreen() {
@@ -39,10 +40,12 @@ export default function ClubEventScreen() {
     catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not load pins.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
   async function pin(postId:string,pinned:boolean,replacePostId?:string){if(!event||!manager||mutationBusy.current)return;
     try{mutationBusy.current=true;setBusy(true);await setClubPostPin(event.club_id,postId,pinned,replacePostId);}catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not update pins.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
+  async function shareEvent(){if(!event)return;try{await shareClubEventLink({eventId:event.id,title:event.title});}catch{setWarning('Could not share the event. Please try again.');}}
   async function joinMeeting(){if(!event?.meeting_url)return;try{const link=new URL(event.meeting_url);if(!['http:','https:'].includes(link.protocol))throw Error('Invalid meeting link.');await Linking.openURL(event.meeting_url);}catch{setWarning('Could not open the meeting link.');}}
   return <SafeAreaView style={styles.safe} edges={['top','bottom']}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back from event" onPress={()=>router.back()} style={styles.button}><Ionicons name="chevron-back" size={25} color={colors.text}/></Pressable><Text style={styles.title}>Club event</Text>
-      {manager&&upcoming?<Pressable disabled={busy} accessibilityRole="button" accessibilityLabel="Open event options" onPress={()=>setOptions(true)} style={styles.button}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable>:<View style={styles.button}/>}</View>
+      <View style={styles.row}>{event&&!loading&&!error?<Pressable accessibilityRole="button" accessibilityLabel="Share club event" onPress={()=>void shareEvent()} style={styles.button}><Ionicons name="share-social-outline" size={23} color={colors.text}/></Pressable>:null}
+      {manager&&upcoming?<Pressable disabled={busy} accessibilityRole="button" accessibilityLabel="Open event options" onPress={()=>setOptions(true)} style={styles.button}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable>:<View style={styles.button}/>}</View></View>
     {loading?<View style={styles.center}><ActivityIndicator color={colors.gold}/></View>:error||!event?<View style={styles.center}><Text style={styles.note}>{error||'This event is unavailable.'}</Text></View>:<ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void refresh()} tintColor={colors.gold}/>}>
       <Pressable accessibilityRole="button" accessibilityLabel="Open event club" onPress={()=>router.push({pathname:'/club/[id]',params:{id:event.club_id,tab:'events'}})}><Text style={styles.club}>in {club?.name}</Text></Pressable>
       <ClubEventCard event={event} detail now={now}/>
