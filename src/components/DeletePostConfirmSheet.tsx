@@ -27,6 +27,7 @@ import {
 } from '../context/theme-context';
 
 type Props = {
+  icon?: keyof typeof Ionicons.glyphMap;
   title?: string;
   message?: string;
   confirmLabel?: string;
@@ -38,6 +39,7 @@ type Props = {
 };
 
 export default function DeletePostConfirmSheet({
+  icon = 'trash-outline',
   title = 'Delete post?',
   message = 'This post and its comments will be permanently deleted. This can’t be undone.',
   confirmLabel = 'Delete',
@@ -544,7 +546,7 @@ export default function DeletePostConfirmSheet({
               }
             >
               <Ionicons
-                name="trash-outline"
+                name={icon}
                 size={23}
                 color={
                   colors.danger

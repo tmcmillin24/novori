@@ -98,7 +98,7 @@ export default function SettingsScreen() {
       <SettingsSection icon="key-outline" title="Your account">
         <SettingsRow icon="mail-outline" title="Email" value={email || '—'}/>
         <SettingsDivider/>
-        <SettingsRow icon="lock-closed-outline" title="Password & Security" comingSoon/>
+        <SettingsRow icon="lock-closed-outline" title="Password & Security" subtitle="Password, verified email, and signed-in devices" onPress={() => router.push('/password-security')}/>
         <SettingsDivider/>
         <SettingsRow icon="call-outline" title="Recovery Phone" subtitle="Optional account recovery" comingSoon/>
       </SettingsSection>

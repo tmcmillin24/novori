@@ -1,608 +1,109 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { SettingsDivider, SettingsHeader, SettingsIntro, SettingsSection, settingsStyles } from '../components/SettingsPrimitives';
+import { useNovoriTheme } from '../context/theme-context';
+import { supabase } from '../lib/supabase';
 
-import {
-    useEffect,
-    useState,
-} from 'react';
-
-import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
-
-import {
-    SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-    NovoriColors,
-} from '../constants/novori-theme';
-
-import {
-    useNovoriTheme,
-} from '../context/theme-context';
-
-import {
-    supabase,
-} from '../lib/supabase';
+const PASSWORD_RECOVERY_REDIRECT = 'novori://auth-confirm?flow=recovery';
 
 export default function PasswordSecurityScreen() {
   const router = useRouter();
+  const { colors } = useNovoriTheme();
+  const styles = settingsStyles(colors);
+  const [account, setAccount] = useState<{ email: string; verified: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [busy, setBusy] = useState<'reset' | 'sessions' | null>(null);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [confirmSessions, setConfirmSessions] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [sessionsRevoked, setSessionsRevoked] = useState(false);
+  const mounted = useRef(false);
+  const mutation = useRef(false);
 
-  const { colors } =
-    useNovoriTheme();
-
-  const styles =
-    createStyles(colors);
-
-  const [email, setEmail] =
-    useState('');
-
-  const [
-    emailVerified,
-    setEmailVerified,
-  ] = useState(false);
-
-  const [
-    sending,
-    setSending,
-  ] = useState(false);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  useEffect(() => {
-    async function loadAccount() {
-      const {
-        data: { user },
-        error,
-      } =
-        await supabase.auth.getUser();
-
-      if (
-        error ||
-        !user
-      ) {
-        await supabase.auth.signOut();
-
-        router.replace('/auth');
-
-        return;
-      }
-
-      setEmail(
-        user.email ?? ''
-      );
-
-      setEmailVerified(
-        Boolean(
-          user.email_confirmed_at
-        )
-      );
-
-      setLoading(false);
-    }
-
-    loadAccount();
+  const loadAccount = useCallback(async () => {
+    setLoading(true); setLoadError('');
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!mounted.current) return;
+      if (!user) { router.replace('/auth'); return; }
+      setAccount({ email: user.email ?? '', verified: Boolean(user.email_confirmed_at) });
+    } catch {
+      if (mounted.current) setLoadError('Your account details couldn’t be loaded. Please try again.');
+    } finally { if (mounted.current) setLoading(false); }
   }, [router]);
 
+  useEffect(() => {
+    mounted.current = true; void loadAccount();
+    return () => { mounted.current = false; };
+  }, [loadAccount]);
+
   async function sendResetEmail() {
-    if (!email) {
-      Alert.alert(
-        'Email unavailable',
-        'Novori could not find the email address associated with this account.'
-      );
-
-      return;
-    }
-
+    if (mutation.current || !account?.email) return;
+    mutation.current = true; setBusy('reset');
     try {
-      setSending(true);
-
-      const redirectTo =
-        'novori://reset-password';
-
-      const { error } =
-        await supabase.auth
-          .resetPasswordForEmail(
-            email,
-            {
-              redirectTo,
-            }
-          );
-
-      if (error) {
-        throw error;
-      }
-
-      Alert.alert(
-        'Check your email',
-        `We sent a password reset link to ${email}. Open the link to return to Novori and choose a new password.`
-      );
+      const { error } = await supabase.auth.resetPasswordForEmail(account.email, { redirectTo: PASSWORD_RECOVERY_REDIRECT });
+      if (error) throw error;
+      if (mounted.current) setNotice({ title: 'Check your email', message: `We sent a password reset link to ${account.email}. Open the newest email on your phone to choose a new password.` });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong while sending the password reset email.';
-
-      Alert.alert(
-        'Could not send email',
-        message
-      );
-    } finally {
-      setSending(false);
-    }
+      if (mounted.current) setNotice({ title: 'Could not send email', message: (error as { message?: string })?.message || 'Please try again in a moment.' });
+    } finally { mutation.current = false; if (mounted.current) setBusy(null); }
   }
 
-  if (loading) {
-    return (
-      <SafeAreaView
-        style={styles.safeArea}
-        edges={[
-          'top',
-          'bottom',
-        ]}
-      >
-        <View
-          style={
-            styles.loadingWrap
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color={colors.gold}
-          />
-        </View>
-      </SafeAreaView>
-    );
+  async function signOutOtherDevices() {
+    if (mutation.current || !account) return;
+    mutation.current = true; setBusy('sessions'); setSessionsError('');
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
+      if (mounted.current) { setConfirmSessions(false); setSessionsRevoked(true); }
+    } catch (error) {
+      if (mounted.current) setSessionsError((error as { message?: string })?.message || 'Could not sign out other devices. Please try again.');
+    } finally { mutation.current = false; if (mounted.current) setBusy(null); }
   }
 
-  return (
-    <SafeAreaView
-      style={styles.safeArea}
-      edges={[
-        'top',
-        'bottom',
-      ]}
-    >
-      <View style={styles.header}>
-        <Pressable
-          onPress={() =>
-            router.back()
-          }
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed &&
-              styles.pressed,
-          ]}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={24}
-            color={colors.text}
-          />
-        </Pressable>
+  function action(icon: keyof typeof Ionicons.glyphMap, title: string, detail: string, onPress: () => void, disabled = false, working = false) {
+    return <Pressable accessibilityRole="button" accessibilityLabel={title} disabled={disabled} onPress={onPress}
+      style={({ pressed }) => [styles.row, disabled && styles.disabled, pressed && styles.pressed]}>
+      <View style={styles.rowIcon}><Ionicons name={icon} size={19} color={colors.gold} /></View>
+      <View style={styles.copy}><Text style={styles.rowTitle}>{title}</Text><Text style={styles.rowDetail}>{detail}</Text></View>
+      {working ? <ActivityIndicator color={colors.gold} /> : <Ionicons name="chevron-forward" size={17} color={colors.mutedText} />}
+    </Pressable>;
+  }
 
-        <Text
-          style={styles.headerTitle}
-        >
-          Password & Security
-        </Text>
-
-        <View
-          style={
-            styles.headerSpacer
-          }
-        />
-      </View>
-
-      <View style={styles.content}>
-        <Text
-          style={styles.sectionLabel}
-        >
-          ACCOUNT
-        </Text>
-
-        <View style={styles.card}>
-          <View style={styles.infoRow}>
-            <View
-              style={styles.iconWrap}
-            >
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color={colors.gold}
-              />
-            </View>
-
-            <View
-              style={styles.infoText}
-            >
-              <Text
-                style={
-                  styles.infoTitle
-                }
-              >
-                Email
-              </Text>
-
-              <Text
-                style={
-                  styles.infoValue
-                }
-              >
-                {email}
-              </Text>
-            </View>
-          </View>
-
-          <View
-            style={styles.divider}
-          />
-
-          <View style={styles.infoRow}>
-            <View
-              style={styles.iconWrap}
-            >
-              <Ionicons
-                name={
-                  emailVerified
-                    ? 'checkmark-circle-outline'
-                    : 'alert-circle-outline'
-                }
-                size={20}
-                color={
-                  emailVerified
-                    ? colors.gold
-                    : colors.danger
-                }
-              />
-            </View>
-
-            <View
-              style={styles.infoText}
-            >
-              <Text
-                style={
-                  styles.infoTitle
-                }
-              >
-                Email Verification
-              </Text>
-
-              <Text
-                style={
-                  styles.infoValue
-                }
-              >
-                {emailVerified
-                  ? 'Verified'
-                  : 'Not verified'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <Text
-          style={styles.sectionLabel}
-        >
-          PASSWORD
-        </Text>
-
-        <View
-          style={styles.resetCard}
-        >
-          <View
-            style={
-              styles.resetIcon
-            }
-          >
-            <Ionicons
-              name="key-outline"
-              size={25}
-              color={colors.gold}
-            />
-          </View>
-
-          <Text
-            style={styles.resetTitle}
-          >
-            Reset your password
-          </Text>
-
-          <Text
-            style={styles.resetText}
-          >
-            Novori will send a secure
-            password reset link to your
-            verified email address.
-          </Text>
-
-          <Pressable
-            disabled={sending}
-            onPress={
-              sendResetEmail
-            }
-            style={({ pressed }) => [
-              styles.resetButton,
-              pressed &&
-                !sending &&
-                styles.pressed,
-              sending &&
-                styles.disabled,
-            ]}
-          >
-            {sending ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.background
-                }
-              />
-            ) : (
-              <>
-                <Ionicons
-                  name="paper-plane-outline"
-                  size={18}
-                  color={
-                    colors.background
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.resetButtonText
-                  }
-                >
-                  Send Reset Email
-                </Text>
-              </>
-            )}
-          </Pressable>
-        </View>
-
-        <View
-          style={styles.securityNote}
-        >
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={18}
-            color={
-              colors.secondaryText
-            }
-          />
-
-          <Text
-            style={
-              styles.securityNoteText
-            }
-          >
-            Your password cannot be
-            viewed from Novori. Password
-            changes require access to
-            your account email.
-          </Text>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function createStyles(
-  colors: NovoriColors
-) {
-  return StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor:
-        colors.background,
-    },
-
-    loadingWrap: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    header: {
-      height: 56,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        colors.border,
-    },
-
-    backButton: {
-      width: 42,
-      height: 42,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    headerTitle: {
-      flex: 1,
-      color: colors.text,
-      fontSize: 20,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      textAlign: 'center',
-    },
-
-    headerSpacer: {
-      width: 42,
-    },
-
-    content: {
-      width: '100%',
-      maxWidth: 720,
-      alignSelf: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 26,
-    },
-
-    sectionLabel: {
-      color: colors.mutedText,
-      fontSize: 11,
-      letterSpacing: 0.9,
-      fontFamily:
-        'Inter_700Bold',
-      marginTop: 10,
-      marginBottom: 9,
-      paddingHorizontal: 4,
-    },
-
-    card: {
-      backgroundColor:
-        colors.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      overflow: 'hidden',
-    },
-
-    infoRow: {
-      minHeight: 70,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 15,
-      paddingVertical: 12,
-    },
-
-    iconWrap: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor:
-        colors.elevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 13,
-    },
-
-    infoText: {
-      flex: 1,
-    },
-
-    infoTitle: {
-      color: colors.text,
-      fontSize: 14,
-      fontFamily:
-        'Inter_600SemiBold',
-    },
-
-    infoValue: {
-      color:
-        colors.secondaryText,
-      fontSize: 13,
-      fontFamily:
-        'Inter_400Regular',
-      marginTop: 4,
-    },
-
-    divider: {
-      height: 1,
-      backgroundColor:
-        colors.border,
-      marginLeft: 66,
-    },
-
-    resetCard: {
-      backgroundColor:
-        colors.surface,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      padding: 20,
-      alignItems: 'center',
-    },
-
-    resetIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 16,
-      backgroundColor:
-        colors.elevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 15,
-    },
-
-    resetTitle: {
-      color: colors.text,
-      fontSize: 21,
-      fontFamily:
-        'PlayfairDisplay_700Bold',
-      textAlign: 'center',
-    },
-
-    resetText: {
-      color:
-        colors.secondaryText,
-      fontSize: 13,
-      lineHeight: 20,
-      fontFamily:
-        'Inter_400Regular',
-      textAlign: 'center',
-      marginTop: 8,
-      maxWidth: 310,
-    },
-
-    resetButton: {
-      width: '100%',
-      minHeight: 50,
-      borderRadius: 14,
-      backgroundColor:
-        colors.gold,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      marginTop: 20,
-    },
-
-    resetButtonText: {
-      color:
-        colors.background,
-      fontSize: 14,
-      fontFamily:
-        'Inter_700Bold',
-    },
-
-    securityNote: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
-      marginTop: 20,
-      paddingHorizontal: 8,
-    },
-
-    securityNoteText: {
-      flex: 1,
-      color: colors.mutedText,
-      fontSize: 12,
-      lineHeight: 18,
-      fontFamily:
-        'Inter_400Regular',
-    },
-
-    pressed: {
-      opacity: 0.68,
-    },
-
-    disabled: {
-      opacity: 0.6,
-    },
-  });
+  return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SettingsHeader title="Password & Security" />
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <SettingsIntro icon="shield-checkmark-outline" title="Keep your reading space yours." detail="Manage your password and access to your Novori account." />
+      {loading ? <View style={styles.centered}><ActivityIndicator color={colors.gold} /></View> : loadError ?
+        <View style={styles.centered}><Text style={styles.errorText}>{loadError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry account details" style={styles.retry} onPress={() => void loadAccount()}><Text style={styles.retryText}>Try again</Text></Pressable></View> : account ? <>
+        <SettingsSection icon="person-circle-outline" title="Your account">
+          <View style={styles.row}><View style={styles.rowIcon}><Ionicons name="mail-outline" size={19} color={colors.gold} /></View><View style={styles.copy}><Text style={styles.rowTitle}>Account email</Text><Text selectable style={styles.rowDetail}>{account.email || 'Email unavailable'}</Text></View></View>
+          <SettingsDivider />
+          <View style={styles.row}><View style={styles.rowIcon}><Ionicons name={account.verified ? 'checkmark-circle-outline' : 'alert-circle-outline'} size={19} color={colors.gold} /></View><View style={styles.copy}><Text style={styles.rowTitle}>Email verification</Text><Text style={styles.rowDetail}>{account.verified ? 'Verified' : 'Not verified'}</Text></View></View>
+        </SettingsSection>
+        <SettingsSection icon="key-outline" title="Password">
+          {action('key-outline', 'Change password', 'Send a secure reset link to your account email.', () => void sendResetEmail(), Boolean(busy) || !account.email, busy === 'reset')}
+          <View style={styles.note}><Ionicons name="lock-closed-outline" size={17} color={colors.gold} /><Text style={styles.noteText}>Open the newest reset email to choose your new password. Novori never displays your password.</Text></View>
+        </SettingsSection>
+        <SettingsSection icon="phone-portrait-outline" title="Signed-in devices">
+          {action('log-out-outline', 'Sign out other devices', 'Keep this phone signed in and end other sessions.', () => { setSessionsError(''); setConfirmSessions(true); }, Boolean(busy), busy === 'sessions')}
+          <View style={styles.note}><Ionicons name={sessionsRevoked ? 'checkmark-circle-outline' : 'information-circle-outline'} size={17} color={colors.gold} /><Text style={styles.noteText}>{sessionsRevoked ? 'Other sessions have been revoked. This phone stays signed in. Other devices lose access when their current session token expires.' : 'Other devices may remain signed in until their current session token expires.'}</Text></View>
+        </SettingsSection>
+      </> : null}
+      <SettingsSection icon="help-circle-outline" title="Account help">
+        {action('help-circle-outline', 'Get account help', 'Trouble with your email or worried about account access?', () => router.push('/help-support'))}
+      </SettingsSection>
+    </ScrollView>
+    <ValidationWarningSheet visible={Boolean(notice)} title={notice?.title ?? ''} message={notice?.message ?? ''} icon="mail-outline" dismissLabel="Close password message" onDismiss={() => setNotice(null)} />
+    <DeletePostConfirmSheet visible={confirmSessions} busy={busy === 'sessions'} icon="log-out-outline" title="Sign out other devices?"
+      message={sessionsError || 'This phone will stay signed in. Other devices will lose access when their current session token expires.'}
+      confirmLabel={sessionsError ? 'Try again' : 'Sign out other devices'} cancelLabel="Keep devices signed in" onConfirm={signOutOtherDevices} onDismiss={() => { if (!mutation.current) setConfirmSessions(false); }} />
+  </SafeAreaView>;
 }
