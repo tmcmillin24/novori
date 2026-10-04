@@ -729,7 +729,7 @@ export default function PostDetailScreen() {
   const threadData=useMemo(()=>buildCommentThreads(comments,commentSort),[comments,commentSort]);
   const focusedThreadId=getFocusedConversationId(comments,requestedThreadId,targetCommentId,commentDepthLimit);
   const focusedThread=threadData.nodes.get(focusedThreadId);
-  const focusedAncestors=useMemo(()=>getCommentAncestorPath(threadData.nodes,focusedThreadId),[threadData,focusedThreadId]);
+  const focusedParent=useMemo(()=>{const path=getCommentAncestorPath(threadData.nodes,focusedThreadId);return path[path.length-1];},[threadData,focusedThreadId]);
   const [visibleReplyCounts,setVisibleReplyCounts]=useState<Record<string,number>>({});
   const thread=focusedThreadId?(focusedThread?[focusedThread]:[]):threadData.roots;
   const activeReplyTarget=replyTo;
@@ -1244,7 +1244,6 @@ export default function PostDetailScreen() {
       if(!mounted.current || viewPostId.current!==postIdForComment)return;
       if(typeof confirmedId==='string'){
         if(parentId)setVisibleReplyCounts(current=>({...current,[parentId]:Math.max(current[parentId]??COMMENT_REPLY_BATCH_SIZE,(threadData.nodes.get(parentId)?.children.length??0)+1)}));
-        if(focusedAncestors.some(item=>item.id===parentId))router.setParams({threadId:confirmedId,commentId:confirmedId});
         const missingLocalComment=!commentsState.current.some(item=>item.id===optimisticId || item.id===confirmedId);
         if(missingLocalComment)setPost(current=>current?{...current,comment_count:(current.comment_count??0)+1}:current);
         setComments(current=>current.some(item=>item.id===confirmedId)?current.filter(item=>item.id!==optimisticId):current.some(item=>item.id===optimisticId)?current.map(item=>item.id===optimisticId?{...item,id:confirmedId}:item):[...current,{...optimisticComment,id:confirmedId}]);
@@ -2269,21 +2268,21 @@ export default function PostDetailScreen() {
     );
   }
 
-  function renderComment(comment:ThreadComment,depth=0,contextOnly=false){
+  function renderComment(comment:ThreadComment,depth=0){
     const name=comment.author_display_name?.trim()||comment.author_username?.trim()||'Novori Reader';
     const nested=depth>0;
     const limit=visibleReplyCounts[comment.id]??COMMENT_REPLY_BATCH_SIZE;
     const visibleChildren=comment.children.slice(0,limit);
     const hiddenCount=comment.children.length-visibleChildren.length;
-    const children=contextOnly?null:comment.children.length?(depth<commentDepthLimit?<>
+    const children=comment.children.length?(depth<commentDepthLimit?<>
       {visibleChildren.map(child=>renderComment(child,depth+1))}
       {hiddenCount>0?<Pressable accessibilityRole="button" accessibilityLabel={`Show more replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:limit+COMMENT_REPLY_BATCH_SIZE}))} style={[styles.continueConversation,styles.continueConversationBranch]}><Ionicons name="add-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Show more replies · {hiddenCount}</Text></Pressable>:null}
       {limit>COMMENT_REPLY_BATCH_SIZE?<Pressable accessibilityRole="button" accessibilityLabel={`Show fewer replies: ${comment.id}`} onPress={()=>setVisibleReplyCounts(current=>({...current,[comment.id]:COMMENT_REPLY_BATCH_SIZE}))} style={[styles.continueConversation,styles.continueConversationBranch]}><Text style={styles.continueConversationText}>Show fewer replies</Text></Pressable>:null}
     </>:
-      <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} onPress={()=>openConversation(comment.id)} style={[styles.continueConversation,styles.continueConversationBranch]}>
-        <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>Continue conversation · {countThreadReplies(comment)} more {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View conversation: ${comment.id}`} onPress={()=>openConversation(comment.id)} style={[styles.continueConversation,styles.continueConversationBranch]}>
+        <Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View conversation · {countThreadReplies(comment)} {countThreadReplies(comment)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/>
       </Pressable>):null;
-    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested,contextOnly&&{marginLeft:depth>0?Math.min(depth,commentDepthLimit)*23-9:0}]}>
+    return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
       <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
@@ -3080,8 +3079,9 @@ export default function PostDetailScreen() {
 
           {!discussionSpoilersHidden ? <>
           {focusedThreadId?<View style={styles.conversationContext}>
-            <Text style={styles.conversationContextTitle}>Focused conversation</Text>
+            <Text style={styles.conversationContextTitle}>Conversation</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="View all post comments" onPress={()=>router.replace({pathname:'/post/[id]',params:{id:postId}})} style={styles.continueConversation}><Ionicons name="arrow-back-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View all comments</Text></Pressable>
+            {focusedParent?<Pressable accessibilityRole="button" accessibilityLabel="View parent comment" onPress={()=>openConversation(focusedParent.id)} style={styles.continueConversation}><Ionicons name="arrow-up-outline" size={14} color={colors.gold}/><Text style={styles.continueConversationText}>View parent comment</Text></Pressable>:null}
             <Text style={styles.conversationContextHint}>Tap a reply arrow to reply. Hold a comment for more actions.</Text>
           </View>:null}
           <View
@@ -3102,7 +3102,7 @@ export default function PostDetailScreen() {
                 styles.commentsCountLabel
               }
             >
-              {focusedThread?countThreadReplies(focusedThread)+focusedAncestors.length+1:comments.length}
+              {focusedThread?countThreadReplies(focusedThread)+1:comments.length}
             </Text>
           </View>
 
@@ -3169,10 +3169,7 @@ export default function PostDetailScreen() {
           {thread.length >
           0 ? (
             <View onLayout={event=>setCommentAreaWidth(event.nativeEvent.layout.width)} style={styles.threadList}>
-              {focusedAncestors.map((comment,index)=>renderComment(comment,index,true))}
-              <View style={focusedAncestors.length?{marginLeft:Math.min(focusedAncestors.length,commentDepthLimit)*23-9,paddingLeft:9,borderLeftWidth:StyleSheet.hairlineWidth,borderLeftColor:colors.border}:undefined}>
-                {thread.map(comment=>renderComment(comment))}
-              </View>
+              {thread.map(comment=>renderComment(comment))}
             </View>
           ) : (
             <View

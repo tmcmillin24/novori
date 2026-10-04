@@ -4195,12 +4195,12 @@ export default function HomeScreen() {
         </Pressable>
 
         {children.length > 0 && depth >= sheetDepthLimit ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Continue conversation: ${comment.id}`} style={styles.continueSheetConversation} onPress={() => {
+          <Pressable accessibilityRole="button" accessibilityLabel={`View conversation: ${comment.id}`} style={styles.continueSheetConversation} onPress={() => {
             if (!commentsPost) return;
             const id=commentsPost.id;
             closeCommentsSheet();
             router.push({pathname: '/post/[id]/conversation', params: {id, threadId: comment.id, commentId: comment.id}});
-          }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>Continue conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} more replies</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
+          }}><Ionicons name="chatbubbles-outline" size={14} color={colors.gold}/><Text style={styles.continueSheetConversationText}>View conversation · {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)} {countThreadReplies(sheetThreadData.nodes.get(comment.id)!)===1?'reply':'replies'}</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></Pressable>
         ) : visibleChildren.length >
         0 ? (
           <View

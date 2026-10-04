@@ -103,18 +103,18 @@ test('ordinary posts retain their comments and composer',async()=>{
 const chain=()=>Array.from({length:6},(_,i)=>({...comment,id:'chain-'+i,parent_comment_id:i?'chain-'+(i-1):null,body:'Reply at depth '+i}));
 test('compact post comments stop indenting and link to a focused conversation',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);
- expect(text()).toContain('Reply at depth 2');expect(text()).not.toContain('Reply at depth 3');await press('Continue conversation: chain-2');
+ expect(text()).toContain('Reply at depth 2');expect(text()).not.toContain('Reply at depth 3');await press('View conversation: chain-2');
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]/conversation',params:{id:'post-1',threadId:'chain-2',commentId:'chain-2'}});
 });
-test('focused conversation includes ancestor context and replies only after explicit selection',async()=>{
+test('focused conversation starts at the selected comment and replies only after explicit selection',async()=>{
  mockParams={id:'post-1',threadId:'chain-2',commentId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'unrelated',body:'Unrelated conversation.'}]);
  createPostComment.mockResolvedValue('new-reply');await render(<PostDetailScreen/>);
- expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).toContain('Reply at depth 0');expect(text()).toContain('Reply at depth 1');expect(text()).not.toContain('Replying to');expect(text()).not.toContain('Unrelated conversation.');
+ expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).not.toContain('Reply at depth 0');expect(text()).not.toContain('Reply at depth 1');expect(text()).not.toContain('Replying to');expect(text()).not.toContain('Unrelated conversation.');
  await chooseReply('chain-2');await fill('Comment reply text','A focused reply.');await press('Send comment');
  expect(createPostComment).toHaveBeenCalledWith('post-1','A focused reply.','chain-2');await press('View all post comments');expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});
 });
 test('deep notification targets open a readable branch automatically',async()=>{
- mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Focused conversation');expect(text()).toContain('Reply at depth 5');expect(text()).toContain('Reply at depth 0');expect(text()).toContain('Reply at depth 4');
+ mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Conversation');expect(text()).toContain('Reply at depth 5');expect(text()).not.toContain('Reply at depth 0');expect(text()).not.toContain('Reply at depth 4');
 });
 test('missing focused comments cannot accidentally publish to the post root',async()=>{
  mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('View all post comments')).toBeDefined();
@@ -202,11 +202,11 @@ test('reply branches expand three at a time and collapse without retrieving the 
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const replies=Array.from({length:8},(_,i)=>({...comment,id:'reply-'+i,parent_comment_id:'comment-1',body:'Branch reply '+i,vote_score:8-i}));getPostComments.mockResolvedValue([comment,...replies]);await render(<PostDetailScreen/>);
  expect(text()).toContain('Branch reply 2');expect(text()).not.toContain('Branch reply 3');expect(button('Show more replies: comment-1')).toBeDefined();await press('Show more replies: comment-1');expect(text()).toContain('Branch reply 5');expect(text()).not.toContain('Branch reply 6');await press('Show more replies: comment-1');expect(text()).toContain('Branch reply 7');expect(button('Show more replies: comment-1')).toBeUndefined();await press('Show fewer replies: comment-1');expect(text()).not.toContain('Branch reply 3');expect(getPostComments).toHaveBeenCalledTimes(1);
 });
-test('selected chains include the original parent but exclude siblings at every ancestor level',async()=>{
- mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'root-sibling',parent_comment_id:'chain-0',body:'Root sibling branch'},{...comment,id:'middle-sibling',parent_comment_id:'chain-1',body:'Middle sibling branch'}]);await render(<PostDetailScreen/>);for(const depth of [0,1,2,3,4])expect(text()).toContain('Reply at depth '+depth);expect(text()).not.toContain('Root sibling branch');expect(text()).not.toContain('Middle sibling branch');expect(text()).not.toContain('Reply at depth 5');expect(button('Continue conversation: chain-4')).toBeDefined();expect(text()).not.toContain('Replying to');
+test('selected conversations exclude ancestors and unrelated sibling branches',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'root-sibling',parent_comment_id:'chain-0',body:'Root sibling branch'},{...comment,id:'middle-sibling',parent_comment_id:'chain-1',body:'Middle sibling branch'}]);await render(<PostDetailScreen/>);for(const depth of [2,3,4])expect(text()).toContain('Reply at depth '+depth);for(const depth of [0,1])expect(text()).not.toContain('Reply at depth '+depth);expect(text()).not.toContain('Root sibling branch');expect(text()).not.toContain('Middle sibling branch');expect(text()).not.toContain('Reply at depth 5');expect(button('View conversation: chain-4')).toBeDefined();expect(text()).not.toContain('Replying to');
 });
-test('explicitly replying to an ancestor keeps the newly saved branch in view',async()=>{
- mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());createPostComment.mockResolvedValue('new-branch');await render(<PostDetailScreen/>);await chooseReply('chain-0');await fill('Comment reply text','Reply to the original parent');await press('Send comment');expect(createPostComment).toHaveBeenCalledWith('post-1','Reply to the original parent','chain-0');expect(mockRouter.setParams).toHaveBeenCalledWith({threadId:'new-branch',commentId:'new-branch'});
+test('parent context is available through an explicit navigation action',async()=>{
+ mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(button('Comment: chain-1')).toBeUndefined();await press('View parent comment');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]/conversation',params:{id:'post-1',threadId:'chain-1',commentId:'chain-1'}});expect(createPostComment).not.toHaveBeenCalled();
 });
 
 test('reply arrow explicitly selects its comment and submits to that parent',async()=>{
@@ -221,5 +221,9 @@ test('siblings stay aligned and only a reply to one sibling creates a deeper bra
 test('continued conversation sibling rows share one inset and Back pops the previous screen',async()=>{
  mockParams={id:'post-1',threadId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain().slice(0,3),...Array.from({length:3},(_,i)=>({...comment,id:'focused-sibling-'+i,parent_comment_id:'chain-2',body:'Focused sibling '+i}))]);await render(<PostDetailScreen/>);
  const container=id=>{let node=button('Comment: '+id).parent;while(node.type!=='Pressable')node=node.parent;return node.parent;};const inset=node=>{const style=Object.assign({},...[node.props.style].flat());return (style.marginLeft??0)+(style.paddingLeft??0);};
- expect(inset(container('chain-0'))).toBe(0);expect(inset(container('chain-1'))).toBe(23);expect(inset(container('chain-2').parent)).toBe(46);for(let i=0;i<3;i++)expect(inset(container('focused-sibling-'+i))).toBe(23);await press('Back to previous screen');expect(mockRouter.back).toHaveBeenCalledTimes(1);expect(mockRouter.replace).not.toHaveBeenCalled();
+ expect(button('Comment: chain-0')).toBeUndefined();expect(button('Comment: chain-1')).toBeUndefined();expect(inset(container('chain-2'))).toBe(0);for(let i=0;i<3;i++)expect(inset(container('focused-sibling-'+i))).toBe(23);await press('Back to previous screen');expect(mockRouter.back).toHaveBeenCalledTimes(1);expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
+test('a root conversation offers no parent action and preserves the reply label count',async()=>{
+ mockParams={id:'post-1',threadId:'chain-0'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain().slice(0,4));await render(<PostDetailScreen/>);expect(button('View parent comment')).toBeUndefined();expect(text()).toContain('View conversation · 1 reply');expect(text()).not.toContain('Continue conversation');
 });
