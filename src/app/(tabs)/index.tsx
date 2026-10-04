@@ -1,3 +1,4 @@
+import CommentsWindowOverlay from '../../components/CommentsWindowOverlay';
 import {useCommentSheetContinuation} from '../../lib/use-comment-sheet-continuation';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
 import {isTransientReadError} from '../../lib/session-read-cache';
@@ -6996,12 +6997,10 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      <Modal
+      <CommentsWindowOverlay
         visible={
           commentsModalVisible
         }
-        transparent
-        animationType="none"
         onShow={()=>animateCommentsSheetIn(commentsContinuation.onShow())}
         onDismiss={
           handleCommentsModalDismiss
@@ -8074,7 +8073,7 @@ export default function HomeScreen() {
             </Animated.View>
           </View>
         </View>
-      </Modal>
+      </CommentsWindowOverlay>
 
     </>
   );

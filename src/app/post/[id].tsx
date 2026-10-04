@@ -3013,21 +3013,7 @@ export default function PostDetailScreen() {
 
           {!discussionSpoilersHidden ? <>
           <View style={focusedThreadId?styles.conversationToolbar:undefined}>
-          <View
-            style={
-              [styles.commentsHeader,focusedThreadId && styles.conversationCountRow]
-            }
-          >
-            {!focusedThreadId?<Text style={styles.commentsTitle}>Comments</Text>:null}
-
-            <Text
-              style={
-                styles.commentsCountLabel
-              }
-            >
-              {focusedThread?`${countThreadReplies(focusedThread)+1} ${countThreadReplies(focusedThread)===0?'comment':'comments'}`:comments.length}
-            </Text>
-          </View>
+          {focusedThread?<Text accessibilityLabel="Conversation comment count" style={[styles.commentsCountLabel,styles.conversationCountText]}>{`${countThreadReplies(focusedThread)+1} ${countThreadReplies(focusedThread)===0?'comment':'comments'}`}</Text>:<View style={styles.commentsHeader}><Text style={styles.commentsTitle}>Comments</Text><Text style={styles.commentsCountLabel}>{comments.length}</Text></View>}
 
           <View
             style={
@@ -3840,6 +3826,7 @@ function createStyles(
     focusedHeaderAction:{width:88,height:42,alignItems:'flex-end',justifyContent:'center'},
     focusedHeaderTitle:{flex:1,textAlign:'center',fontSize:18},
     conversationToolbar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingBottom:12,marginBottom:8,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
+    conversationCountText:{textAlign:'left',padding:0,margin:0},
     conversationCountRow:{marginTop:0,marginBottom:0,paddingHorizontal:0},
     conversationSortRow:{marginBottom:0},
     conversationAnchor:{paddingVertical:10,marginBottom:8,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},

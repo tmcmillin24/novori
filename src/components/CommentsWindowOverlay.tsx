@@ -1,0 +1,22 @@
+import {useEffect,useRef,type ReactNode} from 'react';
+import {Modal,Platform,StyleSheet,View} from 'react-native';
+import {FullWindowOverlay} from 'react-native-screens';
+
+type Props={visible:boolean;children:ReactNode;onShow:()=>void;onDismiss:()=>void;onRequestClose:()=>void};
+/** iOS sheets stay in the app window, without presenting a modal view controller. */
+export default function CommentsWindowOverlay({visible,children,onShow,onDismiss,onRequestClose}:Props){
+  const wasVisible=useRef(false);
+  const shown=useRef(false);
+  const callbacks=useRef({onShow,onDismiss});
+  callbacks.current={onShow,onDismiss};
+  useEffect(()=>{
+    if(Platform.OS!=='ios')return;
+    if(!visible && wasVisible.current){shown.current=false;callbacks.current.onDismiss();}
+    wasVisible.current=visible;
+  },[visible]);
+  if(Platform.OS!=='ios')return <Modal visible={visible} transparent animationType="none" onShow={onShow} onDismiss={onDismiss} onRequestClose={onRequestClose}>{children}</Modal>;
+  if(!visible)return null;
+  return <FullWindowOverlay unstable_accessibilityContainerViewIsModal>
+    <View style={StyleSheet.absoluteFill} onLayout={()=>{if(!shown.current){shown.current=true;callbacks.current.onShow();}}}>{children}</View>
+  </FullWindowOverlay>;
+}
