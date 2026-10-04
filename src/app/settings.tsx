@@ -86,8 +86,6 @@ export default function SettingsScreen() {
         <SettingsRow icon="notifications-outline" title="Notifications" subtitle="Reader activity, club alerts, and reading reminders" onPress={() => router.push('/notification-settings')}/>
         <SettingsDivider/>
         <SettingsRow icon={theme === 'dark' ? 'moon-outline' : 'sunny-outline'} title="Appearance" subtitle={`${theme === 'dark' ? 'Dark' : 'Light'} mode · Themes and display`} onPress={() => router.push('/appearance')}/>
-        <SettingsDivider/>
-        <SettingsRow icon="person-circle-outline" title="Edit Profile" subtitle="Your photo, bio, and reading personality" onPress={() => router.push('/edit-profile')}/>
       </SettingsSection>
       <SettingsSection icon="shield-checkmark-outline" title="Privacy & comfort">
         <SettingsRow icon="shield-checkmark-outline" title="Privacy" subtitle="Who can see your profile and reading activity" onPress={() => router.push('/privacy')}/>

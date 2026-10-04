@@ -31,8 +31,8 @@ async function press(label){expect(button(label)).toBeDefined();await act(async(
 async function change(label,value){await act(async()=>toggle(label).props.onValueChange(value));}
 
 test('Settings keeps real destinations together and marks unavailable account options',async()=>{
- await render(<SettingsScreen/>);expect(text()).toContain('reader@example.com');
- for(const [title,path] of [['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers'],['Edit Profile','/edit-profile']]){await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);}
+ await render(<SettingsScreen/>);expect(text()).toContain('reader@example.com');expect(button('Edit Profile')).toBeUndefined();
+ for(const [title,path] of [['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers']]){await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);}
  expect(button('Recovery Phone').props.disabled).toBe(true);expect(button('Password & Security').props.disabled).toBe(true);expect(button('Deactivate Account').props.disabled).toBe(true);expect(button('Email').props.disabled).toBe(true);
  await press('Go back');expect(mockRouter.back).toHaveBeenCalled();
 });
