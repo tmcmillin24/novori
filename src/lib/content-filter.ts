@@ -1,3 +1,4 @@
+import {getSessionReadScope,invalidateSessionReads,sessionRead} from './session-read-cache';
 import { supabase } from './supabase';
 
 /**
@@ -166,23 +167,34 @@ export function revealExplicitContentOnce(
   );
 }
 
-export async function getExplicitLanguagePreference() {
-  const { data, error } = await supabase.rpc(
-    'get_explicit_language_preference'
-  );
+let explicitPreferenceRevision=0;
 
-  if (error) {
-    // Paused/deleted sessions may briefly mount Home before the account gate redirects.
-    if (error.code === '42501' && /Account unavailable|Authentication required/.test(error.message ?? '')) return false;
+export async function getExplicitLanguagePreference():Promise<boolean> {
+  const revision=explicitPreferenceRevision;
+  try {
+    const scope=await getSessionReadScope();
+    if(!scope.userId)return false;
+    const value=await sessionRead(scope.key,'language-preference',async signal=>{
+      const {data,error}=await supabase.rpc('get_explicit_language_preference').abortSignal(signal);
+      if(error){
+        if(error.code==='42501' && /Account unavailable|Authentication required/.test(error.message??''))return false;
+        throw error;
+      }
+      return Boolean(data);
+    },{ttlMs:60000,timeoutMs:4000});
+    // An older preference response must not undo a choice confirmed while it was loading.
+    return revision===explicitPreferenceRevision?value:getExplicitLanguagePreference();
+  } catch(error) {
+    if(revision!==explicitPreferenceRevision)return getExplicitLanguagePreference();
     throw error;
   }
-
-  return Boolean(data);
 }
 
 export async function setExplicitLanguagePreference(
   allowExplicitLanguage: boolean
 ) {
+  explicitPreferenceRevision+=1;
+  invalidateSessionReads('language-preference');
   const { data, error } = await supabase.rpc(
     'set_explicit_language_preference',
     {
@@ -194,5 +206,7 @@ export async function setExplicitLanguagePreference(
     throw error;
   }
 
+  explicitPreferenceRevision+=1;
+  invalidateSessionReads('language-preference');
   return Boolean(data);
 }

@@ -1,5 +1,6 @@
+import {getSessionReadScope,isTransientReadError} from '../../lib/session-read-cache';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
-import {buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
+import {getCommentBranchIds,buildCommentThreads,getCommentDepthLimit,getFocusedConversationId,countThreadReplies,type CommentThread} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import { discussionRevealKey } from '../../lib/club-discussion';
@@ -82,9 +83,6 @@ import {
 import {
   blockReader,
 } from '../../lib/social';
-import {
-  supabase,
-} from '../../lib/supabase';
 import {
   sharePostLink,
 } from '../../lib/share-links';
@@ -575,145 +573,53 @@ export default function PostDetailScreen() {
     []
   );
 
-  const loadData =
-    useCallback(
-      async (
-        showLoader =
-          true
-      ) => {
-        if (
-          !postId
-        ) {
-          setError(
-            'This post could not be found.'
-          );
-          setLoading(
-            false
-          );
-          return;
-        }
+  const loadSequence=useRef(0);
+  const viewPostId=useRef(postId);
+  viewPostId.current=postId;
+  const mounted=useRef(true);
+  const commentsState=useRef(comments);
+  commentsState.current=comments;
+  useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
+  const loadedPostId=useRef('');
+  const commentSubmitInFlight=useRef(false);
+  const [loadWarning,setLoadWarning]=useState('');
+  const loadData=useCallback(async(showLoader=true,force=false)=>{
+    const request=++loadSequence.current;
+    if(!postId){setError('This post could not be found.');setLoading(false);return;}
+    if(showLoader && loadedPostId.current!==postId)setLoading(true);
+    setError('');setLoadWarning('');setAllowExplicitLanguage(false);
+    // A preference is optional, fail-closed UI data. Never hold the thread spinner for it.
+    void getExplicitLanguagePreference().then(value=>{
+      if(request===loadSequence.current)setAllowExplicitLanguage(value);
+    }).catch(preferenceError=>{
+      if(request===loadSequence.current)setAllowExplicitLanguage(false);
+      if(!isTransientReadError(preferenceError))console.warn('Could not load explicit-language preference:',preferenceError);
+    });
+    try{
+      const [postData,commentData,scope]=await Promise.all([
+        getPostDetail(postId,{force}),getPostComments(postId,500,{force}),getSessionReadScope(),
+      ]);
+      if(request!==loadSequence.current)return;
+      setPost(postData);setComments(commentData);setCurrentUserId(scope.userId);
+      loadedPostId.current=postId;
+    }catch(loadError){
+      if(request!==loadSequence.current)return;
+      if(isTransientReadError(loadError)){
+        if(loadedPostId.current===postId)setLoadWarning('Could not refresh the conversation. Check your connection and try again.');
+        else setError('Could not load this thread. Check your connection and try again.');
+      }else{
+        console.warn('Could not load post thread:',loadError);
+        setError('This post is unavailable or you no longer have access to it.');
+      }
+    }finally{
+      if(request===loadSequence.current)setLoading(false);
+    }
+  },[postId]);
 
-        try {
-          if (
-            showLoader
-          ) {
-            setLoading(
-              true
-            );
-          }
-
-          setError(
-            ''
-          );
-
-          const [
-            postData,
-            commentData,
-            explicitPreference,
-            viewerId,
-          ] =
-            await Promise.all([
-              getPostDetail(
-                postId
-              ),
-              getPostComments(
-                postId
-              ),
-              getExplicitLanguagePreference()
-                .catch(
-                  (
-                    preferenceError
-                  ) => {
-                    console.error(
-                      'Could not load explicit-language preference:',
-                      preferenceError
-                    );
-
-                    // Fail closed: if the preference cannot be loaded,
-                    // keep explicit content hidden rather than exposing it.
-                    return false;
-                  }
-                ),
-              supabase.auth
-                .getUser()
-                .then(
-                  ({
-                    data,
-                    error:
-                      userError,
-                  }) => {
-                    if (
-                      userError
-                    ) {
-                      console.error(
-                        'Could not load current user for explicit-language filtering:',
-                        userError
-                      );
-
-                      return null;
-                    }
-
-                    return (
-                      data.user?.id ??
-                      null
-                    );
-                  }
-                ),
-            ]);
-
-          setPost(
-            postData
-          );
-
-          setComments(
-            commentData
-          );
-
-          setAllowExplicitLanguage(
-            explicitPreference
-          );
-
-          setCurrentUserId(
-            viewerId
-          );
-        } catch (
-          loadError
-        ) {
-          console.error(
-            'Could not load post thread:',
-            loadError
-          );
-
-          setError(
-            'This post is unavailable or you no longer have access to it.'
-          );
-        } finally {
-          if (
-            showLoader
-          ) {
-            setLoading(
-              false
-            );
-          }
-        }
-      },
-      [
-        postId,
-      ]
-    );
-
-  useFocusEffect(
-    useCallback(
-      () => {
-        loadData(
-          true
-        );
-      },
-      [
-        loadData,
-      ]
-    )
-  );
+  useFocusEffect(useCallback(()=>{
+    void loadData(true);
+    return ()=>{loadSequence.current+=1;};
+  },[loadData]));
 
   useEffect(
     () => {
@@ -831,13 +737,14 @@ export default function PostDetailScreen() {
 
 
   async function refresh() {
+    if(commentSubmitInFlight.current)return;
     try {
       setRefreshing(
         true
       );
 
       await loadData(
-        false
+        false, true
       );
     } finally {
       setRefreshing(
@@ -957,7 +864,7 @@ export default function PostDetailScreen() {
     voteValue:
       CommentVoteValue
   ) {
-    if (comment.is_deleted) return;
+    if (comment.is_deleted || comment.is_blocked_author || comment.id.startsWith('optimistic-')) return;
     if (
       comment.id.startsWith(
         'optimistic-'
@@ -969,6 +876,7 @@ export default function PostDetailScreen() {
       return;
     }
 
+    loadSequence.current+=1;
     const previous =
       comment;
 
@@ -1125,7 +1033,7 @@ export default function PostDetailScreen() {
   async function submitComment() {
     if (
       !post ||
-      submitting
+      submitting || commentSubmitInFlight.current
     ) {
       return;
     }
@@ -1138,6 +1046,10 @@ export default function PostDetailScreen() {
     ) {
       return;
     }
+
+    commentSubmitInFlight.current=true;
+    loadSequence.current+=1;
+    const writePostId=post.id;
 
     if (
       editingComment
@@ -1189,7 +1101,8 @@ export default function PostDetailScreen() {
       } catch (
         submitError
       ) {
-        console.error(
+        if(!mounted.current || viewPostId.current!==writePostId)return;
+        console.warn(
           'Could not edit comment:',
           submitError
         );
@@ -1228,6 +1141,7 @@ export default function PostDetailScreen() {
             : 'Please try again.'
         );
       } finally {
+        commentSubmitInFlight.current=false;
         setSubmitting(
           false
         );
@@ -1325,37 +1239,29 @@ export default function PostDetailScreen() {
         true
       );
 
-      await createPostComment(
-        postIdForComment,
-        cleaned,
-        parentId
-      );
-
-      const nextComments =
-        await getPostComments(
-          postIdForComment
-        );
-
-      setComments(
-        nextComments
-      );
-
-      setPost(
-        (
-          current
-        ) =>
-          current
-            ? {
-                ...current,
-                comment_count:
-                  nextComments.length,
-              }
-            : current
-      );
+      const confirmedId=await createPostComment(postIdForComment,cleaned,parentId);
+      if(!mounted.current || viewPostId.current!==postIdForComment)return;
+      if(typeof confirmedId==='string'){
+        const missingLocalComment=!commentsState.current.some(item=>item.id===optimisticId || item.id===confirmedId);
+        if(missingLocalComment)setPost(current=>current?{...current,comment_count:(current.comment_count??0)+1}:current);
+        setComments(current=>current.some(item=>item.id===confirmedId)?current.filter(item=>item.id!==optimisticId):current.some(item=>item.id===optimisticId)?current.map(item=>item.id===optimisticId?{...item,id:confirmedId}:item):[...current,{...optimisticComment,id:confirmedId}]);
+      }
+      // The write is confirmed. A failed refresh must never undo it or invite duplicate submission.
+      const request=loadSequence.current;
+      void getPostComments(postIdForComment).then(nextComments=>{
+        if(request!==loadSequence.current || loadedPostId.current!==postIdForComment)return;
+        setComments(current=>[...nextComments,...current.filter(item=>item.id.startsWith('optimistic-') || (nextComments.length>=500 && item.id===confirmedId && !nextComments.some(next=>next.id===item.id)))]);
+        setPost(current=>current?{...current,comment_count:nextComments.length>=500?Math.max(current.comment_count??0,nextComments.length):nextComments.length}:current);
+      }).catch(refreshError=>{
+        if(request!==loadSequence.current || loadedPostId.current!==postIdForComment)return;
+        if(!isTransientReadError(refreshError))console.warn('Comment saved; refresh failed:',refreshError);
+        setLoadWarning('Your comment was saved. The conversation could not refresh. Try again when your connection is back.');
+      });
     } catch (
       submitError
     ) {
-      console.error(
+      if(!mounted.current || viewPostId.current!==writePostId)return;
+      console.warn(
         'Could not add comment:',
         submitError
       );
@@ -1408,6 +1314,7 @@ export default function PostDetailScreen() {
           : 'Please try again.'
       );
     } finally {
+      commentSubmitInFlight.current=false;
       setSubmitting(
         false
       );
@@ -1503,7 +1410,7 @@ export default function PostDetailScreen() {
     comment:
       ThreadComment
   ) {
-    if (comment.is_deleted) return;
+    if (comment.is_deleted || comment.is_blocked_author || comment.id.startsWith('optimistic-')) return;
     if (
       commentActionTarget ||
       commentActionClosing.current
@@ -2002,6 +1909,7 @@ export default function PostDetailScreen() {
       return;
     }
 
+    loadSequence.current+=1;
     try {
       setBlockingReaderId(
         comment.author_id
@@ -2011,6 +1919,8 @@ export default function PostDetailScreen() {
         comment.author_id
       );
 
+      setComments(current=>current.map(item=>item.author_id===comment.author_id?{...item,is_blocked_author:true,body:'This comment is hidden.',author_display_name:'Blocked reader',author_username:null,author_avatar_url:null}:item));
+      setReplyTo(current=>current && comments.some(item=>item.id===current.id && item.author_id===comment.author_id)?null:current);
       if (
         post?.author_id ===
         comment.author_id
@@ -2019,7 +1929,7 @@ export default function PostDetailScreen() {
           true;
       } else {
         await loadData(
-          false
+          false, true
         );
       }
     } catch (
@@ -2083,6 +1993,8 @@ export default function PostDetailScreen() {
       return;
     }
 
+    const request=++loadSequence.current;
+    const deletedIds=getCommentBranchIds(comments,commentId);
     try {
       setDeletingCommentId(
         commentId
@@ -2092,9 +2004,11 @@ export default function PostDetailScreen() {
         commentId
       );
 
+      if(request!==loadSequence.current)return;
+      setComments(current=>current.filter(item=>!deletedIds.has(item.id)));
+      setPost(current=>current?{...current,comment_count:Math.max(0,(current.comment_count??0)-deletedIds.size)}:current);
       if (
-        replyTo?.id ===
-        commentId
+        replyTo && deletedIds.has(replyTo.id)
       ) {
         setReplyTo(
           null
@@ -2102,7 +2016,7 @@ export default function PostDetailScreen() {
       }
 
       await loadData(
-        false
+        false, true
       );
     } catch (
       deleteError
@@ -2378,9 +2292,9 @@ export default function PostDetailScreen() {
           </Pressable>
           <View style={styles.commentFooter}>
             <View style={styles.commentVoteControl}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={21} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Upvote comment: ${comment.id}`} disabled={comment.is_deleted||comment.id.startsWith('optimistic-')||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===1?'arrow-up':'arrow-up-outline'} size={21} color={comment.viewer_vote===1?colors.gold:colors.mutedText}/></Pressable>
               <Text style={[styles.commentVoteScore,comment.viewer_vote!==0&&styles.commentVoteScoreActive]}>{comment.vote_score??0}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={21} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Downvote comment: ${comment.id}`} disabled={comment.is_deleted||comment.id.startsWith('optimistic-')||Boolean(votingCommentIds[comment.id])} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>void handleCommentVote(comment,-1)} style={styles.commentVoteButton}><Ionicons name={comment.viewer_vote===-1?'arrow-down':'arrow-down-outline'} size={21} color={comment.viewer_vote===-1?colors.gold:colors.mutedText}/></Pressable>
             </View>
           </View>
           </View>
@@ -2600,6 +2514,7 @@ export default function PostDetailScreen() {
         />
       </View>
 
+      {loadWarning?<View style={{paddingHorizontal:16,paddingVertical:8,backgroundColor:colors.background}}><Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12}}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={()=>void loadData(false,true)}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:6}}>Try again</Text></Pressable></View>:null}
       <View
         style={
           styles.keyboardView
@@ -3369,7 +3284,7 @@ export default function PostDetailScreen() {
               styles.composer
             }
           >
-            <TextInput accessibilityLabel="Comment reply text"
+            <TextInput accessibilityLabel="Comment reply text" editable={!submitting}
               ref={
                 commentInputRef
               }

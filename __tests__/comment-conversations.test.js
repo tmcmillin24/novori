@@ -24,3 +24,8 @@ test('available width bounds indentation, deep notification links focus their ow
  expect(getFocusedConversationId(items,'root','c3',2)).toBe('root');
  expect(getFocusedConversationId(items,'missing','',2)).toBe('missing');
 });
+
+test('branch deletion preserves unrelated comments and safely handles long/cyclic branches',()=>{
+ const {getCommentBranchIds}=require('../src/lib/comment-conversations');const items=[comment('root'),comment('child','root'),comment('grandchild','child'),comment('other'),comment('other-child','other')];expect([...getCommentBranchIds(items,'root')].sort()).toEqual(['child','grandchild','root']);
+ expect(getCommentBranchIds([comment('a','b'),comment('b','a')],'a').size).toBe(2);expect(getCommentBranchIds(Array.from({length:1500},(_,i)=>comment('c'+i,i?'c'+(i-1):null)),'c0').size).toBe(1500);
+});

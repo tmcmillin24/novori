@@ -1,3 +1,4 @@
+import {getSessionReadScope,invalidateSessionReads,sessionRead} from './session-read-cache';
 import { markPostMutation } from './feed';
 import { supabase } from './supabase';
 
@@ -48,26 +49,9 @@ export type PostComment = {
 };
 
 async function requireUser() {
-  const {
-    data: {
-      user,
-    },
-    error,
-  } =
-    await supabase.auth
-      .getUser();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!user) {
-    throw new Error(
-      'You must be signed in.'
-    );
-  }
-
-  return user;
+  const scope=await getSessionReadScope();
+  if(!scope.userId)throw new Error('You must be signed in.');
+  return scope;
 }
 
 function normalizeVote(
@@ -135,45 +119,13 @@ function normalizeComment(
   };
 }
 
-export async function getPostComments(
-  postId: string,
-  limit = 500
-): Promise<PostComment[]> {
-  await requireUser();
-
-  const {
-    data,
-    error,
-  } =
-    await supabase.rpc(
-      'get_post_comments',
-      {
-        target_post_id:
-          postId,
-        result_limit:
-          limit,
-      }
-    );
-
-  if (error) {
-    throw error;
-  }
-
-  return (
-    data ??
-    []
-  ).map(
-    (
-      row:
-        Record<
-          string,
-          unknown
-        >
-    ) =>
-      normalizeComment(
-        row
-      )
-  );
+export async function getPostComments(postId:string,limit=500,options:{force?:boolean}={}):Promise<PostComment[]> {
+  const scope=await requireUser();
+  return sessionRead(scope.key,`comments:${postId}:${limit}`,async signal=>{
+    const {data,error}=await supabase.rpc('get_post_comments',{target_post_id:postId,result_limit:limit}).abortSignal(signal);
+    if(error)throw error;
+    return (data??[]).map((row:Record<string,unknown>)=>normalizeComment(row));
+  },options);
 }
 
 export async function createPostComment(
@@ -184,6 +136,7 @@ export async function createPostComment(
     | null = null
 ) {
   await requireUser();
+  invalidateSessionReads('comments:');
 
   const cleaned =
     body.trim();
@@ -226,6 +179,7 @@ export async function updatePostComment(
   body: string
 ) {
   await requireUser();
+  invalidateSessionReads('comments:');
 
   const cleaned =
     body.trim();
@@ -255,12 +209,14 @@ export async function updatePostComment(
   if (error) {
     throw error;
   }
+  markPostMutation();
 }
 
 export async function deletePostComment(
   commentId: string
 ) {
   await requireUser();
+  invalidateSessionReads('comments:');
 
   const {
     error,
@@ -285,6 +241,7 @@ export async function toggleCommentVote(
     CommentVoteValue
 ): Promise<CommentVoteState> {
   await requireUser();
+  invalidateSessionReads('comments:');
 
   const {
     data,
@@ -304,6 +261,7 @@ export async function toggleCommentVote(
     throw error;
   }
 
+  invalidateSessionReads('comments:');
   const row =
     Array.isArray(data)
       ? data[0]

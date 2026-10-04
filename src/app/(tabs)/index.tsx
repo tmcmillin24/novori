@@ -1,9 +1,10 @@
+import {isTransientReadError} from '../../lib/session-read-cache';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
 import {getAccountEntryRoute} from '../../lib/account-entry';
 import {isAccountUnavailableError} from '../../lib/account-session-errors';
 import {signOutCurrentDevice} from '../../lib/sign-out';
 import FeedPostCard from '../../components/FeedPostCard';
-import {buildCommentThreads, countThreadReplies, getCommentDepthLimit} from '../../lib/comment-conversations';
+import {getCommentBranchIds,buildCommentThreads, countThreadReplies, getCommentDepthLimit} from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -876,7 +877,6 @@ export default function HomeScreen() {
             getMyClubs(),
             getDiscoverClubs(),
             getHomeFeed(),
-            getExplicitLanguagePreference(),
           ]);
 
         const [
@@ -884,7 +884,6 @@ export default function HomeScreen() {
           myClubsResult,
           discoverResult,
           feedResult,
-          explicitPreferenceResult,
         ] = results;
         if(results.some(result=>result.status==='rejected'&&isAccountUnavailableError(result.reason))){
           const accountRoute=await getAccountEntryRoute().catch(()=>null);
@@ -952,20 +951,6 @@ export default function HomeScreen() {
           );
           setFeedError(
             'Could not load your feed.'
-          );
-        }
-
-        if (
-          explicitPreferenceResult.status ===
-          'fulfilled'
-        ) {
-          setAllowExplicitLanguage(
-            explicitPreferenceResult.value
-          );
-        } else {
-          console.error(
-            'Could not load explicit-language preference:',
-            explicitPreferenceResult.reason
           );
         }
 
@@ -1195,6 +1180,11 @@ export default function HomeScreen() {
     useCallback(() => {
       homeFocusedRef.current =
         true;
+      setAllowExplicitLanguage(false);
+      void getExplicitLanguagePreference().then(value=>{if(homeFocusedRef.current)setAllowExplicitLanguage(value);}).catch(error=>{
+        if(homeFocusedRef.current)setAllowExplicitLanguage(false);
+        if(!isTransientReadError(error))console.warn('Could not load explicit-language preference:',error);
+      });
 
       const now =
         Date.now();
@@ -1440,9 +1430,17 @@ export default function HomeScreen() {
     });
   }
 
+  const [commentsError,setCommentsError]=useState('');
+  const commentsReadSequence=useRef(0);
+  const commentsViewGeneration=useRef(0);
+  const activeCommentsPostId=useRef<string|null>(null);
+  const commentSubmitInFlight=useRef(false);
+
   async function loadCommentsSheet(
-    postId: string
+    postId: string, force=false
   ) {
+    const request=++commentsReadSequence.current;
+    setCommentsError('');
     try {
       setCommentsLoading(
         true
@@ -1450,8 +1448,9 @@ export default function HomeScreen() {
 
       const comments =
         await getPostComments(
-          postId
+          postId,500,{force}
         );
+      if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
 
       setSheetComments(
         comments
@@ -1470,7 +1469,7 @@ export default function HomeScreen() {
                 ? {
                     ...item,
                     comment_count:
-                      comments.length,
+                      comments.length>=500?Math.max(item.comment_count??0,comments.length):comments.length,
                   }
                 : item
           )
@@ -1485,23 +1484,22 @@ export default function HomeScreen() {
             ? {
                 ...current,
                 comment_count:
-                  comments.length,
+                  comments.length>=500?Math.max(current.comment_count??0,comments.length):comments.length,
               }
             : current
       );
     } catch (
       error
     ) {
-      console.error(
+      if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
+      if(!isTransientReadError(error))console.warn(
         'Could not load comments:',
         error
       );
 
-      Alert.alert(
-        'Could not load comments',
-        'Please try again.'
-      );
+      setCommentsError(isTransientReadError(error)?'Could not load the conversation. Check your connection and try again.':'Could not load the conversation. Please try again.');
     } finally {
+      if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
       setCommentsLoading(
         false
       );
@@ -1515,6 +1513,8 @@ export default function HomeScreen() {
   function openCommentsSheet(
     post: FeedPost
   ) {
+    activeCommentsPostId.current=post.id;
+    commentsViewGeneration.current+=1;
     if (post.club_discussion?.contains_spoilers) {
       router.push({pathname: '/post/[id]', params: {id: post.id}});
       return;
@@ -1830,6 +1830,9 @@ export default function HomeScreen() {
   }
 
   function closeCommentsSheet() {
+    activeCommentsPostId.current=null;
+    commentsViewGeneration.current+=1;
+    commentsReadSequence.current+=1;
     if (
       commentsSheetAnimating.current
     ) {
@@ -2239,7 +2242,7 @@ export default function HomeScreen() {
   async function submitSheetComment() {
     if (
       !commentsPost ||
-      submittingComment
+      submittingComment || commentSubmitInFlight.current
     ) {
       return;
     }
@@ -2252,6 +2255,12 @@ export default function HomeScreen() {
     ) {
       return;
     }
+
+    commentSubmitInFlight.current=true;
+    setCommentsError('');
+    commentsReadSequence.current+=1;
+    const writeGeneration=commentsViewGeneration.current;
+    const writePostId=commentsPost.id;
 
     if (
       editingComment
@@ -2303,7 +2312,8 @@ export default function HomeScreen() {
       } catch (
         error
       ) {
-        console.error(
+        if(commentsViewGeneration.current!==writeGeneration || activeCommentsPostId.current!==writePostId)return;
+        console.warn(
           'Could not edit comment:',
           error
         );
@@ -2342,6 +2352,7 @@ export default function HomeScreen() {
             : 'Please try again.'
         );
       } finally {
+        commentSubmitInFlight.current=false;
         setSubmittingComment(
           false
         );
@@ -2463,57 +2474,26 @@ export default function HomeScreen() {
         true
       );
 
-      await createPostComment(
-        postId,
-        cleaned,
-        parentId
-      );
-
-      const comments =
-        await getPostComments(
-          postId
-        );
-
-      setSheetComments(
-        comments
-      );
-
-      setFeedPosts(
-        (
-          current
-        ) =>
-          current.map(
-            (
-              item
-            ) =>
-              item.id ===
-              postId
-                ? {
-                    ...item,
-                    comment_count:
-                      comments.length,
-                  }
-                : item
-          )
-      );
-
-      setCommentsPost(
-        (
-          current
-        ) =>
-          current?.id ===
-          postId
-            ? {
-                ...current,
-                comment_count:
-                  comments.length,
-              }
-            : current
-      );
+      const confirmedId=await createPostComment(postId,cleaned,parentId);
+      if(commentsViewGeneration.current!==writeGeneration || activeCommentsPostId.current!==postId)return;
+      if(typeof confirmedId==='string')setSheetComments(current=>current.some(item=>item.id===confirmedId)?current.filter(item=>item.id!==optimisticId):current.map(item=>item.id===optimisticId?{...item,id:confirmedId}:item));
+      const request=commentsReadSequence.current;
+      void getPostComments(postId).then(comments=>{
+        if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
+        setSheetComments(current=>[...comments,...current.filter(item=>item.id.startsWith('optimistic-') || (comments.length>=500 && item.id===confirmedId && !comments.some(next=>next.id===item.id)))]);
+        setFeedPosts(current=>current.map(item=>item.id===postId?{...item,comment_count:comments.length>=500?Math.max(item.comment_count??0,comments.length):comments.length}:item));
+        setCommentsPost(current=>current?.id===postId?{...current,comment_count:comments.length>=500?Math.max(current.comment_count??0,comments.length):comments.length}:current);
+      }).catch(refreshError=>{
+        // Keep the confirmed comment. Reopening or refreshing the thread will retry the read.
+        if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
+        if(!isTransientReadError(refreshError))console.warn('Comment saved; refresh failed:',refreshError);
+        setCommentsError('Your comment was saved. The conversation could not refresh. Try again when your connection is back.');
+      });
     } catch (
       error
     ) {
-      console.error(
+      if(commentsViewGeneration.current!==writeGeneration || activeCommentsPostId.current!==writePostId)return;
+      console.warn(
         'Could not add comment:',
         error
       );
@@ -2593,6 +2573,7 @@ export default function HomeScreen() {
           : 'Please try again.'
       );
     } finally {
+      commentSubmitInFlight.current=false;
       setSubmittingComment(
         false
       );
@@ -2637,6 +2618,9 @@ export default function HomeScreen() {
       return;
     }
 
+    const postId=commentsPost.id;
+    const request=++commentsReadSequence.current;
+    const deletedIds=getCommentBranchIds(sheetComments,commentId);
     try {
       setDeletingCommentId(
         commentId
@@ -2646,9 +2630,12 @@ export default function HomeScreen() {
         commentId
       );
 
+      if(request!==commentsReadSequence.current || activeCommentsPostId.current!==postId)return;
+      setSheetComments(current=>current.filter(item=>!deletedIds.has(item.id)));
+      setFeedPosts(current=>current.map(item=>item.id===postId?{...item,comment_count:Math.max(0,(item.comment_count??0)-deletedIds.size)}:item));
+      setCommentsPost(current=>current?.id===postId?{...current,comment_count:Math.max(0,(current.comment_count??0)-deletedIds.size)}:current);
       if (
-        replyTarget?.id ===
-        commentId
+        replyTarget && deletedIds.has(replyTarget.id)
       ) {
         setReplyTarget(
           null
@@ -2656,7 +2643,7 @@ export default function HomeScreen() {
       }
 
       await loadCommentsSheet(
-        commentsPost.id
+        commentsPost.id,true
       );
     } catch (
       error
@@ -2766,7 +2753,7 @@ export default function HomeScreen() {
     comment:
       PostComment
   ) {
-    if (comment.is_deleted) return;
+    if (comment.is_deleted || comment.is_blocked_author || comment.id.startsWith('optimistic-')) return;
     if (
       commentActionTarget ||
       commentActionClosing.current
@@ -3193,6 +3180,7 @@ export default function HomeScreen() {
       return;
     }
 
+    commentsReadSequence.current+=1;
     try {
       setBlockingReaderId(
         comment.author_id
@@ -3202,17 +3190,12 @@ export default function HomeScreen() {
         comment.author_id
       );
 
+      setReplyTarget(current=>current?.author_id===comment.author_id?null:current);
       setSheetComments(
         (
           current
         ) =>
-          current.filter(
-            (
-              item
-            ) =>
-              item.author_id !==
-              comment.author_id
-          )
+          current.map(item=>item.author_id===comment.author_id?{...item,is_blocked_author:true,body:'This comment is hidden.',author_display_name:'Blocked reader',author_username:null,author_avatar_url:null}:item)
       );
 
       setFeedPosts(
@@ -3337,7 +3320,7 @@ export default function HomeScreen() {
     voteValue:
       CommentVoteValue
   ) {
-    if (comment.is_deleted) return;
+    if (comment.is_deleted || comment.is_blocked_author) return;
     if (
       comment.id.startsWith(
         'optimistic-'
@@ -3349,6 +3332,7 @@ export default function HomeScreen() {
       return;
     }
 
+    commentsReadSequence.current+=1;
     const previous =
       comment;
 
@@ -3967,6 +3951,7 @@ export default function HomeScreen() {
               ]}
             />
           ) : null}
+          {comment.is_blocked_author?<Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12,paddingVertical:4}}>Blocked reader · This comment is hidden.</Text>:<>
           <Pressable
             disabled={comment.is_deleted}
             delayLongPress={220}
@@ -4122,7 +4107,7 @@ export default function HomeScreen() {
               >
                 <Pressable delayLongPress={220} onLongPress={()=>openCommentActions(comment)}
                   disabled={
-                    comment.is_deleted || Boolean(
+                    comment.is_deleted || comment.id.startsWith('optimistic-') || Boolean(
                       votingCommentIds[
                         comment.id
                       ]
@@ -4179,7 +4164,7 @@ export default function HomeScreen() {
 
                 <Pressable delayLongPress={220} onLongPress={()=>openCommentActions(comment)}
                   disabled={
-                    comment.is_deleted || Boolean(
+                    comment.is_deleted || comment.id.startsWith('optimistic-') || Boolean(
                       votingCommentIds[
                         comment.id
                       ]
@@ -4225,6 +4210,7 @@ export default function HomeScreen() {
 
             </View>
           </View>
+          </>}
         </Pressable>
 
         {children.length > 0 && depth >= sheetDepthLimit ? (
@@ -7352,6 +7338,7 @@ export default function HomeScreen() {
                   styles.commentsListWrap
                 }
               >
+                {commentsError?<View style={{paddingHorizontal:14,paddingVertical:8}}><Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12}}>{commentsError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading comments" onPress={()=>{if(commentsPost)void loadCommentsSheet(commentsPost.id,true);}}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:6}}>Try again</Text></Pressable></View>:null}
                 {!commentsInitialLoadReady ? (
                   <View
                     style={
@@ -7401,7 +7388,7 @@ export default function HomeScreen() {
                             )
                         )}
                       </ScrollView>
-                    ) : (
+                    ) : commentsError ? null : (
                       <Animated.View
                         style={[
                           styles.commentsEmpty,
@@ -7571,7 +7558,7 @@ export default function HomeScreen() {
                       styles.commentsComposer
                     }
                   >
-                    <TextInput
+                    <TextInput editable={!submittingComment}
                       ref={
                         commentInputRef
                       }

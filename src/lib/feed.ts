@@ -1,3 +1,4 @@
+import {getSessionReadScope,invalidateSessionReads,sessionRead} from './session-read-cache';
 import { parseClubEvent,type ClubEvent } from './club-event';
 import { parseClubDiscussion,type ClubDiscussion } from './club-discussion';
 import { supabase } from './supabase';
@@ -11,6 +12,8 @@ export function getPostMutationVersion() {
 
 function bumpPostMutationVersion() {
   postMutationVersion += 1;
+  invalidateSessionReads('post:');
+  invalidateSessionReads('comments:');
 }
 
 export function markPostMutation() {
@@ -424,46 +427,17 @@ export async function getHomeFeed(
   );
 }
 
-export async function getPostDetail(
-  postId: string
-): Promise<FeedPost> {
-  await getCurrentUserId();
-
-  const {
-    data,
-    error,
-  } =
-    await supabase.rpc(
-      'get_post_detail',
-      {
-        target_post_id:
-          postId,
-      }
-    );
-
-  if (error) {
-    throw error;
-  }
-
-  const row =
-    Array.isArray(data)
-      ? data[0]
-      : data;
-
-  if (!row) {
-    throw new Error(
-      'This post is unavailable.'
-    );
-  }
-
-  const [
-    hydratedPost,
-  ] =
-    await attachPostImageUrls([
-      row as FeedPost,
-    ]);
-
-  return hydratedPost;
+export async function getPostDetail(postId:string,options:{force?:boolean}={}):Promise<FeedPost> {
+  const scope=await getSessionReadScope();
+  if(!scope.userId)throw new Error('You must be signed in.');
+  return sessionRead(scope.key,`post:${postId}`,async signal=>{
+    const {data,error}=await supabase.rpc('get_post_detail',{target_post_id:postId}).abortSignal(signal);
+    if(error)throw error;
+    const row=Array.isArray(data)?data[0]:data;
+    if(!row)throw new Error('This post is unavailable.');
+    const [hydratedPost]=await attachPostImageUrls([row as FeedPost]);
+    return hydratedPost;
+  },options);
 }
 
 export async function getClubPosts(

@@ -1,3 +1,4 @@
+import {invalidateSessionReads} from './session-read-cache';
 import {
   ClubWithMembership,
 } from './clubs';
@@ -575,6 +576,8 @@ export async function blockReader(
   if (error) {
     throw error;
   }
+  invalidateSessionReads('post:');
+  invalidateSessionReads('comments:');
 }
 
 export async function unblockReader(
@@ -594,6 +597,8 @@ export async function unblockReader(
   if (error) {
     throw error;
   }
+  invalidateSessionReads('post:');
+  invalidateSessionReads('comments:');
 }
 
 export type BlockedReader = {

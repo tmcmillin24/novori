@@ -2,6 +2,19 @@ import type { PostComment } from './comments';
 
 export type CommentThread = PostComment & { children: CommentThread[] };
 
+/** IDs removed by a cascading comment deletion, without recursion or cycle risk. */
+export function getCommentBranchIds(comments:PostComment[],rootId:string){
+  const children=new Map<string,string[]>();
+  for(const comment of comments){
+    if(!comment.parent_comment_id)continue;
+    const siblings=children.get(comment.parent_comment_id)??[];
+    siblings.push(comment.id);children.set(comment.parent_comment_id,siblings);
+  }
+  const ids=new Set<string>();const pending=[rootId];
+  while(pending.length){const id=pending.pop()!;if(ids.has(id))continue;ids.add(id);pending.push(...(children.get(id)??[]));}
+  return ids;
+}
+
 export function getCommentDepthLimit(width: number) {
   return width < 320 ? 1 : width < 560 ? 2 : 3;
 }

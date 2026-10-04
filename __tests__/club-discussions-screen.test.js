@@ -8,7 +8,10 @@ import {getClub} from '../src/lib/clubs';
 import {getClubRead,getClubReads} from '../src/lib/club-reads';
 import {getClubDiscussion,getClubDiscussions,saveClubDiscussion,voteClubPoll,closeClubPoll} from '../src/lib/club-discussions';
 import {getPostDetail} from '../src/lib/feed';
-import {getPostComments,createPostComment} from '../src/lib/comments';
+import {getExplicitLanguagePreference} from '../src/lib/content-filter';
+import {supabase} from '../src/lib/supabase';
+import {blockReader} from '../src/lib/social';
+import {getPostComments,createPostComment,deletePostComment,toggleCommentVote,updatePostComment} from '../src/lib/comments';
 
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
@@ -35,11 +38,11 @@ jest.mock('../src/lib/club-reads',()=>({getClubRead:jest.fn(),getClubReads:jest.
 jest.mock('../src/lib/club-discussions',()=>({CLUB_DISCUSSIONS_PAGE_SIZE:20,getClubDiscussion:jest.fn(),getClubDiscussions:jest.fn(),saveClubDiscussion:jest.fn(),voteClubPoll:jest.fn(),closeClubPoll:jest.fn(),newClubDiscussionRequestKey:()=> 'stable-discussion-request-key'}));
 jest.mock('../src/lib/feed',()=>({getPostDetail:jest.fn(),togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
 jest.mock('../src/lib/comments',()=>({getPostComments:jest.fn(),createPostComment:jest.fn(),deletePostComment:jest.fn(),toggleCommentVote:jest.fn(),updatePostComment:jest.fn()}));
-jest.mock('../src/lib/content-filter',()=>({containsExplicitLanguage:()=>false,getExplicitLanguagePreference:async()=>false,isExplicitContentRevealed:()=>false,revealExplicitContentOnce:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
+jest.mock('../src/lib/content-filter',()=>({containsExplicitLanguage:()=>false,getExplicitLanguagePreference:jest.fn(async()=>false),isExplicitContentRevealed:()=>false,revealExplicitContentOnce:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
 jest.mock('../src/lib/reports',()=>({submitCommentReport:jest.fn()}));
 jest.mock('../src/lib/social',()=>({blockReader:jest.fn()}));
 jest.mock('../src/lib/share-links',()=>({sharePostLink:jest.fn()}));
-jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:'member-1'}}})}}}));
+jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:'member-1'}}}),getSession:jest.fn(async()=>({data:{session:{user:{id:'member-1'},access_token:'test-token'}}})),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}})}}}));
 
 const book={googleBookId:'cached-book',isbn:'9781234567897',title:'Stored book',authors:['Stored author'],coverUrl:'stored-canonical-cover'};
 const read={id:'read-1',club_id:'club-1',status:'current',book};
@@ -49,7 +52,7 @@ const club={id:'club-1',name:'Readers Club',membership_role:'member'};
 const post={id:'post-1',club_id:'club-1',author_id:'member-1',author_display_name:'A Reader',author_username:'reader',body:'Join this club discussion.',post_type:'post',created_at:topic.created_at,updated_at:topic.updated_at,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0,comment_count:1,club_discussion:topic};
 const comment={id:'comment-1',post_id:'post-1',author_id:'member-2',parent_comment_id:null,body:'Spoiler reply from a reader.',author_display_name:'Another Reader',author_username:'another',created_at:topic.created_at,updated_at:topic.updated_at,is_own:false,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0};
 let view,silence;
-beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
+beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();getPostComments.mockReset();getPostDetail.mockReset();getExplicitLanguagePreference.mockReset();createPostComment.mockReset();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getExplicitLanguagePreference.mockResolvedValue(false);getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;jest.useRealTimers();silence.mockRestore();});
 async function render(el){await act(async()=>{view=renderer.create(el);});}
 const button=label=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel===label);
@@ -104,7 +107,7 @@ test('compact post comments stop indenting and link to a focused conversation',a
 });
 test('focused conversation shows only its branch and posts directly to that comment',async()=>{
  mockParams={id:'post-1',threadId:'chain-2',commentId:'chain-2'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([...chain(),{...comment,id:'unrelated',body:'Unrelated conversation.'}]);
- createPostComment.mockResolvedValue({...comment,id:'new-reply',parent_comment_id:'chain-2',body:'A focused reply.'});await render(<PostDetailScreen/>);
+ createPostComment.mockResolvedValue('new-reply');await render(<PostDetailScreen/>);
  expect(text()).toContain('Reply at depth 2');expect(text()).toContain('Reply at depth 4');expect(text()).not.toContain('Reply at depth 1');expect(text()).not.toContain('Unrelated conversation.');
  await fill('Comment reply text','A focused reply.');await press('Send comment');
  expect(createPostComment).toHaveBeenCalledWith('post-1','A focused reply.','chain-2');await press('View all post comments');expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});
@@ -134,4 +137,59 @@ test('focused notification replies use the Home placeholder and quote the parent
  const composer=view.root.findByType('KeyboardStickyView');const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
  expect(composerText).toContain('Replying to Another Reader');expect(composerText).toContain(comment.body);
  const backdrop=composer.findAllByType('View').find(n=>n.props.pointerEvents==='none'&&n.props.style?.height===844);expect(backdrop).toBeDefined();expect(backdrop.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
+});
+
+const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+test('a slow optional language preference never holds up the thread or enables explicit content',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getExplicitLanguagePreference.mockReturnValue(new Promise(()=>{}));await render(<PostDetailScreen/>);
+ expect(text()).toContain(comment.body);expect(field('Comment reply text')).toBeDefined();expect(view.root.findAllByType('ActivityIndicator')).toHaveLength(0);
+});
+test('a transient preference failure does not emit the red error overlay',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getExplicitLanguagePreference.mockRejectedValue({code:'',message:'fetch failed: The network connection was lost.'});await render(<PostDetailScreen/>);
+ expect(text()).toContain(comment.body);expect(console.error).not.toHaveBeenCalled();
+});
+test('a saved comment survives a failed follow-up read without restoring the draft or reporting a failed save',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment]).mockRejectedValueOnce(new Error('Network connection lost'));createPostComment.mockResolvedValue('confirmed-comment');await render(<PostDetailScreen/>);
+ await fill('Comment reply text','My saved reply');await press('Send comment');
+ expect(createPostComment).toHaveBeenCalledWith('post-1','My saved reply','comment-1');expect(text()).toContain('My saved reply');expect(text()).toContain('Your comment was saved.');expect(field('Comment reply text').props.value).toBe('');expect(require('react-native').Alert.alert).not.toHaveBeenCalled();expect(button('Comment: confirmed-comment')).toBeDefined();
+});
+test('a failing write restores its draft and rapid repeated taps create only one request',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const write=deferred();createPostComment.mockReturnValue(write.promise);await render(<PostDetailScreen/>);await fill('Comment reply text','Keep my draft');
+ const send=button('Send comment').props.onPress;let first;
+ await act(async()=>{first=send();await send();});expect(createPostComment).toHaveBeenCalledTimes(1);expect(text()).toContain('Keep my draft');
+ await act(async()=>{write.reject(new Error('Could not connect'));await first;});expect(field('Comment reply text').props.value).toBe('Keep my draft');expect(text()).toContain('Replying to Another Reader');expect(require('react-native').Alert.alert).toHaveBeenCalledWith('Could not comment','Could not connect');
+});
+test('late responses from an earlier route cannot replace the newly opened post',async()=>{
+ mockParams={id:'post-1'};const oldRead=deferred();getPostDetail.mockReturnValueOnce(oldRead.promise).mockResolvedValueOnce({...post,id:'post-2',body:'Second post',club_discussion:null});await render(<PostDetailScreen/>);
+ mockParams={id:'post-2'};await act(async()=>view.update(<PostDetailScreen/>));expect(text()).toContain('Second post');
+ await act(async()=>oldRead.resolve({...post,body:'Old response',club_discussion:null}));expect(text()).toContain('Second post');expect(text()).not.toContain('Old response');
+});
+test('refresh keeps an existing conversation visible and offers retry on a temporary outage',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);getPostComments.mockRejectedValueOnce(new Error('Network connection lost'));
+ await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).toContain(comment.body);expect(button('Retry refreshing thread')).toBeDefined();expect(getPostComments).toHaveBeenLastCalledWith('post-1',500,{force:true});
+});
+
+test('a successful deletion removes its entire local branch even if the refresh fails',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,comment_count:2,club_discussion:null});const own={...comment,is_own:true};getPostComments.mockResolvedValueOnce([own,{...comment,id:'child',parent_comment_id:own.id,body:'Child reply'}]).mockRejectedValueOnce(new Error('Network connection lost'));deletePostComment.mockResolvedValue();await render(<PostDetailScreen/>);
+ await act(async()=>button('Comment: comment-1').props.onLongPress());
+ const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Delete'));
+ expect(action).toBeDefined();await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(110));
+ const confirmation=require('react-native').Alert.alert.mock.calls.find(call=>call[0]==='Delete comment?');expect(confirmation).toBeDefined();await act(async()=>confirmation[2].find(item=>item.text==='Delete').onPress());
+ expect(deletePostComment).toHaveBeenCalledWith('comment-1');expect(text()).not.toContain(comment.body);expect(text()).not.toContain('Child reply');expect(button('Retry refreshing thread')).toBeDefined();
+});
+test('editing an own comment uses the correct ID and retains the confirmed text',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([{...comment,is_own:true}]);updatePostComment.mockResolvedValue();await render(<PostDetailScreen/>);
+ await act(async()=>button('Comment: comment-1').props.onLongPress());const edit=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Edit'));expect(edit).toBeDefined();await act(async()=>edit.props.onPress());await act(async()=>jest.advanceTimersByTime(110));await fill('Comment reply text','Edited comment');await press('Send comment');expect(updatePostComment).toHaveBeenCalledWith('comment-1','Edited comment');expect(text()).toContain('Edited comment');expect(field('Comment reply text').props.value).toBe('');
+});
+test('comment voting applies the server result and blocked/deleted rows cannot expose actions',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});toggleCommentVote.mockResolvedValue({viewer_vote:1,vote_score:1,upvote_count:1,downvote_count:0});getPostComments.mockResolvedValue([comment,{...comment,id:'blocked',is_blocked_author:true},{...comment,id:'deleted',is_deleted:true,body:'This comment was deleted.'}]);await render(<PostDetailScreen/>);
+ await press('Upvote comment: comment-1');expect(toggleCommentVote).toHaveBeenCalledWith('comment-1',1);expect(button('Upvote comment: comment-1').findByType('Icon').props.name).toBe('arrow-up');expect(button('Comment: blocked')).toBeUndefined();await act(async()=>button('Comment: deleted').props.onLongPress());expect(text()).not.toContain('Choose an action for this comment.');
+});
+
+test('voting on another comment during a pending save cannot strand the saved reply with a temporary ID',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment]).mockRejectedValueOnce(new Error('Network connection lost'));const write=deferred();createPostComment.mockReturnValue(write.promise);toggleCommentVote.mockResolvedValue({viewer_vote:1,vote_score:1,upvote_count:1,downvote_count:0});await render(<PostDetailScreen/>);await fill('Comment reply text','Saved while voting');let sending;
+ await act(async()=>{sending=button('Send comment').props.onPress();});expect(field('Comment reply text').props.editable).toBe(false);await press('Upvote comment: comment-1');await act(async()=>{write.resolve('saved-comment');await sending;});expect(button('Comment: saved-comment')).toBeDefined();expect(field('Comment reply text').props.editable).toBe(true);expect(text()).toContain('Your comment was saved.');
+});
+test('blocking masks a parent immediately and preserves another reader’s replies during a failed refresh',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValueOnce([comment,{...comment,id:'child',author_id:'member-3',parent_comment_id:comment.id,body:'Unblocked child'}]).mockRejectedValueOnce(new Error('Network connection lost'));blockReader.mockResolvedValue();await render(<PostDetailScreen/>);await act(async()=>button('Comment: comment-1').props.onLongPress());const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Block reader'));expect(action).toBeDefined();await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(110));const sheet=view.root.findByType('BlockReaderConfirmSheet');await act(async()=>sheet.props.onConfirm());expect(blockReader).toHaveBeenCalledWith('member-2');expect(text()).toContain('Blocked reader · This comment is hidden.');expect(text()).not.toContain(comment.body);expect(text()).toContain('Unblocked child');
 });
