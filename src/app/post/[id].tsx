@@ -2258,7 +2258,7 @@ export default function PostDetailScreen() {
       </Pressable>):null;
     return <View key={comment.id} ref={node=>{commentRefs.current[comment.id]=node;}} style={[styles.commentThread,nested&&styles.commentThreadNested]}>
       {nested?<CommentBranchGuide/>:null}
-      <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
+      <Pressable delayLongPress={220} onLongPress={()=>{if(!comment.is_deleted && !comment.is_blocked_author)openCommentActions(comment);}} style={[styles.commentCard,focusedThreadId && !nested && styles.conversationAnchor,highlightedCommentId===comment.id&&styles.commentCardHighlighted]}>
         {holdingCommentId===comment.id?<Animated.View pointerEvents="none" style={[styles.commentCardActionAccent,{opacity:commentSelectionAccentOpacity}]}/>:null}
         {comment.is_blocked_author?<Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text>:<View style={styles.commentRow}>
           <Pressable accessibilityRole="button" accessibilityLabel={`View reader avatar: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={()=>openCommentActions(comment)} onPress={()=>openReader(comment.author_id)} style={styles.commentAvatarButton}>{comment.author_avatar_url?<Image source={{uri:comment.author_avatar_url}} style={styles.commentAvatar}/>:<View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}</Pressable>
@@ -2469,6 +2469,7 @@ export default function PostDetailScreen() {
           }
           style={({ pressed }) => [
             styles.headerButton,
+            focusedThreadId && styles.focusedHeaderBack,
             pressed &&
               styles.pressed,
           ]}
@@ -2486,13 +2487,13 @@ export default function PostDetailScreen() {
 
         <Text
           style={
-            styles.headerTitle
+            [styles.headerTitle,focusedThreadId && styles.focusedHeaderTitle]
           }
         >
           {focusedThreadId?'Conversation':'Post'}
         </Text>
 
-        {focusedThreadId?<Pressable accessibilityRole="button" accessibilityLabel="Back to post" onPress={()=>router.dismissTo({pathname:'/post/[id]',params:{id:postId}})} hitSlop={8}><Text style={styles.backToPost}>Back to post</Text></Pressable>:<View style={styles.headerButton}/>}
+        {focusedThreadId?<Pressable accessibilityRole="button" accessibilityLabel="Back to post" style={styles.focusedHeaderAction} onPress={()=>router.dismissTo({pathname:'/post/[id]',params:{id:postId}})} hitSlop={8}><Text style={styles.backToPost}>Back to post</Text></Pressable>:<View style={styles.headerButton}/>}
       </View>
 
       {loadWarning?<View style={{paddingHorizontal:16,paddingVertical:8,backgroundColor:colors.background}}><Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12}}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={()=>void loadData(false,true)}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:6}}>Try again</Text></Pressable></View>:null}
@@ -3049,9 +3050,10 @@ export default function PostDetailScreen() {
           </View> : discussionSpoilersHidden && post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion} detail revealed={false} onReveal={()=>setRevealedDiscussion(discussionRevealKey(post.club_discussion!))}/> : null}
 
           {!discussionSpoilersHidden ? <>
+          <View style={focusedThreadId?styles.conversationToolbar:undefined}>
           <View
             style={
-              styles.commentsHeader
+              [styles.commentsHeader,focusedThreadId && styles.conversationCountRow]
             }
           >
             {!focusedThreadId?<Text style={styles.commentsTitle}>Comments</Text>:null}
@@ -3061,13 +3063,13 @@ export default function PostDetailScreen() {
                 styles.commentsCountLabel
               }
             >
-              {focusedThread?countThreadReplies(focusedThread)+1:comments.length}
+              {focusedThread?`${countThreadReplies(focusedThread)+1} ${countThreadReplies(focusedThread)===0?'comment':'comments'}`:comments.length}
             </Text>
           </View>
 
           <View
             style={
-              styles.commentSortRow
+              [styles.commentSortRow,focusedThreadId && styles.conversationSortRow]
             }
           >
             <Pressable
@@ -3125,6 +3127,7 @@ export default function PostDetailScreen() {
             </Pressable>
           </View>
 
+          </View>
           {thread.length >
           0 ? (
             <View onLayout={event=>setCommentAreaWidth(event.nativeEvent.layout.width)} style={styles.threadList}>
@@ -3867,6 +3870,13 @@ function createStyles(
     keyboardView: {
       flex: 1,
     },
+    focusedHeaderBack:{width:88,alignItems:'flex-start'},
+    focusedHeaderAction:{width:88,height:42,alignItems:'flex-end',justifyContent:'center'},
+    focusedHeaderTitle:{flex:1,textAlign:'center',fontSize:18},
+    conversationToolbar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingBottom:12,marginBottom:8,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
+    conversationCountRow:{marginTop:0,marginBottom:0,paddingHorizontal:0},
+    conversationSortRow:{marginBottom:0},
+    conversationAnchor:{paddingVertical:10,marginBottom:8,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
     header: {
       height: 54,
       flexDirection:

@@ -238,3 +238,7 @@ test('comment deletion can be cancelled without issuing a write',async()=>{
 test('focused conversations have one title instead of repeating the header',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(view.root.findAllByType('Text').filter(node=>node.props.children==='Conversation')).toHaveLength(1);
 });
+
+test('conversation header uses balanced sides and groups its count with sorting',async()=>{
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);const style=node=>Object.assign({},...[typeof node.props.style==='function'?node.props.style({pressed:false}):node.props.style].flat());expect(style(button('Back to previous screen')).width).toBe(style(button('Back to post')).width);const title=view.root.findAllByType('Text').find(node=>node.props.children==='Conversation');expect(style(title)).toMatchObject({flex:1,textAlign:'center'});expect(text()).toContain('1 comment');const toolbar=view.root.findAllByType('View').find(node=>style(node).justifyContent==='space-between'&&style(node).paddingBottom===12);expect(toolbar).toBeDefined();expect(toolbar.findAllByType('Text').map(node=>node.props.children)).toEqual(expect.arrayContaining(['Top','Newest']));
+});

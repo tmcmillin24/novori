@@ -3,11 +3,11 @@ import {Platform,type ScrollView} from 'react-native';
 import {useFocusEffect} from 'expo-router';
 
 /** Hide the native modal for navigation without clearing its React state. */
-export function useCommentSheetContinuation(setVisible:(visible:boolean)=>void,scroll:RefObject<ScrollView|null>){
+export function useCommentSheetContinuation(setVisible:(visible:boolean)=>void,scroll:RefObject<ScrollView|null>,prepareResume?:()=>void){
   const suspended=useRef(false);
   const pending=useRef<null|(()=>void)>(null);
   const offset=useRef(0);
-  useFocusEffect(useCallback(()=>{if(suspended.current && !pending.current)setVisible(true);},[setVisible]));
+  useFocusEffect(useCallback(()=>{if(suspended.current && !pending.current){prepareResume?.();setVisible(true);}},[setVisible,prepareResume]));
   function navigate(){const action=pending.current;pending.current=null;action?.();}
   return {
     suspend(action:()=>void){suspended.current=true;pending.current=action;setVisible(false);if(Platform.OS!=='ios')requestAnimationFrame(navigate);},

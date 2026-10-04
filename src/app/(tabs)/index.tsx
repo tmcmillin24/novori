@@ -1513,7 +1513,13 @@ export default function HomeScreen() {
   }
 
   const commentsListRef=useRef<ScrollView|null>(null);
-  const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef);
+  const prepareCommentsResume=useCallback(()=>{
+    commentsEntranceTranslateY.stopAnimation();
+    commentsEntranceTranslateY.setValue(commentsSheetCurrentHeight.current);
+    commentsBackdropOpacity.setValue(0);
+    commentsContentOpacity.setValue(0);
+  },[commentsEntranceTranslateY,commentsBackdropOpacity,commentsContentOpacity]);
+  const commentsContinuation=useCommentSheetContinuation(setCommentsModalVisible,commentsListRef,prepareCommentsResume);
 
   function openCommentsSheet(
     post: FeedPost
@@ -1620,7 +1626,8 @@ export default function HomeScreen() {
     );
   }
 
-  function animateCommentsSheetIn() {
+  function animateCommentsSheetIn(restoring=false) {
+    commentsSheetAnimating.current=true;
     commentsEntranceTranslateY.stopAnimation();
     commentsBackdropOpacity.stopAnimation();
     commentsContentOpacity.stopAnimation();
@@ -1681,11 +1688,10 @@ export default function HomeScreen() {
         false;
 
       if (finished) {
-        commentsSheetCurrentHeight.current =
-          commentsPartialHeight;
-        commentsSheetGestureStartHeight.current =
-          commentsPartialHeight;
-
+        if(!restoring){
+          commentsSheetCurrentHeight.current = commentsPartialHeight;
+          commentsSheetGestureStartHeight.current = commentsPartialHeight;
+        }
         setCommentsSheetEntranceReady(
           true
         );
@@ -7054,7 +7060,7 @@ export default function HomeScreen() {
         }
         transparent
         animationType="none"
-        onShow={()=>{if(!commentsContinuation.onShow())animateCommentsSheetIn();}}
+        onShow={()=>animateCommentsSheetIn(commentsContinuation.onShow())}
         onDismiss={
           handleCommentsModalDismiss
         }
