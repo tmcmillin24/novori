@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsDivider, SettingsHeader, SettingsIntro, SettingsSection, SettingsToggleRow, settingsStyles } from '../components/SettingsPrimitives';
 import { useNovoriTheme } from '../context/theme-context';
 import { getExplicitLanguagePreference, setExplicitLanguagePreference } from '../lib/content-filter';
+import { signOutCurrentDevice } from '../lib/sign-out';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { supabase } from '../lib/supabase';
 
 type SettingsRowProps = {
@@ -30,6 +32,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, theme } = useNovoriTheme();
   const styles = settingsStyles(colors);
+  const [signOutError, setSignOutError] = useState('');
   const [email, setEmail] = useState('');
   const [allowExplicitLanguage, setAllowExplicitLanguage] = useState(false);
   const [explicitLoading, setExplicitLoading] = useState(true);
@@ -68,9 +71,8 @@ export default function SettingsScreen() {
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) { Alert.alert('Could not sign out', error.message); return; }
-    router.replace('/auth');
+    try { await signOutCurrentDevice(); router.replace('/auth'); }
+    catch (error) { setSignOutError((error as Error).message || 'Please try again.'); }
   }
   function confirmSignOut() {
     Alert.alert('Sign Out', 'Are you sure you want to sign out of Novori?', [
@@ -112,6 +114,7 @@ export default function SettingsScreen() {
       </SettingsSection>
       <Text style={[localStyles.footer, { color: colors.mutedText }]}>NOVORI · READ. DISCUSS. BELONG.</Text>
     </ScrollView>
+    <ValidationWarningSheet visible={!!signOutError} title="Could not sign out" message={signOutError} onDismiss={() => setSignOutError('')}/>
   </SafeAreaView>;
 }
 const localStyles = StyleSheet.create({

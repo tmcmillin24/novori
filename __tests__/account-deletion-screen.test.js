@@ -1,6 +1,7 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import DeleteAccountScreen from '../src/app/delete-account';
+import { supabase } from '../src/lib/supabase';
 import { getAccountDeletionStatus, requestAccountDeletion, cancelAccountDeletion, transferDeletionClub } from '../src/lib/account-deletion';
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
@@ -15,7 +16,7 @@ jest.mock('../src/lib/supabase', () => ({ supabase: { auth: { signOut: jest.fn()
 const active = { state: 'active', delete_after: null, enabled: true, can_cancel: false, owned_clubs: [] };
 const pending = { ...active, state: 'pending', delete_after: new Date(Date.now() + 7 * 86400000).toISOString(), can_cancel: true };
 let view, silence;
-beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; jest.clearAllMocks(); getAccountDeletionStatus.mockResolvedValue(active); requestAccountDeletion.mockResolvedValue(pending); cancelAccountDeletion.mockResolvedValue(active); silence = jest.spyOn(console, 'error').mockImplementation(() => {}); });
+beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; jest.clearAllMocks(); mockRouter.replace.mockClear(); supabase.auth.signOut.mockResolvedValue({error:null}); getAccountDeletionStatus.mockResolvedValue(active); requestAccountDeletion.mockResolvedValue(pending); cancelAccountDeletion.mockResolvedValue(active); silence = jest.spyOn(console, 'error').mockImplementation(() => {}); });
 afterEach(async () => { if (view) await act(async () => view.unmount()); view = null; silence.mockRestore(); });
 const button = label => view.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === label);
 const confirmation = () => view.root.findByType('DeletePostConfirmSheet');
@@ -28,7 +29,7 @@ test('scheduling requires the existing animated confirmation and submits seven-d
   await act(async () => confirmation().props.onConfirm()); expect(requestAccountDeletion).toHaveBeenCalledWith(false); expect(button('Keep my account')).toBeDefined(); expect(text()).toContain('Your account is paused.');
 });
 test('delete now has irreversible copy and sends immediate mode', async () => {
-  await render(); await press('Delete now'); expect(confirmation().props.message).toContain('cannot be cancelled'); await act(async () => confirmation().props.onConfirm()); expect(requestAccountDeletion).toHaveBeenCalledWith(true);
+  await render(); await press('Delete now'); expect(confirmation().props.message).toContain('cannot be cancelled'); await act(async () => confirmation().props.onConfirm()); expect(requestAccountDeletion).toHaveBeenCalledWith(true); expect(supabase.auth.signOut).toHaveBeenCalledWith({scope:'local'}); expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
 });
 test('cancellation must succeed before returning to the profile', async () => {
   getAccountDeletionStatus.mockResolvedValue(pending); cancelAccountDeletion.mockRejectedValueOnce(Error('Offline')); await render(); await press('Keep my account'); expect(mockRouter.replace).not.toHaveBeenCalled(); expect(notice().props.message).toBe('Offline');

@@ -1,3 +1,4 @@
+import { markPostMutation } from './feed';
 import { supabase } from './supabase';
 
 export type CommentVoteValue =
@@ -216,6 +217,7 @@ export async function createPostComment(
     throw error;
   }
 
+  markPostMutation();
   return data as string;
 }
 
@@ -274,6 +276,7 @@ export async function deletePostComment(
   if (error) {
     throw error;
   }
+  markPostMutation();
 }
 
 export async function toggleCommentVote(

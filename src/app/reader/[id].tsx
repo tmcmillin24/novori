@@ -64,6 +64,7 @@ import {
   followReader,
   PostVoteValue,
   togglePostVote,
+  splitQuestionPostBody,
   unfollowReader,
 } from '../../lib/feed';
 import {
@@ -1590,6 +1591,7 @@ export default function ReaderProfileScreen() {
   function renderPost(
     post: FeedPost
   ) {
+    const questionContent = post.post_type === 'question' ? splitQuestionPostBody(post.body) : null;
     const displayName =
       post.author_display_name
         ?.trim() ||
@@ -1754,7 +1756,10 @@ export default function ReaderProfileScreen() {
             }
           />
 
-        {post.body.trim() && !post.club_discussion ? <Text
+        {questionContent ? <>
+          <Text style={[styles.postBody, { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 19, lineHeight: 26 }]}>{questionContent.question}</Text>
+          {questionContent.context ? <Text style={[styles.postBody, { fontSize: 14, lineHeight: 21, marginTop: 8 }]}>{questionContent.context}</Text> : null}
+        </> : post.body.trim() && !post.club_discussion ? <Text
           style={
             styles.postBody
           }
@@ -1929,6 +1934,11 @@ export default function ReaderProfileScreen() {
             styles.postVoteRow
           }
         >
+          <Pressable accessibilityRole="button" accessibilityLabel="Open post and comments" onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })} style={styles.postVoteButton}>
+            <Ionicons name="chatbubble-outline" size={20} color={colors.mutedText}/>
+            <Text style={styles.postVoteScore}>{post.comment_count ?? 0}</Text>
+          </Pressable>
+
           <Pressable
             disabled={
               votingPostId ===

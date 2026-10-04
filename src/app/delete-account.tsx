@@ -8,7 +8,7 @@ import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { SettingsHeader, SettingsIntro, SettingsSection, settingsStyles } from '../components/SettingsPrimitives';
 import { useNovoriTheme } from '../context/theme-context';
 import { getAccountDeletionStatus, requestAccountDeletion, cancelAccountDeletion, transferDeletionClub, type AccountDeletionStatus, type DeletionClub } from '../lib/account-deletion';
-import { supabase } from '../lib/supabase';
+import { signOutCurrentDevice } from '../lib/sign-out';
 
 type Confirmation = { kind: 'schedule' | 'now' } | { kind: 'transfer'; club: DeletionClub; member: DeletionClub['members'][number] };
 export default function DeleteAccountScreen() {
@@ -31,24 +31,27 @@ export default function DeleteAccountScreen() {
     const timer = setTimeout(() => void load(), Math.min(remaining + 100, 2147483647));
     return () => clearTimeout(timer);
   }, [status, load]);
-  async function perform(action: () => Promise<AccountDeletionStatus>, cancelled = false) {
+  async function perform(action: () => Promise<AccountDeletionStatus>, cancelled = false, signOutAfter = false) {
     if (mutation.current) return;
     mutation.current = true; setBusy(true); setNotice(''); setConfirmationError('');
+    let actionCompleted = false;
     try {
       const next = await action();
+      actionCompleted = true;
       if (mounted.current) { setStatus(next); setConfirmation(null); if (cancelled) router.replace('/(tabs)/profile'); }
-    } catch (e) { if (mounted.current) { const message = (e as { message?: string }).message || 'Could not complete this action. Please try again.'; if (confirmation) setConfirmationError(message); else setNotice(message); } }
+      if (signOutAfter) { await signOutCurrentDevice(); if (mounted.current) router.replace('/auth'); }
+    } catch (e) { if (mounted.current) { const message = (e as { message?: string }).message || 'Could not complete this action. Please try again.'; if (confirmation && !actionCompleted) setConfirmationError(message); else setNotice(message); } }
     finally { mutation.current = false; if (mounted.current) setBusy(false); }
   }
   function openConfirmation(next: Confirmation) { setConfirmationError(''); setConfirmation(next); }
   async function confirm() {
     if (!confirmation) return;
-    await perform(confirmation.kind === 'transfer' ? () => transferDeletionClub(confirmation.club.id, confirmation.member.id) : () => requestAccountDeletion(confirmation.kind === 'now'));
+    await perform(confirmation.kind === 'transfer' ? () => transferDeletionClub(confirmation.club.id, confirmation.member.id) : () => requestAccountDeletion(confirmation.kind === 'now'), false, confirmation.kind === 'now');
   }
   async function signOut() {
     if (mutation.current) return;
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
-    if (signOutError) { setNotice(signOutError.message); return; }router.replace('/auth');
+    try { await signOutCurrentDevice(); router.replace('/auth'); }
+    catch (error) { setNotice((error as Error).message || 'Please try again.'); }
   }
   function action(title: string, detail: string, onPress: () => void, danger = false, disabled = false) {
     return <Pressable accessibilityRole="button" accessibilityLabel={title} disabled={busy || disabled} onPress={onPress} style={({ pressed }) => [styles.row, (busy || disabled) && styles.disabled, pressed && styles.pressed]}>

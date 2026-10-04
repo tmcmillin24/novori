@@ -11,6 +11,7 @@ import {supabase} from '../src/lib/supabase';
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter}));
 jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',ScrollView:'ScrollView',Switch:'Switch',StyleSheet:{create:v=>v,hairlineWidth:.5},Alert:{alert:jest.fn()}}));
+jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({theme:'dark',colors:require('../src/constants/novori-theme').DARK_COLORS})}));

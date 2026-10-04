@@ -172,6 +172,8 @@ export async function getExplicitLanguagePreference() {
   );
 
   if (error) {
+    // Paused/deleted sessions may briefly mount Home before the account gate redirects.
+    if (error.code === '42501' && /Account unavailable|Authentication required/.test(error.message ?? '')) return false;
     throw error;
   }
 

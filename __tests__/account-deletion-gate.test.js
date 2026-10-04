@@ -31,3 +31,19 @@ test('auth expiry after a pending request returns to sign-in and clears personal
  await act(async () => { mockAuthEvent('SIGNED_OUT'); jest.runOnlyPendingTimers(); });
  expect(clearDeletedAccountLocalData).toHaveBeenCalledWith('user'); expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
 });
+
+test('an open pending screen detects server deletion without a foreground event', async () => {
+ mockPath = '/delete-account'; getAccountDeletionStatus.mockResolvedValue(pending); await render();
+ getAccountDeletionStatus.mockRejectedValue({code:'42501'});
+ supabase.auth.getUser.mockResolvedValue({data:{user:null},error:{code:'user_not_found'}});
+ await act(async () => { jest.advanceTimersByTime(15000); });
+ expect(clearDeletedAccountLocalData).toHaveBeenCalledWith('user');
+ expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
+});
+test('switching from a paused account to an active account clears the old restriction', async () => {
+ getAccountDeletionStatus.mockResolvedValue(pending); await render(); mockRouter.replace.mockClear();
+ supabase.auth.getSession.mockResolvedValue({data:{session:{user:{id:'other'}}}});
+ getStoredDeletionStatus.mockResolvedValue(null); getAccountDeletionStatus.mockResolvedValue(active);
+ await act(async () => { mockAuthEvent('SIGNED_IN'); jest.advanceTimersByTime(0); });
+ expect(mockRouter.replace).not.toHaveBeenCalledWith('/delete-account');
+});
