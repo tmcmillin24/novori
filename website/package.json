@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test share-links.test.mjs"
+    "test": "node --test *.test.mjs"
   }
 }

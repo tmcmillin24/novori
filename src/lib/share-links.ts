@@ -1,6 +1,15 @@
 import {
+  Platform,
   Share,
 } from 'react-native';
+
+function shareContent(message: string, url: string) {
+  // iOS treats `url` as a separate share item. Including it in `message`
+  // as well sends the same link twice. Android shares the combined text.
+  return Platform.OS === 'ios'
+    ? { message, url }
+    : { message: `${message}\n${url}` };
+}
 
 function cleanBaseUrl(
   value:
@@ -75,11 +84,7 @@ export async function sharePostLink(
       postId
     );
 
-  await Share.share({
-    message:
-      `Check out this post on Novori\n${url}`,
-    url,
-  });
+  await Share.share(shareContent('Check out this post on Novori', url));
 }
 
 export function getBookStackShareUrl(
@@ -107,13 +112,12 @@ export async function shareBookStackLink({
   const cleanName =
     name?.trim();
 
-  await Share.share({
-    message:
-      cleanName
-        ? `Check out ${cleanName} on Novori\n${url}`
-        : `Check out this Book Stack on Novori\n${url}`,
+  await Share.share(shareContent(
+    cleanName
+      ? `Check out ${cleanName} on Novori`
+      : 'Check out this Book Stack on Novori',
     url,
-  });
+  ));
 }
 
 export async function shareBookLink({
@@ -131,11 +135,10 @@ export async function shareBookLink({
   const cleanTitle =
     title?.trim();
 
-  await Share.share({
-    message:
-      cleanTitle
-        ? `Check out ${cleanTitle} on Novori\n${url}`
-        : `Check out this book on Novori\n${url}`,
+  await Share.share(shareContent(
+    cleanTitle
+      ? `Check out ${cleanTitle} on Novori`
+      : 'Check out this book on Novori',
     url,
-  });
+  ));
 }

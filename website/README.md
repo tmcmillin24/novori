@@ -39,3 +39,22 @@ Android App Links. Those require verified Apple team/signing identifiers and
 Android signing fingerprints, association files, and native app configuration.
 Privacy/terms pages and corresponding Settings links remain separate follow-up
 work; this deployment does not publish unreviewed policies.
+
+## Apple Universal Links and future store fallback
+
+In Cloudflare Pages build environment, `NOVORI_APPLE_TEAM_ID` generates
+`/.well-known/apple-app-site-association` from the actual bundle ID in app.json.
+The identifier must belong to the Apple team signing this app. No association is
+published until the real Team ID is supplied. The native app also needs
+`ios.associatedDomains: ["applinks:novori.link"]`, the Associated Domains
+capability, and a new installed native build; JavaScript reloads cannot add it.
+
+After Novori's listing is public, set `NOVORI_IOS_APP_STORE_URL` to its real
+`https://apps.apple.com/.../id...` URL and redeploy. Shared pages on iOS then
+offer the download link and redirect visible browser visitors there after 2.5
+seconds; tapping Open in Novori or leaving the page cancels that redirect.
+Before release the existing browser page remains available, with no fake store
+link. This cannot reliably detect installation from JavaScript; iOS Universal
+Links handle installed-app routing. Browser/user choices can still keep a link
+on the web. Android verified App Links and Play Store fallback need their own
+signing identity and listing setup.
