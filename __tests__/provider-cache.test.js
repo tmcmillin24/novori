@@ -73,6 +73,7 @@ function harness() {
       console: { info() {}, warn() {}, error() {} }, fetch,
       Deno: { env: { get: key => env[key] }, serve: handler => { exports.handler = handler; } },
       require: name => name.startsWith('https:') ? { createClient: () => admin }
+        : name.includes('series-book-catalog') ? load(path.relative(path.resolve(__dirname, '..'), path.resolve(path.dirname(file), name)))
         : name.includes('book-catalog') ? { recordGoogleBooksInCatalog: async () => {} }
         : name.includes('book-cover-selector') ? { selectCanonicalGoogleCoversForWorkIds: async () => {} }
         : name.includes('discovery-canonical-covers') ? { applyCanonicalDiscoveryCovers: async payload => payload }

@@ -13,3 +13,9 @@ test.each(['Onyx Storm (Empyrean)', 'Onyx Storm (Engelstalige editie)', 'Onyx St
 test.each(['Dune (Messiah)', 'The Story: A Memoir', 'Discover the World', 'Storm (A New Beginning)'])('retains actual subtitles %s', title => {
  expect(cleanCatalogBookTitle(title)).toBe(title);
 });
+
+test('standard edition labels and catalog source markers are cleaned for any ISBNdb book', () => {
+ const result = normalizeIsbnDbEdition({ source: { provider: 'isbndb' }, volumeInfo: { title: 'Another Novel (Standard Edition)', description: 'A real publisher description.[Bokinfo]' } });
+ expect(result.volumeInfo.title).toBe('Another Novel');
+ expect(result.volumeInfo.description).toBe('A real publisher description.');
+});

@@ -8,7 +8,7 @@ type EditionBook = {
 export function cleanCatalogBookTitle(title: string) {
  return title.trim()
   .replace(/\s*(?:[:–—]\s*)?\bdiscover the (?:follow[- ]up|sequel) to the (?:global|worldwide) phenomenons?\b[\s\S]*$/i, '')
-  .replace(/\s*\((?:English(?:[- ]language)? edition|Engelstalige editie)\)\s*$/i, '')
+  .replace(/\s*\((?:Standard Edition|English(?:[- ]language)? edition|Engelstalige editie)\)\s*$/i, '')
   // Confirmed series-name label used by the Empyrean catalog editions.
   .replace(/\s*\((?:the )?Empyrean\)\s*$/i, '')
   .replace(/[\s:–—]+$/, '').trim() || title.trim();
@@ -40,6 +40,7 @@ export function normalizeIsbnDbEdition<T extends EditionBook>(book: T): T {
  return { ...book, novoriEdition: { ...book.novoriEdition, format, originalTitle: book.novoriEdition?.originalTitle ?? book.volumeInfo.title }, volumeInfo: {
   ...book.volumeInfo,
   title,
+  description: book.volumeInfo.description?.replace(/\s*\[Bokinfo\]\s*$/i, '').trim(),
   authors: book.volumeInfo.authors?.map(normalizeCatalogAuthor),
   // Audio disc counts are not reading pages. Preserve valid short print books.
   pageCount: format === 'audio' ? undefined : book.volumeInfo.pageCount,

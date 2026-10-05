@@ -109,6 +109,7 @@ type HardcoverSeriesBook = {
   slug?: string | null;
   releaseDate?: string | null;
   imageUrl?: string | null;
+  coverBookId?: string | null;
   authors: string[];
   isbns: string[];
 };
@@ -4885,11 +4886,10 @@ export default function BookDetailsScreen() {
                           styles.seriesRowPressed,
                       ]}
                     >
-                      {((isCurrent ? book.id : undefined) || seriesBook.isbns.length || seriesBook.imageUrl) ? (
+                      {(isCurrent || seriesBook.coverBookId) ? (
                         <BookCoverImage
-                          googleBookId={isCurrent ? book.id : undefined}
-                          isbns={seriesBook.isbns}
-                          existingCoverUrl={seriesBook.imageUrl}
+                          googleBookId={isCurrent ? book.id : seriesBook.coverBookId}
+                          existingCoverUrl={isCurrent ? displayExistingCoverUrl : undefined}
                           style={styles.seriesCover}
                         />
                       ) : (

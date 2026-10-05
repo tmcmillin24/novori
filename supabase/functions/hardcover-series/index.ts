@@ -1,3 +1,5 @@
+import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
+import { isbnDbEnabled } from '../_shared/isbndb.ts';
 import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -304,6 +306,9 @@ Deno.serve(async (req) => {
     async function promoteVerifiedSeriesCover(
       payload: any
     ) {
+      // ISBNdb mode uses verified catalog artwork, never raw series cached_image.
+      if (isbnDbEnabled()) return;
+
       if (
         !supabaseAdmin ||
         !payload?.series ||
@@ -3341,7 +3346,8 @@ Deno.serve(async (req) => {
       },
     });
     await promoteVerifiedSeriesCover(responsePayload);
-    return new Response(JSON.stringify(responsePayload), {
+    const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
+    return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
