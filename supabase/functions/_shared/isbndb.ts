@@ -1,3 +1,4 @@
+import { normalizeIsbnDbEdition } from './book-edition-metadata.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cachedProviderValue, createCacheAdmin, fetchJsonWithTimeout, requireReader } from './provider-cache.ts';
 import { recordGoogleBooksInCatalog } from './book-catalog.ts';
@@ -5,7 +6,7 @@ import { recordGoogleBooksInCatalog } from './book-catalog.ts';
 export const isbnDbEnabled = () => Deno.env.get('NOVORI_BOOK_PROVIDER') === 'isbndb';
 const PROVIDER = 'isbndb';
 const DAY = 86_400_000;
-type Book = { id: string; source: { provider: string; isbn13: string }; volumeInfo: any };
+type Book = { id: string; source: { provider: string; isbn13: string }; volumeInfo: any; novoriEdition?: { binding?: string; format?: string } };
 
 export function validIsbn13(value: unknown): string | null {
   const text = typeof value === 'string' ? value.replace(/[\s-]/g, '') : '';
@@ -44,9 +45,10 @@ export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
     const url = new URL(raw.image);
     if (url.protocol === 'https:' && url.hostname === 'images.isbndb.com' && !/placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) && !url.username && !url.password) image = url.toString();
   } catch { /* Missing artwork is normal. Never persist expiring image_original links. */ }
-  return {
+  return normalizeIsbnDbEdition({
     id: id ?? `nv_${isbn}`,
     source: { provider: PROVIDER, isbn13: isbn },
+    novoriEdition: { binding: typeof raw.binding === 'string' ? raw.binding : undefined },
     volumeInfo: {
       title: raw.title.trim(), authors: Array.isArray(raw.authors) ? raw.authors.filter((v: unknown) => typeof v === 'string') : [],
       publisher: typeof raw.publisher === 'string' ? raw.publisher : undefined,
@@ -59,7 +61,7 @@ export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
       // These are compatibility rendition slots, not a claim of original resolution.
       imageLinks: image ? { thumbnail: image, small: image, medium: image } : undefined,
     },
-  };
+  });
 }
 
 async function upstream(admin: SupabaseClient, userId: string, path: string) {
@@ -130,7 +132,7 @@ async function catalog(admin: SupabaseClient, books: Book[], complete = true) {
 }
 
 async function lookup(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `book:v1:${isbn}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
+  return cachedProviderValue({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, '/book/' + isbn);
       const book = raw?.book ? await ingest(admin, raw.book) : null;
@@ -149,7 +151,7 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
   const text = query.replace(/\b(?:intitle|inauthor):/gi, '').replace(/"/g, '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!text || text.length > 150) throw new Error('Book search must be no longer than 150 characters.');
   const page = Math.floor(startIndex / 40) + 1;
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `search:v1:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
+  return cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40`);
       if (!raw || !Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');

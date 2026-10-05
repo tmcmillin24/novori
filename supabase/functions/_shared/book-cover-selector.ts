@@ -1,3 +1,4 @@
+import { audioEditionPenalty } from './book-edition-metadata.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -49,6 +50,7 @@ type CandidateRow = {
 };
 
 type EditionRow = {
+  metadata?: { volumeInfo: any; novoriEdition?: { binding?: string; format?: string } };
   id: string;
   detail_complete:
     boolean;
@@ -198,7 +200,7 @@ function candidateScore(
   }
 
   return (
-    qualityScore +
+    qualityScore - (edition.metadata ? 250 * audioEditionPenalty(edition.metadata) : 0) +
     editionLocaleScore +
     (
       edition.detail_complete
@@ -358,7 +360,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       for (let offset = 0; offset < editionIds.length; offset += 200) {
         const { data, error } = await supabaseAdmin
           .from('book_editions')
-          .select('id, detail_complete, language, sale_country')
+          .select('id, detail_complete, language, sale_country, metadata')
           .in('id', editionIds.slice(offset, offset + 200));
         if (error) {
           console.warn('Could not read editions for Novori cover selection:', error.message);

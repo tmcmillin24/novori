@@ -1,3 +1,4 @@
+import { normalizeIsbnDbEdition } from '../../supabase/functions/_shared/book-edition-metadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
@@ -30,7 +31,7 @@ const MAX_PERSISTED_BOOKS =
   150;
 
 const PERSISTED_INDEX_KEY =
-  'novori:google-books:detail-index:v4';
+  'novori:google-books:detail-index:v5';
 
 const memoryCache =
   new Map<string, MemoryEntry>();
@@ -111,7 +112,7 @@ function getSearchQuery(
 function detailKey(
   id: string
 ) {
-  return `novori:google-books:detail:v4:${id}`;
+  return `novori:google-books:detail:v5:${id}`;
 }
 
 async function readPersistentDetail<T>(id: string): Promise<{ data: T; expiresAt: number } | null> {
@@ -180,7 +181,7 @@ async function readCatalogBook<T>(
       return null;
     }
 
-    return data.metadata as T;
+    return normalizeIsbnDbEdition(data.metadata) as T;
   } catch {
     return null;
   }

@@ -1,11 +1,12 @@
 import { test, expect } from '@jest/globals';
 import { selectCanonicalGoogleCoversForWorkIds } from '../supabase/functions/_shared/book-cover-selector';
 
-function catalog(candidates: any[], selections: any[] = []) {
+function catalog(candidates: any[], selections: any[] = [], audio = false) {
   const writes: any[] = [];
   const editions = [
     { id: 'edition', detail_complete: true, language: 'en', sale_country: 'US' },
     { id: 'foreign', detail_complete: true, language: 'fr', sale_country: 'FR' },
+    { id: 'audio', detail_complete: true, language: 'en', sale_country: 'US', metadata: {volumeInfo:{description: audio ? 'MP3 CD Format' : ''},novoriEdition:{format: audio ? 'audio' : 'unknown'}} },
   ];
   const rows: Record<string, any[]> = { book_cover_selections: selections, book_cover_candidates: candidates, book_editions: editions };
   const client = { from(table: string) {
@@ -80,4 +81,14 @@ test('ISBNdb covers participate without downgrading larger or locked artwork', a
  const manual=catalog([candidate('isbn','medium','isbndb')],[{work_id:'work',locked:true}]);
  await selectCanonicalGoogleCoversForWorkIds(manual.client as any,['work']);
  expect(manual.writes).toEqual([]);
+});
+
+test('same-work print cover outranks an audio narrator cover while audio-only artwork remains available',async()=>{
+ const audio={...candidate('audio-art','medium','isbndb'),edition_id:'audio'};
+ const pair=catalog([audio,candidate('print-art','medium','isbndb')],[],true);
+ await selectCanonicalGoogleCoversForWorkIds(pair.client as any,['work']);
+ expect(pair.writes[0].candidate_id).toBe('print-art');
+ const only=catalog([audio],[],true);
+ await selectCanonicalGoogleCoversForWorkIds(only.client as any,['work']);
+ expect(only.writes[0].candidate_id).toBe('audio-art');
 });

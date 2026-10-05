@@ -23,7 +23,7 @@ npx supabase functions deploy novori-admin --project-ref oanpmuiuuwljknwvyzev
 ```
 
 5. In Edge Function Secrets add `NOVORI_BOOK_PROVIDER` with value `isbndb`. This controls all readers on this project, including earlier app builds; there is no per-account allowlist in this initial rollout. Enable it while the current small test group is using the project. Saving the key alone does not enable ISBNdb.
-6. Reload the updated app on both Metro ports (8081/8082) and completely restart the phone app. There are no new native dependencies, so this change does not require a native package rebuild. Local detail cache keys are versioned to v4; existing catalog data, approved cover selections and reader rows are not deleted.
+6. Reload the updated app on both Metro ports (8081/8082) and completely restart the phone app. There are no new native dependencies, so this change does not require a native package rebuild. Local detail cache keys are versioned to v5; existing catalog data, approved cover selections and reader rows are not deleted.
 7. Refresh Cloudflare's admin/public Pages deployments from the updated git commit to get the ISBNdb dashboard card and provider disclosures. Review ISBNdb's subscription terms for metadata caching and cover use before public launch.
 
 ## Test before inviting more readers
@@ -56,3 +56,8 @@ Change Edge Function Secret `NOVORI_BOOK_PROVIDER` to `google_books` to restore 
 ## Verification boundary
 
 Automated tests cover adapters, identity preservation, ISBN checksums, authentication, concurrent cache misses, provider routing, rollback details, quotas, database permissions/cascading deletion, and existing app behavior. SQL is exercised against PGlite PostgreSQL. The hosted migration, real subscription responses, provider cover quality and on-device behavior must still be tested after deployment; local checks cannot certify those outcomes.
+
+
+## Format follow-up
+
+ISBNdb bindings now survive adaptation. Surname-first personal names normalize for grouping/display. Ordinary work search prefers non-audio representatives over MP3/CD editions of the same work and avoids borrowing narrator artwork when an eligible non-audio cover exists. Audio-only results remain available and ISBN lookup still resolves their own editions. Audio disc counts are omitted from reading page counts. ISBNdb cache keys advance to v2; no catalog/user records are wiped. Deploy all listed functions importing shared provider/catalog/selector code after pulling this fix, then reload Metro/the phone app. No additional SQL is needed.

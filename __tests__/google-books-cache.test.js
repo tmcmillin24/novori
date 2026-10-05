@@ -17,7 +17,7 @@ function harness() {
   function load(){
     const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/lib/google-books.ts'),'utf8');
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(compiled,{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
+    vm.runInNewContext(compiled,{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
     return exports;
   }
   return {storage,calls,load,setCatalog:value=>{catalog=value;}};
@@ -30,12 +30,12 @@ test('concurrent equivalent detail URLs share one request and preserve every per
   await Promise.all([api.fetchGoogleBooksJson(detail('a')),api.fetchGoogleBooksJson(detail('a')+'?projection=full'),api.fetchGoogleBooksJson(detail('b'))]);
   await flush();
   expect(h.calls.length).toBe(2);
-  expect(JSON.parse(h.storage.get('novori:google-books:detail-index:v4')).map(entry=>entry.id).sort()).toEqual(['a','b']);
+  expect(JSON.parse(h.storage.get('novori:google-books:detail-index:v5')).map(entry=>entry.id).sort()).toEqual(['a','b']);
 });
 
 test('device cache survives restart and reads never extend the original expiry',async()=>{
   const h=harness();
-  const key='novori:google-books:detail:v4:a',savedAt=Date.now()-86400000;
+  const key='novori:google-books:detail:v5:a',savedAt=Date.now()-86400000;
   h.storage.set(key,JSON.stringify({id:'a',savedAt,data:{id:'a',volumeInfo:{title:'Saved'}}}));
   let api=h.load();expect((await api.fetchGoogleBooksJson(detail('a'))).fromCache).toBe(true);
   await api.fetchGoogleBooksJson(detail('a')+'?projection=full');await flush();
@@ -63,7 +63,7 @@ test('query formatting shares a request and pagination is forwarded separately',
 
 test('corrupt or mismatched device entries cannot masquerade as cache hits',async()=>{
   for(const entry of [{id:'wrong',savedAt:Date.now(),data:{id:'wrong'}},{id:'a',data:{id:'a'}},{id:'a',savedAt:Date.now()+86400000,data:{id:'a'}}]){
-    const h=harness();h.storage.set('novori:google-books:detail:v4:a',JSON.stringify(entry));
+    const h=harness();h.storage.set('novori:google-books:detail:v5:a',JSON.stringify(entry));
     await h.load().fetchGoogleBooksJson(detail('a'));expect(h.calls.length).toBe(1);
   }
 });

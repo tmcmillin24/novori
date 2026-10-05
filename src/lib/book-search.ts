@@ -1,3 +1,4 @@
+import { normalizeIsbnDbEdition, audioEditionPenalty } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
@@ -7,6 +8,8 @@ import {
 
 export type GoogleBookSearchItem = {
   id: string;
+  source?: { provider?: string };
+  novoriEdition?: { binding?: string; format?: string };
   novoriWork?: {
     key: string;
     canonicalTitle: string;
@@ -1930,7 +1933,7 @@ function getBestEligibleGoogleWorkCover(
     GoogleBookSearchItem[]
 ) {
   const eligible =
-    editions.filter(
+    editions.filter(edition => !audioEditionPenalty(edition) || !editions.some(other => !audioEditionPenalty(other) && isEligibleAlternateEdition(other))).filter(
       isEligibleAlternateEdition
     );
 
@@ -2606,6 +2609,9 @@ function collapseDuplicateEditions(
               a,
               b
             ) => {
+              const formatDifference = audioEditionPenalty(a) - audioEditionPenalty(b);
+              if (formatDifference !== 0) return formatDifference;
+
               const editionVariantDifference =
                 getSearchEditionVariantPenalty(
                   a
@@ -3019,8 +3025,7 @@ export async function searchNovoriBooks(
   }
 
   let initialResults =
-    response.data.items ??
-    [];
+    (response.data.items ?? []).map(normalizeIsbnDbEdition);
 
   const normalizedQuery =
     normalizeTitle(
@@ -3033,7 +3038,7 @@ export async function searchNovoriBooks(
     if (refinement) {
       // One bounded, shared-cache-backed fallback; never discard usable results on failure.
       const refined = await fetchSharedGoogleBooksSearch(refinement).catch(() => null);
-      if (refined?.ok) authorQualifiedResults = (refined.data?.items ?? [])
+      if (refined?.ok) authorQualifiedResults = (refined.data?.items ?? []).map(normalizeIsbnDbEdition)
         .filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
     }
   }

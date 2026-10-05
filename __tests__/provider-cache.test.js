@@ -380,7 +380,7 @@ test('ISBNdb search uses header authentication, a separate shared cache and pres
   expect(h.calls).toHaveLength(1); expect(h.isbnRequests).toBe(1); expect(h.claims).toBe(0);
   expect(h.calls[0].init.headers.Authorization).toBe('private-isbn-key');
   expect(JSON.stringify(first)).not.toContain('image_original'); expect(JSON.stringify(first)).not.toContain('temporary.test');
-  expect([...h.rows.keys()]).toContain('isbndb:search:v1:campbell biology:1');
+  expect([...h.rows.keys()]).toContain('isbndb:search:v2:campbell biology:1');
 });
 test('ISBNdb concurrent search misses coalesce without contacting Google', async () => {
   const h = isbnHarness();
@@ -430,4 +430,12 @@ test('ISBNdb detail links survive rollback of the search provider', async () => 
  const r=await h.request('google-books-detail',{volumeId:'nv_9780134093413'});
  expect(r).toMatchObject({ok:true,provider:'isbndb',data:{id:'nv_9780134093413'}});
  expect(h.calls).toHaveLength(1);
+});
+
+test('ISBNdb retains binding, normalizes personal author names, and preserves short print page counts',()=>{
+ const api=isbnHarness().load('supabase/functions/_shared/isbndb.ts');
+ const audio=api.adaptIsbnDbBook(isbnBook({binding:'MP3 CD',pages:1,authors:['McFadden, Freida']}));
+ expect(audio.novoriEdition).toEqual({binding:'MP3 CD',format:'audio'});expect(audio.volumeInfo.pageCount).toBeUndefined();expect(audio.volumeInfo.authors).toEqual(['Freida McFadden']);
+ const print=api.adaptIsbnDbBook(isbnBook({binding:'Paperback',pages:1}));
+ expect(print.volumeInfo.pageCount).toBe(1);expect(print.novoriEdition.format).toBe('print');
 });
