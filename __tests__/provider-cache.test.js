@@ -350,3 +350,12 @@ test('scoped title/author fallback queries share the normal Google cache and quo
  expect((await h.request('google-books-search',{query})).cache.googleRequestMade).toBe(false);
  expect(h.claims).toBe(1);expect(h.calls).toHaveLength(1);
 });
+
+test('nearby author initials cannot borrow the established author popularity, and both outcomes are cached',async()=>{
+ const h=harness();const hits={hits:[{document:{id:123,title:'Hunting Adeline',author_names:['H. D. Carlton'],users_count:12000,ratings_count:9000,rating:4.3}}]};
+ h.setUpstream(async()=>({data:{book0:{results:hits},book1:{results:hits}}}));
+ const books=[{googleBookId:'lookalike',title:'Hunting Adeline',authors:['H.E. Carlton'],isbns:[]},{googleBookId:'original',title:'Hunting Adeline',authors:['H. D. Carlton'],isbns:[]}];
+ const result=await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});
+ expect(result.popularity.original.usersCount).toBe(12000);expect(result.popularity.lookalike).toBeUndefined();
+ await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});expect(h.calls).toHaveLength(1);expect(h.hardcoverRequests).toBe(1);
+});

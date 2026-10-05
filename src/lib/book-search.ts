@@ -2986,6 +2986,21 @@ export function getBestSearchCover(imageLinks: GoogleBookSearchItem['volumeInfo'
   return getBookCoverPlan({ imageLinks }).primaryUrl ?? undefined;
 }
 
+function getAmbiguousTitleBooks(books: GoogleBookSearchItem[]) {
+  const groups = new Map<string, GoogleBookSearchItem[]>();
+  for (const book of books) {
+    const title = getCanonicalWorkTitleForBook(book);
+    const author = normalizeTitle(book.volumeInfo.authors?.[0]);
+    if (!title || !author) continue;
+    const group = groups.get(title) ?? [];
+    group.push(book);
+    groups.set(title, group);
+  }
+  return [...groups.values()].filter(group =>
+    new Set(group.map(book => normalizeTitle(book.volumeInfo.authors?.[0]))).size > 1
+  ).flat();
+}
+
 export async function searchNovoriBooks(
   searchTerm: string
 ) {
@@ -3141,6 +3156,9 @@ export async function searchNovoriBooks(
       {}
     );
 
+  // Resolve only same-title author conflicts. Keep edition/cover selection untouched.
+  const ambiguityPopularity = getHardcoverPopularity(getAmbiguousTitleBooks(collapsed), true);
+
   await Promise.all(
     collapsed.map(
       async (
@@ -3189,7 +3207,10 @@ export async function searchNovoriBooks(
     collapsed
   );
 
-  return collapsed;
+  const popularity = await ambiguityPopularity;
+  return looksLikeAuthorSearch
+    ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
+    : sortTitleSearchResults(collapsed, searchTerm, popularity);
 }
 
 export type AuthorBookResult = {
