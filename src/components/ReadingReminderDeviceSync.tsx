@@ -1,3 +1,4 @@
+import { isAccountUnavailableError } from '../lib/account-session-errors';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { resetReadingReminderDeviceSync, syncReadingReminderDevice } from '../lib/reading-reminders';
@@ -12,7 +13,7 @@ export default function ReadingReminderDeviceSync() {
     function sync(userId?: string) {
       if (!mounted || !userId) return;
       void syncReadingReminderDevice(userId).catch((error) => {
-        if (error?.code === '42501' && error?.message?.includes('Account unavailable')) return;
+        if (isAccountUnavailableError(error)) return;
         // Missing rollout SQL/network errors must never block signing in or navigation.
         console.warn('Reading reminder device sync unavailable:', error);
       });

@@ -7,8 +7,7 @@ import { supabase } from '../lib/supabase';
 export default function Index() {
   const sequence=useRef(0);
   const [loading, setLoading] = useState(true);
-  const [paused,setPaused]=useState(false);
-  const [signedIn, setSignedIn] = useState(false);
+  const [destination, setDestination] = useState<'/auth' | '/auth?notice=restricted' | '/delete-account' | '/(tabs)'>('/auth');
 
   useEffect(() => {
     let mounted = true;
@@ -25,8 +24,7 @@ export default function Index() {
 
       const route=session?await getAccountEntryRoute().catch(()=>null):'/auth';
       if(!mounted||version!==sequence.current)return;
-      setPaused(route==='/delete-account');
-      setSignedIn(Boolean(session)&&route!=='/auth');
+      setDestination(route ?? (session ? '/(tabs)' : '/auth'));
       setLoading(false);
     }
 
@@ -51,10 +49,5 @@ export default function Index() {
     return null;
   }
 
-  if(paused)return <Redirect href="/delete-account"/>;
-  if (signedIn) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <Redirect href="/auth" />;
+  return <Redirect href={destination} />;
 }

@@ -1,4 +1,6 @@
-import {isAccountUnavailableError,isDeletedAuthUserError} from '../lib/account-session-errors';
+import { rememberAccountRestriction, restrictedAccountRoute, hasAccountRestrictionNotice } from '../lib/account-restriction-notice';
+import { signOutCurrentDevice } from '../lib/sign-out';
+import {isAccountUnavailableError,isDeletedAuthUserError,isAccountRestrictedError} from '../lib/account-session-errors';
 import { usePathname, useRootNavigationState, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -17,8 +19,8 @@ export default function AccountDeletionGate() {
       if (!mounted || version !== sequence.current) return;
       if (!session) {
         if (lastUser.current) {
-          if (pendingUser.current === lastUser.current) await clearDeletedAccountLocalData(lastUser.current).catch(() => {});
-          lastUser.current = null; pendingUser.current = null; router.replace('/auth');
+          if (!hasAccountRestrictionNotice() && pendingUser.current === lastUser.current) await clearDeletedAccountLocalData(lastUser.current).catch(() => {});
+          lastUser.current = null; pendingUser.current = null; router.replace(hasAccountRestrictionNotice() ? restrictedAccountRoute : '/auth');
         }
         setStatus(null); return;
       }
@@ -27,6 +29,10 @@ export default function AccountDeletionGate() {
       const stored = await getStoredDeletionStatus(session.user.id);
       if (stored && mounted && version === sequence.current) { pendingUser.current = session.user.id; setStatus(stored); }
       try {
+        // A cached JWT can still read SQL after an Auth ban; validate on foreground too.
+        const { error: sessionError } = await supabase.auth.getUser();
+        if (!mounted || version !== sequence.current) return;
+        if (isAccountRestrictedError(sessionError)) throw sessionError;
         const latest = await getAccountDeletionStatus();
         if (mounted && version === sequence.current) { pendingUser.current = latest.state === 'active' ? null : session.user.id; setStatus(latest); }
       } catch (error) {
@@ -34,6 +40,14 @@ export default function AccountDeletionGate() {
         if (isAccountUnavailableError(error) || (error as {code?:string}).code === '42501') {
           const { data, error: accountError } = await supabase.auth.getUser();
           if (!mounted || version !== sequence.current) return;
+          if (isAccountRestrictedError(error) || isAccountRestrictedError(accountError)) {
+            // Suspension is reversible: retain the reader's local data.
+            rememberAccountRestriction();
+            lastUser.current = null; pendingUser.current = null; setStatus(null);
+            await signOutCurrentDevice().catch(() => {});
+            if (mounted) router.replace(restrictedAccountRoute);
+            return;
+          }
           if (isDeletedAuthUserError(error) || (!accountError && !data.user) || isAccountUnavailableError(accountError)) {
             await clearDeletedAccountLocalData(session.user.id).catch(() => {});
             if (!mounted || version !== sequence.current) return;
@@ -47,7 +61,7 @@ export default function AccountDeletionGate() {
     // Do not await Supabase APIs inside onAuthStateChange; defer outside its auth lock.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(event => { setTimeout(() => {
       if (!mounted) return;
-      if (event === 'SIGNED_OUT' && lastUser.current && pendingUser.current === lastUser.current) {
+      if (event === 'SIGNED_OUT' && !hasAccountRestrictionNotice() && lastUser.current && pendingUser.current === lastUser.current) {
         void clearDeletedAccountLocalData(lastUser.current).catch(() => {}); pendingUser.current = null; router.replace('/auth');
       }
       void check();

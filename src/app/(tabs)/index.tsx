@@ -1,3 +1,4 @@
+import { rememberAccountRestriction, restrictedAccountRoute } from '../../lib/account-restriction-notice';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -9,7 +10,7 @@ import CommentBranchGuide from '../../components/CommentBranchGuide';
 import { isTransientReadError } from '../../lib/session-read-cache';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
 import { getAccountEntryRoute } from '../../lib/account-entry';
-import { isAccountUnavailableError } from '../../lib/account-session-errors';
+import { isAccountUnavailableError, isAccountRestrictedError } from '../../lib/account-session-errors';
 import { signOutCurrentDevice } from '../../lib/sign-out';
 import FeedPostCard from '../../components/FeedPostCard';
 import { COMMENT_REPLY_BATCH_SIZE, getCommentBranchIds, buildCommentThreads, countThreadReplies, getCommentDepthLimit } from '../../lib/comment-conversations';
@@ -216,10 +217,13 @@ export default function HomeScreen() {
         ]);
         const [attentionResult, myClubsResult, discoverResult, feedResult,] = results;
         if (results.some(result => result.status === 'rejected' && isAccountUnavailableError(result.reason))) {
-            const accountRoute = await getAccountEntryRoute().catch(() => null);
+            const restricted = results.some(result => result.status === 'rejected' && isAccountRestrictedError(result.reason));
+            if (restricted) rememberAccountRestriction();
+            const accountRoute = restricted ? restrictedAccountRoute : await getAccountEntryRoute().catch(() => null);
             setFeedLoading(false);
             setClubsLoading(false);
             if (accountRoute) {
+                if (restricted) await signOutCurrentDevice().catch(() => {});
                 router.replace(accountRoute);
                 return;
             }

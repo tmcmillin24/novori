@@ -1,5 +1,7 @@
+import { isAccountRestrictedError } from '../lib/account-session-errors';
+import { accountRestrictionNotice, hasAccountRestrictionNotice, clearAccountRestrictionNotice } from '../lib/account-restriction-notice';
 import {Ionicons} from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   useEffect,
   useState,
@@ -36,10 +38,12 @@ export default function AuthScreen() {
   const { colors } = useNovoriTheme();
   const styles = createStyles(colors);
   const router = useRouter();
+  const { notice } = useLocalSearchParams<{notice?: string}>();
 
   const [passwordVisible,setPasswordVisible]=useState(false);
   const [confirmPasswordVisible,setConfirmPasswordVisible]=useState(false);
-  const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(null);
+  const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(() => notice === 'restricted' || hasAccountRestrictionNotice() ? accountRestrictionNotice : null);
+  useEffect(() => { if (notice === 'restricted') setAuthNotice(accountRestrictionNotice); }, [notice]);
   const [mode, setMode] =
     useState<AuthMode>('sign-in');
   const [
@@ -303,6 +307,7 @@ export default function AuthScreen() {
         throw error;
       }
 
+      clearAccountRestrictionNotice();
       const deletion = await getAccountDeletionStatus().catch(() => null);
       router.replace(deletion && deletion.state !== 'active' ? '/delete-account' : '/(tabs)');
     } catch (error) {
@@ -312,7 +317,7 @@ export default function AuthScreen() {
           : 'Something went wrong. Please try again.';
 
       Keyboard.dismiss();
-      setAuthNotice({ title: isSignUp ? 'Could not create account' : 'Could not sign in', message });
+      setAuthNotice(isAccountRestrictedError(error) ? accountRestrictionNotice : { title: isSignUp ? 'Could not create account' : 'Could not sign in', message });
     } finally {
       setLoading(false);
     }
@@ -724,7 +729,7 @@ export default function AuthScreen() {
           </View>
         </View>
       </ScrollView>
-      <ValidationWarningSheet visible={!!authNotice} title={authNotice?.title ?? ''} message={authNotice?.message ?? ''} onDismiss={() => setAuthNotice(null)}/>
+      <ValidationWarningSheet visible={!!authNotice} title={authNotice?.title ?? ''} message={authNotice?.message ?? ''} onDismiss={() => { clearAccountRestrictionNotice(); setAuthNotice(null); }}/>
     </SafeAreaView>
   );
 }
