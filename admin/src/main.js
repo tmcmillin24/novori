@@ -680,25 +680,56 @@ const screens = {
   },
   usage(main, d) {
     main.append(el("p", d.note, "hint"));
-    const totals = new Map();
-    for (const r of d.rows ?? [])
-      totals.set(
-        r.provider,
-        (totals.get(r.provider) || 0) + Number(r.upstream_requests || 0),
-      );
+    main.append(
+      el(
+        "p",
+        `Refreshed ${date(d.refreshed_at)} · daily buckets use UTC`,
+        "hint",
+      ),
+    );
     const cards = el("div", undefined, "cards");
-    for (const [provider, total] of totals)
-      add(
-        cards,
-        add(
-          el("div", undefined, "card"),
-          el("small", `${pretty(provider)} · last 30 days`),
-          el("strong", total.toLocaleString()),
-        ),
-      );
+    for (const [provider, title] of [
+      ["google_books", "Google Books"],
+      ["hardcover", "Hardcover"],
+    ]) {
+      const totals = d.summary?.[provider];
+      const card = add(el("div", undefined, "card"), el("h2", title));
+      if (!totals || (provider === "hardcover" && !totals.ready)) {
+        card.append(
+          el(
+            "p",
+            "Tracker setup required. Historical provider usage is not included.",
+            "hint",
+          ),
+        );
+      } else {
+        for (const [key, label] of [
+          ["today", "Today"],
+          ["days7", "Last 7 days"],
+          ["days30", "Last 30 days"],
+        ])
+          card.append(
+            add(
+              el("div"),
+              el("small", label),
+              el("strong", Number(totals[key]).toLocaleString()),
+            ),
+          );
+        card.append(
+          el(
+            "p",
+            provider === "google_books"
+              ? `Earliest recorded day: ${totals.first_recorded_day ?? "No requests recorded yet"}. Earlier history may be incomplete.`
+              : `Recording enabled: ${date(totals.tracking?.enabled_at)}. First request: ${date(totals.tracking?.first_request_at)}. Last request: ${date(totals.tracking?.last_request_at)}.`,
+            "hint",
+          ),
+        );
+      }
+      cards.append(card);
+    }
     main.append(cards);
     const panel = el("section", undefined, "panel");
-    add(panel, el("h2", "Daily upstream requests"));
+    add(panel, el("h2", "Daily upstream requests · UTC"));
     table(
       panel,
       ["Day", "Provider", "Requests"],
@@ -715,7 +746,7 @@ const screens = {
       el("h2", "Shared book cache"),
       el(
         "p",
-        `${d.cache.total ?? "—"} entries · ${d.cache.sample_size} recent entries sampled. Hit counts are lifetime counts for each entry.`,
+        `${d.cache.total ?? "—"} entries · ${d.cache.sample_size} recent entries sampled. Hit counts belong to the current cache entries and may reset on refresh.`,
       ),
     );
     table(

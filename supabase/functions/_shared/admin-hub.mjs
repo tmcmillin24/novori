@@ -459,16 +459,52 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     return { rows: check(r), total: r.count, page };
   }
   if (action === "usage") {
+    const now = new Date(),
+      today = now.toISOString().slice(0, 10);
+    const since = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 29),
+    )
+      .toISOString()
+      .slice(0, 10);
     const result = await client
       .from("api_usage_daily")
-      .select("*")
-      .gte(
-        "usage_date",
-        new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10),
-      )
+      .select("usage_date,provider,upstream_requests")
+      .eq("provider", "google_books")
+      .gte("usage_date", since)
+      .lte("usage_date", today)
       .order("usage_date", { ascending: false })
       .limit(300);
-    const rows = check(result);
+    const firstGoogle = await client
+      .from("api_usage_daily")
+      .select("usage_date")
+      .eq("provider", "google_books")
+      .order("usage_date", { ascending: true })
+      .limit(1);
+    const hardcover = await client
+      .from("novori_api_usage_daily")
+      .select("usage_date,provider,upstream_requests")
+      .gte("usage_date", since)
+      .lte("usage_date", today)
+      .order("usage_date", { ascending: false })
+      .limit(30);
+    const tracking = await client
+      .from("novori_api_usage_tracking")
+      .select("enabled_at,first_request_at,last_request_at")
+      .eq("provider", "hardcover")
+      .maybeSingle();
+    const missing = (value) =>
+      ["42P01", "PGRST205"].includes(value.error?.code);
+    const hardcoverReady = !missing(hardcover) && !missing(tracking);
+    const rows = [
+      ...check(result),
+      ...(hardcoverReady ? check(hardcover) : []),
+    ].sort((a, b) => b.usage_date.localeCompare(a.usage_date) || a.provider.localeCompare(b.provider));
+    const recorded = hardcoverReady ? check(tracking) : null;
+    const summary = summarizeApiUsage(rows, now);
+    summary.google_books.first_recorded_day =
+      check(firstGoogle)[0]?.usage_date ?? null;
+    summary.hardcover.ready = hardcoverReady;
+    summary.hardcover.tracking = recorded;
     const cache = await client
       .from("book_api_cache")
       .select("provider,hit_count,fetched_at,expires_at", { count: "exact" })
@@ -476,12 +512,14 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
       .limit(100);
     return {
       rows,
+      summary,
+      refreshed_at: now.toISOString(),
       cache: {
         rows: check(cache),
         total: cache.count,
         sample_size: cache.data?.length ?? 0,
       },
-      note: "Usage is Novori’s recorded upstream traffic, not provider billing. Cache details show the 100 most recently fetched entries.",
+      note: "Counts are Novori’s recorded upstream request attempts, including failed requests, not provider billing. Today, 7 days, and 30 days include the current UTC day. Earlier unrecorded usage is not included. Cache details sample the 100 most recently fetched entries.",
     };
   }
   if (action === "audit") {
@@ -580,13 +618,11 @@ export function createAdminHandler({
           throw new AdminError("Unauthorized worker.", 401);
         const data = await runAdminJobs(client, { sendAlert });
         check(
-          await client
-            .from("novori_admin_worker_status")
-            .upsert({
-              singleton: true,
-              last_heartbeat: new Date().toISOString(),
-              last_result: data,
-            }),
+          await client.from("novori_admin_worker_status").upsert({
+            singleton: true,
+            last_heartbeat: new Date().toISOString(),
+            last_result: data,
+          }),
         );
         return respond({ data });
       }
@@ -627,4 +663,34 @@ export function createAdminHandler({
       );
     }
   };
+}
+
+export function summarizeApiUsage(rows, now = new Date()) {
+  const day = (offset) =>
+    new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - offset,
+      ),
+    )
+      .toISOString()
+      .slice(0, 10);
+  const today = day(0),
+    week = day(6),
+    month = day(29);
+  const summary = {
+    google_books: { today: 0, days7: 0, days30: 0 },
+    hardcover: { today: 0, days7: 0, days30: 0 },
+  };
+  for (const row of rows) {
+    const totals = summary[row.provider];
+    if (!totals || row.usage_date > today || row.usage_date < month) continue;
+    const count = Number(row.upstream_requests || 0);
+    if (!Number.isFinite(count) || count < 0) continue;
+    totals.days30 += count;
+    if (row.usage_date >= week) totals.days7 += count;
+    if (row.usage_date === today) totals.today += count;
+  }
+  return summary;
 }

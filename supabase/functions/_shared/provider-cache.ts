@@ -167,6 +167,8 @@ export async function cachedHardcoverFetch(
 export async function fetchHardcoverUpstream(admin: SupabaseClient, url: string, init: RequestInit) {
   const retry = await readProviderCache(admin, 'hardcover_popularity', 'hardcover:rate-limit-retry');
   if (fresh(retry)) throw new Error('Hardcover rate limit is cooling down.');
+  const { error: usageError } = await admin.rpc('novori_record_hardcover_request');
+  if (usageError) throw new Error('Could not record Hardcover request: ' + usageError.message);
   console.info('Hardcover upstream request', { provider: 'hardcover' });
   const response = await fetchJsonWithTimeout(url, init);
   if (response.status === 429) {

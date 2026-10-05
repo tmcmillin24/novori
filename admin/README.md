@@ -80,3 +80,23 @@ Tests execute the migration and moderation functions in PostgreSQL via PGlite an
 ## Limits
 
 Reader search is by username, clubs by name. Conversation context shows the first 100 comments. Club membership detail shows up to 100 members. Usage is Novori's recorded requests, not provider billing or quota guarantees; cache samples are the latest 100 entries. Announcements target active unrestricted readers during batch delivery; archived notifications already sent are retained. Support email is `support@novori.link`; confirm that mailbox is monitored before using reader notices. A ban is a restriction, not deletion of the reader's data.
+
+## Google Books and Hardcover usage trackers
+
+Apply `supabase/migrations/20261005034000_api_usage_trackers.sql` before deploying the updated Hardcover functions. It adds service-only daily counters and tracking timestamps; it preserves Google's quota accounting and all shared caches. Rerunning it preserves counts and the original enable date.
+
+Deploy these five functions individually to project `oanpmuiuuwljknwvyzev`:
+
+- `novori-admin` (retain `--no-verify-jwt`; authorization is performed by the handler)
+- `hardcover-series`
+- `hardcover-search-popularity`
+- `hardcover-trending`
+- `hardcover-recent-releases`
+
+Use the existing deployment configuration for the four Hardcover functions. Cloudflare Pages rebuilds the admin frontend from the production branch. No mobile/native rebuild is needed.
+
+API & cache shows Today, Last 7 days, and Last 30 days for both providers. Periods include the current UTC calendar day: seven days means today plus six earlier dates, and thirty means today plus twenty-nine earlier dates. The displayed refresh time is when the dashboard fetched its snapshot, not a continuously updating feed.
+
+Google totals come from the existing `api_usage_daily` quota counter; its earliest retained day is labeled as an earliest recorded day, not an invented tracking start. Hardcover counts upstream attempts at the shared fetch boundary using an atomic service-only RPC. Cache hits and cooldown-blocked requests do not increment it; failed HTTP requests do. If the counter cannot be persisted, no uncounted Hardcover request is sent (existing stale-cache fallback remains available). The counter is reserved immediately before sending, so an interrupted execution may reserve a count without completing the network request. These are Novori records, not provider billing or historical lifetime totals.
+
+Verify dashboard rows with `select usage_date,provider,upstream_requests from public.api_usage_daily order by usage_date desc;` for Google, and the same select from `public.novori_api_usage_daily` for Hardcover. Compare snapshots at the same time and UTC dates. A repeated warm cached request must not increase upstream counts. New uncached queries may make multiple requests, so do not assume one app action equals one provider request. Earlier unrecorded provider totals (including requests outside Novori) are not backfilled.

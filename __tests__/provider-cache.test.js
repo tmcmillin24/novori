@@ -6,10 +6,10 @@ const crypto = require('crypto').webcrypto;
 
 function harness() {
   const rows = new Map(), locks = new Map(), discover = new Map();
-  const errors = { read: false, lock: false, write: false };
+  const errors = { read: false, lock: false, write: false, usage: false };
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
-  let claims = 0;
+  let claims = 0, hardcoverRequests = 0;
   const admin = {
     auth: { getUser: async token => token === 'reader' ? { data: { user: { id: 'reader' } } } : { error: 'invalid' } },
     rpc: async (name, args) => {
@@ -20,6 +20,7 @@ function harness() {
         if (acquired) locks.set(key, Date.now() + args.p_lease_seconds * 1000);
         return { data: [{ acquired, lock_until: new Date(locks.get(key)).toISOString() }] };
       }
+      if (name === 'novori_record_hardcover_request') { if(errors.usage) return {error:{message:'tracking unavailable'}}; hardcoverRequests++; return {error:null}; }
       if (name === 'novori_claim_google_books_search') { claims++; return { data: [{ allowed: true, global_upstream_count: claims }] }; }
       if (name === 'novori_search_book_catalog_fuzzy') return { data: [] };
       return { data: null, error: null };
@@ -78,7 +79,7 @@ function harness() {
   }
   const api = load('supabase/functions/_shared/provider-cache.ts');
   return { rows, locks, discover, errors, calls, env, admin, api, load,
-    setUpstream: callback => { upstream = callback; }, get claims() { return claims; },
+    setUpstream: callback => { upstream = callback; }, get claims() { return claims; }, get hardcoverRequests() { return hardcoverRequests; },
     request: (endpoint, body, token = 'reader') => load(`supabase/functions/${endpoint}/index.ts`).handler(new Request('https://app.test', {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })).then(response => response.json()),
@@ -293,3 +294,21 @@ test('successful no-match Google mappings get six hours, and legacy year-long ne
   await h.request('google-books-resolve',{mode:'identity',title:'Unknown',author:'Author'});
   expect(h.calls.length).toBe(2);
 });
+
+ test('Hardcover counts actual upstream attempts once, never warm cache reads',async()=>{
+ const h=harness();const init={method:'POST',body:JSON.stringify({query:'query { books { id } }'})};
+ await h.api.cachedHardcoverFetch(h.admin,'https://api.hardcover.app/v1/graphql',init,10000,30000);
+ await h.api.cachedHardcoverFetch(h.admin,'https://api.hardcover.app/v1/graphql',init,10000,30000);
+ expect(h.hardcoverRequests).toBe(1);expect(h.calls).toHaveLength(1);
+ });
+ test('Hardcover tracking failures cannot silently send uncounted requests',async()=>{
+ const h=harness();h.errors.usage=true;
+ await expect(h.api.fetchHardcoverUpstream(h.admin,'https://api.hardcover.app/v1/graphql',{})).rejects.toThrow('Could not record');
+ expect(h.calls).toHaveLength(0);expect(h.hardcoverRequests).toBe(0);
+ });
+ test('failed Hardcover attempts count, rate-limit cooldown retries do not',async()=>{
+ const h=harness();h.setUpstream(async()=>new Response('{}',{status:429}));
+ await h.api.fetchHardcoverUpstream(h.admin,'https://api.hardcover.app/v1/graphql',{});
+ await expect(h.api.fetchHardcoverUpstream(h.admin,'https://api.hardcover.app/v1/graphql',{})).rejects.toThrow('cooling down');
+ expect(h.hardcoverRequests).toBe(1);expect(h.calls).toHaveLength(1);
+ });

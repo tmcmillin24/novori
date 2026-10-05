@@ -6,6 +6,7 @@ import {
   dispatchAdmin,
   runAdminJobs,
   validateId,
+  summarizeApiUsage,
 } from "../../supabase/functions/_shared/admin-hub.mjs";
 const id = "10000000-0000-4000-8000-000000000001",
   target = "10000000-0000-4000-8000-000000000002";
@@ -249,4 +250,68 @@ test("failed Auth synchronization finishes the lease as retryable", async () => 
     calls.find(([n]) => n === "novori_admin_finish_auth_job")[1].p_success,
     false,
   );
+});
+
+test("usage totals use exact UTC calendar boundaries and include empty providers", () => {
+  const now = new Date("2026-10-05T02:00:00Z");
+  const rows = [
+    ["2026-10-05", 2],
+    ["2026-10-04", 3],
+    ["2026-09-29", 5],
+    ["2026-09-28", 7],
+    ["2026-09-06", 11],
+    ["2026-09-05", 13],
+    ["2026-10-06", 17],
+  ].map(([usage_date, upstream_requests]) => ({
+    provider: "google_books",
+    usage_date,
+    upstream_requests,
+  }));
+  const summary = summarizeApiUsage(rows, now);
+  assert.deepEqual(summary.google_books, { today: 2, days7: 10, days30: 28 });
+  assert.deepEqual(summary.hardcover, { today: 0, days7: 0, days30: 0 });
+});
+test("usage reads existing Google counts and the new Hardcover tracker separately", async () => {
+  const client = {
+    from: (table) => {
+      const q = {
+        select: () => q,
+        gte: () => q,
+        lte: () => q,
+        order: () => q,
+        limit: () => q,
+        eq: () => q,
+        maybeSingle: () => q,
+        then: (resolve) =>
+          Promise.resolve({
+            data:
+              table === "novori_api_usage_tracking"
+                ? { enabled_at: "2026-10-05" }
+                : table === "book_api_cache"
+                  ? []
+                  : [
+                      {
+                        provider:
+                          table === "api_usage_daily"
+                            ? "google_books"
+                            : "hardcover",
+                        usage_date: new Date().toISOString().slice(0, 10),
+                        upstream_requests: 4,
+                      },
+                    ],
+            count: 0,
+          }).then(resolve),
+      };
+      return q;
+    },
+  };
+  const result = await dispatchAdmin(
+    client,
+    { user: { id }, member: { role: "owner" } },
+    { action: "usage" },
+  );
+  assert.equal(result.summary.google_books.today, 4);
+  assert.equal(result.summary.hardcover.today, 4);
+  assert.equal(result.summary.hardcover.ready, true);
+  assert.ok(result.refreshed_at);
 });

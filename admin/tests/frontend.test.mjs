@@ -23,6 +23,7 @@ async function app({
   role = "owner",
   mfa = false,
   key = "sb_publishable_TEST",
+  usage,
 } = {}) {
   const dom = new JSDOM(html, {
       url: "https://admin.novori.link",
@@ -108,6 +109,7 @@ async function app({
         thread: [],
         history: [],
       };
+    else if (p.action === "usage") data = usage;
     else data = { completed: true };
     return { ok: true, status: 200, json: async () => ({ data }) };
   };
@@ -197,5 +199,50 @@ test("support sees report context without moderation buttons", async () => {
     false,
   );
   assert.ok(w.document.body.textContent.includes("support role"));
+  dom.window.close();
+});
+
+test("API trackers show both providers and all three periods", async () => {
+  const { w, dom } = await app({
+    usage: {
+      note: "Recorded attempts, not billing",
+      refreshed_at: "2026-10-05T03:00:00Z",
+      summary: {
+        google_books: {
+          today: 2,
+          days7: 20,
+          days30: 200,
+          first_recorded_day: "2026-09-29",
+        },
+        hardcover: {
+          today: 3,
+          days7: 30,
+          days30: 300,
+          ready: true,
+          tracking: { enabled_at: "2026-10-05T03:00:00Z" },
+        },
+      },
+      rows: [],
+      cache: { rows: [], total: 0, sample_size: 0 },
+    },
+  });
+  await until(() => w.document.querySelector("nav"));
+  click(w, "API & cache");
+  await until(() =>
+    w.document.body.textContent.includes("Earliest recorded day"),
+  );
+  const cards = [...w.document.querySelectorAll(".card")];
+  assert.equal(cards.length, 2);
+  assert.match(cards[0].textContent, /Google Books/);
+  assert.match(cards[1].textContent, /Hardcover/);
+  assert.deepEqual(
+    [...cards[0].querySelectorAll("strong")].map((n) => n.textContent),
+    ["2", "20", "200"],
+  );
+  assert.deepEqual(
+    [...cards[1].querySelectorAll("strong")].map((n) => n.textContent),
+    ["3", "30", "300"],
+  );
+  assert.match(cards[0].textContent, /Earlier history may be incomplete/);
   dom.window.close();
 });
