@@ -628,7 +628,8 @@ export async function recordGoogleBooksInCatalog(
   discoverySource =
     detailComplete
       ? 'google_detail'
-      : 'google_search'
+      : 'google_search',
+  provider = GOOGLE_PROVIDER
 ) {
   try {
     const prepared =
@@ -788,7 +789,7 @@ export async function recordGoogleBooksInCatalog(
         )
         .eq(
           'provider',
-          GOOGLE_PROVIDER
+          provider
         )
         .in(
           'provider_book_id',
@@ -859,7 +860,7 @@ export async function recordGoogleBooksInCatalog(
               work_id:
                 workId,
               provider:
-                GOOGLE_PROVIDER,
+                provider,
               provider_book_id:
                 book.googleBookId,
               isbn_10:
@@ -954,7 +955,7 @@ export async function recordGoogleBooksInCatalog(
         )
         .eq(
           'provider',
-          GOOGLE_PROVIDER
+          provider
         )
         .in(
           'provider_book_id',
@@ -1040,7 +1041,7 @@ export async function recordGoogleBooksInCatalog(
 
         coverCandidates.push({
           candidate_key:
-            `google_books:${book.googleBookId}:${variant}`,
+            `${provider}:${book.googleBookId}:${variant}`,
           work_id:
             edition.workId,
           edition_id:
@@ -1048,7 +1049,7 @@ export async function recordGoogleBooksInCatalog(
           scope:
             'edition',
           provider:
-            GOOGLE_PROVIDER,
+            provider,
           source_kind:
             'image_link',
           source_variant:

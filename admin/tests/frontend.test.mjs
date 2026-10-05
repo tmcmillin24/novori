@@ -202,7 +202,7 @@ test("support sees report context without moderation buttons", async () => {
   dom.window.close();
 });
 
-test("API trackers show both providers and all three periods", async () => {
+test("API trackers show all three providers and all three periods", async () => {
   const { w, dom } = await app({
     usage: {
       note: "Recorded attempts, not billing",
@@ -232,9 +232,11 @@ test("API trackers show both providers and all three periods", async () => {
     w.document.body.textContent.includes("Earliest recorded day"),
   );
   const cards = [...w.document.querySelectorAll(".card")];
-  assert.equal(cards.length, 2);
+  assert.equal(cards.length, 3);
   assert.match(cards[0].textContent, /Google Books/);
   assert.match(cards[1].textContent, /Hardcover/);
+  assert.match(cards[2].textContent, /ISBNdb/);
+  assert.match(cards[2].textContent, /Tracker setup required/);
   assert.deepEqual(
     [...cards[0].querySelectorAll("strong")].map((n) => n.textContent),
     ["2", "20", "200"],

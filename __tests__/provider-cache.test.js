@@ -5,11 +5,11 @@ const ts = require('typescript');
 const crypto = require('crypto').webcrypto;
 
 function harness() {
-  const rows = new Map(), locks = new Map(), discover = new Map();
+  const rows = new Map(), locks = new Map(), discover = new Map(), identities = new Map(), legacy = [];
   const errors = { read: false, lock: false, write: false, usage: false };
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
-  let claims = 0, hardcoverRequests = 0, catalog = [];
+  let claims = 0, hardcoverRequests = 0, catalog = [], isbnRequests = 0;
   const admin = {
     auth: { getUser: async token => token === 'reader' ? { data: { user: { id: 'reader' } } } : { error: 'invalid' } },
     rpc: async (name, args) => {
@@ -20,6 +20,7 @@ function harness() {
         if (acquired) locks.set(key, Date.now() + args.p_lease_seconds * 1000);
         return { data: [{ acquired, lock_until: new Date(locks.get(key)).toISOString() }] };
       }
+      if (name === 'novori_claim_isbndb_request') { if (errors.usage) return {error:{message:'unavailable'}}; isbnRequests++; return {data:[{allowed:true}]}; }
       if (name === 'novori_record_hardcover_request') { if(errors.usage) return {error:{message:'tracking unavailable'}}; hardcoverRequests++; return {error:null}; }
       if (name === 'novori_claim_google_books_search') { claims++; return { data: [{ allowed: true, global_upstream_count: claims }] }; }
       if (name === 'novori_search_book_catalog_fuzzy') return { data: catalog };
@@ -29,17 +30,19 @@ function harness() {
       const filters = {};
       const q = {
         select: () => q, eq: (k,v) => { filters[k] = v; return q; },
-        in: () => q, or: () => q, ilike: () => q, order: () => q, limit: () => q,
+        in: (k,v) => { filters[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
-          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : null };
+          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : null };
         },
+        single: async () => ({data: identities.get(filters.isbn13) ?? null}),
         upsert: async data => {
           if (errors.write) return { error: { message: 'offline' } };
+          if (table === 'novori_book_provider_ids') for (const row of Array.isArray(data) ? data : [data]) { if (!identities.has(row.isbn13)) identities.set(row.isbn13, {...row}); }
           if (table === 'book_api_cache') rows.set(data.provider + ':' + data.request_key, { ...data });
           return { error: null };
         },
-        then: resolve => Promise.resolve({ data: [], error: null }).then(resolve),
+        then: resolve => Promise.resolve({ data: table === 'novori_book_provider_ids' ? [...identities.values()].filter(row => !filters.isbn13 || filters.isbn13.includes(row.isbn13)) : table === 'book_editions' ? legacy.filter(row => (!filters.isbn_13 || (Array.isArray(filters.isbn_13) ? filters.isbn_13.includes(row.isbn_13) : row.isbn_13 === filters.isbn_13)) && (!filters.provider_book_id || row.provider_book_id === filters.provider_book_id)) : [], error: null }).then(resolve),
       };
       return q;
     },
@@ -78,7 +81,8 @@ function harness() {
     return exports;
   }
   const api = load('supabase/functions/_shared/provider-cache.ts');
-  return { rows, locks, discover, errors, calls, env, admin, api, load,
+  return { rows, locks, discover, identities, legacy, errors, calls, env, admin, api, load,
+    get isbnRequests() { return isbnRequests; },
     setCatalog: rows => { catalog = rows; },
     setUpstream: callback => { upstream = callback; }, get claims() { return claims; }, get hardcoverRequests() { return hardcoverRequests; },
     request: (endpoint, body, token = 'reader') => load(`supabase/functions/${endpoint}/index.ts`).handler(new Request('https://app.test', {
@@ -358,4 +362,72 @@ test('nearby author initials cannot borrow the established author popularity, an
  const result=await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});
  expect(result.popularity.original.usersCount).toBe(12000);expect(result.popularity.lookalike).toBeUndefined();
  await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});expect(h.calls).toHaveLength(1);expect(h.hardcoverRequests).toBe(1);
+});
+
+
+const isbnBook = (overrides = {}) => ({ isbn13: '9780134093413', title: 'Campbell Biology', authors: ['Jane B. Reece'], pages: 1488, language: 'eng', image: 'https://images.isbndb.com/covers/9780134093413.jpg', image_original: 'https://temporary.test/expire?secret=unsafe', ...overrides });
+function isbnHarness() {
+  const h = harness(); h.env.NOVORI_BOOK_PROVIDER = 'isbndb'; h.env.ISBNDB_API_KEY = 'private-isbn-key';
+  h.setUpstream(async url => url.includes('/book/') ? {book: isbnBook()} : {books:[isbnBook()],total:1});
+  return h;
+}
+test('ISBNdb search uses header authentication, a separate shared cache and preserves legacy identity', async () => {
+  const h = isbnHarness();
+  h.legacy.push({ provider_book_id: 'existing-volume', isbn_13: '9780134093413', metadata: { id:'existing-volume',volumeInfo:{title:'Campbell Biology',authors:['Jane B. Reece']}}});
+  const first = await h.request('google-books-search',{query:'Campbell Biology'});
+  expect(first).toMatchObject({ok:true,provider:'isbndb',data:{items:[{id:'existing-volume',source:{provider:'isbndb'}}]}});
+  await h.request('google-books-search',{query:'campbell biology'});
+  expect(h.calls).toHaveLength(1); expect(h.isbnRequests).toBe(1); expect(h.claims).toBe(0);
+  expect(h.calls[0].init.headers.Authorization).toBe('private-isbn-key');
+  expect(JSON.stringify(first)).not.toContain('image_original'); expect(JSON.stringify(first)).not.toContain('temporary.test');
+  expect([...h.rows.keys()]).toContain('isbndb:search:v1:campbell biology:1');
+});
+test('ISBNdb concurrent search misses coalesce without contacting Google', async () => {
+  const h = isbnHarness();
+  h.setUpstream(async()=>{await new Promise(resolve=>setTimeout(resolve,25));return {books:[isbnBook()],total:1};});
+  const results = await Promise.all(Array.from({length:4},()=>h.request('google-books-search',{query:'Campbell Biology'})));
+  expect(results.every(r=>r.ok)).toBe(true); expect(h.calls).toHaveLength(1);
+  expect(h.calls[0].url).toContain('api2.isbndb.com');
+});
+test('ISBNdb barcode lookup, new-ID details, and preserved-ID details share the same ISBN cache', async () => {
+  const h = isbnHarness();
+  const scan = await h.request('google-books-resolve',{mode:'isbn',isbn:'9780134093413'});
+  expect(scan.data.book.id).toBe('nv_9780134093413');
+  expect((await h.request('google-books-detail',{volumeId:scan.data.book.id})).data.volumeInfo.pageCount).toBe(1488);
+  h.legacy.push({provider_book_id:'legacy',isbn_13:'9780134093413'});
+  expect((await h.request('google-books-detail',{volumeId:'legacy'})).data.id).toBe('legacy');
+  expect(h.calls).toHaveLength(1);
+});
+test('ISBNdb identities reject an ISBN pointing to the wrong author and do not accept the wrong search result', async () => {
+  const h = isbnHarness(); h.setUpstream(async url => url.includes('/book/') ? {book:isbnBook({title:'Hunting Adeline',authors:['H. E. Carlton']})} : {books:[isbnBook({title:'Hunting Adeline',authors:['H. E. Carlton']})],total:1});
+  const result = await h.request('google-books-resolve',{mode:'identity',title:'Hunting Adeline',author:'H. D. Carlton',isbn:'9780134093413'});
+  expect(result.data.googleBookId).toBeNull();
+});
+test('ISBNdb requires a valid reader and fails closed when quota controls fail', async () => {
+  const h = isbnHarness(); expect((await h.request('google-books-search',{query:'Campbell'},'bad')).status).toBe(401);
+  expect(h.calls).toHaveLength(0);
+  h.errors.usage = true; expect((await h.request('google-books-search',{query:'Campbell'})).ok).toBe(false);
+  expect(h.calls).toHaveLength(0);
+});
+test('ISBNdb adapter validates checksums, handles ISBN10, and never persists temporary or insecure images', () => {
+  const api = isbnHarness().load('supabase/functions/_shared/isbndb.ts');
+  expect(api.validIsbn13('9780134093414')).toBeNull();
+  expect(api.isbn13From10('0134093410')).toBe('9780134093413');
+  expect(api.adaptIsbnDbBook(isbnBook({image:'http://images.isbndb.com/cover.jpg'})).volumeInfo.imageLinks).toBeUndefined();
+  expect(api.adaptIsbnDbBook(isbnBook({image:'https://images.isbndb.com/placeholder.jpg'})).volumeInfo.imageLinks).toBeUndefined();
+  expect(api.identityMatches(api.adaptIsbnDbBook(isbnBook({title:'The Perfect Son',authors:['Freida McFadden']})),'The Perfect Son','Freida')).toBe(true);
+});
+test('series fallback uses ISBNdb under the provider switch and never claims Google quota', async () => {
+  const h = isbnHarness(); let google = 0;
+  const r = await h.api.cachedGoogleQuery(h.admin,'https://www.googleapis.com/books/v1/volumes?q=isbn:9780134093413&key=old',async()=>{google++;return true;});
+  expect((await r.json()).items[0].source.provider).toBe('isbndb'); expect(google).toBe(0);expect(h.calls).toHaveLength(1);
+});
+
+test('ISBNdb detail links survive rollback of the search provider', async () => {
+ const h=isbnHarness();
+ await h.request('google-books-resolve',{mode:'isbn',isbn:'9780134093413'});
+ h.env.NOVORI_BOOK_PROVIDER='google_books';
+ const r=await h.request('google-books-detail',{volumeId:'nv_9780134093413'});
+ expect(r).toMatchObject({ok:true,provider:'isbndb',data:{id:'nv_9780134093413'}});
+ expect(h.calls).toHaveLength(1);
 });

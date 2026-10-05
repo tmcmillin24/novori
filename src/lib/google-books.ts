@@ -30,7 +30,7 @@ const MAX_PERSISTED_BOOKS =
   150;
 
 const PERSISTED_INDEX_KEY =
-  'novori:google-books:detail-index:v3';
+  'novori:google-books:detail-index:v4';
 
 const memoryCache =
   new Map<string, MemoryEntry>();
@@ -111,7 +111,7 @@ function getSearchQuery(
 function detailKey(
   id: string
 ) {
-  return `novori:google-books:detail:v3:${id}`;
+  return `novori:google-books:detail:v4:${id}`;
 }
 
 async function readPersistentDetail<T>(id: string): Promise<{ data: T; expiresAt: number } | null> {

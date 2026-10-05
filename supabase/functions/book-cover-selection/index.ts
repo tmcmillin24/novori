@@ -163,14 +163,14 @@ Deno.serve(
           ? body.volumeIds
               .filter(
                 (
-                  value
+                  value: unknown
                 ): value is string =>
                   typeof value ===
                   'string'
               )
               .map(
                 (
-                  value
+                  value: string
                 ) =>
                   value.trim()
               )
@@ -238,10 +238,7 @@ Deno.serve(
           .select(
             'provider_book_id, work_id, isbn_10, isbn_13'
           )
-          .eq(
-            'provider',
-            'google_books'
-          )
+          .in('provider', ['google_books', 'isbndb'])
           .in(
             'provider_book_id',
             volumeIds
@@ -260,7 +257,7 @@ Deno.serve(
         if (!wanted.length) continue;
         const { data: isbnEditions, error: isbnError } = await supabaseAdmin
           .from('book_editions').select('provider_book_id, work_id, isbn_10, isbn_13')
-          .eq('provider', 'google_books').in(column, wanted);
+          .in('provider', ['google_books', 'isbndb']).in(column, wanted);
         if (isbnError) throw new Error(`Could not read ISBN cover identities: ${isbnError.message}`);
         for (const edition of isbnEditions ?? []) {
           if (edition[column] && edition.work_id) isbnWorkIds.set(`isbn:${edition[column]}`, edition.work_id);
@@ -280,7 +277,7 @@ Deno.serve(
               )
               .filter(
                 (
-                  value
+                  value: unknown
                 ): value is string =>
                   typeof value ===
                     'string' &&

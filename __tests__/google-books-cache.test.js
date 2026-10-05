@@ -30,12 +30,12 @@ test('concurrent equivalent detail URLs share one request and preserve every per
   await Promise.all([api.fetchGoogleBooksJson(detail('a')),api.fetchGoogleBooksJson(detail('a')+'?projection=full'),api.fetchGoogleBooksJson(detail('b'))]);
   await flush();
   expect(h.calls.length).toBe(2);
-  expect(JSON.parse(h.storage.get('novori:google-books:detail-index:v3')).map(entry=>entry.id).sort()).toEqual(['a','b']);
+  expect(JSON.parse(h.storage.get('novori:google-books:detail-index:v4')).map(entry=>entry.id).sort()).toEqual(['a','b']);
 });
 
 test('device cache survives restart and reads never extend the original expiry',async()=>{
   const h=harness();
-  const key='novori:google-books:detail:v3:a',savedAt=Date.now()-86400000;
+  const key='novori:google-books:detail:v4:a',savedAt=Date.now()-86400000;
   h.storage.set(key,JSON.stringify({id:'a',savedAt,data:{id:'a',volumeInfo:{title:'Saved'}}}));
   let api=h.load();expect((await api.fetchGoogleBooksJson(detail('a'))).fromCache).toBe(true);
   await api.fetchGoogleBooksJson(detail('a')+'?projection=full');await flush();
@@ -63,7 +63,7 @@ test('query formatting shares a request and pagination is forwarded separately',
 
 test('corrupt or mismatched device entries cannot masquerade as cache hits',async()=>{
   for(const entry of [{id:'wrong',savedAt:Date.now(),data:{id:'wrong'}},{id:'a',data:{id:'a'}},{id:'a',savedAt:Date.now()+86400000,data:{id:'a'}}]){
-    const h=harness();h.storage.set('novori:google-books:detail:v3:a',JSON.stringify(entry));
+    const h=harness();h.storage.set('novori:google-books:detail:v4:a',JSON.stringify(entry));
     await h.load().fetchGoogleBooksJson(detail('a'));expect(h.calls.length).toBe(1);
   }
 });

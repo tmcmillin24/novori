@@ -70,10 +70,14 @@
         {
           "title": "7. Book information and third-party services",
           "paragraphs": [
-            "Book information, covers, series information, and discovery results may come from Google Books, Hardcover, and Open Library, including the Open Library Covers API. Book covers, descriptions, and other third-party material remain subject to their owners’ rights. Data may contain errors, duplicates, missing editions, or outdated information. Novori does not guarantee catalog accuracy or availability.",
+            "Book information, covers, series information, and discovery results may come from ISBNdb, Google Books, Hardcover, and Open Library, including the Open Library Covers API. Book covers, descriptions, and other third-party material remain subject to their owners’ rights. Data may contain errors, duplicates, missing editions, or outdated information. Novori does not guarantee catalog accuracy or availability.",
             "Novori uses Supabase for backend services, Resend for service email, Cloudflare for public web hosting and email routing, Expo and open-source software for app functionality, and Google ML Kit/code-scanning SDKs for Android barcode recognition. These providers are not sponsors or endorsers of Novori. External websites and services have their own terms and privacy practices. Opening an external link is your choice."
           ],
           "links": [
+            {
+              "label": "ISBNdb",
+              "url": "https://isbndb.com/"
+            },
             {
               "label": "Google Books",
               "url": "https://books.google.com/"
@@ -213,7 +217,7 @@
           "title": "7. Providers and APIs",
           "paragraphs": [
             "Supabase: authentication, database storage, uploaded images and files, backend Edge Functions, and related infrastructure. Account data, reading information, community content, and technical request information are processed there to provide Novori.",
-            "Google Books: book search, book details, edition resolution, and related cover information. Hardcover: book discovery, popularity, recent releases, and series information. Open Library and its Covers API: additional book identification and cover information. Requests to these services may include search text, titles, authors, ISBNs, edition identifiers, or other book identifiers. Some requests go through Novori’s backend and caches; the app may also make direct book requests or load provider-hosted images. Direct requests expose ordinary connection information, such as your IP address, to the receiving provider.",
+            "ISBNdb: book search, book details, ISBN and edition resolution, and cover information through Novori’s backend. Google Books: legacy book information and book lookup when configured as the active provider. Hardcover: book discovery, popularity, recent releases, and series information. Open Library and its Covers API: additional book identification and cover information. Requests to these services may include search text, titles, authors, ISBNs, edition identifiers, or other book identifiers. Some requests go through Novori’s backend and caches; the app may also make direct book requests or load provider-hosted images. Direct requests expose ordinary connection information, such as your IP address, to the receiving provider.",
             "We do not intentionally send account email, credentials, private notes, or your full personal library to book providers as part of book lookup. Avoid putting personal information in a book search. A search query itself can reveal interests. Book cover files may be served by provider or publisher image hosts identified in the returned metadata.",
             "Resend: delivery of service email, including account-deletion receipts and moderation alerts. Recipient email addresses and the message content needed for delivery are processed by that service. Supabase Auth also handles authentication email through the project’s configured email delivery service.",
             "Google ML Kit and Google code-scanning components: the Android barcode scanner uses these native SDKs through Expo Camera. Barcode image processing runs on your device. Google may receive SDK performance and usage metrics, app and device information, installation identifiers, event details, and error codes for diagnostics and usage analytics, and the SDK may contact Google for updates or compatibility information. Google states that ML Kit does not send the scanned input images or recognition outputs to its servers as part of on-device processing.",

@@ -691,10 +691,11 @@ const screens = {
     for (const [provider, title] of [
       ["google_books", "Google Books"],
       ["hardcover", "Hardcover"],
+      ["isbndb", "ISBNdb"],
     ]) {
       const totals = d.summary?.[provider];
       const card = add(el("div", undefined, "card"), el("h2", title));
-      if (!totals || (provider === "hardcover" && !totals.ready)) {
+      if (!totals || (provider !== "google_books" && !totals.ready)) {
         card.append(
           el(
             "p",
@@ -720,6 +721,8 @@ const screens = {
             "p",
             provider === "google_books"
               ? `Earliest recorded day: ${totals.first_recorded_day ?? "No requests recorded yet"}. Earlier history may be incomplete.`
+              : provider === "isbndb"
+                ? `Daily safety limit: ${totals.daily_safety_limit?.toLocaleString() ?? "4,500"}. Last request: ${date(totals.last_request_at)}.`
               : `Recording enabled: ${date(totals.tracking?.enabled_at)}. First request: ${date(totals.tracking?.first_request_at)}. Last request: ${date(totals.tracking?.last_request_at)}.`,
             "hint",
           ),

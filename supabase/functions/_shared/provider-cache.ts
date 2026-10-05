@@ -1,3 +1,4 @@
+import { isbnDbEnabled, isbnDbSearch } from './isbndb.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { claimApiCacheRefresh, jitteredDurationMs } from './api-cache-guard.ts';
 
@@ -180,6 +181,11 @@ export async function fetchHardcoverUpstream(admin: SupabaseClient, url: string,
 export async function cachedGoogleQuery(
   admin: SupabaseClient, url: string, claimQuota: () => Promise<boolean>,
 ) {
+  if (isbnDbEnabled()) {
+    const parsed = new URL(url);
+    const payload = await isbnDbSearch(admin, '', parsed.searchParams.get('q') ?? '', Number(parsed.searchParams.get('startIndex') ?? 0));
+    return new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } });
+  }
   const normalized = new URL(url);
   normalized.searchParams.delete('key');
   normalized.searchParams.sort();

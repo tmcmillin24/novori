@@ -309,7 +309,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       const { data, error } = await supabaseAdmin
         .from('book_cover_candidates')
         .select('id, work_id, edition_id, provider, source_variant, url')
-        .in('provider', [GOOGLE_PROVIDER, HARDCOVER_PROVIDER])
+        .in('provider', [GOOGLE_PROVIDER, HARDCOVER_PROVIDER, 'isbndb'])
         .eq('scope', 'edition')
         .in('work_id', eligibleWorkIds)
         .order('id')
@@ -534,6 +534,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
               providers: [
                 GOOGLE_PROVIDER,
                 HARDCOVER_PROVIDER,
+                'isbndb',
               ],
               preferredMinimumGoogleVariant:
                 'medium',

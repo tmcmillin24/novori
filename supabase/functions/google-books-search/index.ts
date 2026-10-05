@@ -1,3 +1,4 @@
+import { isbnDbEnabled, handleIsbnDbRequest } from '../_shared/isbndb.ts';
 import { fetchJsonWithTimeout, readProviderCache, rememberGoogleFailure } from '../_shared/provider-cache.ts';
 import {
   createClient, type SupabaseClient,
@@ -439,6 +440,8 @@ Deno.serve(
         405
       );
     }
+
+    if (isbnDbEnabled()) return handleIsbnDbRequest(request, 'search');
 
     try {
       const supabaseUrl =

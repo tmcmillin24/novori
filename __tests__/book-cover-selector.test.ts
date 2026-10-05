@@ -69,3 +69,15 @@ test('finds the best stored candidate beyond the database first-page limit', asy
   await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
   expect(writes[0].candidate_id).toBe('best-last');
 });
+
+test('ISBNdb covers participate without downgrading larger or locked artwork', async () => {
+ const plain=catalog([candidate('isbn','medium','isbndb')]);
+ await selectCanonicalGoogleCoversForWorkIds(plain.client as any,['work']);
+ expect(plain.writes[0].candidate_id).toBe('isbn');
+ const better=catalog([candidate('isbn','medium','isbndb'),candidate('sharp','extraLarge')]);
+ await selectCanonicalGoogleCoversForWorkIds(better.client as any,['work']);
+ expect(better.writes[0].candidate_id).toBe('sharp');
+ const manual=catalog([candidate('isbn','medium','isbndb')],[{work_id:'work',locked:true}]);
+ await selectCanonicalGoogleCoversForWorkIds(manual.client as any,['work']);
+ expect(manual.writes).toEqual([]);
+});

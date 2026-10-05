@@ -487,6 +487,11 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
       .lte("usage_date", today)
       .order("usage_date", { ascending: false })
       .limit(30);
+    const isbndb = await client
+      .from("novori_isbndb_usage_daily")
+      .select("usage_date,upstream_requests,last_request_at")
+      .gte("usage_date", since).lte("usage_date", today)
+      .order("usage_date", { ascending: false }).limit(30);
     const tracking = await client
       .from("novori_api_usage_tracking")
       .select("enabled_at,first_request_at,last_request_at")
@@ -494,10 +499,12 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
       .maybeSingle();
     const missing = (value) =>
       ["42P01", "PGRST205"].includes(value.error?.code);
+    const isbnDbReady = !missing(isbndb);
     const hardcoverReady = !missing(hardcover) && !missing(tracking);
     const rows = [
       ...check(result),
       ...(hardcoverReady ? check(hardcover) : []),
+      ...(isbnDbReady ? check(isbndb).map(row => ({ ...row, provider: "isbndb" })) : []),
     ].sort((a, b) => b.usage_date.localeCompare(a.usage_date) || a.provider.localeCompare(b.provider));
     const recorded = hardcoverReady ? check(tracking) : null;
     const summary = summarizeApiUsage(rows, now);
@@ -505,6 +512,9 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
       check(firstGoogle)[0]?.usage_date ?? null;
     summary.hardcover.ready = hardcoverReady;
     summary.hardcover.tracking = recorded;
+    summary.isbndb.ready = isbnDbReady;
+    summary.isbndb.daily_safety_limit = 4500;
+    summary.isbndb.last_request_at = isbnDbReady ? check(isbndb)[0]?.last_request_at ?? null : null;
     const cache = await client
       .from("book_api_cache")
       .select("provider,hit_count,fetched_at,expires_at", { count: "exact" })
@@ -682,6 +692,7 @@ export function summarizeApiUsage(rows, now = new Date()) {
   const summary = {
     google_books: { today: 0, days7: 0, days30: 0 },
     hardcover: { today: 0, days7: 0, days30: 0 },
+    isbndb: { today: 0, days7: 0, days30: 0 },
   };
   for (const row of rows) {
     const totals = summary[row.provider];
