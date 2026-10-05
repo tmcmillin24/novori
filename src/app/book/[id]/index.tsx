@@ -1295,35 +1295,22 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
-        try {
-          const existingSavedBook =
-            await getUserBook(
-              id
-            );
-
-          setSavedBook(
-            existingSavedBook
-          );
-          setReadingStatus(
-            existingSavedBook
-              ?.status ??
-            null
-          );
-        } catch (
-          savedLookupError
-        ) {
-          console.warn(
-            'Could not check saved book status:',
-            savedLookupError
-          );
-        }
-
-        const response =
-          await fetchGoogleBooksJson<
-            GoogleBook
-          >(
+        // Start independent library and metadata reads together.
+        const [savedLookup, response] = await Promise.all([
+          getUserBook(id).then(
+            value => ({ value, error: null }),
+            error => ({ value: null, error })
+          ),
+          fetchGoogleBooksJson<GoogleBook>(
             `https://www.googleapis.com/books/v1/volumes/${id}`
-          );
+          ),
+        ]);
+        if (savedLookup.error) {
+          console.warn('Could not check saved book status:', savedLookup.error);
+        } else {
+          setSavedBook(savedLookup.value);
+          setReadingStatus(savedLookup.value?.status ?? null);
+        }
 
         if (
           !response.ok ||
@@ -1373,8 +1360,8 @@ export default function BookDetailsScreen() {
 
         // Series lookup registers verified candidates in the existing catalog.
         // The screen then reads the catalog winner, never the series/route URL.
-        if (source === 'discover') await loadSeries(resolvedBook);
-        const canonicalCover = await resolveCanonicalBookCover({
+        const seriesCover = source === 'discover' ? await loadSeries(resolvedBook) : null;
+        const canonicalCover = seriesCover ?? await resolveCanonicalBookCover({
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
           imageLinks: resolvedBook.volumeInfo.imageLinks,
