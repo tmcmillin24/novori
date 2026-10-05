@@ -1256,6 +1256,16 @@ function compareBookPopularity(
   return 0;
 }
 
+function matchesTitleAndAuthorQuery(book: GoogleBookSearchItem, normalizedQuery: string) {
+  const title = getCanonicalWorkTitleForBook(book);
+  if (!title || !normalizedQuery.startsWith(`${title} `)) return false;
+  const authorTerms = normalizedQuery.slice(title.length + 1).split(' ').filter(Boolean);
+  return authorTerms.length > 0 && (book.volumeInfo.authors ?? []).some(author => {
+    const words = normalizeTitle(author).split(' ');
+    return authorTerms.every(term => words.some(word => word.startsWith(term)));
+  });
+}
+
 function getTitleSearchRelevance(
   book: GoogleBookSearchItem,
   normalizedQuery: string
@@ -1276,6 +1286,8 @@ function getTitleSearchRelevance(
   ) {
     return 0;
   }
+
+  if (matchesTitleAndAuthorQuery(book, normalizedQuery)) return 400;
 
   if (
     title ===
@@ -2986,6 +2998,9 @@ export async function searchNovoriBooks(
     normalizeTitle(
       searchTerm
     );
+
+  const authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
+  if (authorQualifiedResults.length > 0) initialResults = authorQualifiedResults;
 
   const normalizedSearchIsbn =
     searchTerm

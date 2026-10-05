@@ -9,7 +9,7 @@ function harness() {
   const errors = { read: false, lock: false, write: false, usage: false };
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
-  let claims = 0, hardcoverRequests = 0;
+  let claims = 0, hardcoverRequests = 0, catalog = [];
   const admin = {
     auth: { getUser: async token => token === 'reader' ? { data: { user: { id: 'reader' } } } : { error: 'invalid' } },
     rpc: async (name, args) => {
@@ -22,7 +22,7 @@ function harness() {
       }
       if (name === 'novori_record_hardcover_request') { if(errors.usage) return {error:{message:'tracking unavailable'}}; hardcoverRequests++; return {error:null}; }
       if (name === 'novori_claim_google_books_search') { claims++; return { data: [{ allowed: true, global_upstream_count: claims }] }; }
-      if (name === 'novori_search_book_catalog_fuzzy') return { data: [] };
+      if (name === 'novori_search_book_catalog_fuzzy') return { data: catalog };
       return { data: null, error: null };
     },
     from(table) {
@@ -79,6 +79,7 @@ function harness() {
   }
   const api = load('supabase/functions/_shared/provider-cache.ts');
   return { rows, locks, discover, errors, calls, env, admin, api, load,
+    setCatalog: rows => { catalog = rows; },
     setUpstream: callback => { upstream = callback; }, get claims() { return claims; }, get hardcoverRequests() { return hardcoverRequests; },
     request: (endpoint, body, token = 'reader') => load(`supabase/functions/${endpoint}/index.ts`).handler(new Request('https://app.test', {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -312,3 +313,29 @@ test('successful no-match Google mappings get six hours, and legacy year-long ne
  await expect(h.api.fetchHardcoverUpstream(h.admin,'https://api.hardcover.app/v1/graphql',{})).rejects.toThrow('cooling down');
  expect(h.hardcoverRequests).toBe(1);expect(h.calls).toHaveLength(1);
  });
+
+const catalogCandidate=(id,author)=>({metadata:{id,volumeInfo:{title:'The Perfect Son',authors:[author],language:'en'}},similarity_score:0.9,title_similarity:0.9,author_similarity:0.1});
+test('a title-only catalog match cannot answer a title plus different author query',async()=>{
+ const h=harness();h.setCatalog([catalogCandidate('wrong','Other Author')]);
+ h.setUpstream(async()=>({items:[catalogCandidate('correct','Freida McFadden').metadata]}));
+ const result=await h.request('google-books-search',{query:'the perfect son freida'});
+ expect(result.data.items.map(b=>b.id)).toEqual(['correct']);expect(result.cache.googleRequestMade).toBe(true);expect(h.claims).toBe(1);
+ await h.request('google-books-search',{query:'the perfect son freida'});expect(h.claims).toBe(1);
+});
+test('a full cached query wins over an incomplete title catalog',async()=>{
+ const h=harness();h.setCatalog([catalogCandidate('wrong','Other Author')]);
+ h.rows.set('google_books:search:v1:the perfect son',{response_json:{items:[catalogCandidate('correct','Freida McFadden').metadata,catalogCandidate('wrong','Other Author').metadata]},expires_at:new Date(Date.now()+10000).toISOString(),stale_until:new Date(Date.now()+30000).toISOString()});
+ const result=await h.request('google-books-search',{query:'the perfect son'});
+ expect(result.data.items.map(b=>b.id)).toContain('correct');expect(h.calls).toHaveLength(0);
+});
+test('a catalog result matching title and author retains its zero-request fast path',async()=>{
+ const h=harness();h.setCatalog([catalogCandidate('correct','Freida McFadden'),catalogCandidate('wrong','Other Author')]);
+ const result=await h.request('google-books-search',{query:'the perfect son freida'});
+ expect(result.data.items.map(b=>b.id)).toEqual(['correct']);expect(h.calls).toHaveLength(0);expect(h.claims).toBe(0);
+});
+
+test('small title typos still use valid catalog matches without a provider request',async()=>{
+ const h=harness();h.setCatalog([catalogCandidate('correct','Freida McFadden')]);
+ const result=await h.request('google-books-search',{query:'the perfct son'});
+ expect(result.data.items.map(b=>b.id)).toEqual(['correct']);expect(h.calls).toHaveLength(0);
+});

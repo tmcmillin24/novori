@@ -130,6 +130,29 @@ function isGoogleBookPayload(
   );
 }
 
+function isSingleTitleTypo(term: string, word: string) {
+  if (term.length < 4 || Math.abs(term.length - word.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < term.length && j < word.length) {
+    if (term[i] === word[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (term.length >= word.length) i++;
+    if (word.length >= term.length) j++;
+  }
+  return edits + (term.length - i) + (word.length - j) <= 1;
+}
+
+function catalogMatchesWholeQuery(metadata: Record<string, unknown>, query: string) {
+  const info = metadata.volumeInfo as { title?: string; authors?: string[] } | undefined;
+  const words = (text: string) => normalizeQuery(text).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean);
+  const titleWords = words(info?.title ?? '');
+  const authorWords = words((info?.authors ?? []).join(' '));
+  // Retain small title typo matches while requiring added author terms to be represented.
+  return query.split(' ').filter(Boolean).every(term =>
+    titleWords.some(word => word.startsWith(term) || isSingleTitleTypo(term, word)) ||
+    authorWords.some(word => word.startsWith(term)));
+}
+
 async function tryCatalogFuzzySearch(
   supabaseAdmin:
     SupabaseClient,
@@ -291,7 +314,7 @@ async function tryCatalogFuzzySearch(
           row
         ) =>
           row.score >=
-          floor
+          floor && catalogMatchesWholeQuery(row.metadata, normalized)
       )
       .slice(
         0,
@@ -547,41 +570,6 @@ Deno.serve(
         );
       }
 
-      const catalogMatch =
-        startIndex === 0 ? await tryCatalogFuzzySearch(
-          supabaseAdmin,
-          query
-        ) : null;
-
-      if (
-        catalogMatch
-      ) {
-        console.info(
-          `google-books-search cache=catalog score=${catalogMatch.topScore.toFixed(
-            3
-          )}`
-        );
-
-        return jsonResponse(
-          {
-            ok: true,
-            status: 200,
-            data: {
-              items:
-                catalogMatch.items,
-              totalItems:
-                catalogMatch.items.length,
-            },
-            cache: {
-              status:
-                'catalog',
-              googleRequestMade:
-                false,
-            },
-          }
-        );
-      }
-
       const requestKey =
         buildCacheKey(query) + (startIndex ? ':start:' + startIndex : '');
 
@@ -660,6 +648,41 @@ Deno.serve(
                 false,
               expiresAt:
                 cache.expires_at,
+            },
+          }
+        );
+      }
+
+      const catalogMatch =
+        startIndex === 0 ? await tryCatalogFuzzySearch(
+          supabaseAdmin,
+          query
+        ) : null;
+
+      if (
+        catalogMatch
+      ) {
+        console.info(
+          `google-books-search cache=catalog score=${catalogMatch.topScore.toFixed(
+            3
+          )}`
+        );
+
+        return jsonResponse(
+          {
+            ok: true,
+            status: 200,
+            data: {
+              items:
+                catalogMatch.items,
+              totalItems:
+                catalogMatch.items.length,
+            },
+            cache: {
+              status:
+                'catalog',
+              googleRequestMade:
+                false,
             },
           }
         );
