@@ -248,3 +248,59 @@ test("API trackers show all three providers and all three periods", async () => 
   assert.match(cards[0].textContent, /Earlier history may be incomplete/);
   dom.window.close();
 });
+
+test("ISBNdb totals and deployed routing configuration render from the backend snapshot", async () => {
+  const { w, dom } = await app({
+    usage: {
+      note: "Recorded attempts",
+      refreshed_at: "2026-10-05T16:00:00Z",
+      configuration: {
+        book_provider: "isbndb",
+        isbndb_key_configured: true,
+        audit_version: "2026-10-05-api-audit-v1",
+      },
+      utc_window: {
+        start: "2026-10-05T00:00:00Z",
+        end: "2026-10-06T00:00:00Z",
+      },
+      summary: {
+        google_books: { today: 0, days7: 2, days30: 5 },
+        hardcover: { today: 144, days7: 144, days30: 144, ready: true },
+        isbndb: {
+          today: 81,
+          days7: 90,
+          days30: 90,
+          ready: true,
+          daily_safety_limit: 4500,
+        },
+      },
+      rows: [],
+      cache: {
+        rows: [
+          {
+            provider: "hardcover_series",
+            request_key: "publication:v1:a::b",
+            hit_count: 0,
+          },
+        ],
+        total: 1,
+        sample_size: 1,
+      },
+    },
+  });
+  await until(() => w.document.querySelector("nav"));
+  click(w, "API & cache");
+  await until(() => w.document.body.textContent.includes("Backend version"));
+  const isbn = [...w.document.querySelectorAll(".card")].find((card) =>
+    card.textContent.includes("ISBNdb"),
+  );
+  assert.deepEqual(
+    [...isbn.querySelectorAll("strong")].map((n) => n.textContent),
+    ["81", "90", "90"],
+  );
+  assert.match(w.document.body.textContent, /Configured book provider: isbndb/);
+  assert.match(w.document.body.textContent, /2026-10-05T00:00:00Z/);
+  assert.match(w.document.body.textContent, /Derived publication date/);
+  assert.match(w.document.body.textContent, /not API requests/);
+  dom.window.close();
+});

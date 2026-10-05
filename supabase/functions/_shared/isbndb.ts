@@ -83,6 +83,7 @@ async function upstream(admin: SupabaseClient, userId: string, path: string) {
     }
     await new Promise(resolve => setTimeout(resolve, Math.min(1200, Math.max(100, Number(claim.retry_ms) || 250))));
   }
+  console.info('ISBNdb upstream request', { provider: PROVIDER, route: path.startsWith('/books/') ? 'search' : 'detail' });
   const response = await fetchJsonWithTimeout('https://api2.isbndb.com' + path, { headers: { Authorization: key } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`ISBNdb lookup unavailable (${response.status}).`);

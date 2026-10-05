@@ -133,6 +133,10 @@ export async function cachedProviderValue<T>(options: {
 
 // The timeout includes reading the body, so an API cannot outlive its refresh lease.
 export async function fetchJsonWithTimeout(url: string, init: RequestInit = {}) {
+  const target = new URL(url);
+  if (isbnDbEnabled() && (target.hostname === 'googleapis.com' || target.hostname.endsWith('.googleapis.com')) && target.pathname.startsWith('/books/')) {
+    throw new Error('Google Books API requests are disabled while ISBNdb is active.');
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -156,7 +160,7 @@ export async function cachedHardcoverFetch(
   // Normalize formatting only; preserve string literals and GraphQL semantics.
   const key = 'graphql:v1:' + await cacheDigest({ query: request.query, variables: request.variables ?? {} });
   const data = await cachedProviderValue({ admin, provider, key, freshMs, staleMs, allowStale: false, onCacheRead, load: async () => {
-    const response = await fetchHardcoverUpstream(admin, url, init);
+    const response = await fetchHardcoverUpstream(admin, url, init, provider);
     if (!response.ok) throw new Error('Hardcover request failed (' + response.status + ').');
     const payload = await response.json();
     if (payload.errors?.length) throw new Error('Hardcover returned GraphQL errors.');
@@ -165,12 +169,12 @@ export async function cachedHardcoverFetch(
   return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-export async function fetchHardcoverUpstream(admin: SupabaseClient, url: string, init: RequestInit) {
+export async function fetchHardcoverUpstream(admin: SupabaseClient, url: string, init: RequestInit, route = 'unknown') {
   const retry = await readProviderCache(admin, 'hardcover_popularity', 'hardcover:rate-limit-retry');
   if (fresh(retry)) throw new Error('Hardcover rate limit is cooling down.');
   const { error: usageError } = await admin.rpc('novori_record_hardcover_request');
   if (usageError) throw new Error('Could not record Hardcover request: ' + usageError.message);
-  console.info('Hardcover upstream request', { provider: 'hardcover' });
+  console.info('Hardcover upstream request', { provider: 'hardcover', route });
   const response = await fetchJsonWithTimeout(url, init);
   if (response.status === 429) {
     await writeProviderCache(admin, 'hardcover_popularity', 'hardcover:rate-limit-retry', { retry: true }, RETRY_MS, RETRY_MS);

@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
     const supabaseAdmin = createCacheAdmin();
     await requireReader(supabaseAdmin, req);
     const fetchHardcover = (url: string, init: RequestInit) => fetchHardcoverUpstream(
-      supabaseAdmin, url, init
+      supabaseAdmin, url, init, 'hardcover_recent_releases'
     );
     const token =
       Deno.env.get(

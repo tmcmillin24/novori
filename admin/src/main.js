@@ -680,6 +680,42 @@ const screens = {
   },
   usage(main, d) {
     main.append(el("p", d.note, "hint"));
+    if (d.configuration) {
+      main.append(
+        el(
+          "p",
+          `Configured book provider: ${pretty(d.configuration.book_provider)} · ISBNdb key: ${d.configuration.isbndb_key_configured ? "configured" : "missing"} · Backend version: ${d.configuration.audit_version}`,
+          "hint",
+        ),
+      );
+      if (
+        d.configuration.book_provider !== "isbndb" ||
+        !d.configuration.isbndb_key_configured
+      )
+        main.append(
+          el(
+            "p",
+            "ISBNdb routing is not fully configured. Check NOVORI_BOOK_PROVIDER and ISBNDB_API_KEY in Supabase secrets.",
+            "hint",
+          ),
+        );
+    } else {
+      main.append(
+        el(
+          "p",
+          "Deploy the updated novori-admin Edge Function to load ISBNdb usage and provider configuration.",
+          "hint",
+        ),
+      );
+    }
+    if (d.utc_window)
+      main.append(
+        el(
+          "p",
+          `Today’s UTC window: ${d.utc_window.start} to ${d.utc_window.end}. Compare provider totals for the same window and refresh time.`,
+          "hint",
+        ),
+      );
     main.append(
       el(
         "p",
@@ -689,7 +725,7 @@ const screens = {
     );
     const cards = el("div", undefined, "cards");
     for (const [provider, title] of [
-      ["google_books", "Google Books"],
+      ["google_books", "Google Books · legacy counter"],
       ["hardcover", "Hardcover"],
       ["isbndb", "ISBNdb"],
     ]) {
@@ -723,7 +759,7 @@ const screens = {
               ? `Earliest recorded day: ${totals.first_recorded_day ?? "No requests recorded yet"}. Earlier history may be incomplete.`
               : provider === "isbndb"
                 ? `Daily safety limit: ${totals.daily_safety_limit?.toLocaleString() ?? "4,500"}. Last request: ${date(totals.last_request_at)}.`
-              : `Recording enabled: ${date(totals.tracking?.enabled_at)}. First request: ${date(totals.tracking?.first_request_at)}. Last request: ${date(totals.tracking?.last_request_at)}.`,
+                : `Recording enabled: ${date(totals.tracking?.enabled_at)}. First request: ${date(totals.tracking?.first_request_at)}. Last request: ${date(totals.tracking?.last_request_at)}.`,
             "hint",
           ),
         );
@@ -743,20 +779,32 @@ const screens = {
       ]),
     );
     main.append(panel);
+    main.append(
+      el(
+        "p",
+        "If a provider website differs: refresh both snapshots, compare the daily time windows, and confirm every provider function has the latest deployment. Earlier untracked requests and calls using this key outside Novori are not recoverable from these counters. Counts are never adjusted to match a website without evidence.",
+        "hint",
+      ),
+    );
     const cache = el("section", undefined, "panel");
     add(
       cache,
       el("h2", "Shared book cache"),
       el(
         "p",
-        `${d.cache.total ?? "—"} entries · ${d.cache.sample_size} recent entries sampled. Hit counts belong to the current cache entries and may reset on refresh.`,
+        `${d.cache.total ?? "—"} cache records · ${d.cache.sample_size} recent records sampled. These include provider responses, derived metadata and retry controls; they are not API requests. Hit counts belong to the current entries and may reset on refresh.`,
       ),
     );
     table(
       cache,
-      ["Provider", "Hits", "Fetched", "Expires"],
+      ["Provider", "Kind", "Hits", "Fetched", "Expires"],
       d.cache.rows.map((r) => [
         pretty(r.provider),
+        r.request_key?.startsWith("publication:")
+          ? "Derived publication date"
+          : r.request_key?.includes(":retry")
+            ? "Retry control"
+            : "Provider / derived response",
         r.hit_count,
         date(r.fetched_at),
         date(r.expires_at),

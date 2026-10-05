@@ -490,8 +490,10 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     const isbndb = await client
       .from("novori_isbndb_usage_daily")
       .select("usage_date,upstream_requests,last_request_at")
-      .gte("usage_date", since).lte("usage_date", today)
-      .order("usage_date", { ascending: false }).limit(30);
+      .gte("usage_date", since)
+      .lte("usage_date", today)
+      .order("usage_date", { ascending: false })
+      .limit(30);
     const tracking = await client
       .from("novori_api_usage_tracking")
       .select("enabled_at,first_request_at,last_request_at")
@@ -504,8 +506,14 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     const rows = [
       ...check(result),
       ...(hardcoverReady ? check(hardcover) : []),
-      ...(isbnDbReady ? check(isbndb).map(row => ({ ...row, provider: "isbndb" })) : []),
-    ].sort((a, b) => b.usage_date.localeCompare(a.usage_date) || a.provider.localeCompare(b.provider));
+      ...(isbnDbReady
+        ? check(isbndb).map((row) => ({ ...row, provider: "isbndb" }))
+        : []),
+    ].sort(
+      (a, b) =>
+        b.usage_date.localeCompare(a.usage_date) ||
+        a.provider.localeCompare(b.provider),
+    );
     const recorded = hardcoverReady ? check(tracking) : null;
     const summary = summarizeApiUsage(rows, now);
     summary.google_books.first_recorded_day =
@@ -514,15 +522,34 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     summary.hardcover.tracking = recorded;
     summary.isbndb.ready = isbnDbReady;
     summary.isbndb.daily_safety_limit = 4500;
-    summary.isbndb.last_request_at = isbnDbReady ? check(isbndb)[0]?.last_request_at ?? null : null;
+    summary.isbndb.last_request_at = isbnDbReady
+      ? (check(isbndb)[0]?.last_request_at ?? null)
+      : null;
     const cache = await client
       .from("book_api_cache")
-      .select("provider,hit_count,fetched_at,expires_at", { count: "exact" })
+      .select("provider,request_key,hit_count,fetched_at,expires_at", {
+        count: "exact",
+      })
       .order("fetched_at", { ascending: false })
       .limit(100);
     return {
       rows,
       summary,
+      configuration: {
+        book_provider: settings.bookProvider ?? "unknown",
+        isbndb_key_configured: Boolean(settings.isbnDbConfigured),
+        audit_version: "2026-10-05-api-audit-v1",
+      },
+      utc_window: {
+        start: `${today}T00:00:00.000Z`,
+        end: new Date(
+          Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate() + 1,
+          ),
+        ).toISOString(),
+      },
       refreshed_at: now.toISOString(),
       cache: {
         rows: check(cache),
@@ -591,6 +618,8 @@ export function createAdminHandler({
   sendAlert,
   workerSecret,
   workerConfigured = false,
+  bookProvider = "unknown",
+  isbnDbConfigured = false,
 }) {
   return async (request) => {
     const origin = request.headers.get("Origin");
@@ -659,6 +688,8 @@ export function createAdminHandler({
         data: await dispatchAdmin(client, identity, input, {
           sendAlert,
           workerConfigured,
+          bookProvider,
+          isbnDbConfigured,
         }),
       });
     } catch (error) {

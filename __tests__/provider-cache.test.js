@@ -390,6 +390,25 @@ test('ISBNdb concurrent search misses coalesce without contacting Google', async
   expect(results.every(r=>r.ok)).toBe(true); expect(h.calls).toHaveLength(1);
   expect(h.calls[0].url).toContain('api2.isbndb.com');
 });
+test('ISBNdb mode blocks accidental direct Google Books requests at the network boundary', async () => {
+ const h = isbnHarness();
+ await expect(h.api.fetchJsonWithTimeout('https://www.googleapis.com/books/v1/volumes?q=accidental')).rejects.toThrow('disabled while ISBNdb');
+ expect(h.calls).toHaveLength(0);
+});
+test('ISBNdb series fallback uses the ISBNdb shared search cache and never Google quota', async () => {
+ const h = isbnHarness();
+ const read = () => h.api.cachedGoogleQuery(h.admin, 'https://www.googleapis.com/books/v1/volumes?q=Campbell%20Biology&maxResults=10', async () => { throw new Error('Google quota must not be called'); });
+ expect((await (await read()).json()).items[0].source.provider).toBe('isbndb');
+ await read();
+ expect(h.isbnRequests).toBe(1);
+ expect(h.calls.every(call => call.url.startsWith('https://api2.isbndb.com/'))).toBe(true);
+ expect(h.claims).toBe(0);
+});
+test.each(['hardcover-series', 'hardcover-search-popularity', 'hardcover-trending', 'hardcover-recent-releases'])('%s has no raw Hardcover fetch outside the tracked boundary', endpoint => {
+ const source = fs.readFileSync(path.join(__dirname, '../supabase/functions', endpoint, 'index.ts'), 'utf8');
+ expect(source).not.toMatch(/\bfetch\s*\(\s*['"`]https:\/\/api\.hardcover\.app/);
+ expect(source).toMatch(/cachedHardcoverFetch|fetchHardcoverUpstream/);
+});
 test('ISBNdb barcode lookup, new-ID details, and preserved-ID details share the same ISBN cache', async () => {
   const h = isbnHarness();
   const scan = await h.request('google-books-resolve',{mode:'isbn',isbn:'9780134093413'});

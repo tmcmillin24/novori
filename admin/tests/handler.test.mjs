@@ -309,9 +309,15 @@ test("usage reads existing Google counts and the new Hardcover tracker separatel
     client,
     { user: { id }, member: { role: "owner" } },
     { action: "usage" },
+    { bookProvider: "isbndb", isbnDbConfigured: true },
   );
   assert.equal(result.summary.google_books.today, 4);
   assert.equal(result.summary.hardcover.today, 4);
   assert.equal(result.summary.hardcover.ready, true);
+  assert.equal(result.summary.isbndb.today, 4);
+  assert.equal(result.summary.isbndb.ready, true);
+  assert.equal(result.configuration.book_provider, "isbndb");
+  assert.equal(result.configuration.isbndb_key_configured, true);
+  assert.ok(result.utc_window.start.endsWith("T00:00:00.000Z"));
   assert.ok(result.refreshed_at);
 });

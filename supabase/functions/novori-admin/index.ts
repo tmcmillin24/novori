@@ -78,6 +78,11 @@ if (!url || !key) {
       sendAlert,
       workerSecret: Deno.env.get("NOVORI_ADMIN_WORKER_SECRET"),
       workerConfigured: Boolean(Deno.env.get("NOVORI_ADMIN_WORKER_SECRET")),
+      bookProvider:
+        Deno.env.get("NOVORI_BOOK_PROVIDER") === "isbndb"
+          ? "isbndb"
+          : "google_books",
+      isbnDbConfigured: Boolean(Deno.env.get("ISBNDB_API_KEY")),
     }),
   );
 }
