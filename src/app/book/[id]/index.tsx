@@ -1,6 +1,7 @@
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
+import { getBookPublication } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -3086,9 +3087,10 @@ export default function BookDetailsScreen() {
       ?.slice(0, 2)
       .join(' • ');
 
+  const publication = getBookPublication(book, seriesBooks, series?.currentPosition);
   const publishedDate =
     formatPublishedDate(
-      info.publishedDate
+      publication.date
     );
 
   const description =
@@ -4735,7 +4737,7 @@ export default function BookDetailsScreen() {
                 </View>
 
                 <Text style={styles.metadataLabel}>
-                  Published
+                  {publication.label}
                 </Text>
 
                 <Text

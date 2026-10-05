@@ -1,5 +1,7 @@
 # Shared book loading
 
+The shared detail page distinguishes the work's original release from the selected ISBN edition's publication date. When the already-loaded series contains a matching title, author, and current position with a valid release date no later than the edition date at their shared precision, the details box displays that date as `First published`. Otherwise it displays the ISBN date as `Edition published`. Year-only dates remain year-only. Original dates are not copied into edition metadata or library saves, and sets/supplements cannot borrow a constituent novel's original date. No extra provider requests are needed.
+
 All book entry points use `src/app/book/[id]/index.tsx`, including profile books, feed/profile post attachments, stacks, Discover results, Trending, Recent Releases, library, and club books. Metadata uses the shared `fetchGoogleBooksJson` memory/persistent/catalog/server cache path. The page resolves the existing canonical cover, displays the book, and loads optional series information separately for every source.
 
 `searchNovoriBooks` is the common search implementation for Discover, stack creation, post creation, Ask Readers, and club pickers. Completed searches have a five-minute, 40-entry, memory-only cache in addition to the existing upstream cache. Concurrent identical searches share work; each caller receives an independent copy. Failures are not retained. Search matching, author refinement, edition grouping, ranking, and cover selection still run on cache misses.
