@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createModeratedFetch } from './moderated-fetch';
 import {
   createClient,
 } from '@supabase/supabase-js';
@@ -23,6 +24,7 @@ export const supabase =
     supabaseUrl,
     supabasePublishableKey,
     {
+      global: { fetch: createModeratedFetch(supabaseUrl) },
       auth: {
         storage:
           AsyncStorage,

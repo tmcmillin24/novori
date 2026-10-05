@@ -37,13 +37,13 @@ if (!url || !key) {
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
-      fetch: (input, init) =>
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
         fetch(input, { ...init, signal: AbortSignal.timeout(20000) }),
     },
   });
   const resendKey = Deno.env.get("RESEND_API_KEY");
   const sendAlert = resendKey
-    ? async (alert: { id: string; admin_id: string }) => {
+    ? async (alert: { id: string; admin_id: string; kind?: string }) => {
         const { data, error } = await client.auth.admin.getUserById(
           alert.admin_id,
         );
@@ -55,15 +55,15 @@ if (!url || !key) {
           headers: {
             Authorization: `Bearer ${resendKey}`,
             "Content-Type": "application/json",
-            "Idempotency-Key": `novori-report-${alert.id}`,
+            "Idempotency-Key": `novori-moderation-${alert.kind ?? "report"}-${alert.id}`,
           },
           body: JSON.stringify({
             from:
               Deno.env.get("NOVORI_ADMIN_ALERT_FROM") ??
               "Novori <noreply@novori.link>",
             to: [data.user.email],
-            subject: "A new Novori report needs review",
-            text: "A reader submitted a report. Sign in to your private Novori admin hub to review it:\n\nhttps://admin.novori.link\n\nThis email intentionally contains no reported content or reporter identity.",
+            subject: "Novori moderation needs review",
+            text: "A report or unpublished flagged submission needs review. Sign in to your private Novori admin hub to review it:\n\nhttps://admin.novori.link\n\nThis email intentionally contains no reported content or reporter identity.",
           }),
         });
         if (!response.ok)
@@ -82,6 +82,7 @@ if (!url || !key) {
         Deno.env.get("NOVORI_BOOK_PROVIDER") === "isbndb"
           ? "isbndb"
           : "google_books",
+      moderationConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
       isbnDbConfigured: Boolean(Deno.env.get("ISBNDB_API_KEY")),
     }),
   );

@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -46,7 +47,7 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
     <View style={styles.accent} /><View style={styles.glow} pointerEvents="none" accessible={false} />
     <View style={styles.identity}>
       <Pressable disabled={!club.cover_url} onPress={onPhoto} accessibilityRole="button" accessibilityLabel="Enlarge club photo" style={styles.photo}>
-        {club.cover_url ? <Image source={{ uri: club.cover_url }} style={styles.image} /> : <Text style={styles.initial}>{club.name.charAt(0).toUpperCase()}</Text>}
+        {club.cover_url ? <Image source={{ uri: moderationMediaUrl(club.cover_url) }} style={styles.image} /> : <Text style={styles.initial}>{club.name.charAt(0).toUpperCase()}</Text>}
       </Pressable>
       <View style={styles.identityCopy}>
         <View style={styles.badges}><Ionicons name={club.privacy === 'private' ? 'lock-closed-outline' : 'earth-outline'} size={12} color={colors.gold} />

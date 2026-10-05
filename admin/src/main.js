@@ -12,6 +12,7 @@ let client,
 const labels = {
   overview: "Overview",
   reports: "Reports",
+  screenings: "Flagged submissions",
   readers: "Readers",
   clubs: "Clubs",
   announcements: "Announcements",
@@ -303,6 +304,7 @@ function renderShell() {
   for (const [key, label] of Object.entries(labels)) {
     const b = button(label, async () => {
       view = key;
+      status = "pending";
       page = 0;
       search = "";
       await load();
@@ -403,6 +405,7 @@ async function load() {
     {
       overview: "A clear view of your community.",
       reports: "Review the context, record the decision, and follow up.",
+      screenings: "Review unpublished submissions flagged by safety checks.",
       readers: "Account support and community moderation.",
       clubs: "Keep reading groups healthy.",
       announcements: "Draft and send community updates.",
@@ -548,11 +551,13 @@ const screens = {
     const cards = el("div", undefined, "cards");
     for (const [key, title] of [
       ["pending_reports", "Reports to review"],
+      ["pending_screenings", "Unpublished submissions to review"],
       ["readers", "Readers"],
       ["clubs", "Clubs"],
       ["posts", "Posts"],
       ["auth_jobs", "Account jobs queued"],
-      ["pending_alerts", "Email alerts queued"],
+      ["pending_alerts", "Report emails queued"],
+      ["pending_screening_alerts", "Screening emails queued"],
     ])
       add(
         cards,
@@ -608,20 +613,49 @@ const screens = {
     };
     toolbar.append(select);
     main.append(toolbar);
+    main.append(el('p','Priority: 3 distinct reporters = High; 5 = Urgent. Repeated reports by one reader count once. Reports do not automatically remove content.','hint'));
     list(
       main,
       d.rows,
       (r) => [
         add(
           el("div", undefined, "row"),
-          el("strong", `${pretty(r.reason)} · ${r.target_type}`),
+          el("strong", `${pretty(r.priority ?? 'normal')} · ${pretty(r.reason)} · ${r.target_type}`),
           el("span", r.status, `badge ${r.status}`),
         ),
-        el("small", date(r.created_at)),
+        el("small", `${r.distinct_reporters ?? 1} distinct reporter(s) · ${date(r.created_at)}`),
       ],
       (r) => showReport(r.id),
     );
     pager(main, d.total);
+  },
+  screenings(main,d) {
+    const select = el('select'); select.setAttribute('aria-label','Screening status');
+    for(const value of ['pending','approved','rejected','passed']) { const option=el('option',pretty(value)); option.value=value; select.append(option); }
+    select.value=['pending','approved','rejected','passed'].includes(status)?status:'pending';
+    select.onchange=async()=>{status=select.value;page=0;await load();}; main.append(select);
+    main.append(el('p','New flagged submissions have not been published. Approval allows resubmission; approval of a migrated legacy image restores its delivery. An AI flag is not an automatic account ban.','hint'));
+    list(main,d.rows,r=>[el('strong',`${r.priority_rank===3?'Urgent · ':''}${r.surface} · ${pretty(r.state)}`),el('small',`${Object.entries(r.categories??{}).filter(([,flag])=>flag).map(([category])=>category).join(', ') || 'Review'} · ${date(r.created_at)}`)],async r=>{
+      try {
+        const {item,image}=await api('screening_detail',{id:r.id});
+        const panel=el('section',undefined,'panel');
+        panel.append(el('h2','Submission review'));
+        panel.append(el('pre',JSON.stringify(item.content,null,2),'content-text'));
+        if(image) {
+          // Reviewers choose to reveal flagged imagery; never automatically display it.
+          panel.append(button('Reveal flagged image',async()=>{const fresh=await api('screening_detail',{id:r.id});const img=el('img');img.src=fresh.image;img.alt='Flagged submission';img.style.maxWidth='100%';panel.append(img);},'secondary'));
+        }
+        if(['pending','rejected'].includes(item.state)&&['owner','moderator'].includes(identity.role)) {
+          const requests={approved:crypto.randomUUID(),rejected:crypto.randomUUID()};
+          const reason=el('textarea');reason.placeholder='Decision reason (5–1000 characters)';reason.maxLength=1000;reason.setAttribute('aria-label','Screening decision reason');panel.append(reason);
+          for(const decisionValue of (item.state==='rejected'?['approved']:['approved','rejected'])) panel.append(button(decisionValue==='approved'?'Approve resubmission':'Reject',async()=>{
+            if(reason.value.trim().length<5) return showError('Enter a reason of at least five characters.',panel);
+            try {await api('review_screening',{id:item.id,expected_updated_at:item.updated_at,decision:decisionValue,reason:reason.value.trim(),request_id:requests[decisionValue]});dialog.replaceChildren();dialog.close();await load();} catch(e){showError(e.message,panel);}
+          },decisionValue==='rejected'?'danger':'secondary'));
+        }
+        panel.append(button('Close',()=>{dialog.close();dialog.replaceChildren();},'secondary'));dialog.replaceChildren(panel);dialog.showModal();
+      }catch(e){showError(e.message,main);}
+    });pager(main,d.total);
   },
   readers(main, d) {
     searchbar(main, "Search by username");
@@ -922,17 +956,11 @@ async function showReport(id) {
       "body-text",
     ),
   );
-  if (d.content?.post_image_url) {
-    try {
-      const u = new URL(d.content.post_image_url);
-      if (u.origin === new URL(config.url).origin) {
-        const image = el("img");
-        image.src = u.href;
-        image.alt = "Reported post image";
-        image.className = "reported-image";
-        context.append(image);
-      }
-    } catch {}
+  if (d.content?.post_image_url || d.content?.avatar_url) {
+    context.append(button('Reveal reported image',async()=>{
+      const preview=await api('report_image',{id});
+      const image=el('img');image.src=preview.image;image.alt='Reported image';image.className='reported-image';context.append(image);
+    }));
   }
   if (d.parent)
     add(
@@ -985,6 +1013,7 @@ async function showReport(id) {
       ...(d.content && d.report.target_type !== "profile"
         ? [["remove_content", "Remove content"]]
         : []),
+      ...(d.content?.post_image_url || d.content?.avatar_url ? [["block_reported_image", "Remove image"]] : []),
       ...(d.reader
         ? [
             ["warn_reader", "Warn reader"],

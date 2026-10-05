@@ -109,6 +109,8 @@ async function app({
         thread: [],
         history: [],
       };
+    else if(p.action==='screenings') data={rows:[{id:reportId,surface:'posts',state:'pending',priority_rank:3,categories:{'sexual/minors':true},created_at:new Date().toISOString()}],total:1};
+    else if(p.action==='screening_detail') data={item:{id:reportId,surface:'posts',state:'pending',content:[{body:'<script>flagged text</script>'}],updated_at:'2026-10-05T00:00:00Z'},image:null};
     else if (p.action === "usage") data = usage;
     else data = { completed: true };
     return { ok: true, status: 200, json: async () => ({ data }) };
@@ -303,4 +305,19 @@ test("ISBNdb totals and deployed routing configuration render from the backend s
   assert.match(w.document.body.textContent, /Derived publication date/);
   assert.match(w.document.body.textContent, /not API requests/);
   dom.window.close();
+});
+
+test('flagged submissions reset status, render text safely, validate reasons and record approval',async()=>{
+ const {w,dom,calls}=await app();await until(()=>w.document.querySelector('nav'));
+ click(w,'Flagged submissions');await until(()=>w.document.querySelector('.list button'));
+ assert.equal(calls.find(c=>c.action==='screenings').status,'pending');assert.match(w.document.querySelector('.list').textContent,/Urgent/);
+ w.document.querySelector('.list button').click();await until(()=>w.document.querySelector('dialog textarea'));
+ assert.equal(w.document.querySelector('dialog script'),null);assert.match(w.document.querySelector('dialog').textContent,/<script>flagged/);
+ click(w,'Approve resubmission');await until(()=>w.document.querySelector('dialog .error'));assert.equal(calls.some(c=>c.action==='review_screening'),false);
+ w.document.querySelector('dialog textarea').value='Reviewed literary context';click(w,'Approve resubmission');await until(()=>calls.some(c=>c.action==='review_screening'));
+ const request=calls.find(c=>c.action==='review_screening');assert.equal(request.decision,'approved');assert.equal(request.reason,'Reviewed literary context');assert.equal(request.expected_updated_at,'2026-10-05T00:00:00Z');assert.ok(request.request_id);
+ dom.window.close();
+});
+test('support can inspect flags but cannot approve or reject them',async()=>{
+ const {w,dom}=await app({role:'support'});await until(()=>w.document.querySelector('nav'));click(w,'Flagged submissions');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();await until(()=>w.document.querySelector('dialog pre'));assert.doesNotMatch(w.document.querySelector('dialog').textContent,/Approve resubmission/);dom.window.close();
 });

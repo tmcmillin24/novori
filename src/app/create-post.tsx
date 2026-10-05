@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import PostTypeIdentifier from '../components/PostTypeIdentifier';
 import { canManageClubPosts } from '../lib/club-posts';
 import { Ionicons } from '@expo/vector-icons';
@@ -1251,7 +1252,7 @@ export default function CreatePostScreen() {
                 <Image
                   source={{
                     uri:
-                      selectedClub.cover_url,
+                      moderationMediaUrl(selectedClub.cover_url),
                   }}
                   style={[
                     styles.destinationAvatar,
@@ -1379,7 +1380,7 @@ export default function CreatePostScreen() {
                     <Image
                       source={{
                         uri:
-                          viewerProfile.avatar_url,
+                          moderationMediaUrl(viewerProfile.avatar_url),
                       }}
                       style={
                         styles.dropdownAvatar
@@ -1477,7 +1478,7 @@ export default function CreatePostScreen() {
                           <Image
                             source={{
                               uri:
-                                club.cover_url,
+                                moderationMediaUrl(club.cover_url),
                             }}
                             style={[
                               styles.dropdownAvatar,
@@ -1567,7 +1568,7 @@ export default function CreatePostScreen() {
                   <Image
                     source={{
                       uri:
-                        viewerProfile.avatar_url,
+                        moderationMediaUrl(viewerProfile.avatar_url),
                     }}
                     style={
                       styles.feedPreviewAvatar
@@ -1715,7 +1716,7 @@ export default function CreatePostScreen() {
                     <Image
                       source={{
                         uri:
-                          visibleImageUrl,
+                          moderationMediaUrl(visibleImageUrl),
                       }}
                       style={
                         styles.feedPreviewPhoto

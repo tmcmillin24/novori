@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
@@ -34,7 +35,7 @@ export default function PostDestinationPicker({
   function feedPhoto(size: number) {
     const frame = [styles.feedImage, { width: size, height: size, borderRadius: size / 2 }];
     return profile?.avatar_url ? (
-      <Image source={{ uri: profile.avatar_url }} contentFit="cover" cachePolicy="memory-disk"
+      <Image source={{ uri: moderationMediaUrl(profile.avatar_url) }} contentFit="cover" cachePolicy="memory-disk"
         recyclingKey={profile.avatar_url} style={frame} accessibilityLabel="Your profile photo" />
     ) : (
       <View style={frame}><Text style={styles.feedInitial}>{initial}</Text></View>

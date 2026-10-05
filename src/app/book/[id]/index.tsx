@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
@@ -5173,7 +5174,7 @@ export default function BookDetailsScreen() {
                           <Image
                             source={{
                               uri:
-                                review.author_avatar_url,
+                                moderationMediaUrl(review.author_avatar_url),
                             }}
                             style={
                               styles.communityReviewAvatar

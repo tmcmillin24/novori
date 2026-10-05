@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -1321,7 +1322,7 @@ export default function CreateReviewScreen() {
                         <Image
                           source={{
                             uri:
-                              viewerProfile.avatar_url,
+                              moderationMediaUrl(viewerProfile.avatar_url),
                           }}
                           style={
                             styles.profileDestinationAvatar
@@ -1472,7 +1473,7 @@ export default function CreateReviewScreen() {
                           <Image
                             source={{
                               uri:
-                                clubs[0].cover_url,
+                                moderationMediaUrl(clubs[0].cover_url),
                             }}
                             style={
                               styles.destinationClubImage
@@ -1579,14 +1580,14 @@ export default function CreateReviewScreen() {
                             <Image
                               source={{
                                 uri:
-                                  clubs.find(
+                                  moderationMediaUrl(clubs.find(
                                     (
                                       club
                                     ) =>
                                       club.id ===
                                       destination.clubId
                                   )?.cover_url ??
-                                  '',
+                                  ''),
                               }}
                               style={
                                 styles.destinationClubImage
@@ -1708,7 +1709,7 @@ export default function CreateReviewScreen() {
                                       <Image
                                         source={{
                                           uri:
-                                            club.cover_url,
+                                            moderationMediaUrl(club.cover_url),
                                         }}
                                         style={
                                           styles.clubDropdownImage

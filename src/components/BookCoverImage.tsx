@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import type { ImageProps } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { useEffect, useSyncExternalStore } from 'react';
@@ -31,7 +32,7 @@ export default function BookCoverImage({
     resizeMode === 'stretch' ? 'fill' : 'cover';
   return <ExpoImage
     {...(imageProps as any)}
-    source={url ? { uri: url } : null}
+    source={url ? { uri: moderationMediaUrl(url) } : null}
     cachePolicy="memory-disk"
     contentFit={contentFit}
     transition={0}

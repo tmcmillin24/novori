@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
 import FeedPostCard from '../../components/FeedPostCard';
@@ -615,7 +616,7 @@ export default function ReaderProfileScreen() {
                     styles.pressed
             ]}>
         {club.cover_url ? (<Image source={{
-                    uri: club.cover_url,
+                    uri: moderationMediaUrl(club.cover_url),
                 }} style={styles.clubImage}/>) : (<View style={styles.clubImageFallback}>
             <Text style={styles.clubInitial}>
               {initial}
@@ -752,7 +753,7 @@ export default function ReaderProfileScreen() {
                     styles.pressed
             ]}>
               <Image source={{
-                uri: profile.avatar_url,
+                uri: moderationMediaUrl(profile.avatar_url),
             }} style={styles.avatar}/>
             </Pressable>) : (<View style={styles.avatarFallback}>
               <Text style={styles.avatarText}>

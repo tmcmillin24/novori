@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import UiAnimated from 'react-native-reanimated';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useUiCropGesture } from '../lib/use-ui-crop-gesture';
@@ -214,7 +215,7 @@ export default function ClubPhotoCropper({ visible, asset, colors, title = 'Posi
           <GestureDetector gesture={cropMotion.gesture}><View style={styles.cropFrame} collapsable={false}>
             {asset &&
             cropGeometry ? (<UiAnimated.Image source={{
-                uri: asset.uri,
+                uri: moderationMediaUrl(asset.uri),
             }} style={[
                 styles.image,
                 {

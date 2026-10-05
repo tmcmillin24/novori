@@ -91,7 +91,7 @@ export async function authorizeAdmin(
     throw new AdminError("Verify your authenticator code to continue.", 403);
   return { user, member, mfa_required: requireMfa && aal !== "aal2" };
 }
-export async function runAdminJobs(client, { sendAlert } = {}) {
+export async function runAdminJobs(client, { sendAlert, moderationConfigured = false } = {}) {
   let synchronized = 0,
     failed = 0,
     delivered = 0,
@@ -151,6 +151,14 @@ export async function runAdminJobs(client, { sendAlert } = {}) {
       ) ?? 0,
     );
   }
+  if(sendAlert && moderationConfigured) {
+    for(let i=0;i<10 && Date.now()<deadline;i++) {
+      const alert=check(await client.rpc('novori_claim_screening_alert'));if(!alert)break;
+      let success=false;try {await sendAlert(alert);success=true;}catch {/* durable retry */}
+      check(await client.rpc('novori_finish_screening_alert',{p_id:alert.id,p_token:alert.claim_token,p_success:success}));
+      if(success)alerts++;else {failed++;break;}
+    }
+  }
   if (sendAlert)
     for (let i = 0; i < 20 && Date.now() < deadline; i++) {
       const alert = check(await client.rpc("novori_admin_claim_alert"));
@@ -189,20 +197,24 @@ async function overview(client) {
   };
   const values = await Promise.all([
     count("content_reports", ["status", "pending"]),
+    count("novori_content_screenings", ["state", "pending"]),
     count("profiles"),
     count("clubs"),
     count("posts"),
     count("novori_admin_auth_jobs"),
     count("novori_admin_report_alerts", ["status", "pending"]),
+    count("novori_screening_alerts", ["status", "pending"]),
   ]);
   return Object.fromEntries(
     [
       "pending_reports",
+      "pending_screenings",
       "readers",
       "clubs",
       "posts",
       "auth_jobs",
       "pending_alerts",
+      "pending_screening_alerts",
     ].map((key, i) => [key, values[i]]),
   );
 }
@@ -233,17 +245,49 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     start = page * 50;
   if (action === "reports") {
     let query = client
-      .from("content_reports")
-      .select("id,target_type,target_id,reason,status,created_at,updated_at", {
+      .from("novori_report_priority")
+      .select("id,target_type,target_id,reason,status,created_at,updated_at,priority,priority_rank,distinct_reporters,first_open_report", {
         count: "exact",
       })
-      .order("updated_at", { ascending: false })
+      .order("priority_rank", { ascending: false })
+      .order("first_open_report", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
       .range(start, start + 49);
     if (["pending", "reviewed", "actioned", "dismissed"].includes(input.status))
       query = query.eq("status", input.status);
     const r = await query;
     const rows = check(r);
     return { rows, total: r.count, page };
+  }
+  if (action === "screenings") {
+    let query = client.from('novori_content_screenings').select('id,user_id,surface,state,categories,priority_rank,created_at,updated_at,reason', { count: 'exact' }).order('priority_rank', { ascending: false }).order('created_at', { ascending: true }).range(start,start+49);
+    if (['pending','approved','rejected','passed'].includes(input.status)) query = query.eq('state',input.status);
+    const r = await query; return { rows: check(r), total: r.count, page };
+  }
+  if (action === 'screening_detail') {
+    const item = check(await client.from('novori_content_screenings').select('id,user_id,surface,state,content,categories,media_path,created_at,updated_at,reason').eq('id',validateId(input.id)).maybeSingle());
+    if (!item) throw new AdminError('Submission no longer exists.',404);
+    let image = null;
+    if (item.media_path) image = check(await client.storage.from('moderation-quarantine').createSignedUrl(item.media_path,60)).signedUrl;
+    return { item, image };
+  }
+  if (action === 'review_screening') {
+    if (!['owner','moderator'].includes(member.role)) throw new AdminError('Moderator access required.',403);
+    return check(await client.rpc('novori_admin_review_screening', { p_actor: user.id, p_id: validateId(input.id), p_expected: input.expected_updated_at, p_decision: input.decision, p_reason: input.reason, p_request: validateId(input.request_id) }));
+  }
+  if (action === 'block_reported_image') {
+    if (!roleAllows(member.role,action)) throw new AdminError('A moderator is required.',403);
+    return check(await client.rpc('novori_admin_block_reported_image',{p_actor:user.id,p_report:validateId(input.target_id),p_expected:input.expected_updated_at,p_reason:input.reason,p_request:validateId(input.request_id)}));
+  }
+  if(action==='report_image') {
+    const report=check(await client.from('content_reports').select('target_type,target_id').eq('id',validateId(input.id)).maybeSingle());
+    if(!report || !['post','profile'].includes(report.target_type)) throw new AdminError('Report has no image.',404);
+    const field=report.target_type==='post'?'post_image_url':'avatar_url';
+    const content=check(await client.from(report.target_type==='post'?'posts':'profiles').select(field).eq('id',report.target_id).maybeSingle());
+    const match=/^https:\/\/[^/]+\/storage\/v1\/object\/public\/(post-media|avatars)\/(.+?)(?:\?.*)?$/.exec(content?.[field]??'');
+    if(!match) throw new AdminError('Image unavailable.',404);
+    const signed=check(await client.storage.from(match[1]).createSignedUrl(decodeURIComponent(match[2]),60));
+    return {image:signed.signedUrl};
   }
   if (action === "report_detail") {
     const id = validateId(input.id);
@@ -620,6 +664,7 @@ export function createAdminHandler({
   workerConfigured = false,
   bookProvider = "unknown",
   isbnDbConfigured = false,
+  moderationConfigured = false,
 }) {
   return async (request) => {
     const origin = request.headers.get("Origin");
@@ -655,7 +700,7 @@ export function createAdminHandler({
             workerSecret.charCodeAt(i) ^ (supplied.charCodeAt(i) || 0);
         if (!workerSecret || workerSecret.length < 32 || difference !== 0)
           throw new AdminError("Unauthorized worker.", 401);
-        const data = await runAdminJobs(client, { sendAlert });
+        const data = await runAdminJobs(client, { sendAlert, moderationConfigured });
         check(
           await client.from("novori_admin_worker_status").upsert({
             singleton: true,
@@ -690,6 +735,7 @@ export function createAdminHandler({
           workerConfigured,
           bookProvider,
           isbnDbConfigured,
+          moderationConfigured,
         }),
       });
     } catch (error) {

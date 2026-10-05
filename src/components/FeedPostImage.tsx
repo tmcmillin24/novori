@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import FullScreenImageViewer from './FullScreenImageViewer';
 import {
@@ -94,7 +95,7 @@ export default function FeedPostImage({
       >
         <Image
           source={{
-            uri,
+            uri: moderationMediaUrl(uri),
           }}
           style={
             styles.image

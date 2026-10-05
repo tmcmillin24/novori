@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useUiSwipeDismiss } from '../../lib/use-ui-swipe-dismiss';
@@ -455,7 +456,7 @@ export default function NotificationsScreen() {
             ]}>
           <View style={styles.avatarWrap}>
             {item.actor_avatar_url ? (<Image source={{
-                    uri: item.actor_avatar_url,
+                    uri: moderationMediaUrl(item.actor_avatar_url),
                 }} style={styles.avatarImage}/>) : (<View style={styles.avatarFallback}>
                 {item.actor_id ? (<Text style={styles.avatarInitial}>
                     {avatarInitial}
@@ -490,7 +491,7 @@ export default function NotificationsScreen() {
 
           <View style={styles.notificationRight}>
             {item.image_url ? (<Image source={{
-                    uri: item.image_url,
+                    uri: moderationMediaUrl(item.image_url),
                 }} style={styles.entityImage}/>) : unread ? (<View style={styles.unreadDot}/>) : null}
           </View>
         </Pressable>

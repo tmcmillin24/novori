@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import ClubEventCard from '../../components/ClubEventCard';
 import ClubEventsBoard from '../../components/ClubEventsBoard';
@@ -970,7 +971,7 @@ export default function ClubDetailScreen() {
                     styles.pressed
             ]}>
           {post.author_avatar_url ? (<Image source={{
-                    uri: post.author_avatar_url,
+                    uri: moderationMediaUrl(post.author_avatar_url),
                 }} style={styles.postAvatar}/>) : (<View style={styles.postAvatarFallback}>
               <Text style={styles.postAvatarText}>
                 {authorInitial}
@@ -1193,7 +1194,7 @@ export default function ClubDetailScreen() {
                     }
                 ]}/>) : null}
         {member.avatar_url ? (<Image source={{
-                    uri: member.avatar_url,
+                    uri: moderationMediaUrl(member.avatar_url),
                 }} style={styles.memberAvatar}/>) : (<View style={styles.memberAvatarFallback}>
             <Text style={styles.memberAvatarText}>
               {initial}
@@ -1240,7 +1241,7 @@ export default function ClubDetailScreen() {
                     styles.pressed
             ]}>
           {candidate.avatar_url ? (<Image source={{
-                    uri: candidate.avatar_url,
+                    uri: moderationMediaUrl(candidate.avatar_url),
                 }} style={styles.inviteReaderAvatar}/>) : (<View style={styles.inviteReaderAvatarFallback}>
               <Text style={styles.inviteReaderAvatarText}>
                 {initial}
@@ -1304,7 +1305,7 @@ export default function ClubDetailScreen() {
                     styles.pressed
             ]}>
           {request.avatar_url ? (<Image source={{
-                    uri: request.avatar_url,
+                    uri: moderationMediaUrl(request.avatar_url),
                 }} style={styles.joinRequestAvatar}/>) : (<View style={styles.joinRequestAvatarFallback}>
               <Text style={styles.joinRequestAvatarText}>
                 {initial}
@@ -1364,7 +1365,7 @@ export default function ClubDetailScreen() {
             invitation.id;
         return (<View key={invitation.id} style={styles.pendingInviteRow}>
         {invitation.avatar_url ? (<Image source={{
-                    uri: invitation.avatar_url,
+                    uri: moderationMediaUrl(invitation.avatar_url),
                 }} style={styles.pendingInviteAvatar}/>) : (<View style={styles.pendingInviteAvatarFallback}>
             <Text style={styles.pendingInviteAvatarText}>
               {initial}

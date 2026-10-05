@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -379,7 +380,7 @@ export default function CreateClubScreen() {
                 <Image
                   source={{
                     uri:
-                      pendingPhoto.uri,
+                      moderationMediaUrl(pendingPhoto.uri),
                   }}
                   style={styles.photoPreview}
                 />

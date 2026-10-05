@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Image,
@@ -123,7 +124,7 @@ export default function FullScreenImageViewer({
           >
             <Image
               source={{
-                uri,
+                uri: moderationMediaUrl(uri),
               }}
               style={
                 styles.image

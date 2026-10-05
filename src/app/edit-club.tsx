@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -716,7 +717,7 @@ export default function EditClubScreen() {
                 <Image
                   source={{
                     uri:
-                      pendingPhoto.uri,
+                      moderationMediaUrl(pendingPhoto.uri),
                   }}
                   style={
                     styles.photo
@@ -726,7 +727,7 @@ export default function EditClubScreen() {
                 <Image
                   source={{
                     uri:
-                      club.cover_url,
+                      moderationMediaUrl(club.cover_url),
                   }}
                   style={
                     styles.photo

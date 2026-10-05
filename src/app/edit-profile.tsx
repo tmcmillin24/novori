@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import UiAnimated from 'react-native-reanimated';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useUiCropGesture } from '../lib/use-ui-crop-gesture';
@@ -255,7 +256,7 @@ export default function EditProfileScreen() {
             });
             const response = await fetch(croppedImage.uri);
             const blob = await response.blob();
-            const filePath = `${user.id}/avatar.jpg`;
+            const filePath = `${user.id}/avatar-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
                 .upload(filePath, blob, {
@@ -370,7 +371,7 @@ export default function EditProfileScreen() {
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.photoSection}>
-            {avatarUrl ? (<Image source={{ uri: avatarUrl }} style={styles.avatarImage}/>) : (<View style={styles.avatar}>
+            {avatarUrl ? (<Image source={{ uri: moderationMediaUrl(avatarUrl) }} style={styles.avatarImage}/>) : (<View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {avatarInitial}
                 </Text>
@@ -465,7 +466,7 @@ export default function EditProfileScreen() {
             </Text>
 
             <GestureDetector gesture={cropMotion.gesture}><View style={styles.cropCircle} collapsable={false}>
-              {pendingPhoto && cropGeometry ? (<UiAnimated.Image source={{ uri: pendingPhoto.uri }} style={[
+              {pendingPhoto && cropGeometry ? (<UiAnimated.Image source={{ uri: moderationMediaUrl(pendingPhoto.uri) }} style={[
                 styles.cropImage,
                 {
                     width: cropGeometry.baseWidth,

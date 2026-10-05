@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
@@ -13,7 +14,7 @@ export default function ClubDestinationImage({ club, size = 30 }: {
     borderColor: colors.border,
   };
   return club.cover_url ? (
-    <Image source={{ uri: club.cover_url }} contentFit="cover" cachePolicy="memory-disk"
+    <Image source={{ uri: moderationMediaUrl(club.cover_url) }} contentFit="cover" cachePolicy="memory-disk"
       recyclingKey={club.cover_url} style={frame} accessibilityLabel={`${club.name} club photo`} />
   ) : (
     <View style={[frame, { alignItems: 'center', justifyContent: 'center' }]}>

@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-04",
-  "updated": "October 4, 2026",
+  "version": "2026-10-05-moderation",
+  "updated": "October 5, 2026",
   "operator": "Tristan McMillin",
   "minimumAge": 18,
   "contactEmail": "support@novori.link",
@@ -71,7 +71,7 @@
           "title": "7. Book information and third-party services",
           "paragraphs": [
             "Book information, covers, series information, and discovery results may come from ISBNdb, Google Books, Hardcover, and Open Library, including the Open Library Covers API. Book covers, descriptions, and other third-party material remain subject to their owners’ rights. Data may contain errors, duplicates, missing editions, or outdated information. Novori does not guarantee catalog accuracy or availability.",
-            "Novori uses Supabase for backend services, Resend for service email, Cloudflare for public web hosting and email routing, Expo and open-source software for app functionality, and Google ML Kit/code-scanning SDKs for Android barcode recognition. These providers are not sponsors or endorsers of Novori. External websites and services have their own terms and privacy practices. Opening an external link is your choice."
+            "Novori uses Supabase for backend services, Resend for service email, Cloudflare for web hosting, protected media delivery, email routing, and supplementary matching of cached images against known child sexual abuse material, and OpenAI for automated content moderation, Expo and open-source software for app functionality, and Google ML Kit/code-scanning SDKs for Android barcode recognition. These providers are not sponsors or endorsers of Novori. External websites and services have their own terms and privacy practices. Opening an external link is your choice."
           ],
           "links": [
             {
@@ -210,7 +210,7 @@
           "paragraphs": [
             "Information you publish may be visible to other readers according to the feature and your visibility settings. Public posts, comments, reviews, profile details, stacks, and shared reading activity can be viewed or copied by others. Club content is available according to club access rules. Choosing a private profile does not retract copies others have already made or necessarily hide comments posted in a public conversation.",
             "Private notes are not published to other readers. Account email and authentication credentials are not displayed as public profile information. Authorized service operators and hosting providers may access non-public information when necessary to operate the service, respond to support, protect users, or comply with law. Novori does not currently provide end-to-end encryption for private notes or community content.",
-            "Reports and moderation records are restricted to authorized administration rather than posted publicly. A reporter’s identity is not included in the report-alert emails sent to administrators."
+            "Reports and moderation records are restricted to authorized administration rather than posted publicly. A reporter’s identity is not included in the report-alert emails sent to administrators. Moderation may temporarily retain the submitted text or a restricted copy of a flagged image, the screening result, and decision history for review, security, and appeals. Approval of a flagged draft requires the reader to submit it again; it does not publish automatically."
           ]
         },
         {
@@ -221,7 +221,8 @@
             "We do not intentionally send account email, credentials, private notes, or your full personal library to book providers as part of book lookup. Avoid putting personal information in a book search. A search query itself can reveal interests. Book cover files may be served by provider or publisher image hosts identified in the returned metadata.",
             "Resend: delivery of service email, including account-deletion receipts and moderation alerts. Recipient email addresses and the message content needed for delivery are processed by that service. Supabase Auth also handles authentication email through the project’s configured email delivery service.",
             "Google ML Kit and Google code-scanning components: the Android barcode scanner uses these native SDKs through Expo Camera. Barcode image processing runs on your device. Google may receive SDK performance and usage metrics, app and device information, installation identifiers, event details, and error codes for diagnostics and usage analytics, and the SDK may contact Google for updates or compatibility information. Google states that ML Kit does not send the scanned input images or recognition outputs to its servers as part of on-device processing.",
-            "Cloudflare: hosting and delivery of the public website and administration website, DNS, and email routing. Web requests and support-email routing involve technical connection data and, for email routing, the email information needed to deliver your message.",
+            "Cloudflare: hosting and delivery of the public website and administration website, DNS, and email routing. Web requests and support-email routing involve technical connection data and, for email routing, the email information needed to deliver your message. When image protection is enabled, reader-uploaded images are delivered through Cloudflare and may be compared with known child sexual abuse material hashes. This is supplementary protection and does not identify every harmful image.",
+            "OpenAI: when publishing safeguards are enabled, public-facing profile names and biography text, posts, comments, reviews, selected book labels, stack and club information, discussions, shared club-reading notes, event text, and reader-uploaded images are sent to the moderation API to evaluate supported harmful-content categories. Passwords, account email, and private reading notes are not included in moderation inputs. Automated results may prevent publication and may be reviewed by authorized Novori moderators. Screening is fallible; readers can still report content or appeal a decision at support@novori.link.",
             "Expo and React Native: app frameworks and device functionality, including bundled fonts, icons, camera, selected photos, local preferences, and user interface features. Expo development tools are used during testing. These frameworks are distinct from the book-data APIs. Apple and Google independently operate their app stores and platform services under their own policies.",
             "GitHub is used to host Novori’s source repository and deliver website builds; normal app use does not send your account or reading data to GitHub. Independent links you open, such as an event meeting link or a book-provider page, are subject to that website’s practices."
           ],
@@ -257,6 +258,10 @@
             {
               "label": "Google ML Kit Terms and Privacy",
               "url": "https://developers.google.com/ml-kit/terms"
+            },
+            {
+              "label": "OpenAI API data privacy",
+              "url": "https://openai.com/enterprise-privacy/"
             }
           ]
         },

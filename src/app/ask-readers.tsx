@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -556,7 +557,7 @@ export default function AskReadersScreen() {
               <Image
                 source={{
                   uri:
-                    viewerProfile.avatar_url,
+                    moderationMediaUrl(viewerProfile.avatar_url),
                 }}
                 style={styles.feedPreviewAvatar}
               />

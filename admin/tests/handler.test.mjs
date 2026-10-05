@@ -321,3 +321,12 @@ test("usage reads existing Google counts and the new Hardcover tracker separatel
   assert.ok(result.utc_window.start.endsWith("T00:00:00.000Z"));
   assert.ok(result.refreshed_at);
 });
+
+test('report priority ordering is applied in the database before pagination',async()=>{
+ const calls=[],q={select:(...args)=>{calls.push(['select',...args]);return q;},order:(...args)=>{calls.push(['order',...args]);return q;},range:(...args)=>{calls.push(['range',...args]);return q;},eq:()=>q,then:resolve=>resolve({data:[],count:0})};
+ await dispatchAdmin({from:table=>{assert.equal(table,'novori_report_priority');return q;}},{user:{id},member:{role:'owner'}},{action:'reports',page:2,status:'pending'});
+ assert.deepEqual(calls.filter(c=>c[0]==='order').map(c=>c[1]),['priority_rank','first_open_report','id']);assert.deepEqual(calls.find(c=>c[0]==='range').slice(1),[100,149]);
+});
+test('support cannot approve unpublished submissions',async()=>{
+ await assert.rejects(dispatchAdmin({}, {user:{id},member:{role:'support'}},{action:'review_screening',id:target}),/Moderator access required/);
+});

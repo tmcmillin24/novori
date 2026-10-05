@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import {
     useFocusEffect,
@@ -393,7 +394,7 @@ export default function ReaderConnectionsScreen() {
                         <Image
                           source={{
                             uri:
-                              reader.avatar_url,
+                              moderationMediaUrl(reader.avatar_url),
                           }}
                           style={
                             styles.avatar

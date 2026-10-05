@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 import {Ionicons} from '@expo/vector-icons';
 import {BlurView} from 'expo-blur';
 import {useRouter} from 'expo-router';
@@ -297,7 +298,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
               <Image
                 source={{
                   uri:
-                    post.author_avatar_url,
+                    moderationMediaUrl(post.author_avatar_url),
                 }}
                 style={
                   styles.feedAvatar
@@ -393,7 +394,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
                   <Image
                     source={{
                       uri:
-                        post.club_cover_url,
+                        moderationMediaUrl(post.club_cover_url),
                     }}
                     style={
                       styles.feedClubIcon

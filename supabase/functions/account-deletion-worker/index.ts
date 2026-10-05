@@ -3,6 +3,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 // @ts-ignore -- Deno requires the explicit extension
 import { processAccountDeletions, sendDeletionReceipts } from '../_shared/account-deletion.ts';
+import { cleanupReaderModerationMedia } from '../_shared/ugc-deletion.mjs';
 declare const Deno: { env: { get(name: string): string | undefined }; serve(handler: (req: Request) => Promise<Response>): void };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 function sameSecret(a: string, b: string) {
@@ -18,7 +19,7 @@ Deno.serve(async req => {
   if (!url || !key || !resendKey) return json({ error: 'Deletion worker is not configured.' }, 503);
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   try {
-    const deletion = await processAccountDeletions(client);
+    const deletion = await processAccountDeletions(client, cleanupReaderModerationMedia);
     const receipts = await sendDeletionReceipts(client, async (receipt: { id: string; email: string }) => {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST', headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `account-deleted-${receipt.id}` },

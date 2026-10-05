@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { openCommentConversation } from '../../lib/open-comment-conversation';
 import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
@@ -923,7 +924,7 @@ export default function PostDetailScreen() {
             }} style={[styles.commentCard, focusedThreadId && !nested && styles.conversationAnchor, highlightedCommentId === comment.id && styles.commentCardHighlighted]}>
         {holdingCommentId === comment.id ? <Animated.View pointerEvents="none" style={[styles.commentCardActionAccent, { opacity: commentSelectionAccentOpacity }]}/> : null}
         {comment.is_blocked_author ? <Text style={styles.blockedCommentText}>Blocked reader · This comment is hidden.</Text> : <View style={styles.commentRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View reader avatar: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={() => openCommentActions(comment)} onPress={() => openReader(comment.author_id)} style={styles.commentAvatarButton}>{comment.author_avatar_url ? <Image source={{ uri: comment.author_avatar_url }} style={styles.commentAvatar}/> : <View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}</Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View reader avatar: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={() => openCommentActions(comment)} onPress={() => openReader(comment.author_id)} style={styles.commentAvatarButton}>{comment.author_avatar_url ? <Image source={{ uri: moderationMediaUrl(comment.author_avatar_url) }} style={styles.commentAvatar}/> : <View style={styles.commentAvatarFallback}><Text style={styles.commentAvatarText}>{name.charAt(0).toUpperCase()}</Text></View>}</Pressable>
           <View style={styles.commentAuthorCopy}>
           <View style={styles.commentHeader}>
             <Pressable accessibilityRole="button" accessibilityLabel={`View reader: ${name}`} disabled={comment.is_deleted} delayLongPress={220} onLongPress={() => openCommentActions(comment)} onPress={() => openReader(comment.author_id)} style={styles.commentIdentity}>
@@ -1086,7 +1087,7 @@ export default function PostDetailScreen() {
                     styles.pressed
             ]}>
                 {post.author_avatar_url ? (<Image source={{
-                    uri: post.author_avatar_url,
+                    uri: moderationMediaUrl(post.author_avatar_url),
                 }} style={styles.postAvatar}/>) : (<View style={styles.postAvatarFallback}>
                     <Text style={styles.postAvatarText}>
                       {authorInitial}
@@ -1117,7 +1118,7 @@ export default function PostDetailScreen() {
                         styles.pressed
                 ]}>
                     {post.club_cover_url ? (<Image source={{
-                        uri: post.club_cover_url,
+                        uri: moderationMediaUrl(post.club_cover_url),
                     }} style={styles.clubIcon}/>) : (<View style={styles.clubIconFallback}>
                         <Text style={styles.clubIconText}>
                           {clubInitial}

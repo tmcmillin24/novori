@@ -36,3 +36,12 @@ test('removes receipt email only after delivery succeeds and keeps failed receip
   const send = jest.fn(async row => { if (row.id === 'b') throw Error('Offline'); });
   expect(await sendDeletionReceipts(api, send)).toEqual({ sent: 1, failed: 1 }); expect(eq.mock.calls).toEqual([['id', 'a']]);
 });
+
+test('moderation image cleanup completes before content and Auth deletion',async()=>{
+ const api=client(),cleanup=jest.fn(async(_client,user)=>{expect(user).toBe(job.user_id);api.calls.push(['moderation']);});
+ expect(await processAccountDeletions(api,cleanup)).toEqual({completed:1,failed:0});
+ expect(api.calls.map(c=>c[0])).toEqual(['claim_due_account_deletions','account_deletion_storage_objects','moderation','prepare_account_deletion','auth']);
+});
+test('failed quarantine cleanup prevents Auth deletion and remains retryable',async()=>{
+ const api=client();expect(await processAccountDeletions(api,async()=>{throw Error('Storage unavailable');})).toEqual({completed:0,failed:1});expect(api.auth.admin.deleteUser).not.toHaveBeenCalled();expect(api.rpc).not.toHaveBeenCalledWith('prepare_account_deletion',expect.anything());
+});

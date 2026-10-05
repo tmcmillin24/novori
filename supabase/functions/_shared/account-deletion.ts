@@ -1,5 +1,5 @@
 /** Service-only deletion orchestration. Storage removal must succeed before Auth deletion. */
-export async function processAccountDeletions(client: any) {
+export async function processAccountDeletions(client: any, cleanupModeration?: (client: any, userId: string) => Promise<void>) {
   const claim = await client.rpc('claim_due_account_deletions', { batch_size: 10 });
   if (claim.error) throw claim.error;
   let completed = 0, failed = 0;
@@ -23,6 +23,7 @@ export async function processAccountDeletions(client: any) {
         }
       }
       if (exhausted) throw new Error('Upload cleanup will continue on the next retry.');
+      if (cleanupModeration) await cleanupModeration(client, job.user_id);
       const prepared = await client.rpc('prepare_account_deletion', { target_user_id: job.user_id, token: job.claim_token });
       if (prepared.error) throw prepared.error;
       const removed = await client.auth.admin.deleteUser(job.user_id, false);

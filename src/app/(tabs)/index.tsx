@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { rememberAccountRestriction, restrictedAccountRoute } from '../../lib/account-restriction-notice';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import Reanimated from 'react-native-reanimated';
@@ -1283,7 +1284,7 @@ export default function HomeScreen() {
                         styles.pressed
                 ]}>
             {comment.author_avatar_url ? (<Image source={{
-                        uri: comment.author_avatar_url,
+                        uri: moderationMediaUrl(comment.author_avatar_url),
                     }} style={styles.sheetCommentAvatar}/>) : (<View style={styles.sheetCommentAvatarFallback}>
                 <Text style={styles.sheetCommentAvatarText}>
                   {initial}
@@ -1427,7 +1428,7 @@ export default function HomeScreen() {
                     styles.pressed
             ]}>
         {club.cover_url ? (<Image source={{
-                    uri: club.cover_url,
+                    uri: moderationMediaUrl(club.cover_url),
                 }} style={compact
                     ? styles.compactClubImage
                     : styles.clubImage}/>) : (<View style={compact
@@ -2574,7 +2575,7 @@ export default function HomeScreen() {
                 <View style={styles.commentsComposerRow}>
                   {composerProfile
             ?.avatar_url ? (<Image source={{
-                uri: composerProfile.avatar_url,
+                uri: moderationMediaUrl(composerProfile.avatar_url),
             }} style={styles.commentsComposerAvatar}/>) : (<View style={styles.commentsComposerAvatarFallback}>
                       <Text style={styles.commentsComposerAvatarText}>
                         {composerAvatarInitial}

@@ -363,7 +363,7 @@ export async function uploadClubCover(
     ) || 'jpg';
 
   const filePath =
-    `${userId}/${clubId}/cover.${extension}`;
+    `${userId}/${clubId}/cover-${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 
   const {
     error:
