@@ -1373,7 +1373,7 @@ export default function BookDetailsScreen() {
           false
         );
 
-        if (source === 'discover') void loadSeries(resolvedBook);
+        void loadSeries(resolvedBook);
 
         try {
           const cartItem =
@@ -1510,14 +1510,6 @@ export default function BookDetailsScreen() {
           setReadingStatus(null);
         }
 
-        if (
-          source !==
-            'discover'
-        ) {
-          await loadSeries(
-            resolvedBook
-          );
-        }
 
       } catch (err) {
         const message =

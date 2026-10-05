@@ -1,3 +1,4 @@
+import { createBookReadCache } from '../../lib/book-read-cache';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Image as ExpoImage,
@@ -129,7 +130,13 @@ type SharedGoogleBooksResolverEnvelope = {
   };
 };
 
-async function invokeSharedGoogleBooksResolver(
+const readDiscoverBookIdentity = createBookReadCache<SharedGoogleBooksResolverEnvelope | null>();
+function invokeSharedGoogleBooksResolver(body: { mode: 'isbn' | 'trending'; isbn?: string; title?: string; author?: string }) {
+  return readDiscoverBookIdentity(JSON.stringify([body.mode, body.isbn ?? '', body.title ?? '', body.author ?? '']),
+    () => loadSharedGoogleBooksResolver(body), value => value?.ok === true && Boolean(value.data));
+}
+
+async function loadSharedGoogleBooksResolver(
   body: {
     mode: 'isbn' | 'trending';
     isbn?: string;

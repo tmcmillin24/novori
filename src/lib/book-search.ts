@@ -1,3 +1,4 @@
+import { createBookReadCache } from './book-read-cache';
 import { normalizeIsbnDbEdition, audioEditionPenalty } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
@@ -3007,9 +3008,14 @@ function getAmbiguousTitleBooks(books: GoogleBookSearchItem[]) {
   ).flat();
 }
 
-export async function searchNovoriBooks(
-  searchTerm: string
-) {
+const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
+
+export function searchNovoriBooks(searchTerm: string) {
+  const key = searchTerm.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+  return readCompletedSearch(key, () => loadNovoriBooks(searchTerm));
+}
+
+async function loadNovoriBooks(searchTerm: string) {
   const response =
     await fetchSharedGoogleBooksSearch(
       searchTerm

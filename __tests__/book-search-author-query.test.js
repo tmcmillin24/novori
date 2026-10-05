@@ -4,6 +4,7 @@ function load(items,responses={},popularity={}){
  const exports={};const calls=[];exports.searchCalls=calls;exports.popularityCalls=[];
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/lib/book-search.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
  exports,console,URL,Date,Math,Map,Set,Promise,require:name=>{
+ if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
  if(name.includes('canonical-book-covers'))return{getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
  if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};
@@ -74,4 +75,13 @@ test('ISBNdb audio-only results remain searchable and never show audio disc coun
  const audio={...book('audio','Freida McFadden'),source:{provider:'isbndb'},novoriEdition:{binding:'MP3 CD'},volumeInfo:{...book('audio','Freida McFadden').volumeInfo,pageCount:1}};
  const rows=await load([audio]).searchNovoriBooks('The Perfect Son Freida');
  expect(rows).toHaveLength(1);expect(rows[0].id).toBe('audio');expect(rows[0].volumeInfo.pageCount).toBeUndefined();
+});
+
+test('Discover and book pickers reuse completed normalized search results without sharing mutable selections',async()=>{
+ const api=load([book('freida','Freida McFadden')]);
+ const first=await api.searchNovoriBooks('The Perfect Son Freida');
+ first[0].volumeInfo.title='Selection mutated';
+ const next=await api.searchNovoriBooks('  the perfect son   freida  ');
+ expect(next[0].volumeInfo.title).toBe('The Perfect Son');
+ expect(api.searchCalls).toHaveLength(1);
 });

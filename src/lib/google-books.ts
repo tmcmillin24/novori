@@ -1,3 +1,4 @@
+import { createBookReadCache } from './book-read-cache';
 import { normalizeIsbnDbEdition } from '../../supabase/functions/_shared/book-edition-metadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
@@ -605,7 +606,13 @@ export type GoogleBooksIdentityResult = {
   } | null;
 };
 
-export async function resolveGoogleBooksIdentity(
+const readBookIdentity = createBookReadCache<GoogleBooksIdentityResult>();
+export function resolveGoogleBooksIdentity(input: { title: string; author?: string; isbn?: string }) {
+  return readBookIdentity(JSON.stringify([input.title, input.author ?? '', input.isbn ?? '']),
+    () => loadGoogleBooksIdentity(input), value => value.ok && Boolean(value.googleBookId));
+}
+
+async function loadGoogleBooksIdentity(
   input: {
     title: string;
     author?: string;
