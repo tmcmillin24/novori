@@ -1358,22 +1358,22 @@ export default function BookDetailsScreen() {
           resolvedBook
         );
 
-        // Series lookup registers verified candidates in the existing catalog.
-        // The screen then reads the catalog winner, never the series/route URL.
-        const seriesCover = source === 'discover' ? await loadSeries(resolvedBook) : null;
-        const canonicalCover = seriesCover ?? await resolveCanonicalBookCover({
+        // Reuse the shared catalog choice already loaded by search. Optional
+        // series enrichment must not keep cached book details behind a spinner.
+        const canonicalCover = await resolveCanonicalBookCover({
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
           imageLinks: resolvedBook.volumeInfo.imageLinks,
           existingCoverUrl: discoverCoverUrl,
-        }, true);
+        });
         setSelectedWorkCoverUrl(canonicalCover);
 
-        // The first visible Discover paint now uses the already-resolved cover
-        // instead of showing one image and swapping it after mount.
+        // Render with the shared canonical cover before optional enrichment.
         setLoading(
           false
         );
+
+        if (source === 'discover') void loadSeries(resolvedBook);
 
         try {
           const cartItem =
