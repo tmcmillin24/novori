@@ -1,7 +1,7 @@
 import { test, expect, jest, afterEach } from '@jest/globals';
 import { createBookReadCache } from '../src/lib/book-read-cache';
 
-afterEach(() => jest.useRealTimers());
+afterEach(() => { jest.useRealTimers(); });
 
 test('concurrent readers share a request but cannot mutate each other or cached data', async () => {
   const read = createBookReadCache<{ books: { id: string }[] }>();
