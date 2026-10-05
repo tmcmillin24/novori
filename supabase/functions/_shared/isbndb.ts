@@ -132,7 +132,7 @@ async function catalog(admin: SupabaseClient, books: Book[], complete = true) {
 }
 
 async function lookup(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
+  return cachedProviderValue({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: 30 * DAY, staleMs: 60 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, '/book/' + isbn);
       const book = raw?.book ? await ingest(admin, raw.book) : null;
@@ -151,7 +151,7 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
   const text = query.replace(/\b(?:intitle|inauthor):/gi, '').replace(/"/g, '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!text || text.length > 150) throw new Error('Book search must be no longer than 150 characters.');
   const page = Math.floor(startIndex / 40) + 1;
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: DAY, staleMs: 7 * DAY,
+  return cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40`);
       if (!raw || !Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
