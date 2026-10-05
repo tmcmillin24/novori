@@ -1,10 +1,11 @@
-import { audioEditionPenalty } from './book-edition-metadata.ts';
+import { audioEditionPenalty, editionFormat } from './book-edition-metadata.ts';
+import { isEnglishBookLanguage } from './book-language.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SELECTOR_VERSION =
-  1;
+  2;
 
 const GOOGLE_PROVIDER =
   'google_books';
@@ -107,14 +108,7 @@ function localeScore(
       edition.sale_country
     );
 
-  const isEnglish =
-    language ===
-      'en' ||
-    language ===
-      'eng' ||
-    language.startsWith(
-      'en-'
-    );
+  const isEnglish = isEnglishBookLanguage(language);
 
   const isExplicitlyNonEnglish =
     Boolean(
@@ -203,11 +197,47 @@ function candidateScore(
     qualityScore - (edition.metadata ? 250 * audioEditionPenalty(edition.metadata) : 0) +
     editionLocaleScore +
     (
-      edition.detail_complete
+      candidate.provider !== 'isbndb' && edition.detail_complete
         ? 20
         : 0
     )
   );
+}
+
+// ISBNdb's medium/small/thumbnail slots all contain the same image. Neither
+// fetching more text metadata nor a random candidate UUID proves better art.
+// For equally scored ISBNdb images, prefer a known print edition from the
+// original release year over later reissues, then use its recorded date.
+function isbnDbEditionOrder(edition: EditionRow) {
+  const metadata = edition.metadata;
+  const format = metadata ? editionFormat(metadata) : 'unknown';
+  const date = String(metadata?.volumeInfo?.publishedDate ?? '');
+  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(date);
+  let year = Number.POSITIVE_INFINITY;
+  let dateOrder = Number.POSITIVE_INFINITY;
+  if (match && Number(match[1]) >= 1000) {
+    const month = Number(match[2] ?? 1);
+    const day = Number(match[3] ?? 1);
+    const parsed = new Date(Date.UTC(Number(match[1]), month - 1, day));
+    if (parsed.getUTCFullYear() === Number(match[1]) &&
+        parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
+      year = Number(match[1]);
+      // A year-only date does not mean January 1. Prefer a precise date
+      // within the same year rather than inventing an earlier release.
+      if (match[3]) dateOrder = parsed.getTime();
+    }
+  }
+  return { format: format === 'print' ? 0 : format === 'ebook' ? 1 : 2, year, dateOrder };
+}
+
+function compareIsbnDbEditions(a: EditionRow, b: EditionRow) {
+  const left = isbnDbEditionOrder(a);
+  const right = isbnDbEditionOrder(b);
+  // Explicit comparisons handle unknown dates (Infinity) without NaN.
+  for (const key of ['format', 'year', 'dateOrder'] as const) {
+    if (left[key] !== right[key]) return left[key] < right[key] ? -1 : 1;
+  }
+  return 0;
 }
 
 export async function selectCanonicalGoogleCoversForWorkIds(
@@ -411,6 +441,10 @@ export async function selectCanonicalGoogleCoversForWorkIds(
             ) ??
             [];
 
+          const previous = (existingSelections ?? []).find(
+            row => row.work_id === workId
+          ) as ExistingSelectionRow | undefined;
+
           const ranked =
             workCandidates
               .map(
@@ -486,6 +520,13 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                 ) =>
                   b.score -
                     a.score ||
+                  a.candidate.provider.localeCompare(b.candidate.provider) ||
+                  (a.candidate.provider === 'isbndb' && b.candidate.provider === 'isbndb'
+                    ? compareIsbnDbEditions(a.edition, b.edition) : 0) ||
+                  // Retain a still-eligible winner when quality and edition
+                  // preference are equal. Discovering another UUID is not an upgrade.
+                  Number(b.candidate.id === previous?.candidate_id) -
+                    Number(a.candidate.id === previous?.candidate_id) ||
                   a.candidate.id.localeCompare(
                     b.candidate.id
                   )
@@ -562,7 +603,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                   .detail_complete ??
                 null,
               rule:
-                'Use verified Hardcover series artwork ahead of weaker Google candidates, while preserving Google extraLarge and all locked selections.',
+                'Preserve resolution, locale and locked selections; equal ISBNdb artwork prefers original print releases without a detail-fetch bonus; retain equivalent existing winners.',
             },
             selected_at:
               selected

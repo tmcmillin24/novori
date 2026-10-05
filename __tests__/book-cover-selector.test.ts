@@ -1,9 +1,10 @@
 import { test, expect } from '@jest/globals';
 import { selectCanonicalGoogleCoversForWorkIds } from '../supabase/functions/_shared/book-cover-selector';
 
-function catalog(candidates: any[], selections: any[] = [], audio = false) {
+function catalog(candidates: any[], selections: any[] = [], audio = false, extraEditions: any[] = []) {
   const writes: any[] = [];
   const editions = [
+    ...extraEditions,
     { id: 'edition', detail_complete: true, language: 'en', sale_country: 'US' },
     { id: 'foreign', detail_complete: true, language: 'fr', sale_country: 'FR' },
     { id: 'audio', detail_complete: true, language: 'en', sale_country: 'US', metadata: {volumeInfo:{description: audio ? 'MP3 CD Format' : ''},novoriEdition:{format: audio ? 'audio' : 'unknown'}} },
@@ -57,7 +58,7 @@ test('does not borrow another work or explicitly foreign artwork', async () => {
 
 test('reading an unchanged canonical cover does not rewrite the saved selection', async () => {
   const { client, writes } = catalog([candidate('best', 'extraLarge')], [{
-    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 1,
+    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 2,
   }]);
   await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
   expect(writes).toEqual([]);
@@ -91,4 +92,72 @@ test('same-work print cover outranks an audio narrator cover while audio-only ar
  const only=catalog([audio],[],true);
  await selectCanonicalGoogleCoversForWorkIds(only.client as any,['work']);
  expect(only.writes[0].candidate_id).toBe('audio-art');
+});
+
+function isbnEdition(id: string, date: string | undefined, complete = false, format = 'print') {
+  return { id, detail_complete: complete, language: 'en', sale_country: null,
+    metadata: { volumeInfo: { title: 'A Novel', publishedDate: date }, novoriEdition: { format } } };
+}
+function isbnArt(id: string, editionId: string, url?: string) {
+  return { ...candidate(id, 'medium', 'isbndb'), edition_id: editionId, ...(url ? { url } : {}) };
+}
+
+test('cached Iron Flame original print editions beat the opened 2025 reissue', async () => {
+  // Candidate URLs and dates from the exported catalog; no uploaded artwork or
+  // title-specific production rule. Other candidate UUIDs deliberately sort first.
+  const editions = [
+    isbnEdition('original-uk', '2023-10-31'),
+    isbnEdition('original-us', '2023-11-07'),
+    isbnEdition('reissue', '2025-05-20', true),
+    isbnEdition('future', '2026-10-15'),
+  ];
+  const covers = [
+    isbnArt('b9554419', 'reissue', 'https://images.isbndb.com/covers/6508543482775.jpg'),
+    isbnArt('13067455', 'original-us', 'https://images.isbndb.com/covers/6474473482775.jpg'),
+    isbnArt('2e882e58', 'original-uk', 'https://images.isbndb.com/covers/10823853482312.jpg'),
+    isbnArt('04634eb8', 'future'),
+  ];
+  for (const candidates of [covers, [...covers].reverse()]) {
+    const { client, writes } = catalog(candidates, [{work_id:'work', locked:false, candidate_id:'b9554419', selector_version:1, status:'selected',score:480}], false, editions);
+    await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
+    expect(writes[0]).toMatchObject({candidate_id:'2e882e58', score:460, selector_version:2});
+  }
+});
+
+test('fetching another equal ISBNdb edition cannot replace original release artwork', async () => {
+  for (const complete of [false, true]) {
+    const {client, writes} = catalog([
+      isbnArt('z-original', 'original'), isbnArt('a-later', 'later')
+    ], [{work_id:'work', locked:false,candidate_id:'z-original',status:'selected',score:460,selector_version:2}], false, [
+      isbnEdition('original','2020-05-01'), isbnEdition('later','2024-05-01',complete)
+    ]);
+    await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
+    expect(writes).toEqual([]);
+  }
+});
+
+test('equivalent cached editions retain their winner instead of changing with new UUIDs', async () => {
+  const {client,writes}=catalog([isbnArt('a-new','equal'),isbnArt('z-existing','original')],
+    [{work_id:'work',locked:false,candidate_id:'z-existing',status:'selected',score:460,selector_version:2}], false,
+    [isbnEdition('equal','2020-05-01',true),isbnEdition('original','2020-05-01')]);
+  await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
+  expect(writes).toEqual([]);
+});
+
+test('print and valid precise release dates beat unknown, ebook and invalid dates on equal artwork',async()=>{
+  const editions=[isbnEdition('print','2020-05-01'),isbnEdition('year','2020'),
+    isbnEdition('unknown',undefined),isbnEdition('invalid','2019-02-30'),isbnEdition('ebook','2010-01-01',true,'ebook')];
+  const {client,writes}=catalog(editions.map(e=>isbnArt(e.id,e.id)),[],false,editions);
+  await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
+  expect(writes[0].candidate_id).toBe('print');
+});
+
+test('existing winner still upgrades to larger artwork and cannot keep an ineligible language',async()=>{
+  const existing=[{work_id:'work',locked:false,candidate_id:'old',status:'selected',score:460,selector_version:2}];
+  const {client,writes}=catalog([isbnArt('old','original'),candidate('sharp','extraLarge')],existing,false,[isbnEdition('original','2020-01-01')]);
+  await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
+  expect(writes[0].candidate_id).toBe('sharp');
+  const foreign=catalog([{...isbnArt('old','foreign')},isbnArt('eligible','original')],existing,false,[isbnEdition('original','2020-01-01')]);
+  await selectCanonicalGoogleCoversForWorkIds(foreign.client as any,['work']);
+  expect(foreign.writes[0].candidate_id).toBe('eligible');
 });
