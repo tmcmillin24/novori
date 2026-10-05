@@ -339,3 +339,14 @@ test('small title typos still use valid catalog matches without a provider reque
  const result=await h.request('google-books-search',{query:'the perfct son'});
  expect(result.data.items.map(b=>b.id)).toEqual(['correct']);expect(h.calls).toHaveLength(0);
 });
+
+test('scoped title/author fallback queries share the normal Google cache and quota guards',async()=>{
+ const h=harness();h.setUpstream(async url=>{
+ expect(new URL(url).searchParams.get('q')).toBe('intitle:"the perfect son" inauthor:"freida"');
+ return {items:[catalogCandidate('correct','Freida McFadden').metadata]};
+ });
+ const query='intitle:"the perfect son" inauthor:"freida"';
+ expect((await h.request('google-books-search',{query})).data.items[0].id).toBe('correct');
+ expect((await h.request('google-books-search',{query})).cache.googleRequestMade).toBe(false);
+ expect(h.claims).toBe(1);expect(h.calls).toHaveLength(1);
+});

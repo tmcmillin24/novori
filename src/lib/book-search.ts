@@ -1266,6 +1266,19 @@ function matchesTitleAndAuthorQuery(book: GoogleBookSearchItem, normalizedQuery:
   });
 }
 
+function getTitleAuthorRefinementQuery(books: GoogleBookSearchItem[], normalizedQuery: string) {
+  if (hasDerivativeSearchIntent(normalizedQuery) || hasCollectionSearchIntent(normalizedQuery) || hasEditionSearchIntent(normalizedQuery)) return null;
+  const titles = books.map(getCanonicalWorkTitleForBook)
+    .filter(title => title.split(' ').length >= 2 && normalizedQuery.startsWith(`${title} `))
+    .sort((a, b) => b.length - a.length);
+  const title = titles[0];
+  if (!title) return null;
+  const author = normalizedQuery.slice(title.length + 1);
+  const terms = author.split(' ').filter(Boolean);
+  if (terms.length < 1 || terms.length > 4 || terms.some(term => term.length < 2)) return null;
+  return `intitle:"${title}" inauthor:"${author}"`;
+}
+
 function getTitleSearchRelevance(
   book: GoogleBookSearchItem,
   normalizedQuery: string
@@ -2999,7 +3012,16 @@ export async function searchNovoriBooks(
       searchTerm
     );
 
-  const authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
+  let authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
+  if (authorQualifiedResults.length === 0) {
+    const refinement = getTitleAuthorRefinementQuery(initialResults, normalizedQuery);
+    if (refinement) {
+      // One bounded, shared-cache-backed fallback; never discard usable results on failure.
+      const refined = await fetchSharedGoogleBooksSearch(refinement).catch(() => null);
+      if (refined?.ok) authorQualifiedResults = (refined.data?.items ?? [])
+        .filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
+    }
+  }
   if (authorQualifiedResults.length > 0) initialResults = authorQualifiedResults;
 
   const normalizedSearchIsbn =
