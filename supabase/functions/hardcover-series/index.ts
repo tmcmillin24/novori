@@ -1,3 +1,4 @@
+import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectCanonicalGoogleCoversForWorkIds } from "../_shared/book-cover-selector.ts";
@@ -270,7 +271,7 @@ Deno.serve(async (req) => {
 
       [
 
-        "series:v1",
+        "series:v2:english-isbns",
 
         requestedIsbns
 
@@ -1853,25 +1854,8 @@ Deno.serve(async (req) => {
 
 
 
-      const isbns =
-
-        book?.editions
-
-          ?.flatMap(
-
-            (edition: any) => [
-
-              edition.isbn_13,
-
-              edition.isbn_10,
-
-            ]
-
-          )
-
-          .filter(Boolean) ?? [];
-
-
+      // Mixed-language works must not route taps to a translated edition's ISBN.
+      const isbns = englishEditionIsbns(book?.editions);
 
       const uniqueIsbns =
 

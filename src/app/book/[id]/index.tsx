@@ -1,3 +1,4 @@
+import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -77,6 +78,7 @@ type GoogleBook = {
     title?: string;
     subtitle?: string;
     authors?: string[];
+    language?: string;
     publisher?: string;
     publishedDate?: string;
     description?: string;
@@ -2043,6 +2045,7 @@ export default function BookDetailsScreen() {
       results: GoogleBook[]
     ): RankedSeriesCandidate[] {
       return results
+        .filter(result => isEnglishBookLanguage(result.volumeInfo.language))
         .map(
           (
             result
@@ -2921,7 +2924,7 @@ export default function BookDetailsScreen() {
       ) {
         Alert.alert(
           'Book not found',
-          'Novori could not find this book in Google Books yet.'
+          'Novori could not verify an English edition of this book yet.'
         );
         return;
       }
@@ -2958,8 +2961,9 @@ export default function BookDetailsScreen() {
                   '1',
               }
             : {}),
+          // The series resolver already validated this exact English edition.
           canonicalizeWork:
-            '1',
+            '0',
           clickedTitle:
             resolved.volumeInfo
               .title ??
