@@ -77,3 +77,5 @@ test('a stale JWT from a deleted user is cleared even when the RPC rejects befor
  await act(async()=>mockForeground('active'));
  expect(mockRouter.replace).toHaveBeenCalledWith('/auth?notice=restricted');expect(clearDeletedAccountLocalData).not.toHaveBeenCalled();
  });
+
+test('pending accounts may read published legal documents without being forced away', async () => { mockPath = '/legal/privacy'; getAccountDeletionStatus.mockResolvedValue(pending); await render(); expect(mockRouter.replace).not.toHaveBeenCalled(); });

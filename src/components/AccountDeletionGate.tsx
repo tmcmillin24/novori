@@ -73,7 +73,7 @@ export default function AccountDeletionGate() {
     return () => { mounted = false; sequence.current++; clearInterval(poll); subscription.unsubscribe(); foreground.remove(); unsubscribe(); };
   }, [router]);
   useEffect(() => {
-    if (navigation?.key && status && status.state !== 'active' && pathname !== '/delete-account' && pathname !== '/auth' && pathname !== '/auth-confirm' && pathname !== '/help-support') router.replace('/delete-account');
+    if (navigation?.key && status && status.state !== 'active' && pathname !== '/delete-account' && pathname !== '/auth' && pathname !== '/auth-confirm' && pathname !== '/help-support' && !pathname.startsWith('/legal/')) router.replace('/delete-account');
   }, [status, pathname, navigation?.key, router]);
   return null;
 }

@@ -54,7 +54,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "jest"
+    "test": "jest",
+    "licenses:generate": "node scripts/generate-open-source-notices.mjs",
+    "licenses:check": "node scripts/generate-open-source-notices.mjs --check"
   },
   "jest": {
     "preset": "jest-expo",

@@ -21,6 +21,7 @@ import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AccountDeletionGate from '../components/AccountDeletionGate';
+import LegalAcceptanceGate from '../components/LegalAcceptanceGate';
 import ConversationHandoffOverlay from '../components/ConversationHandoffOverlay';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
@@ -73,6 +74,7 @@ function AppNavigator() {
         <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
       </Stack>
       <ConversationHandoffOverlay />
+      <LegalAcceptanceGate />
     </View>
   );
 }

@@ -21,15 +21,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Novori to use your camera to scan book barcodes.",
+          "cameraPermission": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Novori to access photos you choose for your profile.",
-          "cameraPermission": "Allow Novori to use your camera to scan book barcodes.",
+          "photosPermission": "Novori uses the photos you select for your profile, posts, and clubs.",
+          "cameraPermission": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
           "microphonePermission": false
         }
       ],
@@ -47,7 +47,7 @@
       "icon": "./assets/images/novori_appicon.png",
       "bundleIdentifier": "com.anonymous.Novori",
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow Novori to use your camera to scan book barcodes."
+        "NSCameraUsageDescription": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs."
       }
     },
     "android": {

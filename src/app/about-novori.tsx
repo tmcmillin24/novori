@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { openNovoriWebsite, NOVORI_APP_VERSION } from '../lib/support-links';
 
 import {
-    Alert,
     Image,
     Pressable,
     ScrollView,
@@ -105,16 +104,6 @@ export default function AboutNovoriScreen() {
 
   const styles =
     createStyles(colors);
-
-  function placeholder(
-    title: string,
-    message: string
-  ) {
-    Alert.alert(
-      title,
-      message
-    );
-  }
 
   return (
     <SafeAreaView
@@ -236,7 +225,7 @@ export default function AboutNovoriScreen() {
               styles.missionTitle
             }
           >
-            It started with my wife.
+            A new chapter for readers.
           </Text>
 
           <Text
@@ -244,15 +233,15 @@ export default function AboutNovoriScreen() {
               styles.missionText
             }
           >
-            Novori started as something I wanted to build for my wife. She was using different apps to track her reading goals, keep notes and summaries, and organize her personal library. I wanted to bring those pieces together in one place.
+            Novori began with my wife and a simple idea: her reading life deserved a home of its own. She was moving between apps to track goals, save notes, and organize her books. I wanted to bring those everyday moments together in a place that felt thoughtful, personal, and easy to use.
           </Text>
 
           <Text style={styles.missionText}>
-            I've always loved creating things, and the idea grew from there. Adding a social side felt like a fun way to connect readers through the books they love, the thoughts they share, and the clubs they build together.
+            The name Novori stems from novel—a nod to the stories that draw us in and the new connections they make possible. A book can begin as a quiet moment to yourself and become a conversation, a shared discovery, or a friendship. That is the spirit behind Novori.
           </Text>
 
           <Text style={styles.missionText}>
-            What began as a tool for her became something I hoped could be useful to others, too: a home for your reading life, with space to make it your own and people to share it with.
+            What started as something for her grew into a community for readers: a place to build your library, hold on to your thoughts, celebrate your progress, and find people who understand why a story stays with you. However you read, I hope Novori helps you feel a little more at home among your books.
           </Text>
 
           <Text style={styles.storySignature}>
@@ -333,10 +322,7 @@ export default function AboutNovoriScreen() {
             subtitle="Rules for using Novori"
             colors={colors}
             onPress={() =>
-              placeholder(
-                'Terms of Service',
-                'Novori Terms of Service will be added before launch.'
-              )
+              router.push('/legal/terms')
             }
           />
 
@@ -350,10 +336,7 @@ export default function AboutNovoriScreen() {
             subtitle="How Novori handles your information"
             colors={colors}
             onPress={() =>
-              placeholder(
-                'Privacy Policy',
-                'Novori Privacy Policy will be added before launch.'
-              )
+              router.push('/legal/privacy')
             }
           />
 
@@ -367,10 +350,7 @@ export default function AboutNovoriScreen() {
             subtitle="Software used to build Novori"
             colors={colors}
             onPress={() =>
-              placeholder(
-                'Open Source Licenses',
-                'Third-party software licenses will be listed here.'
-              )
+              router.push('/legal/licenses')
             }
           />
         </View>

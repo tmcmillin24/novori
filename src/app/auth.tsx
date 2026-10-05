@@ -1,3 +1,5 @@
+import LegalSignupAcknowledgment from '../components/LegalSignupAcknowledgment';
+import { legalAcceptanceMetadata } from '../lib/legal-documents';
 import { isAccountRestrictedError } from '../lib/account-session-errors';
 import { accountRestrictionNotice, hasAccountRestrictionNotice, clearAccountRestrictionNotice } from '../lib/account-restriction-notice';
 import {Ionicons} from '@expo/vector-icons';
@@ -40,6 +42,8 @@ export default function AuthScreen() {
   const router = useRouter();
   const { notice } = useLocalSearchParams<{notice?: string}>();
 
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [passwordVisible,setPasswordVisible]=useState(false);
   const [confirmPasswordVisible,setConfirmPasswordVisible]=useState(false);
   const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(() => notice === 'restricted' || hasAccountRestrictionNotice() ? accountRestrictionNotice : null);
@@ -128,6 +132,10 @@ export default function AuthScreen() {
     }
 
     if (isSignUp) {
+      if (!adultConfirmed || !termsAccepted) {
+        setAuthNotice({ title: 'Before you join', message: !adultConfirmed ? 'Novori is for readers 18 and older. Confirm that you meet this requirement to create an account.' : 'Please read and agree to the Terms of Service and acknowledge the Privacy Policy before creating an account.' });
+        return;
+      }
       if (!trimmedDisplayName) {
         Alert.alert(
           'Enter a display name',
@@ -262,6 +270,7 @@ export default function AuthScreen() {
               emailRedirectTo:
                 EMAIL_CONFIRM_REDIRECT,
               data: {
+                ...legalAcceptanceMetadata(),
                 username:
                   normalizedUsername,
                 display_name:
@@ -624,6 +633,8 @@ export default function AuthScreen() {
               </View>
             ) : null}
 
+            {isSignUp ? <LegalSignupAcknowledgment adult={adultConfirmed} accepted={termsAccepted} onAdultChange={setAdultConfirmed} onAcceptedChange={setTermsAccepted} disabled={loading} /> : null}
+
             {!isSignUp ? (
               <Pressable
                 disabled={
@@ -726,6 +737,10 @@ export default function AuthScreen() {
                 </Text>
               </Text>
             </Pressable>
+            {!isSignUp ? <View style={styles.legalLinks}>
+              <Pressable accessibilityRole="link" style={styles.legalLinkButton} onPress={() => router.push('/legal/terms')}><Text style={styles.legalLinkText}>Terms of Service</Text></Pressable>
+              <Pressable accessibilityRole="link" style={styles.legalLinkButton} onPress={() => router.push('/legal/privacy')}><Text style={styles.legalLinkText}>Privacy Policy</Text></Pressable>
+            </View> : null}
           </View>
         </View>
       </ScrollView>
@@ -735,6 +750,9 @@ export default function AuthScreen() {
 }
 
 const createStyles = (colors: NovoriColors) => StyleSheet.create({
+    legalLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 20, marginTop: 8 },
+    legalLinkButton: { minHeight: 44, justifyContent: 'center' },
+    legalLinkText: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 },
     safeArea: {
       flex: 1,
       backgroundColor:

@@ -20,7 +20,7 @@ Check link routing: `node --test website/share-links.test.mjs`.
 
 Attach `novori.link` through the Pages project's Custom domains after deployment.
 Preserve existing Cloudflare Email Routing and Resend DNS records. Optionally set
-build watch paths to `website/*` and `assets/images/novori_appicon.png` so unrelated
+build watch paths to `website/**`, `src/generated/open-source-notices.json`, `package-lock.json`, and `assets/images/novori_appicon.png` so unrelated
 app commits do not rebuild the website.
 
 ## Enabling app shares
@@ -37,8 +37,7 @@ metadata or covers; item access and visibility are resolved by the existing app.
 This is the browser fallback foundation, not automatic iOS Universal Links or
 Android App Links. Those require verified Apple team/signing identifiers and
 Android signing fingerprints, association files, and native app configuration.
-Privacy/terms pages and corresponding Settings links remain separate follow-up
-work; this deployment does not publish unreviewed policies.
+Public legal pages and matching in-app readers are generated from `website/legal-documents.json`. See `docs/STORE_SUBMISSION_READINESS.md` before submitting a release.
 
 ## Apple Universal Links and future store fallback
 
@@ -60,3 +59,11 @@ on the web. Android verified App Links and Play Store fallback need their own
 signing identity and listing setup.
 
 Profiles share the reader ID, clubs share the club ID, and events share the event ID using existing app routes. Sharing does not grant access to private profiles, clubs, or events; the existing app/backend visibility checks still apply.
+
+## Legal documents and notices
+
+Public URLs: `/terms/`, `/privacy/`, `/licenses/`, `/child-safety/`, and `/delete-account/`. No sign-in is required. The deletion page starts a manual support request by email; it does not claim to perform automatic deletion.
+
+Run `npm run licenses:generate` after dependency updates, review changed notices, and commit `src/generated/open-source-notices.json`. `npm run licenses:check` rejects stale or incomplete notices. Version-specific upstream fallbacks and native notices are captured under `scripts/legal/`, with source URLs and checksums. New dependencies without a full notice fail generation rather than receiving a guessed license. Native Pod/Gradle dependencies still need a final release-build inventory; see the submission checklist.
+
+Run `node --test website/*.test.mjs` to validate the public pages and links.
