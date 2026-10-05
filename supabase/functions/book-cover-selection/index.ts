@@ -1,6 +1,7 @@
 import {
   createClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
+import { readCatalogPublications } from '../_shared/book-publication-cache.ts';
 
 import { selectCanonicalGoogleCoversForWorkIds } from '../_shared/book-cover-selector.ts';
 
@@ -236,7 +237,7 @@ Deno.serve(
             'book_editions'
           )
           .select(
-            'provider_book_id, work_id, isbn_10, isbn_13'
+            'provider_book_id, work_id, isbn_10, isbn_13, metadata'
           )
           .in('provider', ['google_books', 'isbndb'])
           .in(
@@ -256,7 +257,7 @@ Deno.serve(
         const wanted = requestedIsbns.filter(value => value.length === (column === 'isbn_10' ? 10 : 13));
         if (!wanted.length) continue;
         const { data: isbnEditions, error: isbnError } = await supabaseAdmin
-          .from('book_editions').select('provider_book_id, work_id, isbn_10, isbn_13')
+          .from('book_editions').select('provider_book_id, work_id, isbn_10, isbn_13, metadata')
           .in('provider', ['google_books', 'isbndb']).in(column, wanted);
         if (isbnError) throw new Error(`Could not read ISBN cover identities: ${isbnError.message}`);
         for (const edition of isbnEditions ?? []) {
@@ -590,6 +591,7 @@ Deno.serve(
           data: {
             covers,
             details,
+            publications: await readCatalogPublications(supabaseAdmin, editionRows),
           },
         }
       );

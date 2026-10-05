@@ -1,4 +1,5 @@
 import { createBookReadCache } from '../../lib/book-read-cache';
+import { getBookPublication, getPublicationVersion, subscribeBookPublications } from '../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Image as ExpoImage,
@@ -16,6 +17,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import {
   ActivityIndicator,
@@ -1697,6 +1699,8 @@ const DiscoverBookCard = memo(
       }
     ) => void;
   }) {
+    useSyncExternalStore(subscribeBookPublications, getPublicationVersion, getPublicationVersion);
+    const publication = getBookPublication(item);
     const info =
       item.volumeInfo;
 
@@ -1861,14 +1865,14 @@ const DiscoverBookCard = memo(
             </View>
           ) : null}
 
-          {info.publishedDate ? (
+          {publication.date ? (
             <Text
               style={
                 styles.meta
               }
             >
               {
-                info.publishedDate
+                `${publication.label} · ${publication.date}`
               }
             </Text>
           ) : null}

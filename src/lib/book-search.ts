@@ -1,4 +1,5 @@
 import { createBookReadCache } from './book-read-cache';
+import { rememberBookPublications } from './book-publication';
 import { normalizeIsbnDbEdition, audioEditionPenalty, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
@@ -8,6 +9,7 @@ import {
 } from './book-covers';
 
 export type GoogleBookSearchItem = {
+  novoriPublication?: { title: string; authors?: string[]; releaseDate?: string | null };
   id: string;
   source?: { provider?: string };
   novoriEdition?: { binding?: string; format?: string; originalTitle?: string };
@@ -216,6 +218,11 @@ async function attachCatalogSearchCovers(
     }
 
     const covers = response.data?.covers ?? {};
+    const publications = (data as any)?.data?.publications ?? {};
+    rememberBookPublications(Object.values(publications));
+    for (const book of books) {
+      if (publications[book.id]) book.novoriPublication = publications[book.id];
+    }
     publishCatalogCovers(covers, (data as any)?.data?.details ?? {});
 
     for (

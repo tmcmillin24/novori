@@ -5,6 +5,7 @@ function load(items,responses={},popularity={}){
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/lib/book-search.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
  exports,console,URL,Date,Math,Map,Set,Promise,require:name=>{
  if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
+ if(name.includes('book-publication'))return require('../src/lib/book-publication');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
  if(name.includes('canonical-book-covers'))return{getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
  if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};

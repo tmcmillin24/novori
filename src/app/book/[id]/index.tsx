@@ -1,7 +1,7 @@
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
-import { getBookPublication } from '../../../lib/book-publication';
+import { getBookPublication, rememberBookPublications } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -1986,6 +1986,7 @@ export default function BookDetailsScreen() {
       const resolvedSeriesBooks =
         response.books ??
           [];
+      rememberBookPublications(resolvedSeriesBooks);
 
       setSeries(
         resolvedSeries

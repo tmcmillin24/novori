@@ -44,7 +44,9 @@ function endpoint(locked = false) {
   vm.runInNewContext(compiled, {
     exports: {}, Response, console,
     Deno: { env: { get: () => 'configured' }, serve: callback => { handler = callback; } },
-    require: name => name.startsWith('https:') ? { createClient: () => client } : { selectCanonicalGoogleCoversForWorkIds },
+    require: name => name.startsWith('https:') ? { createClient: () => client }
+      : name.includes('book-publication-cache') ? require('../supabase/functions/_shared/book-publication-cache')
+      : { selectCanonicalGoogleCoversForWorkIds },
   });
   return async (body, token = 'session') => {
     const response = await handler({ method: 'POST', headers: { get: () => token ? `Bearer ${token}` : '' }, json: async () => body });

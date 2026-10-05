@@ -1,34 +1,36 @@
-import { cleanCatalogBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { bookPublicationKeys, resolveBookPublication, validPublicationDate, type BookPublicationRecord } from '../../supabase/functions/_shared/book-edition-metadata';
 
-type Book = {
- volumeInfo: { title?: string; authors?: string[]; publishedDate?: string; description?: string; subtitle?: string };
-};
-type SeriesBook = { title: string; authors?: string[]; releaseDate?: string | null; position?: number | null };
-const key = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-function validPublicationDate(value?: string | null): string | undefined {
- if (!value || !/^\d{4}(?:-\d{2}(?:-\d{2})?)?$/.test(value)) return undefined;
- const [year, month = 1, day = 1] = value.split('-').map(Number);
- if (year < 1000 || month < 1 || month > 12 || day < 1) return undefined;
- const date = new Date(Date.UTC(year, month - 1, day));
- return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? value : undefined;
+const known = new Map<string, BookPublicationRecord>();
+const listeners = new Set<() => void>();
+let version = 0;
+export const getPublicationVersion = () => version;
+export function subscribeBookPublications(listener: () => void) {
+ listeners.add(listener);
+ return () => { listeners.delete(listener); };
 }
 
-/** Work release dates and ISBN edition dates describe different publications. */
-export function getBookPublication(book: Book, seriesBooks: SeriesBook[], currentPosition?: number | null) {
- const editionDate = validPublicationDate(book.volumeInfo.publishedDate);
- const title = key(cleanCatalogBookTitle(book.volumeInfo.title ?? ''));
- const authors = (book.volumeInfo.authors ?? []).map(author => key(normalizeCatalogAuthor(author)));
- const matched = title && authors.length && !isCatalogCollection(book) && !isCatalogSupplement(book)
-  ? seriesBooks.find(row => (currentPosition == null || row.position === currentPosition) &&
-    key(cleanCatalogBookTitle(row.title)) === title &&
-    row.authors?.some(author => authors.includes(key(normalizeCatalogAuthor(author)))))
-  : undefined;
- const originalDate = validPublicationDate(matched?.releaseDate);
- // A later series date is not evidence of an earlier original publication.
- const precision = Math.min(originalDate?.length ?? 0, editionDate?.length ?? 0);
- const originalIsUsable = originalDate && (!editionDate || originalDate.slice(0, precision) <= editionDate.slice(0, precision));
- return originalIsUsable
-  ? { date: originalDate, label: 'First published', editionDate }
-  : { date: editionDate, label: 'Edition published', editionDate };
+export function rememberBookPublications(records: BookPublicationRecord[]) {
+ let changed = false;
+ for (const record of records) {
+  if (!validPublicationDate(record.releaseDate)) continue;
+  const fact = { title: record.title, authors: record.authors, releaseDate: record.releaseDate };
+  for (const key of bookPublicationKeys(record)) {
+   if (JSON.stringify(known.get(key)) === JSON.stringify(fact)) continue;
+   known.set(key, fact);
+   changed = true;
+  }
+ }
+ if (changed) {
+  version += 1;
+  listeners.forEach(listener => listener());
+ }
+}
+
+export function getBookPublication(
+ book: Parameters<typeof resolveBookPublication>[0],
+ seriesBooks: BookPublicationRecord[] = [],
+ currentPosition?: number | null,
+) {
+ const cached = bookPublicationKeys(book.volumeInfo).map(key => known.get(key)).find(Boolean);
+ return resolveBookPublication({ ...book, novoriPublication: cached ?? book.novoriPublication }, seriesBooks, currentPosition);
 }

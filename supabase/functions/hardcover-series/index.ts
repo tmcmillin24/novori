@@ -1,4 +1,5 @@
 import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
+import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
 import { isbnDbEnabled } from '../_shared/isbndb.ts';
 import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
@@ -3347,6 +3348,7 @@ Deno.serve(async (req) => {
     });
     await promoteVerifiedSeriesCover(responsePayload);
     const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
+    await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
     return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -3383,6 +3385,5 @@ Deno.serve(async (req) => {
   }
 
 });
-
 
 
