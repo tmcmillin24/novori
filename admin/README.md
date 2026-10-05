@@ -1,0 +1,82 @@
+# Novori Admin — admin.novori.link
+
+Private community operations dashboard, separate from the public website and the Expo app. Reports use the existing `content_reports` queue. All sensitive data and actions go through `novori-admin`; membership, role, active account, and MFA are checked server-side. Ordinary accounts cannot read the new administration tables or invoke administration SQL.
+
+## Features
+
+- Report inbox: pending/reviewed/actioned/dismissed, context, decisions with reasons.
+- Moderation: remove posts; tombstone comments while preserving replies; warn, suspend for 1/7/30 days, ban, restore access.
+- Account support: profile, confirmation state, sign-in time, restriction and synchronization status. Private notes, passwords and tokens are excluded.
+- Club tools: edit details/rules, pause/resume posting. Membership remains available.
+- Announcements: draft, review, publish in-app system notifications, archive to stop outstanding delivery.
+- API/cache monitoring: recorded upstream requests and sampled cache metadata. No provider calls or cache clearing.
+- Audit: transactional decision history, optimistic revision checks, retry-safe request IDs.
+- Report emails: queued minimal-content alerts through the existing Resend integration.
+
+Owner can use all tools. Moderator can act on reports/readers. Support is read-only apart from its own email preference. There is no public admin signup. All roles require an authenticator app.
+
+## Backend deployment
+
+Project: `oanpmuiuuwljknwvyzev`. Existing report SQL 16/18 and account-deletion SQL 56 are prerequisites. Review/apply `supabase/migrations/20261005012000_novori_admin_hub.sql` in the project's SQL editor or your normal migration workflow. It is additive and safe to rerun; it does not replace report intake, deletion orchestration, provider RPCs or shared caches.
+
+1. Apply the migration.
+2. Set your verified main Auth user UUID in `admin/setup-owner.sql` and run it. Do not use a disposable test account.
+3. Deploy the Edge Function from the repository root:
+
+   ```sh
+   npx supabase functions deploy novori-admin --project-ref oanpmuiuuwljknwvyzev --no-verify-jwt
+   ```
+
+   Gateway JWT checking is disabled to admit scheduled worker calls. The handler independently verifies user tokens with Supabase Auth, then checks membership, restrictions, active account and MFA. Worker calls require a separate strong secret; public keys alone never authorize an admin action.
+4. Set `NOVORI_ADMIN_ORIGINS=https://admin.novori.link` on the function. Add an exact Pages preview origin only when testing, then remove it. Wildcards are not accepted.
+5. Generate a random worker secret (e.g. `openssl rand -hex 32`), keep it private, and set `NOVORI_ADMIN_WORKER_SECRET` on the function. Add the identical value to Supabase Vault as `novori_admin_worker_secret`. Never place it in Cloudflare Pages or Git.
+6. Existing `RESEND_API_KEY` enables report emails. Optional `NOVORI_ADMIN_ALERT_FROM` defaults to `Novori <noreply@novori.link>`; that sender must be verified. No report content or reporter identity is emailed.
+7. Enable Cron, pg_net and Vault if needed; run `admin/setup-worker.sql`. The job processes queued account changes, announcements and email alerts every minute. Overview must show a recent successful heartbeat before launch.
+
+Do not run a blanket `supabase db push` against this existing project without checking migration history; the original numbered SQL was applied manually. The migration deliberately fails if its foundation is missing.
+
+## Cloudflare Pages deployment
+
+Create a **separate** Pages project from `tmcmillin24/novori`. Leave the public `website/` project and mail DNS records untouched.
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `phase5-ask-readers` |
+| Root directory | `admin` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment `NOVORI_SUPABASE_URL` | `https://oanpmuiuuwljknwvyzev.supabase.co` |
+| Environment `NOVORI_SUPABASE_PUBLISHABLE_KEY` | Project's **public publishable key**, or legacy anon key |
+| Custom domain | `admin.novori.link` |
+
+Add the custom domain **inside Pages** so Cloudflare provisions the route and TLS. Do not point DNS at an arbitrary target. Secret/service-role keys are rejected by the frontend build. The site has a restrictive CSP, no external script CDN, no framing, no indexing, and no-store headers. An optional Cloudflare Access application restricted to the owner's email adds a website gate; Supabase authorization remains mandatory.
+
+For additional administrator roles, use a trusted SQL session to insert/update `novori_admin_members` with a verified active Auth user UUID and role. Changing role/enabled takes effect on the next request. There is intentionally no browser owner-grant button.
+
+## Validation
+
+```sh
+cd admin
+npm ci
+npm test
+NOVORI_SUPABASE_PUBLISHABLE_KEY=sb_publishable_BUILD_TEST_ONLY npm run build
+```
+
+The test key is only for validating bundling; use the real project's public key in Cloudflare. Production builds fail when the public key is missing. `NOVORI_ADMIN_ALLOW_UNCONFIGURED=1` is available only for a connection-required build with no live data.
+
+Tests execute the migration and moderation functions in PostgreSQL via PGlite and test the request handler separately. Live deployment still requires an end-to-end check against the real schema, Auth, Resend, Cron and Cloudflare.
+
+## Launch checks
+
+1. Visit the domain while signed out: only login is visible. A disposable non-admin account must be denied.
+2. Sign in as the approved owner, enroll an authenticator, verify, and load each dashboard section. An `aal1` token must not read reports.
+3. Submit a report using a disposable app account. Confirm its queue entry and report alert. Reporter identity is not exposed in the dashboard.
+4. Warn a disposable account: verify its system notification and audit entry. Suspend it: confirm an already signed-in session cannot post and a new sign-in is blocked after Auth synchronization. Restore it and verify access returns.
+5. Remove a reported test comment: its text/author disappear while another reader's child reply remains. Removing a post also removes its comments; the confirmation explicitly says so.
+6. Pause a test club: posting fails, membership access remains. Resume and test posting again.
+7. Save a draft without delivery. Publish a clearly labeled test announcement only when intentionally approved; publishing notifies active readers. Confirm progress, no duplicates, and recent worker heartbeat.
+8. Re-test account deletion and restoration with a disposable account. Existing library/private-note/deletion behavior must remain correct. Shared caches must remain intact.
+
+## Limits
+
+Reader search is by username, clubs by name. Conversation context shows the first 100 comments. Club membership detail shows up to 100 members. Usage is Novori's recorded requests, not provider billing or quota guarantees; cache samples are the latest 100 entries. Announcements target active unrestricted readers during batch delivery; archived notifications already sent are retained. Support email is `support@novori.link`; confirm that mailbox is monitored before using reader notices. A ban is a restriction, not deletion of the reader's data.
