@@ -10,7 +10,7 @@ import {
 export type GoogleBookSearchItem = {
   id: string;
   source?: { provider?: string };
-  novoriEdition?: { binding?: string; format?: string };
+  novoriEdition?: { binding?: string; format?: string; originalTitle?: string };
   novoriWork?: {
     key: string;
     canonicalTitle: string;
@@ -1985,10 +1985,11 @@ function getBestEligibleGoogleWorkCover(
             return localeDifference;
           }
 
-          return (
-            b.tier -
-            a.tier
-          );
+          const tierDifference = b.tier - a.tier;
+          if (tierDifference !== 0) return tierDifference;
+          const labelPenalty = (book: GoogleBookSearchItem) =>
+            Number(Boolean(book.novoriEdition?.originalTitle && book.novoriEdition.originalTitle !== book.volumeInfo.title));
+          return labelPenalty(a.edition) - labelPenalty(b.edition);
         }
       );
 
@@ -2612,6 +2613,12 @@ function collapseDuplicateEditions(
             ) => {
               const formatDifference = audioEditionPenalty(a) - audioEditionPenalty(b);
               if (formatDifference !== 0) return formatDifference;
+
+              // Prefer the plain-title record to normalized marketing/edition labels.
+              const titleLabelPenalty = (book: GoogleBookSearchItem) =>
+                book.novoriEdition?.originalTitle && book.novoriEdition.originalTitle !== book.volumeInfo.title ? 1 : 0;
+              const titleLabelDifference = titleLabelPenalty(a) - titleLabelPenalty(b);
+              if (titleLabelDifference !== 0) return titleLabelDifference;
 
               const editionVariantDifference =
                 getSearchEditionVariantPenalty(

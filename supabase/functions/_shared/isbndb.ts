@@ -132,7 +132,7 @@ async function catalog(admin: SupabaseClient, books: Book[], complete = true) {
 }
 
 async function lookup(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: 30 * DAY, staleMs: 60 * DAY,
+  const book = await cachedProviderValue<Book | null>({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: 30 * DAY, staleMs: 60 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, '/book/' + isbn);
       const book = raw?.book ? await ingest(admin, raw.book) : null;
@@ -141,6 +141,7 @@ async function lookup(admin: SupabaseClient, userId: string, isbn: string): Prom
       return book;
     },
   });
+  return book ? normalizeIsbnDbEdition(book) : null;
 }
 
 export async function isbnDbSearch(admin: SupabaseClient, userId: string, query: string, startIndex = 0) {

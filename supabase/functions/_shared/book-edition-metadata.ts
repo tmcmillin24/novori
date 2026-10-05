@@ -1,8 +1,18 @@
 type EditionBook = {
  source?: { provider?: string };
- novoriEdition?: { binding?: string; format?: string };
+ novoriEdition?: { binding?: string; format?: string; originalTitle?: string };
  volumeInfo: { title?: string; description?: string; authors?: string[]; pageCount?: number };
 };
+
+// Strip explicit catalog marketing/edition labels, never arbitrary subtitles.
+export function cleanCatalogBookTitle(title: string) {
+ return title.trim()
+  .replace(/\s*(?:[:–—]\s*)?\bdiscover the (?:follow[- ]up|sequel) to the (?:global|worldwide) phenomenons?\b[\s\S]*$/i, '')
+  .replace(/\s*\((?:English(?:[- ]language)? edition|Engelstalige editie)\)\s*$/i, '')
+  // Confirmed series-name label used by the Empyrean catalog editions.
+  .replace(/\s*\((?:the )?Empyrean\)\s*$/i, '')
+  .replace(/[\s:–—]+$/, '').trim() || title.trim();
+}
 
 export function normalizeCatalogAuthor(name: string) {
  const parts = name.trim().split(',').map(part => part.trim());
@@ -26,8 +36,10 @@ export function editionFormat(book: EditionBook): 'audio' | 'print' | 'ebook' | 
 export function normalizeIsbnDbEdition<T extends EditionBook>(book: T): T {
  if (book.source?.provider !== 'isbndb') return book;
  const format = editionFormat(book);
- return { ...book, novoriEdition: { ...book.novoriEdition, format }, volumeInfo: {
+ const title = book.volumeInfo.title ? cleanCatalogBookTitle(book.volumeInfo.title) : book.volumeInfo.title;
+ return { ...book, novoriEdition: { ...book.novoriEdition, format, originalTitle: book.novoriEdition?.originalTitle ?? book.volumeInfo.title }, volumeInfo: {
   ...book.volumeInfo,
+  title,
   authors: book.volumeInfo.authors?.map(normalizeCatalogAuthor),
   // Audio disc counts are not reading pages. Preserve valid short print books.
   pageCount: format === 'audio' ? undefined : book.volumeInfo.pageCount,

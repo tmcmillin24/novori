@@ -748,6 +748,15 @@ async function loadGoogleBooksIdentity(
 }
 
 export async function fetchGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResult<T>> {
+  const result = await loadGoogleBooksJson<T>(url);
+  // Apply current metadata rules even to older memory, device, and server rows.
+  if (isVolumeDetailUrl(url) && result.data && typeof result.data === 'object' && 'volumeInfo' in result.data) {
+    return { ...result, data: normalizeIsbnDbEdition(result.data as any) as T };
+  }
+  return result;
+}
+
+async function loadGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResult<T>> {
   const detailId = isVolumeDetailUrl(url) ? getVolumeId(url) : null;
   const searchQuery = detailId ? null : getSearchQuery(url);
   const startIndex = searchQuery ? Math.max(0, Number(new URL(url).searchParams.get('startIndex') ?? 0) || 0) : 0;

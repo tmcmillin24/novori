@@ -435,7 +435,7 @@ test('ISBNdb detail links survive rollback of the search provider', async () => 
 test('ISBNdb retains binding, normalizes personal author names, and preserves short print page counts',()=>{
  const api=isbnHarness().load('supabase/functions/_shared/isbndb.ts');
  const audio=api.adaptIsbnDbBook(isbnBook({binding:'MP3 CD',pages:1,authors:['McFadden, Freida']}));
- expect(audio.novoriEdition).toEqual({binding:'MP3 CD',format:'audio'});expect(audio.volumeInfo.pageCount).toBeUndefined();expect(audio.volumeInfo.authors).toEqual(['Freida McFadden']);
+ expect(audio.novoriEdition).toMatchObject({binding:'MP3 CD',format:'audio'});expect(audio.volumeInfo.pageCount).toBeUndefined();expect(audio.volumeInfo.authors).toEqual(['Freida McFadden']);
  const print=api.adaptIsbnDbBook(isbnBook({binding:'Paperback',pages:1}));
  expect(print.volumeInfo.pageCount).toBe(1);expect(print.novoriEdition.format).toBe('print');
 });

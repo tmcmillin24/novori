@@ -38,6 +38,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
+  searchNovoriBooks,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -2233,6 +2234,15 @@ export default function BookDetailsScreen() {
                 a.isbnMatches
               )
         );
+    }
+
+    // Use the same work representative as Discover before trying individual ISBNs.
+    try {
+      const results = await searchNovoriBooks(seriesBook.title);
+      const candidate = rankResults(results)[0];
+      if (candidate?.exactTitle && candidate.authorMatches) return candidate.result;
+    } catch {
+      // Keep the verified-English identity/ISBN fallback available when search fails.
     }
 
     try {

@@ -85,3 +85,13 @@ test('Discover and book pickers reuse completed normalized search results withou
  expect(next[0].volumeInfo.title).toBe('The Perfect Son');
  expect(api.searchCalls).toHaveLength(1);
 });
+
+test('Onyx Storm screenshot editions collapse into the plain-title result with its existing cover',async()=>{
+ const titles=['Onyx Storm','Onyx Storm (Empyrean)','Onyx Storm (Engelstalige editie)','Onyx Storm DISCOVER THE FOLLOW-UP TO THE GLOBAL PHENOMENONS, FOURTH WING AND IRON FLAME!'];
+ const items=titles.map((title,i)=>({...book('onyx'+i,'Rebecca Yarros',title),source:{provider:'isbndb'}}));
+ const rows=await load([...items].reverse()).searchNovoriBooks('onyx storm');
+ expect(rows).toHaveLength(1);expect(rows[0].id).toBe('onyx0');
+ expect(rows[0].volumeInfo.title).toBe('Onyx Storm');
+ expect(rows[0].novoriWork.googleBookIds).toHaveLength(4);
+ expect(rows[0].novoriWork.canonicalCoverUrl).toBe('https://covers.test/onyx0');
+});
