@@ -1,5 +1,6 @@
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
+import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useFocusEffect,
@@ -1281,6 +1282,18 @@ export default function BookDetailsScreen() {
   }
 
   useEffect(() => {
+    if (!seriesExpanded || seriesLoading || !series || !book || loading) return;
+    let active = true;
+    // Capture this series once; publishing a cover must not restart the queue.
+    const rows = seriesBooks.filter(row => row.position !== series.currentPosition);
+    void loadMissingSeriesCovers(rows, searchNovoriBooks, (row, bookId) => {
+      setSeriesBooks(current => current.map(item => item.id === row.id ? { ...item, coverBookId: bookId } : item));
+      void resolveCanonicalBookCover({ googleBookId: bookId });
+    }, () => active);
+    return () => { active = false; };
+  }, [seriesExpanded, seriesLoading, series?.id, id, loading]);
+
+  useEffect(() => {
     async function loadBook() {
       if (!id) {
         return;
@@ -1979,6 +1992,10 @@ export default function BookDetailsScreen() {
       setSeriesBooks(
         resolvedSeriesBooks
       );
+      // Batch the known catalog IDs before the dropdown's images mount.
+      for (const row of resolvedSeriesBooks) {
+        if (row.coverBookId) void resolveCanonicalBookCover({ googleBookId: row.coverBookId });
+      }
 
       const canonicalCover = await resolveCanonicalBookCover({
         googleBookId: currentBook.id,
