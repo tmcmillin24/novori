@@ -440,3 +440,26 @@ test('ISBNdb retains binding, normalizes personal author names, and preserves sh
  const print=api.adaptIsbnDbBook(isbnBook({binding:'Paperback',pages:1}));
  expect(print.volumeInfo.pageCount).toBe(1);expect(print.novoriEdition.format).toBe('print');
 });
+
+test('old work popularity contaminated by a mislabeled set is rebuilt once and then reused',async()=>{
+ const h=harness();
+ const oldKey='hardcover_popularity:work:v1:'+await h.api.cacheDigest({title:'alpha',authors:['author']});
+ h.rows.set(oldKey,{response_json:{kind:'book_popularity',value:{rating:4,ratingsCount:16,usersCount:20,hardcoverBookId:99}},expires_at:new Date(Date.now()+86400000).toISOString()});
+ h.setUpstream(async()=>({data:{books:[hcBook('9781111111111')]}}));
+ const request={books:[book('a','9781111111111')],allowTitleFallback:true};
+ expect((await h.request('hardcover-search-popularity',request)).popularity.a.ratingsCount).toBe(100);
+ await h.request('hardcover-search-popularity',request);
+ expect(h.calls).toHaveLength(1);
+});
+
+test('warm ISBNdb search classifies old short-title sets without a provider request',async()=>{
+ const h=harness();h.env.NOVORI_BOOK_PROVIDER='isbndb';
+ const set={id:'nv_9781635577716',source:{provider:'isbndb',isbn13:'9781635577716'},volumeInfo:{title:'A court of thorns and roses',authors:['Sarah J. Maas'],pageCount:3300,description:'All five of the Court of Thorns and Roses hardcovers with the new series look in a luxe box set.'}};
+ h.rows.set('isbndb:search:v2:a court of thorns and roses:1',{response_json:{items:[set],totalItems:1},expires_at:new Date(Date.now()+86400000).toISOString()});
+ const response=await h.request('google-books-search',{query:'a court of thorns and roses'});
+ expect(response.data.items[0].volumeInfo.title).toMatch(/Box Set/);
+ expect(h.calls).toHaveLength(0);
+ const api=h.load('supabase/functions/_shared/isbndb.ts');
+ expect(api.identityMatches(set,'A Court of Thorns and Roses','Sarah J. Maas')).toBe(false);
+ expect(api.identityMatches(response.data.items[0],'A Court of Thorns and Roses Box Set','Sarah J. Maas')).toBe(true);
+});

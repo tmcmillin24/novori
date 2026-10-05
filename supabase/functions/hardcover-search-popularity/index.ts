@@ -464,16 +464,15 @@ Deno.serve(async request => {
     let sourceExpiresAt = Infinity;
     const noteSource = (row: any) => { sourceExpiresAt = Math.min(sourceExpiresAt, Date.parse(row.expires_at)); };
     const freshMs = 86400000, staleMs = 3 * freshMs;
-    // Keep prior batches readable; new batches are also insensitive to book order.
-    const legacyKey = 'popularity:v1:' + await cacheDigest({ allowTitleFallback, books });
-    const legacy = await readProviderCache(admin, provider, legacyKey);
-    if (legacy && Date.parse(legacy.expires_at) > Date.now()) return respond(legacy.response_json);
+    // Older work/batch entries can contain ratings for a provider box set
+    // mislabeled as its first novel. Rebuild popularity once with clean identities;
+    // ISBNdb response caches and all TTLs remain unchanged.
     const prepared = await Promise.all(books.map(async (book: InputBook) => {
       const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
-      return { book, key: 'book:v1:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
-        workKey: identity.title && identity.authors.length ? 'work:v1:' + await cacheDigest(identity) : null };
+      return { book, key: 'book:v2:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? 'work:v2:' + await cacheDigest(identity) : null };
     }));
-    const batchKey = 'popularity:v2:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
+    const batchKey = 'popularity:v3:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
     const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];

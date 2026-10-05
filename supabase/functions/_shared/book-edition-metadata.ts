@@ -1,8 +1,23 @@
 type EditionBook = {
  source?: { provider?: string };
- novoriEdition?: { binding?: string; format?: string; originalTitle?: string };
- volumeInfo: { title?: string; description?: string; authors?: string[]; pageCount?: number };
+ novoriEdition?: { binding?: string; format?: string; originalTitle?: string; productKind?: string };
+ volumeInfo: { title?: string; subtitle?: string; description?: string; authors?: string[]; pageCount?: number };
 };
+
+/** Classify the product, not incidental mentions of sets inside a novel's plot. */
+export function isCatalogCollection(book: EditionBook): boolean {
+ const title = [book.novoriEdition?.originalTitle, book.volumeInfo.title, book.volumeInfo.subtitle].filter(Boolean).join(' ');
+ if (/\b(?:box(?:ed)?\s*set|omnibus|(?:e[- ]?book|book|series)\s+bundle|\d+[- ]books?\s+(?:collection|set)|collection\s+set)\b/i.test(title) ||
+     /\b(?:books?|volumes?|series)\s+\d+\s*[-–—]\s*\d+\b/i.test(title)) return true;
+ const intro = (book.volumeInfo.description ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+ return /^(?:all|the first|the complete)\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b.{0,160}\b(?:books?|hardcovers?|novels?|volumes?)\b/i.test(intro) ||
+   /^(?:this|a)\b.{0,100}\b(?:box(?:ed)?\s*set|\d+[- ]book\s+(?:set|collection))\b/i.test(intro);
+}
+
+export function isCatalogSupplement(book: EditionBook): boolean {
+ const text = [book.volumeInfo.title, book.volumeInfo.subtitle, book.novoriEdition?.binding].filter(Boolean).join(' ');
+ return /\b(?:calendar|colou?ring book|activity book|puzzle book|dramatized adaptation|dramatised adaptation)\b/i.test(text);
+}
 
 // Strip explicit catalog marketing/edition labels, never arbitrary subtitles.
 export function cleanCatalogBookTitle(title: string) {
@@ -36,8 +51,13 @@ export function editionFormat(book: EditionBook): 'audio' | 'print' | 'ebook' | 
 export function normalizeIsbnDbEdition<T extends EditionBook>(book: T): T {
  if (book.source?.provider !== 'isbndb') return book;
  const format = editionFormat(book);
- const title = book.volumeInfo.title ? cleanCatalogBookTitle(book.volumeInfo.title) : book.volumeInfo.title;
- return { ...book, novoriEdition: { ...book.novoriEdition, format, originalTitle: book.novoriEdition?.originalTitle ?? book.volumeInfo.title }, volumeInfo: {
+ const collection = isCatalogCollection(book);
+ const cleanTitle = book.volumeInfo.title ? cleanCatalogBookTitle(book.volumeInfo.title) : book.volumeInfo.title;
+ // Provider short titles can hide an entire set under the first novel's name.
+ // Keep its ISBN/pages intact but give the product a distinct work identity.
+ const title = collection && cleanTitle && !/\b(?:box(?:ed)?\s*set|bundle|omnibus|collection|\d+\s*[-–—]\s*\d+)\b/i.test(cleanTitle)
+   ? `${cleanTitle} (Box Set)` : cleanTitle;
+ return { ...book, novoriEdition: { ...book.novoriEdition, format, productKind: collection ? 'collection' : isCatalogSupplement(book) ? 'supplement' : 'book', originalTitle: book.novoriEdition?.originalTitle ?? book.volumeInfo.title }, volumeInfo: {
   ...book.volumeInfo,
   title,
   description: book.volumeInfo.description?.replace(/\s*\[Bokinfo\]\s*$/i, '').trim(),

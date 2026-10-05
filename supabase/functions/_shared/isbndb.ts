@@ -1,4 +1,4 @@
-import { normalizeIsbnDbEdition } from './book-edition-metadata.ts';
+import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cachedProviderValue, createCacheAdmin, fetchJsonWithTimeout, requireReader } from './provider-cache.ts';
 import { recordGoogleBooksInCatalog } from './book-catalog.ts';
@@ -29,6 +29,9 @@ function normalize(text: string) {
 }
 
 export function identityMatches(book: Book, title: string, author = '') {
+  const requested = {volumeInfo:{title}};
+  if (isCatalogCollection(book) !== isCatalogCollection(requested) ||
+      isCatalogSupplement(book) !== isCatalogSupplement(requested)) return false;
   const actual = normalize(book.volumeInfo.title ?? '').split(/\s+/);
   const wanted = normalize(title).split(/\s+/).filter(Boolean);
   const by = normalize((book.volumeInfo.authors ?? []).join(' ')).split(/\s+/);
@@ -152,7 +155,7 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
   const text = query.replace(/\b(?:intitle|inauthor):/gi, '').replace(/"/g, '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!text || text.length > 150) throw new Error('Book search must be no longer than 150 characters.');
   const page = Math.floor(startIndex / 40) + 1;
-  return cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
+  const response = await cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
     load: async () => {
       const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40`);
       if (!raw || !Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
@@ -163,6 +166,7 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
       return { items: books, totalItems: Number(raw.total) || books.length };
     },
   });
+  return { ...response, items: response.items.map(normalizeIsbnDbEdition) };
 }
 
 async function detail(admin: SupabaseClient, userId: string, id: string) {

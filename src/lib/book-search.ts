@@ -1,5 +1,5 @@
 import { createBookReadCache } from './book-read-cache';
-import { normalizeIsbnDbEdition, audioEditionPenalty } from '../../supabase/functions/_shared/book-edition-metadata';
+import { normalizeIsbnDbEdition, audioEditionPenalty, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
@@ -520,7 +520,7 @@ function hasDerivativeSearchIntent(
           prefix.trim()
         )
     ) ||
-    /\b(?:coloring book|activity book|puzzle book|workbook|study guide|book summary|companion journal|guided journal|planner)\b/.test(
+    /\b(?:colou?ring book|activity book|puzzle book|workbook|study guide|book summary|companion journal|guided journal|planner|calendar|dramatized adaptation|dramatised adaptation)\b/.test(
       normalizedQuery
     )
   );
@@ -529,6 +529,7 @@ function hasDerivativeSearchIntent(
 function isLikelyDerivativeTitle(
   book: GoogleBookSearchItem
 ) {
+  if (isCatalogSupplement(book)) return true;
   const title =
     normalizeTitle(
       book.volumeInfo.title
@@ -670,7 +671,7 @@ function isLikelyExactTitleExpansionNoise(
       /^(?:book|volume|vol)\s+(?:\d+|[ivxlcdm]+)\b/.test(
         suffix
       ) ||
-      /^(?:ii|iii|iv|v|vi|vii|viii|ix|x)\b/.test(
+      /^(?:\d+|ii|iii|iv|v|vi|vii|viii|ix|x)\b/.test(
         suffix
       )
     ) {
@@ -866,6 +867,7 @@ function hasCollectionSearchIntent(
 function isLikelyCollectionTitle(
   book: GoogleBookSearchItem
 ) {
+  if (isCatalogCollection(book)) return true;
   const text =
     getSearchClassificationText(
       book

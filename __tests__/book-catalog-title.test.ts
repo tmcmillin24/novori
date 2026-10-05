@@ -1,5 +1,5 @@
 import { test, expect } from '@jest/globals';
-import { cleanCatalogBookTitle, normalizeIsbnDbEdition } from '../supabase/functions/_shared/book-edition-metadata';
+import { cleanCatalogBookTitle, normalizeIsbnDbEdition, isCatalogCollection } from '../supabase/functions/_shared/book-edition-metadata';
 
 test('marketing copy becomes the plain title while the original remains traceable', () => {
  const raw = 'Onyx Storm DISCOVER THE FOLLOW-UP TO THE GLOBAL PHENOMENONS, FOURTH WING AND IRON FLAME!';
@@ -18,4 +18,17 @@ test('standard edition labels and catalog source markers are cleaned for any ISB
  const result = normalizeIsbnDbEdition({ source: { provider: 'isbndb' }, volumeInfo: { title: 'Another Novel (Standard Edition)', description: 'A real publisher description.[Bokinfo]' } });
  expect(result.volumeInfo.title).toBe('Another Novel');
  expect(result.volumeInfo.description).toBe('A real publisher description.');
+});
+
+
+test('description-identified sets keep their actual pages and a distinct title',()=>{
+ const raw={source:{provider:'isbndb'},volumeInfo:{title:'A court of thorns and roses',pageCount:3300,description:'All five of the Court of Thorns and Roses hardcovers with the new series look in a luxe box set.'}};
+ const result=normalizeIsbnDbEdition(raw);
+ expect(result.volumeInfo.title).toBe('A court of thorns and roses (Box Set)');
+ expect(result.volumeInfo.pageCount).toBe(3300);
+ expect(isCatalogCollection(result)).toBe(true);
+ expect(normalizeIsbnDbEdition(result)).toEqual(result);
+});
+test.each(['She discovers all five books in a box set hidden under her bed.', 'A collection of thirteen short stories from one author.'])('does not classify story content or a single anthology as a multi-book set: %s',description=>{
+ expect(isCatalogCollection({volumeInfo:{title:'A Novel',description}})).toBe(false);
 });

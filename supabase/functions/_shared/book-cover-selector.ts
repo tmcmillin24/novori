@@ -1,11 +1,11 @@
-import { audioEditionPenalty, editionFormat } from './book-edition-metadata.ts';
+import { audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SELECTOR_VERSION =
-  2;
+  3;
 
 const GOOGLE_PROVIDER =
   'google_books';
@@ -445,7 +445,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
             row => row.work_id === workId
           ) as ExistingSelectionRow | undefined;
 
-          const ranked =
+          let ranked =
             workCandidates
               .map(
                 (
@@ -531,6 +531,12 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                     b.candidate.id
                   )
               );
+
+          // Old provider records may already share a work with a mislabeled set.
+          // Do not borrow set/calendar artwork when normal book candidates exist.
+          const isProductExtra = (item: typeof ranked[number]) => item.edition.metadata &&
+            (isCatalogCollection(item.edition.metadata) || isCatalogSupplement(item.edition.metadata));
+          if (ranked.some(item => !isProductExtra(item))) ranked = ranked.filter(item => !isProductExtra(item));
 
           const strongRanked =
             ranked.filter(

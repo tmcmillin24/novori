@@ -95,3 +95,21 @@ test('Onyx Storm screenshot editions collapse into the plain-title result with i
  expect(rows[0].novoriWork.googleBookIds).toHaveLength(4);
  expect(rows[0].novoriWork.canonicalCoverUrl).toBe('https://covers.test/onyx0');
 });
+
+
+test('exported ACOTAR catalog excludes sets, calendars, coloring books, adaptations and numbered expansions from novel search',async()=>{
+ const api=load(require('./fixtures/acotar-catalog.json'));
+ const rows=await api.searchNovoriBooks('a court of thorns and roses');
+ expect(rows.length).toBeGreaterThan(0);
+ expect(rows[0].volumeInfo.title.toLowerCase()).toBe('a court of thorns and roses');
+ expect(rows[0].volumeInfo.pageCount).toBeGreaterThanOrEqual(419);
+ expect(rows[0].volumeInfo.pageCount).toBeLessThan(1000);
+ expect(rows.flatMap(b=>b.novoriWork.isbns)).not.toContain('9781635577716');
+ expect(rows.flatMap(b=>b.novoriWork.isbns)).not.toContain('9781526635204');
+ expect(rows.some(b=>/calendar|colou?ring|dramatized|box set|roses [67]$/i.test(b.volumeInfo.title))).toBe(false);
+});
+test('supplements and sets remain searchable when explicitly requested',async()=>{
+ const api=load(require('./fixtures/acotar-catalog.json'));
+ expect((await api.searchNovoriBooks('a court of thorns and roses calendar')).some(b=>/calendar/i.test(b.volumeInfo.title))).toBe(true);
+ expect((await api.searchNovoriBooks('a court of thorns and roses box set')).some(b=>/box set/i.test(b.volumeInfo.title))).toBe(true);
+});
