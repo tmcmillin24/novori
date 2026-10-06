@@ -1,3 +1,4 @@
+import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../../lib/reading-status-display';
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
@@ -1096,6 +1097,7 @@ export default function BookDetailsScreen() {
   const [descriptionExpanded, setDescriptionExpanded] =
     useState(false);
   const savedStatusVersion = useRef(0);
+  const [confirmedReadingStatus, setConfirmedReadingStatus] = useState<ConfirmedReadingStatus | null>(null);
   const [libraryConfirmation, setLibraryConfirmation] = useState<UserBookStatus | null>(null);
   const [readingStatus, setReadingStatus] =
     useState<UserBookStatus | null>(null);
@@ -1181,6 +1183,8 @@ export default function BookDetailsScreen() {
     useState<
       string[]
     >([]);
+
+  const displayedReadingStatus = getDisplayedReadingStatus(book?.id ?? id, confirmedReadingStatus, readingStatus);
 
   const isSharedBookContext =
     source === 'shared';
@@ -2522,11 +2526,12 @@ export default function BookDetailsScreen() {
         });
 
       savedStatusVersion.current += 1;
-      setSavedBook(updatedBook);
-      setReadingStatus(updatedBook.status);
+      setConfirmedReadingStatus({ bookId: book.id, status });
+      setSavedBook({ ...updatedBook, status });
+      setReadingStatus(status);
 
       if (!isSavedBookContext) {
-        setLibraryConfirmation(updatedBook.status);
+        setLibraryConfirmation(status);
       } else if (status === 'read' || status === 'dnf') {
         router.push({ pathname: '/rate-review', params: { googleBookId: book.id } });
       }
@@ -2716,6 +2721,7 @@ export default function BookDetailsScreen() {
         book.id
       );
 
+      setConfirmedReadingStatus(null);
       setSavedBook(null);
       setReadingStatus(null);
     } catch (removeError) {
@@ -3130,7 +3136,7 @@ export default function BookDetailsScreen() {
 
   const selectedStatusLabel =
     statuses.find(
-      (status) => status.value === readingStatus
+      (status) => status.value === displayedReadingStatus
     )?.label ?? null;
 
   const savedReadingPresentation =
@@ -4147,7 +4153,7 @@ export default function BookDetailsScreen() {
               ) : null}
             </View>
 
-            {!savedBook.status ? (
+            {!displayedReadingStatus ? (
               <>
                 <Text
                   style={
@@ -4381,7 +4387,7 @@ export default function BookDetailsScreen() {
         ) : null}
 
         {!isSavedBookContext ? (
-          readingStatus &&
+          displayedReadingStatus &&
           selectedStatusLabel ? (
             <View
               style={
