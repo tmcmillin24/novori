@@ -30,7 +30,8 @@ export function createMediaHandler({ client, openaiKey, legalVersion, transport 
       if (request.headers.get('content-type')?.includes('multipart/form-data')) {
         const form = await new Response(raw,{headers:{'Content-Type':request.headers.get('content-type')}}).formData();
         const file = form.get('') ?? form.get('file');
-        if (!file || typeof file === 'string' || file.size > maxBytes) throw new ScreeningError('Choose an image smaller than 8 MB.', 413);
+        if (!file || typeof file === 'string') throw new ScreeningError('Could not read the uploaded image. Choose the photo again.', 400);
+        if (file.size > maxBytes) throw new ScreeningError('Choose an image smaller than 8 MB.', 413);
         bytes = new Uint8Array(await file.arrayBuffer());
       } else bytes = raw;
       if (!bytes.length || bytes.length > maxBytes) throw new ScreeningError('Choose an image smaller than 8 MB.', 413);

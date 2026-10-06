@@ -342,8 +342,8 @@ export async function uploadClubCover(
     );
   }
 
-  const blob =
-    await response.blob();
+  const imageBytes =
+    await response.arrayBuffer();
 
   const rawExtension =
     photo.fileName
@@ -375,7 +375,7 @@ export async function uploadClubCover(
       )
       .upload(
         filePath,
-        blob,
+        imageBytes,
         {
           contentType:
             photo.mimeType ??

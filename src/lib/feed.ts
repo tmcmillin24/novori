@@ -326,8 +326,8 @@ export async function uploadPostImage(
     );
   }
 
-  const blob =
-    await response.blob();
+  const imageBytes =
+    await response.arrayBuffer();
 
   const rawExtension =
     photo.fileName
@@ -362,7 +362,7 @@ export async function uploadPostImage(
       )
       .upload(
         filePath,
-        blob,
+        imageBytes,
         {
           contentType:
             photo.mimeType ??

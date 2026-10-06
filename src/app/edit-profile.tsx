@@ -255,11 +255,11 @@ export default function EditProfileScreen() {
                 height: cropSizeInSource,
             });
             const response = await fetch(croppedImage.uri);
-            const blob = await response.blob();
+            const imageBytes = await response.arrayBuffer();
             const filePath = `${user.id}/avatar-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
-                .upload(filePath, blob, {
+                .upload(filePath, imageBytes, {
                 contentType: 'image/jpeg',
                 upsert: true,
             });

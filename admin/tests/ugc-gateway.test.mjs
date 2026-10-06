@@ -107,3 +107,14 @@ test('deletion cleanup removes service-owned and quarantined media without delet
  try{for(const value of [false,true]){cached=value;const r=await worker.fetch(new Request(`https://media.novori.link/avatars/${user}/photo.jpg`),{SUPABASE_URL:'https://project.supabase.co',NOVORI_MEDIA_ORIGIN_SECRET:'private'});assert.equal(r.status,502);assert.equal(r.headers.has('Location'),false);assert.equal(await r.text(),'');}assert.equal(puts,0);}
  finally{globalThis.fetch=oldFetch;globalThis.caches=oldCaches;}
  });
+
+test('binary native image upload is screened and registered',async()=>{
+ const s=setup();
+ const response=await createMediaHandler({...s,openaiKey:'key',legalVersion:version})(new Request(`https://backend.test?bucket=post-media&path=${user}/native.jpg`,{method:'POST',headers:{Authorization:'Bearer reader','Content-Type':'image/jpeg'},body:new Uint8Array([255,216,255,1]).buffer}));
+ assert.equal(response.status,200);assert.equal(s.uploads[0].bucket,'post-media');assert.equal(s.calls.find(c=>c.name==='asset').data.user_id,user);
+});
+test('missing multipart image is a read error rather than an invented size error',async()=>{
+ const s=setup(),form=new FormData();form.append('cacheControl','3600');
+ const response=await createMediaHandler({...s,openaiKey:'key',legalVersion:version})(new Request(`https://backend.test?bucket=post-media&path=${user}/empty.jpg`,{method:'POST',headers:{Authorization:'Bearer reader'},body:form}));
+ assert.equal(response.status,400);assert.doesNotMatch(await response.text(),/8 MB/);assert.equal(s.uploads.length,0);
+});
