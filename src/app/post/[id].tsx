@@ -1,3 +1,4 @@
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
@@ -707,6 +708,7 @@ export default function PostDetailScreen() {
             setCommentReportTarget(target);
         }, 70);
     }
+    const reportConfirmation = useReportConfirmation(Boolean(commentReportTarget));
     async function handleCommentReport(reason: ReportReason) {
         if (!commentReportTarget ||
             commentReportSubmitting) {
@@ -715,8 +717,8 @@ export default function PostDetailScreen() {
         try {
             setCommentReportSubmitting(true);
             await submitCommentReport(commentReportTarget.id, reason);
+            reportConfirmation.queue();
             setCommentReportTarget(null);
-            Alert.alert('Report submitted', 'Thanks for letting us know. The comment has been added to the moderation queue.');
         }
         catch (reportError) {
             console.error('Could not report comment:', reportError);
@@ -1516,7 +1518,7 @@ export default function PostDetailScreen() {
           </UiSheetSurface>
         </View>) : null}
 
-      <Modal visible={Boolean(commentReportTarget)} transparent animationType="fade" onRequestClose={() => {
+      <Modal onDismiss={reportConfirmation.afterDismiss} visible={Boolean(commentReportTarget)} transparent animationType="fade" onRequestClose={() => {
             if (!commentReportSubmitting) {
                 setCommentReportTarget(null);
             }
@@ -1585,6 +1587,7 @@ export default function PostDetailScreen() {
             }
         }}/>
 
+      <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors) {

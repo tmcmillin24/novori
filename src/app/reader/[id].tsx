@@ -1,3 +1,5 @@
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
@@ -278,6 +280,7 @@ export default function ReaderProfileScreen() {
             true;
         uiReport.closeAfterActionWithCallback(afterClose);
     }
+    const reportConfirmation = useReportConfirmation(Boolean(reportTargetProfile));
     async function handleProfileReport(reason: ReportReason) {
         if (!reportTargetProfile ||
             reportSubmitting) {
@@ -290,7 +293,7 @@ export default function ReaderProfileScreen() {
             else
                 await submitProfileReport(reportTargetProfile.id, reason);
             dismissProfileReport(() => {
-                Alert.alert('Report submitted', reportPostTarget ? 'Thanks for letting us know. The post has been added to the moderation queue.' : 'Thanks for letting us know. The profile has been added to the moderation queue.');
+                reportConfirmation.queue();
             });
         }
         catch (reportError) {
@@ -1196,7 +1199,7 @@ export default function ReaderProfileScreen() {
             }
         }}/>
 
-      <UiSheetModal visible={Boolean(reportTargetProfile)} transparent animationType="none" onRequestClose={closeProfileReport} motion={uiReport}>
+      <UiSheetModal onDismiss={reportConfirmation.afterDismiss} visible={Boolean(reportTargetProfile)} transparent animationType="none" onRequestClose={closeProfileReport} motion={uiReport}>
         <Pressable style={styles.reportBackdrop} onPress={closeProfileReport}>
           <UiSheetBackdrop pointerEvents="none" style={[
             styles.reportBackdropVisual,
@@ -1292,6 +1295,7 @@ export default function ReaderProfileScreen() {
         }}>
         {!ownDeleteConfirmation && ownPostTarget ? <Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={() => { const route = getPostEditRoute(ownPostTarget); setOwnPostTarget(null); router.push(route); }} style={{ paddingVertical: 14, alignItems: 'center' }}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold' }}>Edit post</Text></Pressable> : null}
       </DeletePostConfirmSheet>
+      <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors) {

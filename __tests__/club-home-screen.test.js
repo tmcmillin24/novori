@@ -19,7 +19,7 @@ const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 let mockClubParams={id:'club-1',clubId:'club-1'};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockClubParams,useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
 jest.mock('react-native',()=>({
-  KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',Switch:'Switch',
+  useWindowDimensions:()=>({width:390,height:844}),KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',Switch:'Switch',
   AppState:{addEventListener:()=>({remove:()=>{}})},Alert:{alert:jest.fn()},Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},
   Modal:props=>props.visible?require('react').createElement('Modal',props,props.children):null,
   ScrollView:require('react').forwardRef((props,ref)=>{require('react').useImperativeHandle(ref,()=>({scrollTo:jest.fn()}),[]);return require('react').createElement('ScrollView',props,props.children);}),

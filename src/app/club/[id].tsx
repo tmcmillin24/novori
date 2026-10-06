@@ -1,3 +1,4 @@
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import ClubEventCard from '../../components/ClubEventCard';
@@ -815,6 +816,7 @@ export default function ClubDetailScreen() {
             setMemberReportTarget(target);
         });
     }
+    const reportConfirmation = useReportConfirmation(Boolean(memberReportTarget));
     async function handleMemberReport(reason: ReportReason) {
         if (!memberReportTarget ||
             memberReportSubmitting) {
@@ -825,7 +827,7 @@ export default function ClubDetailScreen() {
             await submitProfileReport(memberReportTarget.user_id, reason);
             setMemberReportSubmitting(false);
             closeMemberReport(() => {
-                Alert.alert('Report submitted', 'Thanks for letting us know. The reader has been added to the moderation queue.');
+                reportConfirmation.queue();
             });
         }
         catch (error) {
@@ -2238,7 +2240,7 @@ export default function ClubDetailScreen() {
         </Pressable>
       </UiSheetModal>
 
-      <UiSheetModal visible={Boolean(memberReportTarget)} transparent animationType="none" onRequestClose={() => closeMemberReport()} motion={uiMemberReport}>
+      <UiSheetModal onDismiss={reportConfirmation.afterDismiss} visible={Boolean(memberReportTarget)} transparent animationType="none" onRequestClose={() => closeMemberReport()} motion={uiMemberReport}>
         <Pressable style={styles.memberActionBackdrop} onPress={() => closeMemberReport()}>
           <UiSheetBackdrop pointerEvents="none" style={[
             styles.memberActionBackdropVisual,
@@ -2292,6 +2294,7 @@ export default function ClubDetailScreen() {
       </UiSheetModal>
 
       <FullScreenImageViewer visible={clubImageOpen} uri={club.cover_url} onClose={() => setClubImageOpen(false)} shape="rounded-square"/>
+      <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors) {

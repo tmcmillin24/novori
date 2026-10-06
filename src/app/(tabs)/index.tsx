@@ -1,3 +1,4 @@
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { rememberAccountRestriction, restrictedAccountRoute } from '../../lib/account-restriction-notice';
@@ -1218,7 +1219,7 @@ export default function HomeScreen() {
             setCommentReportSubmitting(true);
             await submitCommentReport(commentReportTarget.id, reason);
             dismissCommentReport(() => {
-                Alert.alert('Report submitted', 'Thanks for letting us know. The comment has been added to the moderation queue.');
+                setCommentWarning({ title: 'Report submitted', message: 'Thanks for letting us know. Your report has been submitted for review.' });
             });
         }
         catch (error) {
@@ -1666,12 +1667,13 @@ export default function HomeScreen() {
             false;
         setReportTargetPost(post);
     }
+    const reportConfirmation = useReportConfirmation(Boolean(reportTargetPost));
     function handleReportDismiss() {
         reportModalShown.current = false;
         reportSheetClosing.current = false;
         if (reportSubmitted.current) {
             reportSubmitted.current = false;
-            Alert.alert('Report submitted', 'Thanks for letting us know. The report has been added to the moderation queue.');
+            reportConfirmation.present();
         }
     }
     function closePostReport() {
@@ -2331,6 +2333,7 @@ export default function HomeScreen() {
         </Pressable>
       </UiSheetModal>
 
+      <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
       <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
             if (deleteCommentTarget)
                 await removeSheetComment(deleteCommentTarget.id);
