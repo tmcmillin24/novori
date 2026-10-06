@@ -207,7 +207,9 @@ export async function updatePostComment(
     );
 
   if (error) {
-    throw error;
+    // PostgREST returns plain objects; preserve the actual rejection message
+    // for every comment editor instead of falling back to 'Please try again'.
+    throw Object.assign(new Error(error.message || 'Could not edit comment.'), error);
   }
   markPostMutation();
 }

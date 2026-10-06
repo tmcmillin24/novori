@@ -1929,7 +1929,7 @@ function createStyles(colors: NovoriColors) {
         commentCardHighlighted: { backgroundColor: `${colors.gold}10` },
         commentCardActionAccent: {
             position: 'absolute',
-            left: -1,
+            left: 29,
             top: 9,
             bottom: 9,
             width: 3,

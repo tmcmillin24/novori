@@ -118,3 +118,12 @@ test('missing multipart image is a read error rather than an invented size error
  const response=await createMediaHandler({...s,openaiKey:'key',legalVersion:version})(new Request(`https://backend.test?bucket=post-media&path=${user}/empty.jpg`,{method:'POST',headers:{Authorization:'Bearer reader'},body:form}));
  assert.equal(response.status,400);assert.doesNotMatch(await response.text(),/8 MB/);assert.equal(s.uploads.length,0);
 });
+
+test('comment edits screen their body and remain distinct from identical post submissions',async()=>{
+ const post=setup({flagged:true}),edit=setup({flagged:true});
+ await handler(post)(request({path:'posts',method:'POST',body:{body:'I will kill you.'}}));
+ const response=await handler(edit)(request({path:'rpc/update_post_comment',method:'POST',body:{target_comment_id:ticket,comment_body:'I will kill you.'}}));
+ assert.equal(response.status,422);assert.equal(edit.forwards.some(f=>f.url.includes('/rest/v1/')),false);
+ assert.equal(edit.calls.find(c=>c.name==='novori_record_screening').args.p_surface,'rpc/update_post_comment');
+ assert.notEqual(post.calls.find(c=>c.name==='novori_claim_screening').args.p_key,edit.calls.find(c=>c.name==='novori_claim_screening').args.p_key);
+});

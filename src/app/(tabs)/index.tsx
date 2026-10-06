@@ -4216,7 +4216,7 @@ function createStyles(colors: NovoriColors) {
         },
         sheetCommentActionAccent: {
             position: 'absolute',
-            left: -1,
+            left: 29,
             top: 7,
             bottom: 7,
             width: 3,
