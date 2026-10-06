@@ -1036,7 +1036,7 @@ export default function ReaderProfileScreen() {
                 </View>)) : stacks.length >
                     0 ? (<View style={styles.stackGrid}>
                 {stacks.map((stack) => (<Pressable key={stack.id} onPress={() => router.push({
-                            pathname: '/stack/[id]',
+                            pathname: '/book-stack/[id]',
                             params: {
                                 id: stack.id,
                             },
