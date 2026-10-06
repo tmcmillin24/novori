@@ -1113,7 +1113,7 @@ export default function ReaderProfileScreen() {
             }
         }} onReport={() => openProfileReport()} onShare={() => void shareProfile()} onDismiss={() => setProfileActionsOpen(false)}/>
 
-      <Modal visible={inviteClubPickerOpen} transparent animationType="fade" onRequestClose={() => setInviteClubPickerOpen(false)}>
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={inviteClubPickerOpen} transparent animationType="fade" onRequestClose={() => setInviteClubPickerOpen(false)}>
         <View style={styles.profileActionsBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setInviteClubPickerOpen(false)}/>
 

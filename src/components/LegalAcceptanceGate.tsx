@@ -165,7 +165,7 @@ export default function LegalAcceptanceGate() {
     },
   });
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
       visible={!!userId && !excluded}
       animationType="none"
       presentationStyle="fullScreen"

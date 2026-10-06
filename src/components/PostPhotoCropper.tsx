@@ -179,7 +179,7 @@ export default function PostPhotoCropper({ visible, asset, colors, title = 'Posi
         resetCrop();
         onCancel();
     }
-    return (<Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}><GestureHandlerRootView style={{ flex: 1 }}>
+    return (<Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}><GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.screen}>
         <View style={[
             styles.header,

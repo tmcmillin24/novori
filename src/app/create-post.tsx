@@ -2410,7 +2410,7 @@ export default function CreatePostScreen() {
         }
       />
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
         visible={
           bookPickerVisible
         }

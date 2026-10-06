@@ -47,7 +47,13 @@
       "icon": "./assets/images/novori_appicon.png",
       "bundleIdentifier": "com.anonymous.Novori",
       "infoPlist": {
-        "NSCameraUsageDescription": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs."
+        "NSCameraUsageDescription": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       },
       "supportsTablet": true
     },

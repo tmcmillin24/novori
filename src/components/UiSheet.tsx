@@ -160,7 +160,7 @@ export function UiSheetModal({ motion, children, ...props }: ModalProps & {
     motion: Motion;
     children: ReactNode;
 }) {
-    return <Modal {...props} animationType="none" onShow={motion.onShow}><GestureHandlerRootView style={{ flex: 1 }}>{children}</GestureHandlerRootView></Modal>;
+    return <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} {...props} animationType="none" onShow={motion.onShow}><GestureHandlerRootView style={{ flex: 1 }}>{children}</GestureHandlerRootView></Modal>;
 }
 export function UiSheetSurface({ motion, style, ...props }: ViewProps & {
     motion: Motion;

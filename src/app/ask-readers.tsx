@@ -843,7 +843,7 @@ export default function AskReadersScreen() {
         </Pressable>
       </KeyboardAwareScrollView>
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
         visible={bookPickerVisible}
         animationType="slide"
         presentationStyle="pageSheet"

@@ -15,7 +15,7 @@ export default function ClubBookPicker({visible,onDismiss,onChoose}:{visible:boo
     },350);return()=>{active=false;clearTimeout(timer);};
   },[visible,query]);
   const copy={color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:13};
-  return <Modal visible={visible} animationType="fade" onRequestClose={onDismiss}><SafeAreaView style={{flex:1,backgroundColor:colors.background}}>
+  return <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={visible} animationType="fade" onRequestClose={onDismiss}><SafeAreaView style={{flex:1,backgroundColor:colors.background}}>
     <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',padding:18}}><Text style={{...copy,fontFamily:'PlayfairDisplay_700Bold',fontSize:22}}>Choose a book</Text><Pressable accessibilityRole="button" accessibilityLabel="Close club book search" onPress={onDismiss} style={{padding:8}}><Ionicons name="close" size={25} color={colors.text}/></Pressable></View>
     <View style={{flexDirection:'row',alignItems:'center',marginHorizontal:18,paddingHorizontal:12,borderWidth:1,borderColor:colors.border,borderRadius:12,backgroundColor:colors.surface}}>
       <Ionicons name="search-outline" size={18} color={colors.mutedText}/><TextInput accessibilityLabel="Club book search" value={query} onChangeText={setQuery} autoFocus placeholder="Search title or author" placeholderTextColor={colors.mutedText} style={{...copy,flex:1,padding:13,fontFamily:'Inter_400Regular'}}/>

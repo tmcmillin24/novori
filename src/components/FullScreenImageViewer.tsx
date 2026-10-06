@@ -38,7 +38,7 @@ export default function FullScreenImageViewer({
   }
 
   return (
-    <Modal
+    <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
       visible={
         visible
       }

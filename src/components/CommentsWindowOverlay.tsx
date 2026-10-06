@@ -15,7 +15,7 @@ export default function CommentsWindowOverlay({visible,children,onShow,onDismiss
     if(!visible && wasVisible.current){shown.current=false;callbacks.current.onDismiss();}
     wasVisible.current=visible;
   },[visible]);
-  if(Platform.OS!=='ios')return <Modal visible={visible} transparent animationType="none" onShow={onShow} onDismiss={onDismiss} onRequestClose={onRequestClose}><GestureHandlerRootView style={{flex:1}}>{children}</GestureHandlerRootView></Modal>;
+  if(Platform.OS!=='ios')return <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={visible} transparent animationType="none" onShow={onShow} onDismiss={onDismiss} onRequestClose={onRequestClose}><GestureHandlerRootView style={{flex:1}}>{children}</GestureHandlerRootView></Modal>;
   if(!visible)return null;
   return <FullWindowOverlay unstable_accessibilityContainerViewIsModal>
     <View style={StyleSheet.absoluteFill} onLayout={()=>{if(!shown.current){shown.current=true;callbacks.current.onShow();}}}><GestureHandlerRootView style={{flex:1}}>{children}</GestureHandlerRootView></View>

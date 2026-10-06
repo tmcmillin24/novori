@@ -441,7 +441,7 @@ export default function EditProfileScreen() {
 
       <PhotoSourceSheet visible={photoSourceVisible} title="Change Profile Photo" colors={colors} onClose={() => setPhotoSourceVisible(false)} onTakePhoto={takePhoto} onChooseLibrary={choosePhotoFromLibrary}/>
 
-      <Modal visible={cropVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={cancelCrop}><GestureHandlerRootView style={{ flex: 1 }}>
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={cropVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={cancelCrop}><GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.cropScreen}>
           <View style={[
             styles.cropHeader,

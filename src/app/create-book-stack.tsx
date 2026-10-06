@@ -1199,7 +1199,7 @@ export default function CreateBookStackScreen() {
       <ValidationWarningSheet visible={Boolean(stackWarning)} title={stackWarning?.title ?? ''}
         message={stackWarning?.message ?? ''} onDismiss={() => setStackWarning(null)} />
 
-      <Modal
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
         visible={
           searchOpen
         }

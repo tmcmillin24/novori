@@ -909,7 +909,7 @@ export default function CreateReadingUpdateScreen() {
           {isEditing ? 'Editing changes your public update. Your original private Reading Details note stays unchanged.' : 'Your progress is also saved privately in Reading Details.'}
         </Text>
       </KeyboardAwareScrollView>
-      <Modal visible={bookPickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBookPickerVisible(false)}>
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={bookPickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBookPickerVisible(false)}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.header}>
             <Pressable accessibilityRole="button" accessibilityLabel="Close book picker" onPress={() => setBookPickerVisible(false)} style={styles.headerButton}>

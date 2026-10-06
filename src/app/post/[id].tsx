@@ -1518,7 +1518,7 @@ export default function PostDetailScreen() {
           </UiSheetSurface>
         </View>) : null}
 
-      <Modal onDismiss={reportConfirmation.afterDismiss} visible={Boolean(commentReportTarget)} transparent animationType="fade" onRequestClose={() => {
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onDismiss={reportConfirmation.afterDismiss} visible={Boolean(commentReportTarget)} transparent animationType="fade" onRequestClose={() => {
             if (!commentReportSubmitting) {
                 setCommentReportTarget(null);
             }
