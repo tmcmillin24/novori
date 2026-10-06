@@ -1,4 +1,4 @@
-import { getBookLayout } from '../../lib/book-layout';
+import { getBookLayout, getLibraryBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -141,7 +141,7 @@ export default function LibraryScreen() {
     const { colors, } = useNovoriTheme();
     const { width: windowWidth } = useWindowDimensions();
     const { libraryColumns } = getBookLayout(windowWidth);
-    const styles = useMemo(() => createStyles(colors, libraryColumns), [colors, libraryColumns]);
+    const styles = useMemo(() => createStyles(colors, windowWidth), [colors, windowWidth]);
     const [books, setBooks,] = useState<UserBook[]>(librarySessionCache
         ?.books ??
         []);
@@ -1272,7 +1272,7 @@ export default function LibraryScreen() {
       </UiSheetModal>
     </>);
 }
-function createStyles(colors: NovoriColors, columns = 2) {
+function createStyles(colors: NovoriColors, windowWidth = 390) {
     return StyleSheet.create({
         safeArea: {
             flex: 1,
@@ -1474,10 +1474,11 @@ function createStyles(colors: NovoriColors, columns = 2) {
             backgroundColor: colors.gold,
         },
         gridRow: {
-            justifyContent: 'space-between',
+            justifyContent: 'flex-start',
+            columnGap: 8,
         },
         bookCard: {
-            width: `${100 / columns - 1}%`,
+            width: getLibraryBookWidth(windowWidth),
             marginBottom: 18,
         },
         coverWrap: {

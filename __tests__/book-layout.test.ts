@@ -1,4 +1,4 @@
-import { getBookLayout, getProfileBookWidth } from '../src/lib/book-layout';
+import { getBookLayout, getProfileBookWidth, getLibraryBookWidth } from '../src/lib/book-layout';
 
 test.each([375, 390, 440])('phone %s keeps its existing cover sizes and two columns', width => {
   expect(getBookLayout(width)).toEqual({ libraryColumns: 2, searchCoverWidth: 75, trendingCoverWidth: 122, releaseCoverWidth: 112 });
@@ -26,3 +26,10 @@ test('rotation adds columns and a narrow split window returns to phone sizing', 
   expect(width - 40 - (cover * 4 + 24)).toBeLessThan(4);
  });
  test('phone profile retains three-column sizing', () => expect(getProfileBookWidth(440)).toBe('31%'));
+
+test.each([390, 440, 834, 1032, 1194, 1366, 1032])('library width %s fits rows with a fixed gap during rotation', width => {
+ const columns = getBookLayout(width).libraryColumns;
+ const card = getLibraryBookWidth(width);
+ expect(card * columns + (columns - 1) * 8).toBeLessThanOrEqual(width - 40);
+ expect(width - 40 - (card * columns + (columns - 1) * 8)).toBeLessThan(columns);
+});

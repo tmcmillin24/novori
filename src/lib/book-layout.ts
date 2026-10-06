@@ -12,3 +12,8 @@ export function getBookLayout(width: number) {
 export function getProfileBookWidth(windowWidth: number): number | '31%' {
   return windowWidth >= 768 ? Math.floor((windowWidth - 40 - 3 * 8) / 4) : '31%';
 }
+
+export function getLibraryBookWidth(windowWidth: number) {
+  const columns = getBookLayout(windowWidth).libraryColumns;
+  return Math.floor((windowWidth - 40 - (columns - 1) * 8) / columns);
+}
