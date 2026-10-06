@@ -20,26 +20,37 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
     const styles = useMemo(() => createStyles(colors), [colors]);
     const motion = useUiSheetMotion({ visible, embedded, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
-    // Use the same fade/slide timings and gesture thresholds as Novori's existing
-    // confirmation sheets, with one acknowledgement button for validation.
-    const content = (
-      <Pressable style={styles.backdrop} onPress={closeSmoothly}>
-        <UiSheetBackdrop pointerEvents="none" style={[styles.backdropVisual, {}]} motion={motion}/>
-        <UiSheetSurface accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12) }]} motion={motion}>
-          <Pressable onPress={(event) => event.stopPropagation()}>
-            <View style={styles.handle}/>
-            <View style={styles.icon}><Ionicons name={icon} size={23} color={colors.gold}/></View>
-            <Text style={styles.title} accessibilityRole="header">{title}</Text>
-            <Text style={styles.message}>{message}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={dismissLabel} onPress={closeSmoothly} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-              <Text style={styles.buttonText}>Got it</Text>
-            </Pressable>
-          </Pressable>
-        </UiSheetSurface>
+    const dismiss = embedded ? onDismiss : closeSmoothly;
+    const body = (
+      <Pressable onPress={(event) => event.stopPropagation()}>
+        <View style={styles.handle}/>
+        <View style={styles.icon}><Ionicons name={icon} size={23} color={colors.gold}/></View>
+        <Text style={styles.title} accessibilityRole="header">{title}</Text>
+        <Text style={styles.message}>{message}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={dismissLabel} onPress={dismiss} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+          <Text style={styles.buttonText}>Got it</Text>
+        </Pressable>
       </Pressable>
     );
-    if (embedded) return visible ? <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} onLayout={motion.onShow} accessibilityViewIsModal>{content}</View> : null;
-    return <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>{content}</UiSheetModal>;
+    const sheetStyle = [styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12) }];
+    // Within the existing comments window, render the warning directly. Its
+    // visibility must not depend on presenting or measuring a second sheet.
+    if (embedded) return visible ? (
+      <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal>
+        <Pressable style={styles.backdrop} onPress={dismiss}>
+          <View pointerEvents="none" style={styles.backdropVisual}/>
+          <View style={sheetStyle}>{body}</View>
+        </Pressable>
+      </View>
+    ) : null;
+    return (
+      <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>
+        <Pressable style={styles.backdrop} onPress={closeSmoothly}>
+          <UiSheetBackdrop pointerEvents="none" style={styles.backdropVisual} motion={motion}/>
+          <UiSheetSurface accessibilityViewIsModal style={sheetStyle} motion={motion}>{body}</UiSheetSurface>
+        </Pressable>
+      </UiSheetModal>
+    );
 }
 function createStyles(colors: NovoriColors) {
     return StyleSheet.create({
