@@ -21,7 +21,7 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
     const styles = useMemo(() => createStyles(colors), [colors]);
     const motion = useUiSheetMotion({ visible, embedded, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
-    const dismiss = embedded ? onDismiss : closeSmoothly;
+    const dismiss = closeSmoothly;
     const body = (
       <Pressable onPress={(event) => event.stopPropagation()}>
         <View style={styles.handle}/>
@@ -34,29 +34,24 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
       </Pressable>
     );
     const sheetStyle = [styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12) }];
-    // Within the existing comments window, render the warning directly. Its
-    // visibility must not depend on presenting or measuring a second sheet.
+    const content = (
+      <Pressable style={styles.backdrop} onPress={closeSmoothly}>
+        <UiSheetBackdrop pointerEvents="none" style={styles.backdropVisual} motion={motion}/>
+        <UiSheetSurface accessibilityViewIsModal style={sheetStyle} motion={motion}>{body}</UiSheetSurface>
+      </Pressable>
+    );
+    // Both presentations use the exact same animated surface and backdrop.
+    // The embedded comments window needs explicit bounds because its native
+    // overlay does not provide a measurable parent height.
     if (embedded) return visible ? (
       <View style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: windowHeight, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal onLayout={event => {
-          if (__DEV__) console.info('[Novori embedded warning layout]', {
-            width: event.nativeEvent.layout.width,
-            height: event.nativeEvent.layout.height,
-          });
-        }}>
-        <Pressable style={styles.backdrop} onPress={dismiss}>
-          <View pointerEvents="none" style={styles.backdropVisual}/>
-          <View style={sheetStyle}>{body}</View>
-        </Pressable>
-      </View>
+        motion.onShow();
+        if (__DEV__) console.info('[Novori embedded warning layout]', {
+          width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height,
+        });
+      }}>{content}</View>
     ) : null;
-    return (
-      <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>
-        <Pressable style={styles.backdrop} onPress={closeSmoothly}>
-          <UiSheetBackdrop pointerEvents="none" style={styles.backdropVisual} motion={motion}/>
-          <UiSheetSurface accessibilityViewIsModal style={sheetStyle} motion={motion}>{body}</UiSheetSurface>
-        </Pressable>
-      </UiSheetModal>
-    );
+    return <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>{content}</UiSheetModal>;
 }
 function createStyles(colors: NovoriColors) {
     return StyleSheet.create({

@@ -729,10 +729,10 @@ export default function HomeScreen() {
             const target = editingComment;
             const previousBody = target.body;
             setSubmittingComment(true);
-            setEditingComment(null);
-            setCommentBody('');
             try {
                 await updatePostComment(target.id, cleaned);
+                setEditingComment(null);
+                setCommentBody('');
             setSheetComments((current) => current.map((item) => item.id ===
                 target.id
                 ? {
