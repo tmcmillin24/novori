@@ -1,7 +1,7 @@
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
-import { ColorValue, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ColorValue, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NovoriColors } from '../constants/novori-theme';
 type PhotoSourceColors = {
@@ -22,6 +22,18 @@ export default function PhotoSourceSheet({ visible, title, subtitle = 'Choose wh
         colors,
     ]);
     const [mounted, setMounted,] = useState(visible);
+    const pendingAction = useRef<(() => void | Promise<void>) | null>(null);
+    function finishDismissal() {
+        const action = pendingAction.current;
+        pendingAction.current = null;
+        void action?.();
+    }
+    // Android has no Modal.onDismiss callback. Its hidden modal releases the
+    // presenter during the commit; iOS must wait for native dismissal completion.
+    useEffect(() => {
+        if (!mounted && Platform.OS !== 'ios') finishDismissal();
+    }, [mounted]);
+    useEffect(() => () => { pendingAction.current = null; }, []);
     const motion = useUiSheetMotion({ visible, busy: false, onDismiss: () => { setMounted(false); onClose(); } });
     const closeSmoothly = motion.close;
     useEffect(() => {
@@ -38,14 +50,13 @@ export default function PhotoSourceSheet({ visible, title, subtitle = 'Choose wh
         visible,
     ]);
     function runAction(action: () => void | Promise<void>) {
-        closeSmoothly(() => {
-            void action();
-        });
+        if (motion.closing.current || pendingAction.current) return;
+        pendingAction.current = action;
+        closeSmoothly();
     }
-    if (!mounted) {
-        return null;
-    }
-    return (<UiSheetModal visible transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
+    // Keep the Modal instance mounted while hidden so its native dismissal
+    // callback can safely present the camera or library picker.
+    return (<UiSheetModal visible={mounted} transparent animationType="none" onDismiss={finishDismissal} onRequestClose={() => closeSmoothly()} motion={motion}>
       <SafeAreaView style={styles.modalRoot} edges={[
             'top',
             'left',
