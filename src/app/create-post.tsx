@@ -1,3 +1,4 @@
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import PostTypeIdentifier from '../components/PostTypeIdentifier';
 import { canManageClubPosts } from '../lib/club-posts';
@@ -655,6 +656,8 @@ export default function CreatePostScreen() {
     bookQuery,
   ]);
 
+  const [submissionWarning, setSubmissionWarning] = useState<{ title: string; message: string } | null>(null);
+
   const trimmedBody =
     body.trim();
 
@@ -1063,21 +1066,21 @@ export default function CreatePostScreen() {
     } catch (
       error
     ) {
-      console.error(
-        isEditing
-          ? 'Could not update post:'
-          : 'Could not create post:',
-        error
-      );
-
-      Alert.alert(
-        isEditing
-          ? 'Could not save changes'
-          : 'Could not post',
-        error instanceof Error
-          ? error.message
-          : 'Please try again.'
-      );
+      const details = error && typeof error === 'object'
+        ? error as { code?: string; message?: string; review_id?: string }
+        : null;
+      const moderationResponse = details?.code === 'NOVORI_MODERATION';
+      if (!moderationResponse) {
+        console.error(isEditing ? 'Could not update post:' : 'Could not create post:', error);
+      }
+      setSubmissionWarning({
+        title: moderationResponse && details?.review_id
+          ? 'Submission under review'
+          : isEditing ? 'Could not save changes' : 'Could not post',
+        message: moderationResponse && details?.review_id
+          ? 'Your submission needs a safety review and has not been published. After approval, you can submit it again. For help, contact support@novori.link.'
+          : details?.message || 'Please try again.',
+      });
     } finally {
       setSaving(
         false
@@ -2329,6 +2332,14 @@ export default function CreatePostScreen() {
           </KeyboardAwareScrollView>
         </View>
       </SafeAreaView>
+
+      <ValidationWarningSheet
+        visible={submissionWarning !== null}
+        title={submissionWarning?.title ?? 'Could not post'}
+        message={submissionWarning?.message ?? ''}
+        dismissLabel="Got it"
+        onDismiss={() => setSubmissionWarning(null)}
+      />
 
       <PhotoSourceSheet
         visible={
