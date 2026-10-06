@@ -7,21 +7,22 @@ import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 type Props = {
     visible: boolean;
+    embedded?: boolean;
     title: string;
     message: string;
     onDismiss: () => void;
     icon?: keyof typeof Ionicons.glyphMap;
     dismissLabel?: string;
 };
-export default function ValidationWarningSheet({ visible, title, message, onDismiss, icon = 'alert-circle-outline', dismissLabel = 'Dismiss warning' }: Props) {
+export default function ValidationWarningSheet({ visible, embedded = false, title, message, onDismiss, icon = 'alert-circle-outline', dismissLabel = 'Dismiss warning' }: Props) {
     const { colors } = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const motion = useUiSheetMotion({ visible, busy: false, onDismiss: onDismiss });
+    const motion = useUiSheetMotion({ visible, embedded, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
     // Use the same fade/slide timings and gesture thresholds as Novori's existing
     // confirmation sheets, with one acknowledgement button for validation.
-    return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>
+    const content = (
       <Pressable style={styles.backdrop} onPress={closeSmoothly}>
         <UiSheetBackdrop pointerEvents="none" style={[styles.backdropVisual, {}]} motion={motion}/>
         <UiSheetSurface accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 12) }]} motion={motion}>
@@ -36,7 +37,9 @@ export default function ValidationWarningSheet({ visible, title, message, onDism
           </Pressable>
         </UiSheetSurface>
       </Pressable>
-    </UiSheetModal>);
+    );
+    if (embedded) return visible ? <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} accessibilityViewIsModal>{content}</View> : null;
+    return <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>{content}</UiSheetModal>;
 }
 function createStyles(colors: NovoriColors) {
     return StyleSheet.create({

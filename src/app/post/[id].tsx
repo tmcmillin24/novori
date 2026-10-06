@@ -1,3 +1,4 @@
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { openCommentConversation } from '../../lib/open-comment-conversation';
@@ -424,6 +425,17 @@ export default function PostDetailScreen() {
             });
         }
     }
+    const [commentWarning, setCommentWarning] = useState<{title: string; message: string} | null>(null);
+    function showCommentWarning(error: unknown, fallbackTitle: string) {
+        const details = error && typeof error === 'object' ? error as {code?: string; message?: string} : null;
+        const message = details?.message || 'Please try again.';
+        Keyboard.dismiss();
+        setCommentWarning({
+            title: details?.code === 'NOVORI_MODERATION' && /review/i.test(message)
+                ? 'Submission under review' : fallbackTitle,
+            message,
+        });
+    }
     async function submitComment() {
         if (!post ||
             submitting || commentSubmitInFlight.current || (focusedThreadId && !replyTo && !editingComment)) {
@@ -456,7 +468,7 @@ export default function PostDetailScreen() {
             catch (submitError) {
                 if (!mounted.current || viewPostId.current !== writePostId)
                     return;
-                console.warn('Could not edit comment:', submitError);
+                if ((submitError as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not edit comment:', submitError);
                 setComments((current) => current.map((item) => item.id ===
                     target.id
                     ? {
@@ -466,9 +478,7 @@ export default function PostDetailScreen() {
                     : item));
                 setEditingComment(target);
                 setCommentBody(cleaned);
-                Alert.alert('Could not edit comment', submitError instanceof Error
-                    ? submitError.message
-                    : 'Please try again.');
+                showCommentWarning(submitError, 'Could not edit comment');
             }
             finally {
                 commentSubmitInFlight.current = false;
@@ -544,7 +554,7 @@ export default function PostDetailScreen() {
         catch (submitError) {
             if (!mounted.current || viewPostId.current !== writePostId)
                 return;
-            console.warn('Could not add comment:', submitError);
+            if ((submitError as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not add comment:', submitError);
             setComments((current) => current.filter((comment) => comment.id !==
                 optimisticId));
             setPost((current) => current
@@ -557,9 +567,7 @@ export default function PostDetailScreen() {
                 : current);
             setCommentBody(previousBody);
             setReplyTo(previousReply);
-            Alert.alert('Could not comment', submitError instanceof Error
-                ? submitError.message
-                : 'Please try again.');
+            showCommentWarning(submitError, 'Could not comment');
         }
         finally {
             commentSubmitInFlight.current = false;
@@ -1367,6 +1375,7 @@ export default function PostDetailScreen() {
           </View>
           </View>
         </KeyboardStickyView> : null}
+        <ValidationWarningSheet visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
         <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
             if (deleteCommentTarget)
                 await removeComment(deleteCommentTarget.id);

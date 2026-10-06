@@ -1,3 +1,4 @@
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { rememberAccountRestriction, restrictedAccountRoute } from '../../lib/account-restriction-notice';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
@@ -694,6 +695,17 @@ export default function HomeScreen() {
     function toggleReplies(commentId: string) {
         setExpandedReplyThreads(current => ({ ...current, [commentId]: (current[commentId] ?? COMMENT_REPLY_BATCH_SIZE) + COMMENT_REPLY_BATCH_SIZE }));
     }
+    const [commentWarning, setCommentWarning] = useState<{title: string; message: string} | null>(null);
+    function showCommentWarning(error: unknown, fallbackTitle: string) {
+        const details = error && typeof error === 'object' ? error as {code?: string; message?: string} : null;
+        const message = details?.message || 'Please try again.';
+        Keyboard.dismiss();
+        setCommentWarning({
+            title: details?.code === 'NOVORI_MODERATION' && /review/i.test(message)
+                ? 'Submission under review' : fallbackTitle,
+            message,
+        });
+    }
     async function submitSheetComment() {
         if (!commentsPost ||
             submittingComment || commentSubmitInFlight.current) {
@@ -728,7 +740,7 @@ export default function HomeScreen() {
             catch (error) {
                 if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== writePostId)
                     return;
-                console.warn('Could not edit comment:', error);
+                if ((error as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not edit comment:', error);
                 setSheetComments((current) => current.map((item) => item.id ===
                     target.id
                     ? {
@@ -738,9 +750,7 @@ export default function HomeScreen() {
                     : item));
                 setEditingComment(target);
                 setCommentBody(cleaned);
-                Alert.alert('Could not edit comment', error instanceof Error
-                    ? error.message
-                    : 'Please try again.');
+                showCommentWarning(error, 'Could not edit comment');
             }
             finally {
                 commentSubmitInFlight.current = false;
@@ -823,7 +833,7 @@ export default function HomeScreen() {
         catch (error) {
             if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== writePostId)
                 return;
-            console.warn('Could not add comment:', error);
+            if ((error as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not add comment:', error);
             setSheetComments((current) => current.filter((comment) => comment.id !==
                 optimisticId));
             setFeedPosts((current) => current.map((item) => item.id ===
@@ -846,9 +856,7 @@ export default function HomeScreen() {
                 : current);
             setCommentBody(previousBody);
             setReplyTarget(previousReplyTarget);
-            Alert.alert('Could not comment', error instanceof Error
-                ? error.message
-                : 'Please try again.');
+            showCommentWarning(error, 'Could not comment');
         }
         finally {
             commentSubmitInFlight.current = false;
@@ -2822,6 +2830,7 @@ export default function HomeScreen() {
             </Reanimated.View>
           </View>
         </View>
+        <ValidationWarningSheet embedded visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
       </CommentsWindowOverlay>
 
     </>);
