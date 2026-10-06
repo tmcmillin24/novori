@@ -38,6 +38,7 @@ export type BookStackVisualVariant =
 type Props = {
   items: StackBook[];
   compact?: boolean;
+  animateLayout?: boolean;
   variant?: BookStackVisualVariant;
   selectedId?: string | null;
   onSelect?: (
@@ -101,6 +102,7 @@ type StackCoverProps = {
   config: VariantConfig;
   colors: NovoriColors;
   compactVisual: boolean;
+  animateLayout: boolean;
   onSelect?: (
     item: StackBook
   ) => void;
@@ -114,6 +116,7 @@ function StackCover({
   config,
   colors,
   compactVisual,
+  animateLayout,
   onSelect,
 }: StackCoverProps) {
   const selection =
@@ -189,10 +192,7 @@ function StackCover({
   return (
     <Animated.View
       layout={
-        LinearTransition
-          .springify()
-          .damping(22)
-          .stiffness(185)
+        animateLayout ? LinearTransition.springify().damping(22).stiffness(185) : undefined
       }
       style={[
         {
@@ -310,6 +310,7 @@ function StackCover({
 export default function BookStackVisual({
   items,
   compact = false,
+  animateLayout = true,
   variant,
   selectedId = null,
   onSelect,
@@ -437,6 +438,7 @@ export default function BookStackVisual({
             colors={
               colors
             }
+            animateLayout={animateLayout}
             compactVisual={
               resolvedVariant ===
               'profile'

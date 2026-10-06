@@ -38,6 +38,7 @@ type Props = {
   name: string;
   onNameChange?: (name: string) => void;
   disabled?: boolean;
+  animateLayout?: boolean;
   children?: ReactNode;
   items: BookStackShowcaseItem[];
   variant?: BookStackVisualVariant;
@@ -56,6 +57,7 @@ export default function BookStackShowcase({
   name,
   onNameChange,
   disabled = false,
+  animateLayout = true,
   children,
   items,
   variant = 'feed',
@@ -293,6 +295,7 @@ export default function BookStackShowcase({
         }
       >
         <BookStackVisual
+          animateLayout={animateLayout}
           variant={
             variant
           }

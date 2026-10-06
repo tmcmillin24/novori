@@ -1117,6 +1117,7 @@ export default function CreateBookStackScreen() {
             style={[styles.postInput, { height: postTextHeight }]}
           />
           <BookStackShowcase
+            animateLayout={Boolean(draggingBookId)}
             name={name}
             onNameChange={setName}
             disabled={saving || publishing}
@@ -1146,6 +1147,7 @@ export default function CreateBookStackScreen() {
                         item={item}
                         index={index}
                         rowCount={items.length}
+                        animateLayout={Boolean(draggingBookId)}
                         isDragging={draggingBookId === item.googleBookId}
                         dropEdge={dragTargetIndex === index ? dragTargetEdge : null}
                         onDragStart={startBookDrag}

@@ -33,6 +33,7 @@ type Props = {
   item: BookStackDraftItem;
   index: number;
   rowCount: number;
+  animateLayout?: boolean;
   isDragging: boolean;
   dropEdge: StackDropEdge;
   onDragStart: (
@@ -55,6 +56,7 @@ export default function SortableBookStackRow({
   item,
   index,
   rowCount,
+  animateLayout = true,
   isDragging,
   dropEdge,
   onDragStart,
@@ -182,10 +184,7 @@ export default function SortableBookStackRow({
   return (
     <Animated.View
       layout={
-        LinearTransition
-          .springify()
-          .damping(20)
-          .stiffness(220)
+        animateLayout ? LinearTransition.springify().damping(20).stiffness(220) : undefined
       }
       style={[
         styles.rowWrap,
