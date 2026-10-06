@@ -38,7 +38,7 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
         </UiSheetSurface>
       </Pressable>
     );
-    if (embedded) return visible ? <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} accessibilityViewIsModal>{content}</View> : null;
+    if (embedded) return visible ? <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} onLayout={motion.onShow} accessibilityViewIsModal>{content}</View> : null;
     return <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>{content}</UiSheetModal>;
 }
 function createStyles(colors: NovoriColors) {

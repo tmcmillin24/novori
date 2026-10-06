@@ -2829,8 +2829,8 @@ export default function HomeScreen() {
               </Reanimated.View>
             </Reanimated.View>
           </View>
+          {commentWarning ? <ValidationWarningSheet embedded visible title={commentWarning.title} message={commentWarning.message} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/> : null}
         </View>
-        <ValidationWarningSheet embedded visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
       </CommentsWindowOverlay>
 
     </>);

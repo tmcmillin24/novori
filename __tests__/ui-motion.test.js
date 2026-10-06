@@ -18,8 +18,8 @@ jest.mock('react-native-gesture-handler',()=>({GestureDetector:'GestureDetector'
  Simultaneous:(...gestures)=>({gestures}),
 }}));
 let view,api;const dismiss=jest.fn(),commit=jest.fn();
-function Harness({kind='sheet',visible=true,busy=false}){
- api=kind==='sheet'?useUiSheetMotion({visible,busy,onDismiss:dismiss}):kind==='swipe'?useUiSwipeDismiss(390,dismiss):useUiCropGesture({geometry:{baseWidth:300,baseHeight:400},size:300,maxZoom:4,x:0,y:0,zoom:1,busy,onCommit:commit});return null;
+function Harness({kind='sheet',visible=true,busy=false,embedded=false}){
+ api=kind==='sheet'?useUiSheetMotion({visible,busy,embedded,onDismiss:dismiss}):kind==='swipe'?useUiSwipeDismiss(390,dismiss):useUiCropGesture({geometry:{baseWidth:300,baseHeight:400},size:300,maxZoom:4,x:0,y:0,zoom:1,busy,onCommit:commit});return null;
 }
 async function mount(props={}){await act(async()=>{view=renderer.create(<Harness {...props}/>);});}
 function finish(){const frames=mockFrames;mockFrames=[];frames.forEach(fn=>fn());const animations=mockAnimations;mockAnimations=[];animations.forEach(a=>a.callback?.(true));}
@@ -53,3 +53,13 @@ test('crop pan and pinch clamp to image bounds and publish only final pose',asyn
 
 test('hiding a closing sheet cancels its pending action and dismissal',async()=>{await mount();open();const action=jest.fn();api.close(action);await act(async()=>view.update(<Harness visible={false}/>));finish();expect(dismiss).not.toHaveBeenCalled();expect(action).not.toHaveBeenCalled();});
 test('unmounted swipe rows do not dispatch a late removal',async()=>{await mount({kind:'swipe'});api.gesture.handlers.onStart();api.gesture.handlers.onEnd({translationX:-150,velocityX:0});await act(async()=>view.unmount());view=null;finish();expect(dismiss).not.toHaveBeenCalled();});
+
+test('embedded warnings open after layout without a native modal and reopen after dismissal',async()=>{
+ await mount({embedded:true});api.onLayout({nativeEvent:{layout:{height:220}}});finish();
+ expect(api.sheetStyle.read().opacity).toBe(1);expect(api.sheetStyle.read().transform[0].translateY).toBe(0);
+ api.close();finish();expect(dismiss).toHaveBeenCalledTimes(1);
+ await act(async()=>view.update(<Harness embedded visible={false}/>));
+ await act(async()=>view.update(<Harness embedded visible/>));
+ api.onLayout({nativeEvent:{layout:{height:220}}});finish();
+ expect(api.sheetStyle.read().opacity).toBe(1);expect(api.sheetStyle.read().transform[0].translateY).toBe(0);
+});
