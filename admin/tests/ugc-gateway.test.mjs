@@ -79,7 +79,7 @@ test('signup screens only names; flagged names never reach Auth and approved cre
 test('media Worker caches within the zone and revokes cached delivery when origin blocks an asset',async()=>{
  const oldFetch=globalThis.fetch,oldCaches=globalThis.caches,map=new Map(),calls=[];let blocked=false;
  globalThis.caches={default:{match:async key=>map.get(key.url)?.clone(),put:async(key,response)=>map.set(key.url,response),delete:async key=>map.delete(key.url)}};
- globalThis.fetch=async(input,init)=>{calls.push({url:String(input),init});return new Response(init.method==='HEAD'?null:'IMAGE',{status:blocked?404:200,headers:{'Cache-Control':'public,max-age=300'}});};
+ globalThis.fetch=async(input,init)=>{assert.equal(init.redirect,'manual');calls.push({url:String(input),init});return new Response(init.method==='HEAD'?null:'IMAGE',{status:blocked?404:200,headers:{'Cache-Control':'public,max-age=300'}});};
  try {
   const env={SUPABASE_URL:'https://project.supabase.co',NOVORI_MEDIA_ORIGIN_SECRET:'origin-secret'},req=new Request(`https://media.novori.link/avatars/${user}/photo.jpg`);
   const first=await worker.fetch(req,env);assert.equal(first.headers.get('X-Novori-Media-Cache'),'MISS');assert.equal(map.size,1);
@@ -99,3 +99,11 @@ test('deletion cleanup removes service-owned and quarantined media without delet
  const client={from:()=>({select:()=>chain}),storage:{from:bucket=>({list:async prefix=>{assert.equal(prefix,user);return {data:reads++?[ ]:[{name:'hash'}]};},remove:async paths=>{removed.push({bucket,paths});return {};}})}};
  await cleanupReaderModerationMedia(client,user);assert.deepEqual(removed,[{bucket:'avatars',paths:[`${user}/photo.jpg`]},{bucket:'moderation-quarantine',paths:[`${user}/hash`]}]);
 });
+
+ test('Worker refuses redirects on both initial fetch and cached authorization without exposing Location',async()=>{
+ const oldFetch=globalThis.fetch,oldCaches=globalThis.caches;let cached=false,puts=0;
+ globalThis.caches={default:{match:async()=>cached?new Response('CACHED'):undefined,put:async()=>{puts++;},delete:async()=>true}};
+ globalThis.fetch=async(_url,init)=>{assert.equal(init.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://other.invalid/image'}});};
+ try{for(const value of [false,true]){cached=value;const r=await worker.fetch(new Request(`https://media.novori.link/avatars/${user}/photo.jpg`),{SUPABASE_URL:'https://project.supabase.co',NOVORI_MEDIA_ORIGIN_SECRET:'private'});assert.equal(r.status,502);assert.equal(r.headers.has('Location'),false);assert.equal(await r.text(),'');}assert.equal(puts,0);}
+ finally{globalThis.fetch=oldFetch;globalThis.caches=oldCaches;}
+ });

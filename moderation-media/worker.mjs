@@ -13,15 +13,17 @@ export default {
     const cached = await cache.match(cacheKey);
     if (cached) {
       // Cached bytes never override removal/ban/deletion at the private origin.
-      const access = await fetch(upstream,{method:'HEAD',headers:{'X-Novori-Media-Origin':env.NOVORI_MEDIA_ORIGIN_SECRET},redirect:'error'});
+      const access = await fetch(upstream,{method:'HEAD',headers:{'X-Novori-Media-Origin':env.NOVORI_MEDIA_ORIGIN_SECRET},redirect:'manual'});
+      if (access.status >= 300 && access.status < 400) return new Response(null,{status:502,headers:{'Cache-Control':'no-store'}});
       if (!access.ok) {await cache.delete(cacheKey);return new Response(null,{status:access.status,headers:{'Cache-Control':'no-store'}});}
       const headers = new Headers(cached.headers); headers.set('X-Novori-Media-Cache','HIT');headers.set('Cache-Control','no-store');
       return new Response(request.method === 'HEAD' ? null : cached.body, { status: cached.status, headers });
     }
     const response = await fetch(upstream, {
       method: 'GET', headers: { 'X-Novori-Media-Origin': env.NOVORI_MEDIA_ORIGIN_SECRET },
-      redirect: 'error',
+      redirect: 'manual',
     });
+    if (response.status >= 300 && response.status < 400) return new Response(null,{status:502,headers:{'Cache-Control':'no-store'}});
     const headers = new Headers(response.headers);
     headers.delete('set-cookie'); headers.set('X-Content-Type-Options', 'nosniff');
     if (response.ok) await cache.put(cacheKey, new Response(response.clone().body, { status: response.status, headers }));
