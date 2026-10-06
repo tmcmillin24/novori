@@ -1,3 +1,4 @@
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import PostTypeIdentifier from '../components/PostTypeIdentifier';
@@ -519,6 +520,19 @@ export default function CreatePostScreen() {
       } catch (
         error
       ) {
+        const accountUnavailable = /user is banned|account cannot publish/i.test(
+          error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error)
+        );
+        if (accountUnavailable) {
+          if (active) {
+            await dismissKeyboardBeforeWarning();
+            if (active) setSubmissionWarning({
+              title: 'Account restricted',
+              message: 'Your account cannot publish right now. For help or to appeal, contact support@novori.link.',
+            });
+          }
+          return;
+        }
         console.error(
           isEditing
             ? 'Could not load post for editing:'
@@ -1070,14 +1084,18 @@ export default function CreatePostScreen() {
         ? error as { code?: string; message?: string; review_id?: string }
         : null;
       const moderationResponse = details?.code === 'NOVORI_MODERATION';
-      if (!moderationResponse) {
+      const accountUnavailable = /user is banned|account cannot publish/i.test(details?.message ?? '');
+      if (!moderationResponse && !accountUnavailable) {
         console.error(isEditing ? 'Could not update post:' : 'Could not create post:', error);
       }
+      await dismissKeyboardBeforeWarning();
       setSubmissionWarning({
-        title: moderationResponse && details?.review_id
+        title: accountUnavailable ? 'Account restricted' : moderationResponse && details?.review_id
           ? 'Submission under review'
           : isEditing ? 'Could not save changes' : 'Could not post',
-        message: moderationResponse && details?.review_id
+        message: accountUnavailable
+          ? 'Your account cannot publish right now. For help or to appeal, contact support@novori.link.'
+          : moderationResponse && details?.review_id
           ? 'Your submission needs a safety review and has not been published. After approval, you can submit it again. For help, contact support@novori.link.'
           : details?.message || 'Please try again.',
       });
