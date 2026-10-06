@@ -900,6 +900,7 @@ export default function CreateBookStackScreen() {
     saveInFlight.current = true;
 
     try {
+      await dismissKeyboardBeforeWarning();
       setSaving(true);
 
       await saveBookStackSubmission({ name, items, stackId: isEditing ? editStackId : null,
@@ -920,6 +921,7 @@ export default function CreateBookStackScreen() {
     saveInFlight.current = true;
 
     try {
+      await dismissKeyboardBeforeWarning();
       setPublishing(
         true
       );
@@ -1088,6 +1090,7 @@ export default function CreateBookStackScreen() {
         contentContainerStyle={styles.content}
         scrollEnabled={!draggingBookId}
         keyboardShouldPersistTaps="handled"
+        disableScrollOnKeyboardHide
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
@@ -1135,7 +1138,7 @@ export default function CreateBookStackScreen() {
               </Pressable>
               {items.length > 0 ? (
                 <>
-                  <Text style={styles.sectionSubtext}>Hold the grip to rearrange. The first book is the featured cover.</Text>
+                  <Text style={styles.sectionSubtext}>Hold the grip to rearrange your books.</Text>
                   <View style={styles.arrangeList}>
                     {items.map((item, index) => (
                       <SortableBookStackRow

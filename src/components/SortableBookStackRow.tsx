@@ -254,30 +254,7 @@ export default function SortableBookStackRow({
               }
             </Text>
 
-            {index ===
-            0 ? (
-              <View
-                style={
-                  styles.featuredBadge
-                }
-              >
-                <Ionicons
-                  name="star"
-                  size={9}
-                  color={
-                    colors.gold
-                  }
-                />
 
-                <Text
-                  style={
-                    styles.featuredText
-                  }
-                >
-                  Featured
-                </Text>
-              </View>
-            ) : null}
           </View>
 
           <Text

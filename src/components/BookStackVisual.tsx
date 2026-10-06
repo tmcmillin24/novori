@@ -301,18 +301,7 @@ function StackCover({
           </View>
         )}
 
-        {index ===
-        0 ? (
-          <View
-            style={
-              stylesForCover(
-                colors,
-                config
-              )
-                .featuredMarker
-            }
-          />
-        ) : null}
+
       </Pressable>
     </Animated.View>
   );
