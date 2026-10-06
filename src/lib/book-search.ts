@@ -1,6 +1,6 @@
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
-import { normalizeIsbnDbEdition, audioEditionPenalty, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { normalizeIsbnDbEdition, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
@@ -1319,7 +1319,8 @@ function getTitleSearchRelevance(
     title ===
       normalizedQuery ||
     canonicalTitle ===
-      normalizedQuery
+      normalizedQuery ||
+    stripLeadingTitleArticle(canonicalTitle) === stripLeadingTitleArticle(normalizedQuery)
   ) {
     return 400;
   }
@@ -2102,7 +2103,7 @@ function getSearchWorkIdentityTitle(
     }
   }
 
-  return title;
+  return stripLeadingTitleArticle(title);
 }
 
 function getSearchTitleStem(
@@ -2693,6 +2694,12 @@ function collapseDuplicateEditions(
                 return localeDifference;
               }
 
+              // A complete edition should beat a same-work record lacking a
+              // publication date, independent of the query's leading article.
+              const dateDifference = Number(Boolean(validPublicationDate(b.volumeInfo.publishedDate))) -
+                Number(Boolean(validPublicationDate(a.volumeInfo.publishedDate)));
+              if (dateDifference !== 0) return dateDifference;
+
               const aHardcover =
                 hardcoverPopularity[
                   a.id
@@ -3054,6 +3061,30 @@ async function loadNovoriBooks(searchTerm: string) {
       searchTerm
     );
 
+  // Provider searches can omit an article and return an incomplete edition.
+  // Only repair exact, multiword title matches missing a valid date; ordinary
+  // searches keep their existing request count and cache keys.
+  const incompleteMatches = initialResults.filter(book =>
+    normalizeTitle(book.volumeInfo.title) === normalizedQuery &&
+    !validPublicationDate(book.volumeInfo.publishedDate));
+  if (normalizedQuery.split(' ').length >= 3 &&
+      stripLeadingTitleArticle(normalizedQuery) === normalizedQuery &&
+      incompleteMatches.length > 0 &&
+      !hasDerivativeSearchIntent(normalizedQuery) &&
+      !hasCollectionSearchIntent(normalizedQuery) &&
+      !hasEditionSearchIntent(normalizedQuery)) {
+    const repairs = await Promise.all(['a', 'an', 'the'].map(async article => {
+      const alternate = await fetchSharedGoogleBooksSearch(`${article} ${normalizedQuery}`).catch(() => null);
+      return alternate?.ok ? (alternate.data?.items ?? []).map(normalizeIsbnDbEdition)
+        .filter(candidate => validPublicationDate(candidate.volumeInfo.publishedDate) &&
+          incompleteMatches.some(original =>
+            getSearchWorkIdentityTitle(candidate) === getSearchWorkIdentityTitle(original) &&
+            authorsMatchOrCandidateMissing(original, candidate) &&
+            Boolean(candidate.volumeInfo.authors?.length))) : [];
+    }));
+    initialResults = [...new Map([...initialResults, ...repairs.flat()].map(book => [book.id, book])).values()];
+  }
+
   let authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
   if (authorQualifiedResults.length === 0) {
     const refinement = getTitleAuthorRefinementQuery(initialResults, normalizedQuery);
@@ -3218,7 +3249,7 @@ async function loadNovoriBooks(searchTerm: string) {
 
         const canonicalGoogleCover =
           getBestEligibleGoogleWorkCover(
-            siblingEditions
+            [representative, ...siblingEditions.filter(book => book.id !== representative.id)]
           );
 
         representative.novoriWork = {

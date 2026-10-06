@@ -114,3 +114,28 @@ test('supplements and sets remain searchable when explicitly requested',async()=
  expect((await api.searchNovoriBooks('a court of thorns and roses calendar')).some(b=>/calendar/i.test(b.volumeInfo.title))).toBe(true);
  expect((await api.searchNovoriBooks('a court of thorns and roses box set')).some(b=>/box set/i.test(b.volumeInfo.title))).toBe(true);
 });
+
+ test('missing leading article repairs an incomplete same-author edition through cached searches',async()=>{
+  const weak=book('weak','Sarah J. Maas','Court of Thorns and Roses');
+  const complete=book('complete','Sarah J. Maas','A Court of Thorns and Roses');
+  complete.volumeInfo.publishedDate='2015-05-05';
+  const other=book('other','Other Author','A Court of Thorns and Roses');
+  other.volumeInfo.publishedDate='2020';
+  const api=load([weak],{'a court of thorns and roses':[complete,other],'an court of thorns and roses':[],'the court of thorns and roses':[]});
+  const rows=await api.searchNovoriBooks('court of thorns and roses');
+  expect(rows.map(row=>row.id)).toEqual(['complete']);
+  expect(rows[0].volumeInfo.publishedDate).toBe('2015-05-05');
+  expect(rows[0].novoriWork.canonicalCoverUrl).toBe('https://covers.test/complete');
+  expect((await api.searchNovoriBooks('a court of thorns and roses'))[0].id).toBe('complete');
+ });
+ test('complete title matches avoid article repair requests',async()=>{
+  const complete=book('complete','Sarah J. Maas','Court of Thorns and Roses');
+  complete.volumeInfo.publishedDate='2015';
+  const api=load([complete]);await api.searchNovoriBooks('court of thorns and roses');
+  expect(api.searchCalls).toHaveLength(1);
+ });
+ test('article repair failure preserves the original usable edition',async()=>{
+  const weak=book('weak','Sarah J. Maas','Court of Thorns and Roses');
+  const api=load([weak],{'a court of thorns and roses':Error('Offline'),'an court of thorns and roses':[],'the court of thorns and roses':[]});
+  expect((await api.searchNovoriBooks('court of thorns and roses'))[0].id).toBe('weak');
+ });
