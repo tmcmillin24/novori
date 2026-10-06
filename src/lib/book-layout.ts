@@ -8,3 +8,7 @@ export function getBookLayout(width: number) {
     releaseCoverWidth: tablet ? Math.min(190, Math.max(150, Math.round(width * 0.15))) : 112,
   };
 }
+
+export function getProfileBookWidth(windowWidth: number): number | '31%' {
+  return windowWidth >= 768 ? Math.floor((windowWidth - 40 - 3 * 12) / 4) : '31%';
+}

@@ -1,3 +1,4 @@
+import { getProfileBookWidth } from '../../lib/book-layout';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
@@ -13,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
@@ -78,7 +79,8 @@ export default function ReaderProfileScreen() {
     }>();
     const { colors, } = useNovoriTheme();
     const insets = useSafeAreaInsets();
-    const styles = createStyles(colors);
+    const { width: windowWidth } = useWindowDimensions();
+    const styles = createStyles(colors, windowWidth);
     const readerId = typeof params.id ===
         'string'
         ? params.id
@@ -1298,7 +1300,7 @@ export default function ReaderProfileScreen() {
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
-function createStyles(colors: NovoriColors) {
+function createStyles(colors: NovoriColors, windowWidth = 390) {
     return StyleSheet.create({
         safeArea: {
             flex: 1,
@@ -1616,7 +1618,7 @@ function createStyles(colors: NovoriColors) {
             color: colors.gold,
         },
         publicBookCard: {
-            width: '31%',
+            width: getProfileBookWidth(windowWidth),
             minWidth: 96,
         },
         publicBookCoverWrap: {

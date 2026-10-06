@@ -1,3 +1,4 @@
+import { getProfileBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
 import FeedPostCard from '../../components/FeedPostCard';
@@ -10,7 +11,7 @@ import { Image as ExpoImage } from 'expo-image';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import BookStackActionsSheet from '../../components/BookStackActionsSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
@@ -120,7 +121,8 @@ async function writeProfileCache(userId: string, snapshot: ProfileCacheSnapshot)
 export default function ProfileScreen() {
     const feedLanguage = useFeedLanguagePreference();
     const { colors, } = useNovoriTheme();
-    const styles = createStyles(colors);
+    const { width: windowWidth } = useWindowDimensions();
+    const styles = createStyles(colors, windowWidth);
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
@@ -1301,7 +1303,7 @@ function ProfileTabButton({ label, icon, active, onPress, }: {
       </Text>
     </Pressable>);
 }
-function createStyles(colors: NovoriColors) {
+function createStyles(colors: NovoriColors, windowWidth = 390) {
     return StyleSheet.create({
         profileCacheWarmup: {
             minHeight: 1,
@@ -2077,7 +2079,7 @@ function createStyles(colors: NovoriColors) {
             marginTop: 18,
         },
         gridBook: {
-            width: '31%',
+            width: getProfileBookWidth(windowWidth),
         },
         gridCoverWrap: {
             width: '100%',
