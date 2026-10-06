@@ -10,5 +10,5 @@ export function getBookLayout(width: number) {
 }
 
 export function getProfileBookWidth(windowWidth: number): number | '31%' {
-  return windowWidth >= 768 ? Math.floor((windowWidth - 40 - 3 * 12) / 4) : '31%';
+  return windowWidth >= 768 ? Math.floor((windowWidth - 40 - 3 * 8) / 4) : '31%';
 }

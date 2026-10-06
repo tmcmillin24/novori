@@ -21,8 +21,8 @@ test('rotation adds columns and a narrow split window returns to phone sizing', 
 
  test.each([768, 820, 834, 1032, 1180, 1194, 1366])('profile width %s fits exactly four covers with existing gutters', width => {
   const cover = getProfileBookWidth(width) as number;
-  expect(cover * 4 + 36).toBeLessThanOrEqual(width - 40);
-  expect(cover * 5 + 48).toBeGreaterThan(width - 40);
-  expect(width - 40 - (cover * 4 + 36)).toBeLessThan(4);
+  expect(cover * 4 + 24).toBeLessThanOrEqual(width - 40);
+  expect(cover * 5 + 32).toBeGreaterThan(width - 40);
+  expect(width - 40 - (cover * 4 + 24)).toBeLessThan(4);
  });
  test('phone profile retains three-column sizing', () => expect(getProfileBookWidth(440)).toBe('31%'));

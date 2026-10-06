@@ -561,7 +561,7 @@ export default function ReaderProfileScreen() {
           </View>
         </View>
 
-        <Text style={styles.publicBookTitle} numberOfLines={2}>
+        <Text style={styles.publicBookTitle} numberOfLines={3}>
           {book.title}
         </Text>
 
@@ -1584,7 +1584,9 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
         publicBookGrid: {
             flexDirection: 'row',
             flexWrap: 'wrap',
-            gap: 12,
+            alignItems: 'flex-start',
+            columnGap: 8,
+            rowGap: 10,
         },
         postVoteRow: {
             flexDirection: 'row',

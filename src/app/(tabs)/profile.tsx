@@ -570,7 +570,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              <Text style={styles.gridBookTitle} numberOfLines={2}>
+              <Text style={styles.gridBookTitle} numberOfLines={3}>
                 {book.title}
               </Text>
 
@@ -581,7 +581,7 @@ export default function ProfileScreen() {
                   <Text style={styles.gridRatingText}>
                     {renderRating(book.rating)}
                   </Text>
-                </View>) : (<View style={styles.gridRatingSpacer}/>)}
+                </View>) : null}
             </Pressable>))}
       </View>);
     }
@@ -2074,8 +2074,9 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
             flexDirection: 'row',
             flexWrap: 'wrap',
             justifyContent: 'flex-start',
-            columnGap: 12,
-            rowGap: 22,
+            alignItems: 'flex-start',
+            columnGap: 8,
+            rowGap: 10,
             marginTop: 18,
         },
         gridBook: {
