@@ -1,3 +1,5 @@
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +15,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   Pressable,
@@ -141,6 +142,7 @@ export default function CreateReviewScreen() {
   } =
     useNovoriTheme();
 
+  const [reviewWarning, setReviewWarning] = useState<{ title: string; message: string } | null>(null);
   const styles =
     useMemo(
       () =>
@@ -572,21 +574,18 @@ export default function CreateReviewScreen() {
     } catch (
       error
     ) {
-      console.error(
-        'Could not save review:',
-        error
-      );
-
-      Alert.alert(
-        destination.type ===
-        'library'
-          ? 'Could not save review'
-          : 'Could not share review',
-        error instanceof
-          Error
-          ? error.message
-          : 'Please try again.'
-      );
+      const details = error && typeof error === 'object'
+        ? error as { code?: string; message?: string; review_id?: string }
+        : null;
+      const moderation = details?.code === 'NOVORI_MODERATION';
+      if (!moderation) console.error('Could not save review:', error);
+      await dismissKeyboardBeforeWarning();
+      setReviewWarning({
+        title: moderation && details?.review_id ? 'Submission under review' : 'Could not save review',
+        message: moderation && details?.review_id
+          ? 'Your review needs a safety review. After approval, you can submit it again. For help, contact support@novori.link.'
+          : details?.message || 'Novori had trouble saving your rating and review. Please try again.',
+      });
     } finally {
       setPublishing(
         false
@@ -641,6 +640,7 @@ export default function CreateReviewScreen() {
         'bottom',
       ]}
     >
+      <ValidationWarningSheet visible={reviewWarning !== null} title={reviewWarning?.title ?? 'Could not save review'} message={reviewWarning?.message ?? ''} dismissLabel="Got it" onDismiss={() => setReviewWarning(null)}/>
       <View
         style={
           styles.keyboardView

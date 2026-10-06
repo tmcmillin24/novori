@@ -1,3 +1,5 @@
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
@@ -101,6 +103,7 @@ export default function RateReviewScreen() {
 
 
 
+  const [reviewWarning, setReviewWarning] = useState<{ title: string; message: string } | null>(null);
   const [
 
     book,
@@ -410,24 +413,18 @@ export default function RateReviewScreen() {
 
     ) {
 
-      console.error(
-
-        'Could not save review:',
-
-        error
-
-      );
-
-
-
-      Alert.alert(
-
-        'Could not save review',
-
-        'Novori had trouble saving your rating and review. Please try again.'
-
-      );
-
+      const details = error && typeof error === 'object'
+        ? error as { code?: string; message?: string; review_id?: string }
+        : null;
+      const moderation = details?.code === 'NOVORI_MODERATION';
+      if (!moderation) console.error('Could not save review:', error);
+      await dismissKeyboardBeforeWarning();
+      setReviewWarning({
+        title: moderation && details?.review_id ? 'Submission under review' : 'Could not save review',
+        message: moderation && details?.review_id
+          ? 'Your review needs a safety review. After approval, you can submit it again. For help, contact support@novori.link.'
+          : details?.message || 'Novori had trouble saving your rating and review. Please try again.',
+      });
     } finally {
 
       setSaving(false);
@@ -915,6 +912,7 @@ export default function RateReviewScreen() {
 
     >
 
+      <ValidationWarningSheet visible={reviewWarning !== null} title={reviewWarning?.title ?? 'Could not save review'} message={reviewWarning?.message ?? ''} dismissLabel="Got it" onDismiss={() => setReviewWarning(null)}/>
       <View
         style={
           styles.keyboardView
