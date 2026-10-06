@@ -15,7 +15,7 @@ export default function LegalDocumentScreen() {
     content: {
       paddingHorizontal: 24,
       paddingBottom: 40,
-      maxWidth: 800,
+      maxWidth: '100%',
       width: "100%",
       alignSelf: "center",
     },

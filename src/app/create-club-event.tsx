@@ -20,7 +20,7 @@ export default function CreateClubEventScreen() {
   const {colors} = useNovoriTheme();const styles = useMemo(()=>StyleSheet.create({
     safe:{flex:1,backgroundColor:colors.background},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:18,paddingVertical:12},
     close:{padding:7},heading:{color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:20},save:{paddingVertical:9,paddingHorizontal:16,borderRadius:12,backgroundColor:colors.gold},saveText:{color:colors.background,fontFamily:'Inter_700Bold',fontSize:12},
-    content:{padding:18,paddingBottom:40,maxWidth:720,width:'100%',alignSelf:'center'},card:{backgroundColor:colors.surface,borderWidth:1,borderColor:`${colors.gold}50`,borderRadius:20,padding:16},
+    content:{padding:18,paddingBottom:40,maxWidth: '100%',width:'100%',alignSelf:'center'},card:{backgroundColor:colors.surface,borderWidth:1,borderColor:`${colors.gold}50`,borderRadius:20,padding:16},
     eyebrow:{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:10,letterSpacing:.8,marginBottom:8},club:{color:colors.mutedText,fontFamily:'Inter_500Medium',fontSize:11,marginBottom:13},
     title:{color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:25,paddingVertical:8},input:{color:colors.text,fontFamily:'Inter_400Regular',fontSize:13,lineHeight:20,paddingVertical:10},
     modes:{flexDirection:'row',gap:8,marginTop:16},mode:{flex:1,padding:11,borderRadius:10,alignItems:'center',borderWidth:1,borderColor:colors.border},modeText:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:12},

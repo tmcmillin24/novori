@@ -1599,7 +1599,7 @@ function createStyles(colors: NovoriColors) {
         keyboardView: {
             flex: 1,
         },
-        conversationHeader: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16 },
+        conversationHeader: { width: '100%', maxWidth: '100%', alignSelf: 'center', paddingHorizontal: 16 },
         conversationLoading: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
         conversationPlaceholder: { paddingVertical: 14, gap: 9 },
         placeholderLine: { height: 9, borderRadius: 5, backgroundColor: colors.surface },
@@ -1637,7 +1637,7 @@ function createStyles(colors: NovoriColors) {
         },
         scrollContent: {
             width: '100%',
-            maxWidth: 720,
+            maxWidth: '100%',
             alignSelf: 'center',
             paddingHorizontal: 16,
             paddingTop: 14,

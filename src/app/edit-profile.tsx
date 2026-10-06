@@ -552,7 +552,7 @@ const createStyles = (colors: NovoriColors) => StyleSheet.create({
     },
     content: {
         width: '100%',
-        maxWidth: 720,
+        maxWidth: '100%',
         alignSelf: 'center',
         paddingHorizontal: 20,
         paddingTop: 28,

@@ -35,7 +35,7 @@ export default function ShareReadingRecapScreen() {
   const styles = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
     back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { flex: 1, textAlign: 'center', color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 20 },
-    content: { padding: 20, paddingBottom: 32, width: '100%', maxWidth: 720, alignSelf: 'center' }, loading: { minHeight: 260, alignItems: 'center', justifyContent: 'center' },
+    content: { padding: 20, paddingBottom: 32, width: '100%', maxWidth: '100%', alignSelf: 'center' }, loading: { minHeight: 260, alignItems: 'center', justifyContent: 'center' },
     caption: { color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 20, minHeight: 28, paddingTop: 0, paddingBottom: 8, textAlignVertical: 'top' },
     privacy: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, lineHeight: 17, marginTop: 13, textAlign: 'center' },
     publish: { minHeight: 48, borderRadius: 14, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center', marginTop: 18 },

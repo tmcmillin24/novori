@@ -218,8 +218,7 @@ function createStyles(
         1,
       width:
         '100%',
-      maxWidth:
-        620,
+      maxWidth: '100%',
       alignSelf:
         'center',
       alignItems:

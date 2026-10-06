@@ -67,7 +67,7 @@ export function settingsStyles(colors: NovoriColors) {
     header: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
     backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { flex: 1, textAlign: 'center', color: colors.text, fontFamily: 'PlayfairDisplay_700Bold', fontSize: 21 },
-    content: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 18, paddingTop: 8, paddingBottom: 40 },
+    content: { width: '100%', maxWidth: '100%', alignSelf: 'center', paddingHorizontal: 18, paddingTop: 8, paddingBottom: 40 },
     intro: { backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.border, borderTopColor: colors.gold,
       padding: 18, shadowColor: '#000000', shadowOpacity: .07, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
     introHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -488,7 +488,7 @@ function createStyles(
 
     header: {
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       paddingHorizontal:
@@ -518,7 +518,7 @@ function createStyles(
 
     listContent: {
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       paddingHorizontal:

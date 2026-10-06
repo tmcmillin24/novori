@@ -1827,8 +1827,7 @@ function createStyles(
     content: {
       width:
         '100%',
-      maxWidth:
-        720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       paddingHorizontal:
@@ -1840,8 +1839,7 @@ function createStyles(
     },
 
     contentTablet: {
-      maxWidth:
-        780,
+      maxWidth: '100%',
       paddingHorizontal:
         30,
     },

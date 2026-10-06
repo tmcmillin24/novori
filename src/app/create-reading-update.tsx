@@ -1023,8 +1023,7 @@ function createStyles(
         42,
     },
     contentTablet: {
-      maxWidth:
-        780,
+      maxWidth: '100%',
       paddingHorizontal:
         30,
     },
@@ -1264,7 +1263,7 @@ function createStyles(
     },
     editCardScroll: {
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf: 'center',
       paddingHorizontal: 16,
       paddingTop: 18,

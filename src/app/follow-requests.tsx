@@ -673,7 +673,7 @@ function createStyles(
     },
     content: {
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       paddingHorizontal:

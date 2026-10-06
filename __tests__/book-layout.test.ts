@@ -4,7 +4,7 @@ test.each([375, 390, 440])('phone %s keeps its existing cover sizes and two colu
   expect(getBookLayout(width)).toEqual({ libraryColumns: 2, searchCoverWidth: 75, trendingCoverWidth: 122, releaseCoverWidth: 112 });
 });
 
-test.each([768, 834, 1024, 1032, 1366])('tablet %s keeps library covers near a practical size', width => {
+test.each([768, 820, 834, 1024, 1032, 1180, 1194, 1366])('tablet %s keeps library covers near a practical size', width => {
   const layout = getBookLayout(width);
   const coverWidth = (width - 40) * (1 / layout.libraryColumns - 0.01);
   expect(coverWidth).toBeGreaterThan(150);

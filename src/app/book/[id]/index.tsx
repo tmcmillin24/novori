@@ -13,6 +13,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -1094,6 +1095,7 @@ export default function BookDetailsScreen() {
   const [error, setError] = useState('');
   const [descriptionExpanded, setDescriptionExpanded] =
     useState(false);
+  const savedStatusVersion = useRef(0);
   const [libraryConfirmation, setLibraryConfirmation] = useState<UserBookStatus | null>(null);
   const [readingStatus, setReadingStatus] =
     useState<UserBookStatus | null>(null);
@@ -1316,6 +1318,8 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesExpanded(false);
 
+        // Ignore reads that started before a successful status change.
+        const initialStatusVersion = savedStatusVersion.current;
         // Start independent library and metadata reads together.
         const [savedLookup, response] = await Promise.all([
           getUserBook(id).then(
@@ -1328,7 +1332,7 @@ export default function BookDetailsScreen() {
         ]);
         if (savedLookup.error) {
           console.warn('Could not check saved book status:', savedLookup.error);
-        } else {
+        } else if (initialStatusVersion === savedStatusVersion.current) {
           setSavedBook(savedLookup.value);
           setReadingStatus(savedLookup.value?.status ?? null);
         }
@@ -1517,18 +1521,17 @@ export default function BookDetailsScreen() {
         }
 
         try {
-          const savedBook = await getUserBook(
-            resolvedBook.id
-          );
-          setSavedBook(savedBook);
-          setReadingStatus(savedBook?.status ?? null);
+          const readVersion = savedStatusVersion.current;
+          const savedBook = await getUserBook(resolvedBook.id);
+          if (readVersion === savedStatusVersion.current) {
+            setSavedBook(savedBook);
+            setReadingStatus(savedBook?.status ?? null);
+          }
         } catch (statusError) {
           console.error(
             'Could not load saved reading status:',
             statusError
           );
-          setSavedBook(null);
-          setReadingStatus(null);
         }
 
 
@@ -2518,6 +2521,7 @@ export default function BookDetailsScreen() {
           status,
         });
 
+      savedStatusVersion.current += 1;
       setSavedBook(updatedBook);
       setReadingStatus(updatedBook.status);
 
@@ -4377,14 +4381,6 @@ export default function BookDetailsScreen() {
         ) : null}
 
         {!isSavedBookContext ? (
-          (
-            source ===
-              'discover' ||
-            source ===
-              'stack' ||
-            source ===
-              'feed'
-          ) &&
           readingStatus &&
           selectedStatusLabel ? (
             <View
