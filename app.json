@@ -48,7 +48,8 @@
       "bundleIdentifier": "com.anonymous.Novori",
       "infoPlist": {
         "NSCameraUsageDescription": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs."
-      }
+      },
+      "supportsTablet": true
     },
     "android": {
       "predictiveBackGestureEnabled": false,

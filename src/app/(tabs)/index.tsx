@@ -1231,7 +1231,7 @@ export default function HomeScreen() {
         }
     }
     const sheetThreadData = useMemo(() => buildCommentThreads(sheetComments, commentSort), [sheetComments, commentSort]);
-    const sheetDepthLimit = getCommentDepthLimit(windowWidth);
+    const sheetDepthLimit = getCommentDepthLimit(Math.min(windowWidth, 720));
     function renderSheetComment(comment: PostComment, depth = 0) {
         const displayName = comment.author_display_name
             ?.trim() ||
@@ -4037,6 +4037,8 @@ function createStyles(colors: NovoriColors) {
         },
         commentsSheet: {
             width: '100%',
+            maxWidth: 720,
+            alignSelf: 'center',
         },
         commentsKeyboardLayer: {
             flex: 1,

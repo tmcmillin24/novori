@@ -165,7 +165,7 @@ export function UiSheetModal({ motion, children, ...props }: ModalProps & {
 export function UiSheetSurface({ motion, style, ...props }: ViewProps & {
     motion: Motion;
 }) {
-    return <GestureDetector gesture={motion.gesture}><Animated.View {...props} collapsable={false} onLayout={motion.onLayout} style={[style, motion.sheetStyle]}/></GestureDetector>;
+    return <GestureDetector gesture={motion.gesture}><Animated.View {...props} collapsable={false} onLayout={motion.onLayout} style={[style, { maxWidth: 720, alignSelf: 'center' }, motion.sheetStyle]}/></GestureDetector>;
 }
 export function UiSheetBackdrop({ motion, style, ...props }: ViewProps & {
     motion: Motion;

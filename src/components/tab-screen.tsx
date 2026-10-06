@@ -46,7 +46,7 @@ export function TabScreen({
     return (
       <SafeAreaView
         style={styles.safeArea}
-        edges={['top']}
+        edges={['top', 'left', 'right']}
       >
         <ScrollView
           ref={
@@ -102,7 +102,7 @@ export function TabScreen({
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={['top']}
+      edges={['top', 'left', 'right']}
     >
       <View style={styles.screen}>
         <View style={[styles.content, styles.flexContent, contentStyle]}>
