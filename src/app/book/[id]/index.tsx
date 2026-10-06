@@ -1,3 +1,4 @@
+import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
@@ -1093,6 +1094,7 @@ export default function BookDetailsScreen() {
   const [error, setError] = useState('');
   const [descriptionExpanded, setDescriptionExpanded] =
     useState(false);
+  const [libraryConfirmation, setLibraryConfirmation] = useState<UserBookStatus | null>(null);
   const [readingStatus, setReadingStatus] =
     useState<UserBookStatus | null>(null);
   const [savedBook, setSavedBook] =
@@ -2519,16 +2521,10 @@ export default function BookDetailsScreen() {
       setSavedBook(updatedBook);
       setReadingStatus(updatedBook.status);
 
-      if (
-        status === 'read' ||
-        status === 'dnf'
-      ) {
-        router.push({
-          pathname: '/rate-review',
-          params: {
-            googleBookId: book.id,
-          },
-        });
+      if (!isSavedBookContext) {
+        setLibraryConfirmation(updatedBook.status);
+      } else if (status === 'read' || status === 'dnf') {
+        router.push({ pathname: '/rate-review', params: { googleBookId: book.id } });
       }
     } catch (saveError) {
       console.error(
@@ -5549,6 +5545,20 @@ export default function BookDetailsScreen() {
           </View>
         </View>
       </Modal>
+      <ValidationWarningSheet
+        visible={libraryConfirmation !== null}
+        title="Added to your library"
+        message={`Marked as ${libraryConfirmation === 'want_to_read' ? 'TBR' : libraryConfirmation === 'dnf' ? 'DNF' : libraryConfirmation === 'read' ? 'Read' : 'Reading'}. You can manage this book from your Library.`}
+        icon="checkmark-circle-outline"
+        dismissLabel="Continue after saving book"
+        onDismiss={() => {
+          const status = libraryConfirmation;
+          setLibraryConfirmation(null);
+          if (book && (status === 'read' || status === 'dnf')) {
+            router.push({ pathname: '/rate-review', params: { googleBookId: book.id } });
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

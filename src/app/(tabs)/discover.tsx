@@ -1,3 +1,4 @@
+import { getBookLayout } from '../../lib/book-layout';
 import { createBookReadCache } from '../../lib/book-read-cache';
 import { getBookPublication, getPublicationVersion, subscribeBookPublications } from '../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +36,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -2088,6 +2090,7 @@ const DiscoverReaderCard = memo(
 );
 
 export default function DiscoverScreen() {
+  const { width: windowWidth } = useWindowDimensions();
   const {
     colors,
   } =
@@ -2097,10 +2100,10 @@ export default function DiscoverScreen() {
     useMemo(
       () =>
         createStyles(
-          colors
+          colors, windowWidth
         ),
       [
-        colors,
+        colors, windowWidth,
       ]
     );
 
@@ -5393,8 +5396,9 @@ export default function DiscoverScreen() {
 }
 
 function createStyles(
-  colors: NovoriColors
+  colors: NovoriColors, windowWidth = 390
 ) {
+  const { searchCoverWidth, trendingCoverWidth, releaseCoverWidth } = getBookLayout(windowWidth);
   return StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -5936,28 +5940,28 @@ function createStyles(
     },
 
     trendingCard: {
-      width: 122,
+      width: trendingCoverWidth,
       marginRight: 14,
     },
 
     trendingCoverWrap: {
       position: 'relative',
-      width: 122,
-      height: 183,
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
       marginBottom: 9,
     },
 
     trendingCover: {
-      width: 122,
-      height: 183,
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
       borderRadius: 10,
       backgroundColor:
         colors.elevated,
     },
 
     trendingCoverPlaceholder: {
-      width: 122,
-      height: 183,
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
       borderRadius: 10,
       backgroundColor:
         colors.elevated,
@@ -6089,27 +6093,27 @@ function createStyles(
     },
 
     newReleaseCard: {
-      width: 112,
+      width: releaseCoverWidth,
       marginRight: 13,
     },
 
     newReleaseCoverWrap: {
       position: 'relative',
-      width: 112,
-      height: 168,
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
       marginBottom: 8,
     },
 
     newReleaseCover: {
-      width: 112,
-      height: 168,
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
       borderRadius: 9,
       backgroundColor: colors.elevated,
     },
 
     newReleaseCoverPlaceholder: {
-      width: 112,
-      height: 168,
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
       borderRadius: 9,
       backgroundColor: colors.elevated,
       alignItems: 'center',
@@ -6439,16 +6443,16 @@ function createStyles(
     },
 
     cover: {
-      width: 75,
-      height: 112,
+      width: searchCoverWidth,
+      height: Math.round(searchCoverWidth * 1.5),
       borderRadius: 8,
       backgroundColor:
         colors.elevated,
     },
 
     coverPlaceholder: {
-      width: 75,
-      height: 112,
+      width: searchCoverWidth,
+      height: Math.round(searchCoverWidth * 1.5),
       borderRadius: 8,
       backgroundColor:
         colors.elevated,

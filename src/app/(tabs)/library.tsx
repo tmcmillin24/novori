@@ -1,9 +1,10 @@
+import { getBookLayout } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, type GestureResponderEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, type GestureResponderEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -138,9 +139,9 @@ export default function LibraryScreen() {
         ?.mutationVersion ??
         getLibraryMutationVersion());
     const { colors, } = useNovoriTheme();
-    const styles = useMemo(() => createStyles(colors), [
-        colors
-    ]);
+    const { width: windowWidth } = useWindowDimensions();
+    const { libraryColumns } = getBookLayout(windowWidth);
+    const styles = useMemo(() => createStyles(colors, libraryColumns), [colors, libraryColumns]);
     const [books, setBooks,] = useState<UserBook[]>(librarySessionCache
         ?.books ??
         []);
@@ -871,7 +872,7 @@ export default function LibraryScreen() {
       <SafeAreaView style={styles.safeArea} edges={[
             'top'
         ]} onStartShouldSetResponderCapture={captureSearchDismiss}>
-        <FlatList ref={libraryListRef} data={visibleBooks} keyExtractor={(item) => item.id} renderItem={renderBook} numColumns={2} columnWrapperStyle={styles.gridRow} ListHeaderComponent={renderHeader()} ListEmptyComponent={<View style={styles.emptyState}>
+        <FlatList key={`library-${libraryColumns}`} ref={libraryListRef} data={visibleBooks} keyExtractor={(item) => item.id} renderItem={renderBook} numColumns={libraryColumns} columnWrapperStyle={styles.gridRow} ListHeaderComponent={renderHeader()} ListEmptyComponent={<View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
                 <Ionicons name="library-outline" size={27} color={colors.gold}/>
               </View>
@@ -1271,7 +1272,7 @@ export default function LibraryScreen() {
       </UiSheetModal>
     </>);
 }
-function createStyles(colors: NovoriColors) {
+function createStyles(colors: NovoriColors, columns = 2) {
     return StyleSheet.create({
         safeArea: {
             flex: 1,
@@ -1476,7 +1477,7 @@ function createStyles(colors: NovoriColors) {
             justifyContent: 'space-between',
         },
         bookCard: {
-            width: '49%',
+            width: `${100 / columns - 1}%`,
             marginBottom: 18,
         },
         coverWrap: {
