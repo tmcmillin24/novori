@@ -510,6 +510,11 @@ export default function PostDetailScreen() {
         };
         const previousBody = commentBody;
         const previousReply = replyTo;
+        try {
+            setSubmitting(true);
+            const confirmedId = await createPostComment(postIdForComment, cleaned, parentId);
+            if (!mounted.current || viewPostId.current !== postIdForComment)
+                return;
         setComments((current) => [
             ...current,
             optimisticComment
@@ -524,11 +529,6 @@ export default function PostDetailScreen() {
             : current);
         setCommentBody('');
         setReplyTo(null);
-        try {
-            setSubmitting(true);
-            const confirmedId = await createPostComment(postIdForComment, cleaned, parentId);
-            if (!mounted.current || viewPostId.current !== postIdForComment)
-                return;
             if (typeof confirmedId === 'string') {
                 if (parentId)
                     setVisibleReplyCounts(current => ({ ...current, [parentId]: Math.max(current[parentId] ?? COMMENT_REPLY_BATCH_SIZE, (threadData.nodes.get(parentId)?.children.length ?? 0) + 1) }));
@@ -556,19 +556,9 @@ export default function PostDetailScreen() {
             if (!mounted.current || viewPostId.current !== writePostId)
                 return;
             if ((submitError as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not add comment:', submitError);
-            setComments((current) => current.filter((comment) => comment.id !==
-                optimisticId));
-            setPost((current) => current
-                ? {
-                    ...current,
-                    comment_count: Math.max(0, (current.comment_count ??
-                        1) -
-                        1),
-                }
-                : current);
             setCommentBody(previousBody);
             setReplyTo(previousReply);
-            showCommentWarning(submitError, 'Could not comment');
+            showCommentWarning(submitError, previousReply ? 'Could not reply' : 'Could not comment');
         }
         finally {
             commentSubmitInFlight.current = false;

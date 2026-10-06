@@ -127,3 +127,11 @@ test('comment edits screen their body and remain distinct from identical post su
  assert.equal(edit.calls.find(c=>c.name==='novori_record_screening').args.p_surface,'rpc/update_post_comment');
  assert.notEqual(post.calls.find(c=>c.name==='novori_claim_screening').args.p_key,edit.calls.find(c=>c.name==='novori_claim_screening').args.p_key);
 });
+
+test('flagged replies are screened with their parent and never forwarded for publication',async()=>{
+ const s=setup({flagged:true});
+ const response=await handler(s)(request({path:'rpc/create_post_comment',method:'POST',body:{target_post_id:user,target_parent_comment_id:ticket,comment_body:'I will kill you.'}}));
+ assert.equal(response.status,422);assert.equal(s.forwards.some(f=>f.url.includes('/rest/v1/')),false);
+ assert.equal(s.calls.find(c=>c.name==='novori_record_screening').args.p_surface,'rpc/create_post_comment');
+ assert.equal((await response.json()).code,'NOVORI_MODERATION');
+});

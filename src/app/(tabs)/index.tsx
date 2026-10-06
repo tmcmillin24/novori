@@ -700,7 +700,7 @@ export default function HomeScreen() {
         const details = error && typeof error === 'object' ? error as {code?: string; message?: string} : null;
         const message = details?.message || 'Please try again.';
         if (__DEV__) console.info('[Novori comment warning response]', {
-            operation: fallbackTitle === 'Could not edit comment' ? 'edit' : 'new',
+            operation: fallbackTitle === 'Could not edit comment' ? 'edit' : fallbackTitle === 'Could not reply' ? 'reply' : 'new',
             code: details?.code ?? 'unknown',
             windowOpen: commentsModalVisible,
         });
@@ -787,6 +787,11 @@ export default function HomeScreen() {
         };
         const previousBody = commentBody;
         const previousReplyTarget = replyTarget;
+        try {
+            setSubmittingComment(true);
+            const confirmedId = await createPostComment(postId, cleaned, parentId);
+            if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== postId)
+                return;
         setSheetComments((current) => [
             ...current,
             optimisticComment
@@ -811,11 +816,6 @@ export default function HomeScreen() {
             : current);
         setCommentBody('');
         setReplyTarget(null);
-        try {
-            setSubmittingComment(true);
-            const confirmedId = await createPostComment(postId, cleaned, parentId);
-            if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== postId)
-                return;
             if (parentId)
                 setExpandedReplyThreads(current => ({ ...current, [parentId]: Math.max(current[parentId] ?? COMMENT_REPLY_BATCH_SIZE, (sheetThreadData.nodes.get(parentId)?.children.length ?? 0) + 1) }));
             if (typeof confirmedId === 'string')
@@ -840,29 +840,9 @@ export default function HomeScreen() {
             if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== writePostId)
                 return;
             if ((error as {code?: string})?.code !== 'NOVORI_MODERATION') console.warn('Could not add comment:', error);
-            setSheetComments((current) => current.filter((comment) => comment.id !==
-                optimisticId));
-            setFeedPosts((current) => current.map((item) => item.id ===
-                postId
-                ? {
-                    ...item,
-                    comment_count: Math.max(0, (item.comment_count ??
-                        1) -
-                        1),
-                }
-                : item));
-            setCommentsPost((current) => current?.id ===
-                postId
-                ? {
-                    ...current,
-                    comment_count: Math.max(0, (current.comment_count ??
-                        1) -
-                        1),
-                }
-                : current);
             setCommentBody(previousBody);
             setReplyTarget(previousReplyTarget);
-            showCommentWarning(error, 'Could not comment');
+            showCommentWarning(error, previousReplyTarget ? 'Could not reply' : 'Could not comment');
         }
         finally {
             commentSubmitInFlight.current = false;
