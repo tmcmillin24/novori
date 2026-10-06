@@ -2,7 +2,7 @@ import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import {Keyboard} from 'react-native';
 import {useCommentSheetMotion} from '../src/lib/use-comment-sheet-motion';
-import {resolveCommentSheetSnap} from '../src/lib/comment-sheet-snap';
+import {resolveCommentSheetSnap,getCommentSheetBounds} from '../src/lib/comment-sheet-snap';
 let mockAnimations=[],mockFrames=[];
 jest.mock('react-native',()=>({Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:value=>value.ios??value.default},TurboModuleRegistry:{get:()=>null}}));
 jest.mock('react-native-worklets',()=>({scheduleOnRN:(callback,...args)=>callback(...args),scheduleOnUI:(callback,...args)=>callback(...args)}));
@@ -19,7 +19,7 @@ jest.mock('react-native-gesture-handler',()=>({Gesture:{Pan:()=>{
 }}}));
 let view,api;
 const onSettled=jest.fn(),onDragDismiss=jest.fn();
-function Harness({keyboardVisible=false}){api=useCommentSheetMotion({partial:700,full:850,keyboardVisible,onSettled,onDragDismiss});return null;}
+function Harness({keyboardVisible=false,partial=700,full=850}){api=useCommentSheetMotion({partial,full,keyboardVisible,onSettled,onDragDismiss});return null;}
 async function mount(keyboardVisible=false){await act(async()=>{view=renderer.create(<Harness keyboardVisible={keyboardVisible}/>);});}
 function finish(){const frames=mockFrames;mockFrames=[];frames.forEach(callback=>callback());const pending=mockAnimations;mockAnimations=[];pending.forEach(animation=>animation.callback?.(true));}
 function open(){api.prepare(700);api.open(()=>{});finish();}
@@ -67,3 +67,31 @@ test('an old close completion cannot dismiss a newly opened sheet',async()=>{
  await mount();open();const closed=jest.fn();api.close(closed);const oldClose=mockAnimations.at(-1).callback;
  api.prepare(850,'full');api.open(()=>{});oldClose(true);finish();expect(closed).not.toHaveBeenCalled();expect(api.sheetStyle.read().height).toBe(850);
 });
+
+ test.each(['partial','full'])('rotation resizes an open %s sheet, preserves its snap, and leaves dismissal operational',async snap=>{
+ await mount();api.prepare(snap==='full'?850:700,snap);api.open(()=>{});finish();
+ await act(async()=>view.update(<Harness partial={440} full={520}/>));
+ expect(api.sheetStyle.read().height).toBe(snap==='full'?520:440);
+ expect(api.entranceStyle.read().transform[0].translateY).toBe(0);
+ expect(onSettled).toHaveBeenLastCalledWith(snap==='full'?520:440,snap);
+ const closed=jest.fn();api.close(closed);finish();expect(closed).toHaveBeenCalledTimes(1);
+ });
+ test.each(['opening','closing'])('rotation during %s preserves its completion callback',async phase=>{
+ await mount();api.prepare(700);const done=jest.fn();
+ if(phase==='opening')api.open(done);else{api.open(()=>{});finish();api.close(done);}
+ await act(async()=>view.update(<Harness partial={440} full={520}/>));
+ expect(api.sheetStyle.read().height).toBe(440);finish();expect(done).toHaveBeenCalledTimes(1);
+ });
+ test('a conversation restored after rotation uses the new snap dimensions instead of saved portrait pixels',async()=>{
+ await mount();api.prepare(850,'full');api.open(()=>{});finish();api.stop();
+ await act(async()=>view.update(<Harness partial={440} full={520}/>));
+ api.prepare(850,'full');api.open(()=>{});finish();expect(api.sheetStyle.read().height).toBe(520);
+ });
+ test('rotation cancels a live drag and restores a usable snap',async()=>{
+ await mount();open();const oldGesture=api.gestures.header.handlers;oldGesture.onStart();oldGesture.onUpdate({translationY:-100});
+ await act(async()=>view.update(<Harness partial={440} full={520}/>));oldGesture.onUpdate({translationY:-300});oldGesture.onEnd({translationY:-300,velocityY:-500});
+ expect(api.sheetStyle.read().height).toBe(440);expect(onDragDismiss).not.toHaveBeenCalled();
+ });
+ test.each([[1133,24],[744,24],[1194,24],[834,24],[1366,24],[1024,24],[350,44],[240,24]])('snap points fit window height %s and safe top %s', (height,inset)=>{
+ const bounds=getCommentSheetBounds(height,inset);expect(bounds.full).toBeLessThanOrEqual(height-inset);expect(bounds.partial).toBeLessThanOrEqual(bounds.full);expect(bounds.partial).toBeGreaterThan(0);
+ });

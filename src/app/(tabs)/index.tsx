@@ -1,3 +1,4 @@
+import { getCommentSheetBounds } from '../../lib/comment-sheet-snap';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
@@ -102,9 +103,7 @@ export default function HomeScreen() {
     const { height: keyboardHeight, } = useKeyboardAnimation();
     const emptyStateKeyboardTranslateY = Animated.multiply(keyboardHeight, 0.5);
     const { height: windowHeight, width: windowWidth, } = useWindowDimensions();
-    const commentsFullHeight = Math.max(320, windowHeight -
-        insets.top);
-    const commentsPartialHeight = Math.max(360, Math.round(windowHeight * 0.82));
+    const {full: commentsFullHeight, partial: commentsPartialHeight} = getCommentSheetBounds(windowHeight, insets.top);
     const commentsEntranceStartHeight = Math.max(320, Math.round(windowHeight * 0.50));
     const [activeSection, setActiveSection] = useState<HomeSection>('feed');
     const [attentionCount, setAttentionCount,] = useState(0);
@@ -630,12 +629,10 @@ export default function HomeScreen() {
         setCommentsModalVisible(true);
         void loadCommentsSheet(post.id);
     }
-    function animateCommentsSheetIn(restoring = false) {
+    function animateCommentsSheetIn(_restoring = false) {
         commentsSheetAnimating.current = true;
         commentsMotion.open(() => {
             commentsSheetAnimating.current = false;
-            if (!restoring)
-                commentsSheetCurrentHeight.current = commentsPartialHeight;
             setCommentsSheetEntranceReady(true);
         });
     }
@@ -1880,7 +1877,7 @@ export default function HomeScreen() {
         }
         return (<View style={styles.feedList}>
         <View style={styles.feedHeadingRow}>
-          <View>
+          <View style={styles.feedHeadingCopy}>
             <Text style={styles.sectionTitle}>
               Your Feed
             </Text>
@@ -1895,7 +1892,7 @@ export default function HomeScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-            <Ionicons name="add" size={17} color={colors.background}/>
+            <Ionicons name="add" size={20} color={colors.background}/>
 
             <Text style={styles.feedComposeButtonText}>
               Post
@@ -3071,9 +3068,14 @@ function createStyles(colors: NovoriColors) {
             gap: 14,
             marginBottom: 2,
         },
+        feedHeadingCopy: {
+            flex: 1,
+            minWidth: 0,
+        },
         feedComposeButton: {
-            minHeight: 37,
-            paddingHorizontal: 12,
+            minHeight: 44,
+            paddingHorizontal: 16,
+            flexShrink: 0,
             borderRadius: 12,
             backgroundColor: colors.gold,
             flexDirection: 'row',
@@ -3084,7 +3086,7 @@ function createStyles(colors: NovoriColors) {
         feedComposeButtonText: {
             color: colors.background,
             fontFamily: 'Inter_700Bold',
-            fontSize: 12,
+            fontSize: 14,
         },
         feedEmptyCard: {
             minHeight: 240,
