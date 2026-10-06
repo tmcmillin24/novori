@@ -452,6 +452,10 @@ export default function PostDetailScreen() {
             const target = editingComment;
             const previousBody = target.body;
             setSubmitting(true);
+            setEditingComment(null);
+            setCommentBody('');
+            try {
+                await updatePostComment(target.id, cleaned);
             setComments((current) => current.map((item) => item.id ===
                 target.id
                 ? {
@@ -460,10 +464,7 @@ export default function PostDetailScreen() {
                     updated_at: new Date().toISOString(),
                 }
                 : item));
-            setEditingComment(null);
-            setCommentBody('');
-            try {
-                await updatePostComment(target.id, cleaned);
+
             }
             catch (submitError) {
                 if (!mounted.current || viewPostId.current !== writePostId)

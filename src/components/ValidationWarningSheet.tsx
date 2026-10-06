@@ -1,7 +1,7 @@
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
@@ -17,6 +17,7 @@ type Props = {
 export default function ValidationWarningSheet({ visible, embedded = false, title, message, onDismiss, icon = 'alert-circle-outline', dismissLabel = 'Dismiss warning' }: Props) {
     const { colors } = useNovoriTheme();
     const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const motion = useUiSheetMotion({ visible, embedded, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
@@ -36,7 +37,7 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
     // Within the existing comments window, render the warning directly. Its
     // visibility must not depend on presenting or measuring a second sheet.
     if (embedded) return visible ? (
-      <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal onLayout={event => {
+      <View style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: windowHeight, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal onLayout={event => {
           if (__DEV__) console.info('[Novori embedded warning layout]', {
             width: event.nativeEvent.layout.width,
             height: event.nativeEvent.layout.height,

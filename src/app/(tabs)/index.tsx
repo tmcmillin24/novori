@@ -729,6 +729,10 @@ export default function HomeScreen() {
             const target = editingComment;
             const previousBody = target.body;
             setSubmittingComment(true);
+            setEditingComment(null);
+            setCommentBody('');
+            try {
+                await updatePostComment(target.id, cleaned);
             setSheetComments((current) => current.map((item) => item.id ===
                 target.id
                 ? {
@@ -737,10 +741,7 @@ export default function HomeScreen() {
                     updated_at: new Date().toISOString(),
                 }
                 : item));
-            setEditingComment(null);
-            setCommentBody('');
-            try {
-                await updatePostComment(target.id, cleaned);
+
             }
             catch (error) {
                 if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== writePostId)
