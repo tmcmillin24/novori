@@ -12,6 +12,7 @@ export const UGC_TABLE_FIELDS = {
   club_events: ['title', 'description', 'location', 'meeting_url', 'book'],
 };
 export const UGC_RPC_FIELDS = {
+  novori_save_book_stack: ['p_name', 'p_items', 'p_body'],
   create_post_comment: ['comment_body'],
   update_post_comment: ['comment_body'],
   save_club_discussion: ['discussion_input'],

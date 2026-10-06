@@ -200,118 +200,20 @@ export function bookSearchItemToStackItem(
   };
 }
 
-export async function createBookStack(
-  name: string,
-  items: BookStackDraftItem[]
-): Promise<BookStack> {
-  const userId =
-    await getCurrentUserId();
+export async function saveBookStackSubmission({ name, items, stackId = null, publish = false, body = '', clubId = null, postId = null }: {
+  name: string; items: BookStackDraftItem[]; stackId?: string | null; publish?: boolean;
+  body?: string; clubId?: string | null; postId?: string | null;
+}): Promise<BookStack> {
+  const { data, error } = await supabase.rpc('novori_save_book_stack', {
+    p_name: name.trim(), p_items: items, p_stack_id: stackId,
+    p_publish: publish, p_body: body.trim(), p_club_id: clubId, p_post_id: postId,
+  });
+  if (error) throw error;
+  return { ...data, items: normalizeItems(data.items ?? []) } as BookStack;
+}
 
-  const cleanName =
-    name.trim();
-
-  if (
-    cleanName.length <
-      1 ||
-    cleanName.length >
-      80
-  ) {
-    throw new Error(
-      'Stack names must be between 1 and 80 characters.'
-    );
-  }
-
-  if (
-    items.length <
-      2 ||
-    items.length >
-      10
-  ) {
-    throw new Error(
-      'Book Stacks need between 2 and 10 books.'
-    );
-  }
-
-  const {
-    data:
-      stackRow,
-    error:
-      stackError,
-  } =
-    await supabase
-      .from(
-        'book_stacks'
-      )
-      .insert({
-        user_id:
-          userId,
-        name:
-          cleanName,
-        visibility:
-          'profile',
-      })
-      .select(
-        'id, user_id, name, visibility, created_at, updated_at'
-      )
-      .single();
-
-  if (stackError) {
-    throw stackError;
-  }
-
-  const {
-    error:
-      itemError,
-  } =
-    await supabase
-      .from(
-        'book_stack_items'
-      )
-      .insert(
-        items.map(
-          (
-            item,
-            index
-          ) => ({
-            stack_id:
-              stackRow.id,
-            google_book_id:
-              item.googleBookId,
-            title:
-              item.title,
-            authors:
-              item.authors,
-            cover_url:
-              item.coverUrl,
-            position:
-              index,
-          })
-        )
-      );
-
-  if (itemError) {
-    await supabase
-      .from(
-        'book_stacks'
-      )
-      .delete()
-      .eq(
-        'id',
-        stackRow.id
-      );
-
-    throw itemError;
-  }
-
-  const [stack] =
-    await attachItems([
-      stackRow as Omit<
-        BookStack,
-        'items'
-      >,
-    ]);
-
-  return stack;
+export async function createBookStack(name: string, items: BookStackDraftItem[]): Promise<BookStack> {
+  return saveBookStackSubmission({ name, items });
 }
 
 export async function getMyBookStacks():
@@ -463,116 +365,6 @@ export async function deleteBookStack(
 }
 
 
-export async function updateBookStack(
-  stackId: string,
-  name: string,
-  items: BookStackDraftItem[]
-): Promise<BookStack> {
-  const userId =
-    await getCurrentUserId();
-
-  const cleanName =
-    name.trim();
-
-  if (
-    cleanName.length < 1 ||
-    cleanName.length > 80
-  ) {
-    throw new Error(
-      'Stack names must be between 1 and 80 characters.'
-    );
-  }
-
-  if (
-    items.length < 2 ||
-    items.length > 10
-  ) {
-    throw new Error(
-      'Book Stacks need between 2 and 10 books.'
-    );
-  }
-
-  const {
-    error:
-      stackError,
-  } =
-    await supabase
-      .from(
-        'book_stacks'
-      )
-      .update({
-        name:
-          cleanName,
-        updated_at:
-          new Date()
-            .toISOString(),
-      })
-      .eq(
-        'id',
-        stackId
-      )
-      .eq(
-        'user_id',
-        userId
-      );
-
-  if (stackError) {
-    throw stackError;
-  }
-
-  const {
-    error:
-      deleteError,
-  } =
-    await supabase
-      .from(
-        'book_stack_items'
-      )
-      .delete()
-      .eq(
-        'stack_id',
-        stackId
-      );
-
-  if (deleteError) {
-    throw deleteError;
-  }
-
-  const {
-    error:
-      itemError,
-  } =
-    await supabase
-      .from(
-        'book_stack_items'
-      )
-      .insert(
-        items.map(
-          (
-            item,
-            index
-          ) => ({
-            stack_id:
-              stackId,
-            google_book_id:
-              item.googleBookId,
-            title:
-              item.title,
-            authors:
-              item.authors,
-            cover_url:
-              item.coverUrl,
-            position:
-              index,
-          })
-        )
-      );
-
-  if (itemError) {
-    throw itemError;
-  }
-
-  return getBookStack(
-    stackId
-  );
+export async function updateBookStack(stackId: string, name: string, items: BookStackDraftItem[]): Promise<BookStack> {
+  return saveBookStackSubmission({ name, items, stackId });
 }

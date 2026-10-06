@@ -51,15 +51,11 @@ import {
 } from '../lib/book-search';
 import {
   BookStackDraftItem,
-  createBookStack,
-  deleteBookStack,
+  saveBookStackSubmission,
   getBookStack,
-  updateBookStack,
 } from '../lib/book-stacks';
 import {
-  createPost,
   getPostDetail,
-  updatePost,
 } from '../lib/feed';
 import {
   supabase,
@@ -906,47 +902,9 @@ export default function CreateBookStackScreen() {
     try {
       setSaving(true);
 
-      if (
-        isEditing
-      ) {
-        await updateBookStack(
-          editStackId,
-          name,
-          items
-        );
-
-        if (
-          editPostId
-        ) {
-          await updatePost(
-            editPostId,
-            {
-              body:
-                postText.trim(),
-              allowEmptyBody:
-                true,
-              clubId,
-            }
-          );
-
-          router.replace(
-            '/(tabs)'
-          );
-        } else {
-          router.replace(
-            '/(tabs)/profile'
-          );
-        }
-      } else {
-        await createBookStack(
-          name,
-          items
-        );
-
-        router.replace(
-          '/(tabs)/profile'
-        );
-      }
+      await saveBookStackSubmission({ name, items, stackId: isEditing ? editStackId : null,
+        publish: Boolean(editPostId), body: postText, clubId, postId: editPostId || null });
+      router.replace(editPostId ? '/(tabs)' : '/(tabs)/profile');
     } catch (
       error
     ) {
@@ -961,69 +919,13 @@ export default function CreateBookStackScreen() {
     if (saveInFlight.current || !validateStack()) return;
     saveInFlight.current = true;
 
-    let createdStackId:
-      string | null =
-        null;
-
     try {
       setPublishing(
         true
       );
 
-      if (
-        isEditing
-      ) {
-        const stack =
-          await updateBookStack(
-            editStackId,
-            name,
-            items
-          );
-
-        if (
-          editPostId
-        ) {
-          await updatePost(
-            editPostId,
-            {
-              body:
-                postText.trim(),
-              allowEmptyBody:
-                true,
-              clubId,
-            }
-          );
-        } else {
-          await createPost({
-            body:
-              postText.trim(),
-            postType:
-              'book_stack',
-            clubId,
-            bookStackId:
-              stack.id,
-          });
-        }
-      } else {
-        const stack =
-          await createBookStack(
-            name,
-            items
-          );
-
-        createdStackId =
-          stack.id;
-
-        await createPost({
-          body:
-            postText.trim(),
-          postType:
-            'book_stack',
-          clubId,
-          bookStackId:
-            stack.id,
-        });
-      }
+      await saveBookStackSubmission({ name, items, stackId: isEditing ? editStackId : null,
+        publish: true, body: postText, clubId, postId: editPostId || null });
 
       router.replace(
         '/(tabs)'
@@ -1031,23 +933,6 @@ export default function CreateBookStackScreen() {
     } catch (
       error
     ) {
-      if (
-        createdStackId
-      ) {
-        try {
-          await deleteBookStack(
-            createdStackId
-          );
-        } catch (
-          cleanupError
-        ) {
-          console.warn(
-            'Could not clean up unpublished Book Stack:',
-            cleanupError
-          );
-        }
-      }
-
       await showStackFailure(error, 'publish');
     } finally {
       saveInFlight.current = false;

@@ -135,3 +135,12 @@ test('flagged replies are screened with their parent and never forwarded for pub
  assert.equal(s.calls.find(c=>c.name==='novori_record_screening').args.p_surface,'rpc/create_post_comment');
  assert.equal((await response.json()).code,'NOVORI_MODERATION');
 });
+
+test('atomic stack screens the name, every book, and caption before any database write', async () => {
+ const body={p_name:'Stack name',p_items:[{googleBookId:'one',title:'First book',authors:['Author'],coverUrl:null},{googleBookId:'two',title:'Second book',authors:['Author'],coverUrl:null}],p_body:'Flagged caption',p_publish:true};
+ const fields=publicationFields('rpc/novori_save_book_stack',body);
+ for(const text of ['Stack name','First book','Second book','Flagged caption']) assert.match(screeningText(fields),new RegExp(text));
+ const s=setup({flagged:true});const response=await handler(s)(request({path:'rpc/novori_save_book_stack',method:'POST',body}));
+ assert.equal(response.status,422);assert.equal(s.forwards.filter(f=>f.url.includes('/rest/v1/')).length,0);
+ assert.equal(s.calls.some(c=>c.name==='novori_issue_publication_ticket'),false);
+});
