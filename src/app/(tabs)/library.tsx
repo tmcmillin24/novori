@@ -1279,7 +1279,7 @@ function createStyles(colors: NovoriColors) {
         },
         listContent: {
             width: '100%',
-            maxWidth: 720,
+            maxWidth: '100%',
             alignSelf: 'center',
             paddingHorizontal: 20,
             paddingTop: 22,
@@ -1287,7 +1287,7 @@ function createStyles(colors: NovoriColors) {
         },
         contentShell: {
             width: '100%',
-            maxWidth: 720,
+            maxWidth: '100%',
             alignSelf: 'center',
             paddingHorizontal: 20,
             paddingTop: 22,

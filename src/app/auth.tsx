@@ -648,7 +648,7 @@ export default function AuthScreen() {
                 }
                 style={({ pressed }) => [
                   styles.forgotButton,
-                  keyboardVisible &&
+                  keyboardVisible && !Platform.isPad &&
                     styles.keyboardHiddenAction,
                   pressed &&
                     !loading &&
@@ -674,7 +674,7 @@ export default function AuthScreen() {
               }
               style={({ pressed }) => [
                 styles.primaryButton,
-                keyboardVisible &&
+                keyboardVisible && !Platform.isPad &&
                   styles.keyboardHiddenAction,
                 pressed &&
                   !loading &&
@@ -712,7 +712,7 @@ export default function AuthScreen() {
               }
               style={({ pressed }) => [
                 styles.switchButton,
-                keyboardVisible &&
+                keyboardVisible && !Platform.isPad &&
                   styles.keyboardHiddenAction,
                 pressed &&
                   styles.pressed,

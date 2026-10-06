@@ -5411,7 +5411,7 @@ function createStyles(
 
     headerArea: {
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       paddingHorizontal:
@@ -5635,7 +5635,7 @@ function createStyles(
     discoverHome: {
       flex: 1,
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
     },
@@ -6399,7 +6399,7 @@ function createStyles(
     resultsArea: {
       flex: 1,
       width: '100%',
-      maxWidth: 720,
+      maxWidth: '100%',
       alignSelf:
         'center',
       marginTop: 14,

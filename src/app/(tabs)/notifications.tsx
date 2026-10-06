@@ -626,7 +626,7 @@ function createStyles(colors: NovoriColors) {
         },
         requestBanner: {
             width: '100%',
-            maxWidth: 720,
+            maxWidth: '100%',
             alignSelf: 'center',
             minHeight: 64,
             flexDirection: 'row',
@@ -661,7 +661,7 @@ function createStyles(colors: NovoriColors) {
         },
         listContent: {
             width: '100%',
-            maxWidth: 720,
+            maxWidth: '100%',
             alignSelf: 'center',
             paddingHorizontal: 16,
             paddingTop: 8,
