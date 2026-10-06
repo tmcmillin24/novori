@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { cachedProviderValue, fetchHardcoverUpstream, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import {
   applyCanonicalDiscoveryCovers,
@@ -61,30 +62,10 @@ async function readCache(
 ): Promise<CacheRow | null> {
   const supabaseUrl =
     Deno.env.get("SUPABASE_URL");
-  const secretKeysJson =
-    Deno.env.get(
-      "SUPABASE_SECRET_KEYS"
-    );
 
   let serviceRoleKey =
-    Deno.env.get(
-      "SUPABASE_SERVICE_ROLE_KEY"
-    ) ?? null;
+    getServerKey(name => Deno.env.get(name)) ?? null;
 
-  if (secretKeysJson) {
-    try {
-      const secretKeys =
-        JSON.parse(
-          secretKeysJson
-        );
-
-      serviceRoleKey =
-        secretKeys?.default ??
-        serviceRoleKey;
-    } catch {
-      // Fall back to the legacy service-role key.
-    }
-  }
 
   if (
     !supabaseUrl ||
@@ -122,30 +103,10 @@ async function writeCache(
 ) {
   const supabaseUrl =
     Deno.env.get("SUPABASE_URL");
-  const secretKeysJson =
-    Deno.env.get(
-      "SUPABASE_SECRET_KEYS"
-    );
 
   let serviceRoleKey =
-    Deno.env.get(
-      "SUPABASE_SERVICE_ROLE_KEY"
-    ) ?? null;
+    getServerKey(name => Deno.env.get(name)) ?? null;
 
-  if (secretKeysJson) {
-    try {
-      const secretKeys =
-        JSON.parse(
-          secretKeysJson
-        );
-
-      serviceRoleKey =
-        secretKeys?.default ??
-        serviceRoleKey;
-    } catch {
-      // Fall back to the legacy service-role key.
-    }
-  }
 
   if (
     !supabaseUrl ||

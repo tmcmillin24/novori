@@ -51,21 +51,21 @@ Cloudflare's tool matches **known** CSAM in images entering its cache, attempts 
 
 ## 5. Screen existing uploaded images
 
-On your computer, create a temporary `.env.moderation.local` file (already excluded from git):
+On your computer, create a temporary `novori-moderation.env` file **outside the Novori project folder**, in its parent directory. Do not import operator credentials into app code:
 
 ```text
 EXPO_PUBLIC_SUPABASE_URL=https://oanpmuiuuwljknwvyzev.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=YOUR_PRIVATE_SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_PRIVATE_SUPABASE_SECRET_KEY
 OPENAI_API_KEY=YOUR_PRIVATE_OPENAI_API_KEY
 ```
 
-These are local operator credentials. Never copy the service/OpenAI keys into the app's public environment variables.
+Use a modern `sb_secret_...` Supabase secret key for `SUPABASE_SERVICE_ROLE_KEY`; the variable name is retained for script compatibility. These are local operator credentials. Never copy the service/OpenAI keys into the app's public environment variables.
 
 Inventory first, then apply:
 
 ```bash
-node --env-file=.env.moderation.local scripts/moderate-existing-media.mjs
-node --env-file=.env.moderation.local scripts/moderate-existing-media.mjs --apply
+node --env-file=../novori-moderation.env scripts/moderate-existing-media.mjs
+node --env-file=../novori-moderation.env scripts/moderate-existing-media.mjs --apply
 ```
 
 The script is sequential and resumable. It screens existing avatars, post photos and club covers. It does not touch ISBNdb/Hardcover artwork or the book cache. Passed assets are registered; flagged legacy images are blocked on the protected route and queued for review. They remain accessible at their old public origin until step 7 makes the buckets private, so review serious flags immediately. Approval of a migrated legacy image restores delivery; approval of a new image lets the reader upload the same image again. A rejection blocks the exact image hash across filenames for that reader.
@@ -93,7 +93,7 @@ Run `supabase/verify-moderation.sql` in SQL Editor. Inspect the installed public
 Only after the updated app, functions and media route work, make the buckets private through the supported Storage API:
 
 ```bash
-node --env-file=.env.moderation.local scripts/make-moderation-media-private.mjs
+node --env-file=../novori-moderation.env scripts/make-moderation-media-private.mjs
 ```
 
 Then run **`supabase/enable-moderation.sql`** (identical copy: `docs/moderation-enable-sql.txt`). It refuses activation if existing uploaded images are unregistered, requires the four image buckets to be private, and enables database/Storage/signup guards.

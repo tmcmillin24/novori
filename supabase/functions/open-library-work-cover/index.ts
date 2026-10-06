@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 import {
   createClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -629,9 +630,7 @@ Deno.serve(
         );
 
       const serviceRoleKey =
-        Deno.env.get(
-          'SUPABASE_SERVICE_ROLE_KEY'
-        );
+        getServerKey(name => Deno.env.get(name));
 
       if (
         !supabaseUrl ||

@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
 import { isbnDbEnabled } from '../_shared/isbndb.ts';
@@ -183,11 +184,7 @@ Deno.serve(async (req) => {
 
     const serviceRoleKey =
 
-      Deno.env.get(
-
-        "SUPABASE_SERVICE_ROLE_KEY"
-
-      ) ?? "";
+      getServerKey(name => Deno.env.get(name)) ?? "";
 
 
 

@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 // @ts-ignore -- resolved by the Supabase Edge runtime
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 // @ts-ignore -- module is shared with Node regression tests
@@ -7,12 +8,7 @@ declare const Deno: {
   serve(handler: (request: Request) => Promise<Response>): void;
 };
 const url = Deno.env.get("SUPABASE_URL");
-let key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-try {
-  key = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default ?? key;
-} catch {
-  /* Legacy service key fallback. */
-}
+let key = getServerKey(name => Deno.env.get(name));
 const origins = (
   Deno.env.get("NOVORI_ADMIN_ORIGINS") ?? "https://admin.novori.link"
 )

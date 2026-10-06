@@ -1,7 +1,8 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 declare const Deno: { env: {get(name:string):string|undefined}; serve(handler:(request:Request)=>Promise<Response>):void };
 // @ts-ignore -- Supabase Edge npm resolution
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
-const client = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, signal: AbortSignal.timeout(20000) }) } });
+const client = createClient(Deno.env.get('SUPABASE_URL')!, getServerKey(name => Deno.env.get(name))!, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, signal: AbortSignal.timeout(20000) }) } });
 Deno.serve(async request => {
   const secret = Deno.env.get('NOVORI_MEDIA_ORIGIN_SECRET');
   if (!['GET','HEAD'].includes(request.method) || !secret || request.headers.get('X-Novori-Media-Origin') !== secret) return new Response(null, { status: 403 });

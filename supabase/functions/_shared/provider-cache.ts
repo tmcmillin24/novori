@@ -1,3 +1,4 @@
+import { getServerKey } from "./supabase-keys.mjs";
 import { isbnDbEnabled, isbnDbSearch } from './isbndb.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { claimApiCacheRefresh, jitteredDurationMs } from './api-cache-guard.ts';
@@ -10,10 +11,7 @@ type ProviderCacheRow = {
 
 export function createCacheAdmin() {
   const url = Deno.env.get('SUPABASE_URL');
-  let key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  try {
-    key = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}').default ?? key;
-  } catch { /* Legacy service-role key remains supported. */ }
+  let key = getServerKey(name => Deno.env.get(name));
   if (!url || !key) throw new Error('Shared API cache is not configured.');
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }

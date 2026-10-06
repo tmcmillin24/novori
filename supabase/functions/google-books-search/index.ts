@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { isbnDbEnabled, handleIsbnDbRequest } from '../_shared/isbndb.ts';
 import { fetchJsonWithTimeout, readProviderCache, rememberGoogleFailure } from '../_shared/provider-cache.ts';
 import {
@@ -450,9 +451,7 @@ Deno.serve(
         );
 
       const serviceRoleKey =
-        Deno.env.get(
-          'SUPABASE_SERVICE_ROLE_KEY'
-        );
+        getServerKey(name => Deno.env.get(name));
 
       const googleApiKey =
         Deno.env.get(

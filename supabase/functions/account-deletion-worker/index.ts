@@ -1,3 +1,4 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
 // Supabase's Edge runtime resolves the npm specifier and supplies Deno.
 // @ts-ignore -- resolved by Deno in production
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
@@ -15,7 +16,7 @@ Deno.serve(async req => {
   const secret = Deno.env.get('ACCOUNT_DELETION_CRON_SECRET');
   if (!secret || secret.length < 32 || !sameSecret(req.headers.get('x-deletion-secret') ?? '', secret)) return json({ error: 'Unauthorized' }, 401);
   if (req.method !== 'POST') return json({ error: 'POST required' }, 405);
-  const url = Deno.env.get('SUPABASE_URL'), key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), resendKey = Deno.env.get('RESEND_API_KEY');
+  const url = Deno.env.get('SUPABASE_URL'), key = getServerKey(name => Deno.env.get(name)), resendKey = Deno.env.get('RESEND_API_KEY');
   if (!url || !key || !resendKey) return json({ error: 'Deletion worker is not configured.' }, 503);
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   try {
