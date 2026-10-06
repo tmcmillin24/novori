@@ -1,3 +1,4 @@
+jest.mock('../src/lib/dismiss-keyboard-before-warning',()=>({dismissKeyboardBeforeWarning:jest.fn().mockResolvedValue(undefined)}));
 jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
@@ -206,4 +207,15 @@ test('header shares the current club while its options sheet stays closed',async
  await press('Open club options');
  expect(view.root.findAllByType('Pressable').filter(node=>node.props.accessibilityLabel==='Share club')).toHaveLength(1);
  expect(require('../src/lib/share-links').shareClubLink).toHaveBeenCalledWith({clubId:base.id,name:base.name});
+});
+test('flagged club edits show the shared warning, preserve the editor, and avoid the error overlay',async()=>{
+  updateClub.mockRejectedValue({code:'NOVORI_MODERATION',review_id:'review-1',message:'Needs review'});
+  await render(<EditClubScreen/>);
+  await press('Save club changes');
+  expect(text()).toContain('Submission under review');
+  expect(text()).toContain('Your club changes need a safety review');
+  expect(mockRouter.back).not.toHaveBeenCalled();
+  expect(silence).not.toHaveBeenCalled();
+  const photo=view.root.findAllByType('Image').find(node=>node.props.source?.uri==='club-photo.jpg');
+  expect(photo.props.style.borderRadius).toBe(18);
 });

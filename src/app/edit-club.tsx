@@ -1,3 +1,5 @@
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -63,6 +65,7 @@ export default function EditClubScreen() {
   } =
     useNovoriTheme();
 
+  const [saveWarning, setSaveWarning] = useState<{ title: string; message: string } | null>(null);
   const styles =
     createStyles(
       colors
@@ -500,17 +503,17 @@ export default function EditClubScreen() {
     } catch (
       error
     ) {
-      console.error(
-        'Could not update club:',
-        error
-      );
-
-      Alert.alert(
-        'Could not save club',
-        error instanceof Error
-          ? error.message
-          : 'Please try again.'
-      );
+      const details = error && typeof error === 'object'
+        ? error as { code?: string; message?: string; review_id?: string } : null;
+      const moderation = details?.code === 'NOVORI_MODERATION';
+      if (!moderation) console.error('Could not update club:', error);
+      await dismissKeyboardBeforeWarning();
+      setSaveWarning({
+        title: moderation && details?.review_id ? 'Submission under review' : 'Could not save club',
+        message: moderation && details?.review_id
+          ? 'Your club changes need a safety review. After approval, you can submit them again. For help, contact support@novori.link.'
+          : details?.message || 'Please try again.',
+      });
     } finally {
       setSaving(
         false
@@ -589,6 +592,7 @@ export default function EditClubScreen() {
         'bottom',
       ]}
     >
+      <ValidationWarningSheet visible={saveWarning !== null} title={saveWarning?.title ?? 'Could not save club'} message={saveWarning?.message ?? ''} dismissLabel="Got it" onDismiss={() => setSaveWarning(null)}/>
       <KeyboardAvoidingView
         style={
           styles.keyboardView
@@ -1255,7 +1259,7 @@ function createStyles(
       height:
         112,
       borderRadius:
-        56,
+        18,
       position:
         'relative',
     },
@@ -1265,7 +1269,7 @@ function createStyles(
       height:
         112,
       borderRadius:
-        56,
+        18,
       backgroundColor:
         colors.elevated,
     },
@@ -1275,7 +1279,7 @@ function createStyles(
       height:
         112,
       borderRadius:
-        56,
+        18,
       alignItems:
         'center',
       justifyContent:

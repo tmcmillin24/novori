@@ -198,51 +198,29 @@ export default function ClubDetailScreen() {
         }
         try {
             setError('');
-            const { data: { user, }, } = await supabase.auth.getUser();
-            setCurrentUserId(user?.id ??
-                null);
-            const clubData = await getClub(clubId);
-            const [pendingInviteData, pendingJoinRequestData, experienceData,] = await Promise.all([
+            const [authResult, clubData] = await Promise.all([supabase.auth.getUser(), getClub(clubId)]);
+            setCurrentUserId(authResult.data.user?.id ?? null);
+            if (clubData.cover_url && typeof Image.prefetch === 'function') {
+                void Image.prefetch(moderationMediaUrl(clubData.cover_url)).catch(() => {});
+            }
+            const canReadPrivateContent = clubData.privacy === 'public' || Boolean(clubData.membership_role);
+            const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';
+            const [pendingInviteData, pendingJoinRequestData, experienceData, memberData, conversation, eventData, outgoingInvites, joinRequests] = await Promise.all([
                 getPendingClubInvite(clubId),
                 getPendingPrivateClubRequest(clubId),
                 clubData.membership_role ? getClubMemberExperience(clubId).catch(error => {
                     if (experienceMounted.current && experienceRequest === experienceVersion.current)
                         setExperienceWarning(error?.message || 'Could not load your club preferences.');
                     return null;
-                }) : Promise.resolve(null)
+                }) : Promise.resolve(null),
+                canReadPrivateContent ? getClubMembers(clubId) : Promise.resolve([]),
+                canReadPrivateContent ? getClubConversation(clubId) : Promise.resolve({ posts: [], pinnedPosts: [] }),
+                canReadPrivateContent ? getClubEvents(clubId) : Promise.resolve([]),
+                manager ? getPendingClubInvitesForManager(clubId) : Promise.resolve([]),
+                manager ? getPendingClubJoinRequestsForManager(clubId) : Promise.resolve([]),
             ]);
-            const canReadPrivateContent = clubData.privacy ===
-                'public' ||
-                Boolean(clubData.membership_role);
-            let memberData: ClubMember[] = [];
-            let postData: FeedPost[] = [];
-            let pinnedData: FeedPost[] = [];
-            let eventData: ClubEvent[] = [];
-            if (canReadPrivateContent) {
-                const [loadedMembers, loadedPosts, loadedEvents,] = await Promise.all([
-                    getClubMembers(clubId),
-                    getClubConversation(clubId),
-                    getClubEvents(clubId)
-                ]);
-                memberData =
-                    loadedMembers;
-                postData = loadedPosts.posts;
-                pinnedData = loadedPosts.pinnedPosts;
-                eventData = loadedEvents;
-            }
-            const manager = clubData.membership_role ===
-                'owner' ||
-                clubData.membership_role ===
-                    'admin';
-            const [outgoingInvites, joinRequests,] = manager
-                ? await Promise.all([
-                    getPendingClubInvitesForManager(clubId),
-                    getPendingClubJoinRequestsForManager(clubId)
-                ])
-                : [
-                    [],
-                    []
-                ];
+            const postData = conversation.posts;
+            const pinnedData = conversation.pinnedPosts;
             setClub(clubData);
             if (experienceMounted.current && experienceRequest === experienceVersion.current) {
                 setMemberExperience(experienceData);
