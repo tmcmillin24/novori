@@ -712,6 +712,11 @@ export default function HomeScreen() {
         });
     }
     async function submitSheetComment() {
+        if (__DEV__) console.info('[Novori comment submit]', {
+            operation: editingComment ? 'edit' : replyTarget ? 'reply' : 'new',
+            hasText: Boolean(commentBody.trim()),
+            inFlight: commentSubmitInFlight.current,
+        });
         if (!commentsPost ||
             submittingComment || commentSubmitInFlight.current) {
             return;
@@ -2484,6 +2489,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
+              <View onTouchStart={handleCommentComposerOutsideTouch} style={styles.commentsListWrap}>
               <GestureDetector gesture={commentsMotion.gestures.left}><View collapsable={false} onTouchStart={handleCommentComposerOutsideTouch} style={[
             styles.commentsSideRail,
             styles.commentsSideRailLeft
@@ -2494,7 +2500,6 @@ export default function HomeScreen() {
             styles.commentsSideRailRight
         ]}/></GestureDetector>
 
-              <View onTouchStart={handleCommentComposerOutsideTouch} style={styles.commentsListWrap}>
                 {commentsError ? <View style={{ paddingHorizontal: 14, paddingVertical: 8 }}><Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{commentsError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading comments" onPress={() => {
                 if (commentsPost)
                     void loadCommentsSheet(commentsPost.id, true);
@@ -2535,7 +2540,7 @@ export default function HomeScreen() {
                   </Animated.View>)}
               </View>
 
-              <KeyboardStickyView offset={{
+              <KeyboardStickyView style={{ zIndex: 70 }} offset={{
             closed: 0,
             opened: 0,
         }}>
@@ -4154,8 +4159,8 @@ function createStyles(colors: NovoriColors) {
         },
         commentsSideRail: {
             position: 'absolute',
-            top: 72,
-            bottom: 78,
+            top: 0,
+            bottom: 0,
             zIndex: 60,
             backgroundColor: 'transparent',
         },
@@ -4168,6 +4173,7 @@ function createStyles(colors: NovoriColors) {
             width: 38,
         },
         commentsListWrap: {
+            overflow: 'hidden',
             flex: 1,
             minHeight: 0,
         },
