@@ -22,6 +22,7 @@ create function public.novori_account_active(reader_id uuid) returns boolean lan
 create function public.novori_reader_restricted(p_user uuid) returns boolean language sql as $$select false$$;
 create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
 create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
+alter table storage.objects enable row level security;
 create policy legacy_storage_read on storage.objects for select to anon,authenticated using(true);
 grant usage on schema public,auth,storage to anon,authenticated,service_role;
 grant select,insert,update,delete on all tables in schema public,storage,auth to authenticated,service_role;`);

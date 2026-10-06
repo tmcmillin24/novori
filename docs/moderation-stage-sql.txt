@@ -198,7 +198,13 @@ language sql stable security definer set search_path='' as $$
 $$;
 revoke all on function public.novori_user_storage_read_allowed(text) from public;
 grant execute on function public.novori_user_storage_read_allowed(text) to anon,authenticated,service_role;
-alter table storage.objects enable row level security;
+-- Supabase manages Storage RLS; do not ALTER its managed table.
+-- Refuse to proceed if the platform RLS protection is unexpectedly disabled.
+do $$begin
+ if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relname='objects' and c.relrowsecurity) then
+  raise exception 'Storage RLS is disabled. Restore it through Supabase before continuing.';
+ end if;
+end$$;
 drop policy if exists novori_moderated_media_only on storage.objects;
 create policy novori_moderated_media_only on storage.objects as restrictive for select to anon,authenticated using(public.novori_user_storage_read_allowed(bucket_id));
 
