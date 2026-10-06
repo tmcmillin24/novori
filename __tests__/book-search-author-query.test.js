@@ -4,6 +4,7 @@ function load(items,responses={},popularity={}){
  const exports={};const calls=[];exports.searchCalls=calls;exports.popularityCalls=[];
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/lib/book-search.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
  exports,console,URL,Date,Math,Map,Set,Promise,require:name=>{
+ if(name.includes('book-work-details'))return require('../src/lib/book-work-details');
  if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
  if(name.includes('book-publication'))return require('../src/lib/book-publication');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
@@ -138,4 +139,13 @@ test('supplements and sets remain searchable when explicitly requested',async()=
   const weak=book('weak','Sarah J. Maas','Court of Thorns and Roses');
   const api=load([weak],{'a court of thorns and roses':Error('Offline'),'an court of thorns and roses':[],'the court of thorns and roses':[]});
   expect((await api.searchNovoriBooks('court of thorns and roses'))[0].id).toBe('weak');
+ });
+
+ test('equal-ranked editions and results keep the same order when provider order changes', async()=>{
+ const a=book('a','Freida McFadden'),z=book('z','Freida McFadden');
+ const other=book('other','Another Author');
+ const first=await load([z,other,a]).searchNovoriBooks('the perfect son');
+ const second=await load([a,other,z]).searchNovoriBooks('the perfect son');
+ expect(first.map(b=>b.id)).toEqual(second.map(b=>b.id));
+ expect(first.some(b=>b.id==='a')).toBe(true);
  });

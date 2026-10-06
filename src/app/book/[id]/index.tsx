@@ -72,6 +72,7 @@ import {
 } from '../../../lib/reading-details';
 
 type GoogleBook = {
+  novoriDetails?: { bookId: string; isbns: string[] };
   id: string;
   novoriWork?: {
     key: string;
@@ -1436,7 +1437,7 @@ export default function BookDetailsScreen() {
           const resolvedRating =
             await resolveHardcoverRating({
               googleBookId:
-                resolvedBook.id,
+                resolvedBook.novoriDetails?.bookId ?? resolvedBook.id,
               title:
                 resolvedBook.volumeInfo
                   .title ??
@@ -1447,7 +1448,7 @@ export default function BookDetailsScreen() {
                   .authors ??
                 discoverClickedAuthors,
               isbns:
-                (
+                resolvedBook.novoriDetails?.isbns ?? (
                   resolvedBook.volumeInfo
                     .industryIdentifiers ??
                   []

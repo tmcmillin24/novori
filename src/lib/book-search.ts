@@ -1,3 +1,4 @@
+import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
 import { normalizeIsbnDbEdition, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
@@ -9,6 +10,7 @@ import {
 } from './book-covers';
 
 export type GoogleBookSearchItem = {
+  novoriDetails?: { bookId: string; isbns: string[] };
   novoriPublication?: { title: string; authors?: string[]; releaseDate?: string | null };
   id: string;
   source?: { provider?: string };
@@ -1266,7 +1268,7 @@ function compareBookPopularity(
     );
   }
 
-  return 0;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 function matchesTitleAndAuthorQuery(book: GoogleBookSearchItem, normalizedQuery: string) {
@@ -2761,7 +2763,7 @@ function collapseDuplicateEditions(
 
               return (
                 bHasCover -
-                aHasCover
+                aHasCover || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
               );
             }
           );
@@ -3266,6 +3268,7 @@ async function loadNovoriBooks(searchTerm: string) {
   );
 
   const popularity = await ambiguityPopularity;
+  bookWorkDetails.remember(searchTerm, collapsed);
   return looksLikeAuthorSearch
     ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
     : sortTitleSearchResults(collapsed, searchTerm, popularity);

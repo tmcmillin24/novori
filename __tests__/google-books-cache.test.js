@@ -1,5 +1,5 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),ts=require('typescript');
-function harness() {
+function harness(workDetails) {
   const storage=new Map(),calls=[];let catalog=null;
   const asyncStorage={
     getItem:async key=>storage.get(key)??null,
@@ -17,7 +17,7 @@ function harness() {
   function load(){
     const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/lib/google-books.ts'),'utf8');
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(compiled,{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
+    vm.runInNewContext(compiled,{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
     return exports;
   }
   return {storage,calls,load,setCatalog:value=>{catalog=value;}};
@@ -66,4 +66,22 @@ test('corrupt or mismatched device entries cannot masquerade as cache hits',asyn
     const h=harness();h.storage.set('novori:google-books:detail:v5:a',JSON.stringify(entry));
     await h.load().fetchGoogleBooksJson(detail('a'));expect(h.calls.length).toBe(1);
   }
+});
+
+test('old persistent editions pass through shared work metadata without new detail API calls or rewritten cover caches', async()=>{
+ const {createBookWorkDetails}=require('../src/lib/book-work-details');
+ const representative={id:'search',volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:412,description:'Canonical description'}};
+ const search=jest.fn(async()=>[representative]);
+ const h=harness(createBookWorkDetails(search));
+ for(const id of ['trending','library','series']) {
+  h.storage.set('novori:google-books:detail:v5:'+id,JSON.stringify({id,savedAt:Date.now(),data:{id,volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:600,imageLinks:{thumbnail:'https://covers/'+id}}}}));
+ }
+ const before=new Map(h.storage);
+ const api=h.load();
+ const results=await Promise.all(['trending','library','series'].map(id=>api.fetchGoogleBooksJson(detail(id))));
+ expect(results.map(result=>result.data.volumeInfo.pageCount)).toEqual([412,412,412]);
+ expect(results.map(result=>result.data.volumeInfo.imageLinks.thumbnail)).toEqual(['https://covers/trending','https://covers/library','https://covers/series']);
+ expect(search).toHaveBeenCalledTimes(1);
+ expect(h.calls).toHaveLength(0);
+ expect(h.storage).toEqual(before);
 });

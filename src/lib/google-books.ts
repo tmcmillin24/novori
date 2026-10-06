@@ -1,3 +1,4 @@
+import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { normalizeIsbnDbEdition } from '../../supabase/functions/_shared/book-edition-metadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -751,7 +752,8 @@ export async function fetchGoogleBooksJson<T>(url: string): Promise<GoogleBooksJ
   const result = await loadGoogleBooksJson<T>(url);
   // Apply current metadata rules even to older memory, device, and server rows.
   if (isVolumeDetailUrl(url) && result.data && typeof result.data === 'object' && 'volumeInfo' in result.data) {
-    return { ...result, data: normalizeIsbnDbEdition(result.data as any) as T };
+    const edition = normalizeIsbnDbEdition(result.data as any);
+    return { ...result, data: await bookWorkDetails.resolve(edition) as T };
   }
   return result;
 }
