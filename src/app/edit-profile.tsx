@@ -1,3 +1,5 @@
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import UiAnimated from 'react-native-reanimated';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -54,6 +56,11 @@ export default function EditProfileScreen() {
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [saveWarning, setSaveWarning] = useState<{ title: string; message: string } | null>(null);
+    async function showSaveWarning(title: string, message: string) {
+        await dismissKeyboardBeforeWarning();
+        setSaveWarning({ title, message });
+    }
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
     const [cropVisible, setCropVisible] = useState(false);
@@ -302,15 +309,15 @@ export default function EditProfileScreen() {
         const trimmedName = displayName.trim();
         const trimmedBio = bio.trim();
         if (!trimmedName) {
-            Alert.alert('Display name required', 'Enter a display name for your profile.');
+            await showSaveWarning('Display name required', 'Enter a display name for your profile.');
             return;
         }
         if (trimmedName.length > 50) {
-            Alert.alert('Display name too long', 'Keep your display name at 50 characters or fewer.');
+            await showSaveWarning('Display name too long', 'Keep your display name at 50 characters or fewer.');
             return;
         }
         if (trimmedBio.length > 160) {
-            Alert.alert('Bio too long', 'Keep your bio at 160 characters or fewer.');
+            await showSaveWarning('Bio too long', 'Keep your bio at 160 characters or fewer.');
             return;
         }
         try {
@@ -329,10 +336,16 @@ export default function EditProfileScreen() {
             router.back();
         }
         catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Something went wrong while saving your profile.';
-            Alert.alert('Could not save profile', message);
+            const details = error && typeof error === 'object'
+                ? error as { message?: string; code?: string; review_id?: string }
+                : null;
+            const underReview = details?.code === 'NOVORI_MODERATION' && !!details.review_id;
+            await showSaveWarning(
+                underReview ? 'Submission under review' : 'Could not save profile',
+                underReview
+                    ? 'Your profile changes need a safety review and have not been saved. After approval, you can submit them again. For help, contact support@novori.link.'
+                    : details?.message || 'Something went wrong while saving your profile.'
+            );
         }
         finally {
             setSaving(false);
@@ -346,6 +359,7 @@ export default function EditProfileScreen() {
       </SafeAreaView>);
     }
     return (<SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <ValidationWarningSheet visible={saveWarning !== null} title={saveWarning?.title ?? 'Could not save profile'} message={saveWarning?.message ?? ''} dismissLabel="Got it" onDismiss={() => setSaveWarning(null)}/>
       <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [
