@@ -59,3 +59,11 @@ test('opening first commits a fully offscreen sheet, then starts its continuous 
 test('navigation cancellation before the first frame cannot restart an opening animation',async()=>{
  await mount();api.prepare(700);const done=jest.fn();api.open(done);api.stop();finish();expect(mockAnimations).toHaveLength(0);expect(done).not.toHaveBeenCalled();
 });
+
+test('backdrop dismissal interrupts opening before its first frame without restarting entrance',async()=>{
+ await mount();api.prepare(700);const opened=jest.fn(),closed=jest.fn();api.open(opened);api.close(closed);finish();expect(opened).not.toHaveBeenCalled();expect(closed).toHaveBeenCalledTimes(1);
+});
+test('an old close completion cannot dismiss a newly opened sheet',async()=>{
+ await mount();open();const closed=jest.fn();api.close(closed);const oldClose=mockAnimations.at(-1).callback;
+ api.prepare(850,'full');api.open(()=>{});oldClose(true);finish();expect(closed).not.toHaveBeenCalled();expect(api.sheetStyle.read().height).toBe(850);
+});

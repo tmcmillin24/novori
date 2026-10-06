@@ -47,13 +47,14 @@ export function useCommentSheetMotion(options:Options){
     });
   },[moving,backdrop,translateY,height,entranceGeneration]);
   const close=useCallback((done:()=>void)=>{
-    entranceGeneration.value+=1;
-    cancelAnimation(height);moving.value=true;
+    const generation=++entranceGeneration.value;
+    cancelAnimation(height);cancelAnimation(translateY);cancelAnimation(backdrop);
+    dragging.value=false;moving.value=true;
     backdrop.value=withTiming(0,{duration:210,easing:Easing.in(Easing.cubic)});
     translateY.value=withTiming(height.value,{duration:235,easing:exit},finished=>{
-      if(finished){moving.value=false;scheduleOnRN(done);}
+      if(finished && generation===entranceGeneration.value){moving.value=false;scheduleOnRN(done);}
     });
-  },[height,moving,backdrop,translateY,entranceGeneration]);
+  },[height,moving,dragging,backdrop,translateY,entranceGeneration]);
   const snap=useCallback((target:CommentSheetSnap)=>{
     const value=target==='full'?full:partial;
     fullSnap.value=target==='full';moving.value=true;

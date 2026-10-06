@@ -172,6 +172,7 @@ export default function HomeScreen() {
     const commentsSheetCurrentHeight = useRef(0);
     const commentsSheetSnap = useRef<'partial' | 'full'>('partial');
     const commentsSheetAnimating = useRef(false);
+    const commentsSheetClosing = useRef(false);
     const preserveHomeStateOnNextBlur = useRef(false);
     const hasLoadedHomeData = useRef(false);
     const lastHomeDataLoadAt = useRef(0);
@@ -307,8 +308,14 @@ export default function HomeScreen() {
                 setReplyResetting(false);
             }
         });
+        const didHide = Keyboard.addListener('keyboardDidHide', () => {
+            setCommentsKeyboardVisible(false);
+            setComposerResetting(false);
+            setReplyResetting(false);
+        });
         return () => {
             changeFrame.remove();
+            didHide.remove();
         };
     }, [
         windowHeight
@@ -470,7 +477,11 @@ export default function HomeScreen() {
         }
     }
     useEffect(() => {
-        const unsubscribe = (navigation as any).addListener('tabPress', () => {
+        const unsubscribe = (navigation as any).addListener('tabPress', (event: { preventDefault: () => void }) => {
+            if (commentsModalVisible) {
+                event.preventDefault();
+                return;
+            }
             if (!homeFocusedRef.current) {
                 return;
             }
@@ -487,7 +498,8 @@ export default function HomeScreen() {
         return unsubscribe;
     }, [
         navigation,
-        loadHomeData
+        loadHomeData,
+        commentsModalVisible
     ]);
     function openClub(clubId: string) {
         preserveHomeStateOnNextBlur.current =
@@ -567,12 +579,14 @@ export default function HomeScreen() {
         },
     });
     const prepareCommentsResume = useCallback(() => {
+        commentsSheetClosing.current = false;
         commentsMotion.prepare(commentsSheetCurrentHeight.current, commentsSheetSnap.current);
         commentsContentOpacity.setValue(1);
     }, [commentsMotion.prepare, commentsContentOpacity]);
     const commentsContinuation = useCommentSheetContinuation(setCommentsModalVisible, commentsListRef, prepareCommentsResume);
     function stopCommentsMotionForNavigation() {
         hideCommentSheetForNavigation(commentsOverlayRoot.current, () => {
+            commentsSheetClosing.current = false;
             commentsMotion.stop();
             commentsContentOpacity.stopAnimation();
             commentsResultOpacity.stopAnimation();
@@ -581,6 +595,7 @@ export default function HomeScreen() {
         });
     }
     function openCommentsSheet(post: FeedPost) {
+        commentsSheetClosing.current = false;
         commentsContinuation.reset();
         activeCommentsPostId.current = post.id;
         commentsViewGeneration.current += 1;
@@ -625,6 +640,7 @@ export default function HomeScreen() {
         });
     }
     function handleCommentsModalDismiss() {
+        commentsSheetClosing.current = false;
         if (commentsContinuation.onDismiss())
             return;
         commentsMotion.stop();
@@ -663,14 +679,18 @@ export default function HomeScreen() {
         closeCommentsSheet();
     }
     function closeCommentsSheet() {
-        if (commentsSheetAnimating.current)
+        // Closing may interrupt entrance or snapping. Only duplicate closes
+        // are ignored; a stale animation flag must never trap the reader.
+        if (commentsSheetClosing.current)
             return;
+        commentsSheetClosing.current = true;
         activeCommentsPostId.current = null;
         commentsViewGeneration.current += 1;
         commentsReadSequence.current += 1;
         Keyboard.dismiss();
         commentsSheetAnimating.current = true;
         commentsMotion.close(() => {
+            commentsSheetClosing.current = false;
             commentsSheetAnimating.current = false;
             commentsSheetCurrentHeight.current = 0;
             setCommentsModalVisible(false);
@@ -2141,10 +2161,10 @@ export default function HomeScreen() {
                 0;
         } });
     return (<>
-      <SafeAreaView style={styles.safeArea} edges={[
+      <SafeAreaView pointerEvents={commentsModalVisible ? "none" : "auto"} accessibilityElementsHidden={commentsModalVisible} importantForAccessibility={commentsModalVisible ? "no-hide-descendants" : "auto"} style={styles.safeArea} edges={[
             'top'
         ]}>
-      <ScrollView ref={homeScrollRef} style={styles.screen} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+      <ScrollView ref={homeScrollRef} scrollEnabled={!commentsModalVisible} scrollsToTop={!commentsModalVisible} style={styles.screen} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
             const y = event.nativeEvent
                 .contentOffset.y;
             homeScrollOffsetRef.current =
