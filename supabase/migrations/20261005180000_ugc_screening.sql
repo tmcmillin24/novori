@@ -183,8 +183,16 @@ language plpgsql security definer set search_path='' as $$declare claims jsonb;b
  if claims='{}'::jsonb and auth.uid() is null and session_user not in ('authenticator','supabase_storage_admin') then return new;end if;
  raise exception using errcode='42501',message='Images must pass Novori safety checks before upload.';
 end$$;
-drop trigger if exists novori_storage_publication_guard on storage.objects;
-create trigger novori_storage_publication_guard before insert or update on storage.objects for each row execute function public.novori_storage_publication_guard();
+-- postgres has TRIGGER permission on hosted Storage, but is not its owner.
+-- DROP TRIGGER requires ownership even with IF EXISTS. Preserve an existing
+-- matching trigger and update its function above instead of dropping it.
+do $$begin
+ if not exists(select 1 from pg_trigger where tgrelid='storage.objects'::regclass and tgname='novori_storage_publication_guard') then
+  create trigger novori_storage_publication_guard before insert or update on storage.objects for each row execute function public.novori_storage_publication_guard();
+ elsif not exists(select 1 from pg_trigger where tgrelid='storage.objects'::regclass and tgname='novori_storage_publication_guard' and tgfoid='public.novori_storage_publication_guard()'::regprocedure and tgtype=23 and tgenabled='O') then
+  raise exception 'Existing Storage moderation trigger has an unexpected definition; inspect it before continuing.';
+ end if;
+end$$;
 revoke all on function public.novori_storage_publication_guard() from public,anon,authenticated;
 
 -- Private visibility alone is insufficient if older SELECT policies let any
