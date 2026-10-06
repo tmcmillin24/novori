@@ -255,6 +255,7 @@ type TrendingBook = {
   rating: number | null;
   usersCount: number | null;
   coverUrl: string | null;
+  coverBookId?: string | null;
   authors: string[];
   isbns: string[];
   genres: string[];
@@ -3587,7 +3588,7 @@ export default function DiscoverScreen() {
       );
 
       const googleBookId =
-        await findGoogleBookIdForTrending(
+        trendingBook.coverBookId ?? await findGoogleBookIdForTrending(
           trendingBook
         );
 
@@ -3785,7 +3786,8 @@ export default function DiscoverScreen() {
         >
           {(item.isbns?.length || item.coverUrl) ? (
             <BookCoverImage
-              isbns={item.isbns}
+              googleBookId={item.coverBookId}
+              isbns={item.coverBookId ? undefined : item.isbns}
               existingCoverUrl={item.coverUrl}
               style={
                 styles.trendingCover
@@ -3879,7 +3881,8 @@ export default function DiscoverScreen() {
         >
           {(item.isbns?.length || item.coverUrl) ? (
             <BookCoverImage
-              isbns={item.isbns}
+              googleBookId={item.coverBookId}
+              isbns={item.coverBookId ? undefined : item.isbns}
               existingCoverUrl={item.coverUrl}
               style={
                 styles.newReleaseCover

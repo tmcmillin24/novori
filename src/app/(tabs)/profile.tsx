@@ -1519,6 +1519,7 @@ function createStyles(colors: NovoriColors) {
             ],
         },
         stackTileTitle: {
+            textAlign: 'center',
             color: colors.text,
             fontFamily: 'PlayfairDisplay_600SemiBold',
             fontSize: 15,
@@ -1526,11 +1527,13 @@ function createStyles(colors: NovoriColors) {
             marginTop: 8,
         },
         stackTileMetaRow: {
+            justifyContent: 'center',
             flexDirection: 'row',
             alignItems: 'center',
             marginTop: 5,
         },
         stackTileMeta: {
+            textAlign: 'center',
             color: colors.mutedText,
             fontFamily: 'Inter_500Medium',
             fontSize: 10,
