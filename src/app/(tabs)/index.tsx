@@ -699,6 +699,11 @@ export default function HomeScreen() {
     function showCommentWarning(error: unknown, fallbackTitle: string) {
         const details = error && typeof error === 'object' ? error as {code?: string; message?: string} : null;
         const message = details?.message || 'Please try again.';
+        if (__DEV__) console.info('[Novori comment warning response]', {
+            operation: fallbackTitle === 'Could not edit comment' ? 'edit' : 'new',
+            code: details?.code ?? 'unknown',
+            windowOpen: commentsModalVisible,
+        });
         Keyboard.dismiss();
         setCommentWarning({
             title: details?.code === 'NOVORI_MODERATION' && /review/i.test(message)

@@ -36,7 +36,12 @@ export default function ValidationWarningSheet({ visible, embedded = false, titl
     // Within the existing comments window, render the warning directly. Its
     // visibility must not depend on presenting or measuring a second sheet.
     if (embedded) return visible ? (
-      <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal>
+      <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200 }} collapsable={false} accessibilityViewIsModal onLayout={event => {
+          if (__DEV__) console.info('[Novori embedded warning layout]', {
+            width: event.nativeEvent.layout.width,
+            height: event.nativeEvent.layout.height,
+          });
+        }}>
         <Pressable style={styles.backdrop} onPress={dismiss}>
           <View pointerEvents="none" style={styles.backdropVisual}/>
           <View style={sheetStyle}>{body}</View>
