@@ -7,12 +7,13 @@ import { useNovoriTheme } from '../context/theme-context';
 type Props = {
     visible: boolean;
     stackName?: string | null;
+    onView?: () => void;
     onEdit: () => void;
     onShare: () => void;
     onDelete: () => void;
     onDismiss: () => void;
 };
-export default function BookStackActionsSheet({ visible, stackName, onEdit, onShare, onDelete, onDismiss, }: Props) {
+export default function BookStackActionsSheet({ visible, stackName, onView, onEdit, onShare, onDelete, onDismiss, }: Props) {
     const { colors, } = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = createStyles(colors);
@@ -56,6 +57,15 @@ export default function BookStackActionsSheet({ visible, stackName, onEdit, onSh
             </View>
 
             <View style={styles.actions}>
+              {onView ? <Pressable accessibilityRole="button" accessibilityLabel="View Stack" onPress={() => runAction(onView)} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+                <View style={styles.rowIcon}><Ionicons name="albums-outline" size={20} color={colors.gold}/></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>View Stack</Text>
+                  <Text style={styles.rowSubtitle}>Browse the stack and open its books</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
+              </Pressable> : null}
+
               <Pressable onPress={() => runAction(onEdit)} style={({ pressed }) => [
             styles.row,
             pressed &&

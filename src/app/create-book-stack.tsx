@@ -1,3 +1,4 @@
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import {resolveStackDragTarget} from '../lib/stack-drag-target';
 import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
@@ -210,6 +211,21 @@ export default function CreateBookStackScreen() {
   const { clubs, loadingClubs } = usePostDestinationClubs();
   const viewerProfile = usePostComposerProfile();
   const [stackWarning, setStackWarning] = useState<{ title: string; message: string } | null>(null);
+  async function showStackFailure(error: unknown, operation: 'save' | 'publish') {
+    const details = error && typeof error === 'object'
+      ? error as { code?: string; message?: string; review_id?: string }
+      : null;
+    const moderation = details?.code === 'NOVORI_MODERATION';
+    if (!moderation) console.error(`Could not ${operation} Book Stack:`, error);
+    await dismissKeyboardBeforeWarning();
+    setStackWarning({
+      title: moderation && details?.review_id ? 'Submission under review' : `Could not ${operation} stack`,
+      message: moderation && details?.review_id
+        ? 'Your stack submission needs a safety review. After approval, you can submit it again. For help, contact support@novori.link.'
+        : details?.message || 'Please try again.',
+    });
+  }
+
   const selectedClub = clubs.find((club) => club.id === clubId);
   const [postTextHeight, setPostTextHeight] = useState(22);
   const saveInFlight = useRef(false);
@@ -934,17 +950,7 @@ export default function CreateBookStackScreen() {
     } catch (
       error
     ) {
-      console.error(
-        'Could not save Book Stack:',
-        error
-      );
-
-      Alert.alert(
-        'Could not save stack',
-        error instanceof Error
-          ? error.message
-          : 'Please try again.'
-      );
+      await showStackFailure(error, 'save');
     } finally {
       saveInFlight.current = false;
       setSaving(false);
@@ -1025,11 +1031,6 @@ export default function CreateBookStackScreen() {
     } catch (
       error
     ) {
-      console.error(
-        'Could not publish Book Stack:',
-        error
-      );
-
       if (
         createdStackId
       ) {
@@ -1047,33 +1048,7 @@ export default function CreateBookStackScreen() {
         }
       }
 
-      const message =
-        error &&
-        typeof error ===
-          'object' &&
-        'message' in error &&
-        typeof error.message ===
-          'string'
-          ? error.message
-          : 'Please try again.';
-
-      const schemaIssue =
-        message.includes(
-          'post_type'
-        ) ||
-        message.includes(
-          'book_stack_id'
-        ) ||
-        message.includes(
-          'schema cache'
-        );
-
-      Alert.alert(
-        'Could not publish stack',
-        schemaIssue
-          ? `${message}\n\nThe Phase 6 Supabase migration needs to be rerun so posts accept Book Stacks.`
-          : message
-      );
+      await showStackFailure(error, 'publish');
     } finally {
       saveInFlight.current = false;
       setPublishing(
@@ -1769,7 +1744,8 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-      gap: 7,
+      gap: 4,
+      paddingHorizontal: 14,
       marginTop: 14,
       borderWidth: 1,
       borderColor:

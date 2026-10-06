@@ -1249,7 +1249,13 @@ export default function ProfileScreen() {
         }} onDismiss={() => setDeletePostTarget(null)}/>
 
       <BookStackActionsSheet visible={Boolean(stackActionsTarget)} stackName={stackActionsTarget?.name ??
-            null} onEdit={() => {
+            null} onView={() => {
+            if (stackActionsTarget) {
+                const id = stackActionsTarget.id;
+                setStackActionsTarget(null);
+                router.push({ pathname: '/book-stack/[id]', params: { id } });
+            }
+        }} onEdit={() => {
             if (stackActionsTarget) {
                 editStack(stackActionsTarget);
             }
