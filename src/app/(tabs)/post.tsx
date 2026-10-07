@@ -22,7 +22,7 @@ import {
 } from '../../context/theme-context';
 
 export default function PostScreen() {
-  const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post'),readingTarget=useTutorialTarget('create-reading-update'),askTarget=useTutorialTarget('create-ask-readers'),stackTarget=useTutorialTarget('create-book-stack'),scroll=useRef<ScrollView>(null);
+  const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post',22),readingTarget=useTutorialTarget('create-reading-update',18),askTarget=useTutorialTarget('create-ask-readers',18),stackTarget=useTutorialTarget('create-book-stack',18),scroll=useRef<ScrollView>(null);
   const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
   const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
   useEffect(()=>{

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import type {ComponentProps} from 'react';
 import { Tabs } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useNovoriTheme } from '../../context/theme-context';
-import {TutorialTarget,useTutorialTarget} from '../../context/tutorial-context';
+import {useTutorialTarget} from '../../context/tutorial-context';
 
 export default function TabLayout() {
-  const createTarget=useTutorialTarget('tab-create');
+  const createTarget=useTutorialTarget('tab-create',27);
   const {
     colors,
   } =
@@ -46,12 +47,13 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
+          tabBarButton: props => <TutorialTabButton {...props} targetId="tab-home" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <TutorialTarget id="tab-home"><Ionicons
+            <Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={size}
               color={color}
-            /></TutorialTarget>
+            />
           ),
         }}
       />
@@ -60,13 +62,14 @@ export default function TabLayout() {
         name="discover"
         options={{
           title: 'Discover',
+          tabBarButton: props => <TutorialTabButton {...props} targetId="tab-discover" />,
           freezeOnBlur: false,
           tabBarIcon: ({ color, size, focused }) => (
-            <TutorialTarget id="tab-discover"><Ionicons
+            <Ionicons
               name={focused ? 'compass' : 'compass-outline'}
               size={size}
               color={color}
-            /></TutorialTarget>
+            />
           ),
         }}
       />
@@ -118,12 +121,13 @@ export default function TabLayout() {
         name="library"
         options={{
           title: 'Library',
+          tabBarButton: props => <TutorialTabButton {...props} targetId="tab-library" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <TutorialTarget id="tab-library"><Ionicons
+            <Ionicons
               name={focused ? 'library' : 'library-outline'}
               size={size}
               color={color}
-            /></TutorialTarget>
+            />
           ),
         }}
       />
@@ -132,12 +136,13 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          tabBarButton: props => <TutorialTabButton {...props} targetId="tab-profile" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <TutorialTarget id="tab-profile"><Ionicons
+            <Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={size}
               color={color}
-            /></TutorialTarget>
+            />
           ),
         }}
       />
@@ -150,4 +155,10 @@ export default function TabLayout() {
       />
     </Tabs>
   );
+}
+
+/** Measure the complete native tab button, including its visible icon and label. */
+function TutorialTabButton({targetId,...props}: ComponentProps<typeof Pressable>&{targetId:string}) {
+ const target=useTutorialTarget(targetId,10);
+ return <Pressable {...props} ref={target.ref} collapsable={false} onLayout={event=>{props.onLayout?.(event);target.onLayout();}}/>;
 }

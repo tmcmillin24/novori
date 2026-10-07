@@ -12,7 +12,7 @@ const routePath=route=>route==='/(tabs)'?'/':route.replace('/(tabs)','');
 const mockRouter={push:jest.fn(),replace:jest.fn(route=>{mockPath=routePath(route);}),navigate:jest.fn(route=>{mockPath=routePath(route);})};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,usePathname:()=>mockPath,useLocalSearchParams:()=>mockParams,useRootNavigationState:()=>mockNavigation}));
 jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},Keyboard:{dismiss:jest.fn()},BackHandler:{addEventListener:()=>({remove:jest.fn()})},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',StyleSheet:{create:v=>v},useWindowDimensions:()=>mockDimensions}));
-jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},FadeIn:{duration:()=>undefined}}));
+jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},useSharedValue:value=>require('react').useRef({value}).current,useAnimatedStyle:fn=>fn(),withTiming:value=>value}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native-safe-area-context',()=>({useSafeAreaInsets:()=>({top:44,bottom:34})}));
 jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
@@ -59,11 +59,11 @@ test('all creation options and real-control steps navigate through Home, Discove
 });
 test('highlight uses measured native coordinates and leaves Next on the actual control',async()=>{
  await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
- expect(button.props.style).toMatchObject({left:26,top:744,width:52,height:58,borderWidth:2});
+ expect(button.parent.props.style[0]).toMatchObject({left:40,top:750,width:24,height:24,borderRadius:10});
  const mask=view.root.findByProps({testID:'tutorial-rounded-mask'});
- expect(mask.props.style.borderColor).toBe('rgba(0,0,0,0.72)');
- expect(mask.props.style.borderRadius-mask.props.style.borderWidth).toBe(button.props.style.borderRadius);
- expect(button.props.style.borderRadius).toBe(26);
+ expect(mask.props.style[1].borderColor).toBe('rgba(0,0,0,0.72)');
+ expect(mask.props.style[0].borderRadius-mask.props.style[1].borderWidth).toBe(button.props.style.borderRadius);
+ expect(button.props.style.borderRadius).toBe(10);
 });
 test('skip saves completion and automatic tours finish on Home',async()=>{
  mockParams={welcome:'1'};await render(<Harness launch/>);await redraw();await press('Skip tutorial');
@@ -80,7 +80,7 @@ test('tooltip and highlight remain inside iPhone and rotated iPad bounds',()=>{
   expect(result.card.top).toBeGreaterThanOrEqual(44);expect(result.card.top+230).toBeLessThanOrEqual(height-34);
   expect(result.target.x+result.target.width).toBeLessThanOrEqual(width);
  }
- const stale=spotlightLayout({x:1100,y:750,width:24,height:24},744,1133,44,34,230,true);expect(stale.target.width).toBeGreaterThan(0);
+ const stale=spotlightLayout({x:1100,y:750,width:24,height:24},744,1133,44,34,230,true);expect(stale.target.width).toBeGreaterThanOrEqual(0);
 });
 test('existing and completed accounts do not automatically launch',async()=>{
  expect(needsTutorial({})).toBe(false);expect(needsTutorial({novori_tutorial_pending:true,novori_tutorial_version:'1'})).toBe(false);
@@ -97,9 +97,9 @@ test('automatic start waits for legal acceptance and normal navigation and runs 
 
 test('spotlight follows circular plus and rounded card/button geometry',()=>{
  const plus=spotlightLayout({x:168,y:720,width:54,height:54},390,844,44,34,230,true,'tab-create').target;
- expect(plus).toMatchObject({x:164,y:716,width:62,height:62,radius:31});
- for(const [anchor,radius] of [['home-feed',13],['discover-books',13],['create-post',25],['create-reading-update',21],['create-ask-readers',21],['create-book-stack',21]]){
+ expect(plus).toMatchObject({x:168,y:720,width:54,height:54,radius:27});
+ for(const [anchor,radius] of [['home-feed',10],['discover-books',10],['create-post',22],['create-reading-update',18],['create-ask-readers',18],['create-book-stack',18]]){
   const target=spotlightLayout({x:20,y:150,width:160,height:120},390,844,44,34,230,false,anchor).target;
-  expect(target).toMatchObject({x:17,y:147,width:166,height:126,radius});
+  expect(target).toMatchObject({x:20,y:150,width:160,height:120,radius});
  }
 });

@@ -2092,7 +2092,7 @@ const DiscoverReaderCard = memo(
 );
 
 export default function DiscoverScreen() {
-  const tutorial=useTutorial(),booksTarget=useTutorialTarget('discover-books'),readersTarget=useTutorialTarget('discover-readers');
+  const tutorial=useTutorial(),booksTarget=useTutorialTarget('discover-books',10),readersTarget=useTutorialTarget('discover-readers',10);
   const { width: windowWidth } = useWindowDimensions();
   const {
     colors,

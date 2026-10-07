@@ -107,7 +107,7 @@ export default function HomeScreen() {
     const {full: commentsFullHeight, partial: commentsPartialHeight} = getCommentSheetBounds(windowHeight, insets.top);
     const commentsEntranceStartHeight = Math.max(320, Math.round(windowHeight * 0.50));
     const [activeSection, setActiveSection] = useState<HomeSection>('feed');
-    const tutorial=useTutorial(),feedTarget=useTutorialTarget('home-feed'),clubsTarget=useTutorialTarget('home-clubs');
+    const tutorial=useTutorial(),feedTarget=useTutorialTarget('home-feed',10),clubsTarget=useTutorialTarget('home-clubs',10);
     useEffect(()=>{
         if(tutorial?.active&&tutorial.step.path==='/'){
             setActiveSection(tutorial.step.anchor==='home-clubs'?'clubs':'feed');
