@@ -511,6 +511,7 @@ test('series lookup tries a second verified duplicate and rejects another author
  expect(h.calls.filter(call => call.body.query.includes('HardcoverBookById')).map(call => call.body.variables.id)).toEqual([1, 2]);
  const count = h.calls.length;
  await h.request('hardcover-series', body);
+ await h.request('hardcover-series', { ...body, isbn: '9780545586177', isbns: ['9780545586177'] });
  expect(h.calls.length).toBe(count);
  expect(h.claims).toBe(0);
 });

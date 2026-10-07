@@ -1,3 +1,6 @@
+import { preferredCoverIsbn } from '../_shared/catalog-cover-preferences.ts';
+import { matchesSeriesCatalogEdition } from '../_shared/series-book-catalog.ts';
+import { cachedWorkCovers } from '../_shared/catalog-metadata-covers.ts';
 import { catalogCoverAliases } from '../_shared/catalog-cover-aliases.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import {
@@ -519,6 +522,25 @@ Deno.serve(
         }
       }
 
+      // Some legacy/cached editions have publisher art but no candidate row.
+      // Recover that art for all verified work aliases before returning a null.
+      const missingWorks = workIds.filter(id => !selectionsByWork.get(id)?.locked && (!candidatesById.get(selectionsByWork.get(id)?.candidate_id ?? '')?.url || editionRows.some((row: any) => (aliases.get(row.work_id) ?? [row.work_id]).includes(id) && preferredCoverIsbn(row.metadata?.volumeInfo ?? {}))));
+      const metadataEditions: any[] = [];
+      for (let offset = 0; offset < missingWorks.length; offset += 100) {
+        for (let page = 0; ; page += 1000) {
+          const { data, error } = await supabaseAdmin.from('book_editions')
+            .select('id,provider,provider_book_id,work_id,isbn_13,language,metadata')
+            .in('provider', ['google_books', 'isbndb']).in('work_id', missingWorks.slice(offset, offset + 100))
+            .order('id').range(page, page + 999);
+          if (error) throw error;
+          metadataEditions.push(...(data ?? []).filter((row: any) => editionRows.some((seed: any) =>
+            (aliases.get(seed.work_id) ?? [seed.work_id]).includes(row.work_id) &&
+            matchesSeriesCatalogEdition(seed.metadata?.volumeInfo ?? {}, row))));
+          if ((data ?? []).length < 1000) break;
+        }
+      }
+      const metadataCovers = cachedWorkCovers(metadataEditions);
+
       const requestKeys = [...volumeIds, ...requestedIsbns.map(isbn => `isbn:${isbn}`)];
       for (const volumeId of requestKeys) {
         const originalWorkId = workByVolumeId.get(volumeId) ?? isbnWorkIds.get(volumeId);
@@ -527,9 +549,9 @@ Deno.serve(
         const eligible = originalWorkId ? aliases.get(originalWorkId) ?? [originalWorkId] : [];
         const ordered = eligible.filter(id => {
           const selected = selectionsByWork.get(id);
-          return selected && candidatesById.get(selected.candidate_id)?.url;
+          return (selected && candidatesById.get(selected.candidate_id)?.url) || metadataCovers.has(id);
         }).sort((a, b) => Number(selectionsByWork.get(b)?.locked) - Number(selectionsByWork.get(a)?.locked) ||
-          (selectionsByWork.get(b)?.score ?? 0) - (selectionsByWork.get(a)?.score ?? 0) || a.localeCompare(b));
+          Math.max(selectionsByWork.get(b)?.score ?? 0, metadataCovers.get(b)?.score ?? 0) - Math.max(selectionsByWork.get(a)?.score ?? 0, metadataCovers.get(a)?.score ?? 0) || a.localeCompare(b));
         const workId = originalWorkId && selectionsByWork.get(originalWorkId)?.locked ? originalWorkId : ordered[0] ?? originalWorkId;
 
         const selection =
@@ -539,12 +561,9 @@ Deno.serve(
               )
             : undefined;
 
-        const candidate =
-          selection
-            ? candidatesById.get(
-                selection.candidate_id
-              )
-            : undefined;
+        const recovered = metadataCovers.get(workId);
+        const candidate = recovered?.preferred && !selection?.locked ? recovered :
+          (selection ? candidatesById.get(selection.candidate_id) : undefined) ?? recovered;
 
         const selectedUrl =
           candidate?.url ??

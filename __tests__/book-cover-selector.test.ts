@@ -58,7 +58,7 @@ test('does not borrow another work or explicitly foreign artwork', async () => {
 
 test('reading an unchanged canonical cover does not rewrite the saved selection', async () => {
   const { client, writes } = catalog([candidate('best', 'extraLarge')], [{
-    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 5,
+    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 6,
   }]);
   await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
   expect(writes).toEqual([]);
@@ -120,7 +120,7 @@ test('reading a cached work retains eligible selected artwork regardless of rele
   for (const candidates of [covers, [...covers].reverse()]) {
     const { client, writes } = catalog(candidates, [{work_id:'work', locked:false, candidate_id:'b9554419', selector_version:1, status:'selected',score:480}], false, editions);
     await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
-    expect(writes[0]).toMatchObject({candidate_id:'b9554419', score:460, selector_version:5});
+    expect(writes[0]).toMatchObject({candidate_id:'b9554419', score:460, selector_version:6});
   }
 });
 
@@ -128,7 +128,7 @@ test('fetching another equal ISBNdb edition cannot replace original release artw
   for (const complete of [false, true]) {
     const {client, writes} = catalog([
       isbnArt('z-original', 'original'), isbnArt('a-later', 'later')
-    ], [{work_id:'work', locked:false,candidate_id:'z-original',status:'selected',score:460,selector_version:5}], false, [
+    ], [{work_id:'work', locked:false,candidate_id:'z-original',status:'selected',score:460,selector_version:6}], false, [
       isbnEdition('original','2020-05-01'), isbnEdition('later','2024-05-01',complete)
     ]);
     await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
@@ -138,7 +138,7 @@ test('fetching another equal ISBNdb edition cannot replace original release artw
 
 test('equivalent cached editions retain their winner instead of changing with new UUIDs', async () => {
   const {client,writes}=catalog([isbnArt('a-new','equal'),isbnArt('z-existing','original')],
-    [{work_id:'work',locked:false,candidate_id:'z-existing',status:'selected',score:460,selector_version:5}], false,
+    [{work_id:'work',locked:false,candidate_id:'z-existing',status:'selected',score:460,selector_version:6}], false,
     [isbnEdition('equal','2020-05-01',true),isbnEdition('original','2020-05-01')]);
   await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
   expect(writes).toEqual([]);
@@ -153,7 +153,7 @@ test('print artwork beats ebook artwork without claiming date establishes image 
 });
 
 test('ordinary reads retain eligible artwork but retire ineligible language selections',async()=>{
-  const existing=[{work_id:'work',locked:false,candidate_id:'old',status:'selected',score:460,selector_version:5}];
+  const existing=[{work_id:'work',locked:false,candidate_id:'old',status:'selected',score:460,selector_version:6}];
   const {client,writes}=catalog([isbnArt('old','original'),candidate('sharp','extraLarge')],existing,false,[isbnEdition('original','2020-01-01')]);
   await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
   expect(writes).toEqual([]);
@@ -189,7 +189,15 @@ test('retires legacy unproven series artwork even when linked catalog metadata i
 test('a retained audiobook cover retires when eligible print artwork exists', async () => {
  const old = { ...candidate('audio-art', 'medium', 'isbndb'), edition_id: 'audio' };
  const {client, writes} = catalog([old, candidate('print-art', 'medium', 'isbndb')],
-  [{work_id:'work',locked:false,candidate_id:'audio-art',status:'selected',score:210,selector_version:5}], true);
+  [{work_id:'work',locked:false,candidate_id:'audio-art',status:'selected',score:210,selector_version:6}], true);
  await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
  expect(writes[0].candidate_id).toBe('print-art');
+});
+
+
+test('an explicit preferred edition selects its catalog artwork without overriding manual locks',async()=>{
+ const ed={...isbnEdition('preferred','2026-09-29'),isbn_13:'9781682818527',metadata:{volumeInfo:{title:'Threshing Day',authors:['Rebecca Yarros'],language:'en'},novoriEdition:{format:'ebook'}}};
+ const {client,writes}=catalog([isbnArt('preferred-art','preferred'),candidate('other-art','extraLarge')],[{work_id:'work',candidate_id:'other-art',locked:false,status:'selected',score:700,selector_version:6}],false,[ed]);
+ await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
+ expect(writes[0].candidate_id).toBe('preferred-art');
 });

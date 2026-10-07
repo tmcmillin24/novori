@@ -269,39 +269,14 @@ Deno.serve(async (req) => {
 
 
 
-    const hardcoverSeriesCacheKey =
-
-      [
-
-        "series:v3:edition-art-and-membership",
-
-        requestedIsbns
-
-          .slice()
-
-          .sort()
-
-          .join(","),
-
-        normalizeSeriesCacheText(
-
-          requestedTitle
-
-        ),
-
-        requestedAuthors
-
-          .map(
-
-            normalizeSeriesCacheText
-
-          )
-
-          .join("|"),
-
-      ].join("::");
-
-
+    // Series membership belongs to a verified work, not its printing's ISBN.
+    // Keep ISBN-only/authorless requests isolated rather than aliasing unknown works.
+    const hardcoverSeriesCacheKey = [
+      'series:v4:work-membership',
+      normalizeSeriesCacheText(cleanCatalogBookTitle(requestedTitle)),
+      requestedAuthors.map(author => normalizeSeriesCacheText(normalizeCatalogAuthor(author))).sort().join('|'),
+      requestedTitle && requestedAuthors.length ? '' : requestedIsbns.slice().sort().join(','),
+    ].join('::');
 
     const responsePayload = await cachedProviderValue({
       admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,

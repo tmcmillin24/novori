@@ -1,3 +1,4 @@
+import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cleanCatalogBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
@@ -16,7 +17,7 @@ export function matchesSeriesCatalogEdition(book: any, edition: any): boolean {
 /** Resolve artwork identities in the existing catalog, without upstream API requests. */
 export async function attachSeriesCatalogIdentities(admin: SupabaseClient, payload: any) {
  if (!Array.isArray(payload?.books)) return payload;
- const isbns = [...new Set<string>(payload.books.flatMap((book: any) => book.isbns ?? []))];
+ const isbns = [...new Set<string>(payload.books.flatMap((book: any) => [...(book.isbns ?? []), preferredCoverIsbn(book)].filter(Boolean)))];
  const rows: any[] = [];
  for (const column of ['isbn_13', 'isbn_10'] as const) {
   const wanted = isbns.filter(value => typeof value === 'string' && value.length === (column === 'isbn_13' ? 13 : 10));
@@ -28,8 +29,10 @@ export async function attachSeriesCatalogIdentities(admin: SupabaseClient, paylo
   rows.push(...(data ?? []));
  }
  const exactEdition = (book: any) => {
-  const wanted = new Set(book.isbns ?? []);
-  return rows.find(row => (wanted.has(row.isbn_13) || wanted.has(row.isbn_10)) && matchesSeriesCatalogEdition(book, row));
+  const preferred = preferredCoverIsbn(book);
+  const wanted = new Set([...(book.isbns ?? []), preferred].filter(Boolean));
+  const matching = rows.filter(row => (wanted.has(row.isbn_13) || wanted.has(row.isbn_10)) && matchesSeriesCatalogEdition(book, row));
+  return matching.find(row => preferred && row.isbn_13 === preferred) ?? matching[0];
  };
  // Hardcover may list a different English printing than the one already cached.
  // Look up the work in bulk, then verify each edition's own title/author/language.

@@ -50,6 +50,9 @@ function endpoint(locked = false, customize = () => {}) {
     Deno: { env: { get: name => name === 'NOVORI_SERVER_KEY' ? 'sb_secret_test' : name === 'SUPABASE_URL' ? 'https://test.supabase.co' : undefined }, serve: callback => { handler = callback; } },
     require: name => name.startsWith('https:') ? { createClient: () => client }
       : name.includes('supabase-keys') ? { getServerKey: read => read('NOVORI_SERVER_KEY') }
+      : name.includes('catalog-cover-preferences') ? require('../supabase/functions/_shared/catalog-cover-preferences')
+      : name.includes('series-book-catalog') ? require('../supabase/functions/_shared/series-book-catalog')
+      : name.includes('catalog-metadata-covers') ? require('../supabase/functions/_shared/catalog-metadata-covers')
       : name.includes('catalog-cover-aliases') ? require('../supabase/functions/_shared/catalog-cover-aliases')
       : name.includes('book-publication-cache') ? require('../supabase/functions/_shared/book-publication-cache')
       : { selectCanonicalGoogleCoversForWorkIds },
@@ -110,4 +113,24 @@ test('rejected raw Hardcover art is reported so every client surface can retire 
  })({ volumeIds: ['volumeA'] });
  expect(result.data.covers.volumeA).toBeNull();
  expect(result.data.details.volumeA.rejectedUrls).toEqual(['https://art/spanish.jpg']);
+});
+
+
+test.each(['Catching Fire', '1984', 'Piranesi', 'The Infinite Extent', 'Harry Potter and the Philosopher’s Stone'])('cached %s artwork is returned before opening even without candidate rows',async title=>{
+ const run=endpoint(false,rows=>{
+  rows.book_cover_candidates=[];
+  rows.book_editions[0].metadata={volumeInfo:{title,authors:['Author'],language:'en',imageLinks:{medium:'https://publisher/art.jpg'}}};
+  rows.book_editions[1].metadata={volumeInfo:{title,authors:['Author'],language:'en'}};
+ });
+ const result=await run({volumeIds:['volumeA','volumeB']});
+ expect(result.data.covers).toEqual({volumeA:'https://publisher/art.jpg',volumeB:'https://publisher/art.jpg'});
+});
+
+
+test('owner preferred ISBN metadata supplies artwork even before its candidate row exists',async()=>{
+ const run=endpoint(false,rows=>{
+  rows.book_editions.forEach((row,i)=>Object.assign(row,{isbn_13:i?'9781682818527':'9781682818084',metadata:{volumeInfo:{title:'Threshing Day',authors:['Rebecca Yarros'],language:'en',imageLinks:{medium:i?'https://publisher/preferred.jpg':'https://publisher/other.jpg'}}}}));
+ });
+ const result=await run({volumeIds:['volumeA','volumeB']});
+ expect(Object.values(result.data.covers)).toEqual(['https://publisher/preferred.jpg','https://publisher/preferred.jpg']);
 });

@@ -1,3 +1,4 @@
+import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cachedProviderValue, createCacheAdmin, fetchJsonWithTimeout, requireReader } from './provider-cache.ts';
@@ -167,6 +168,15 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
       return { items: books, totalItems: Number(raw.total) || books.length };
     },
   });
+  // Resolve an explicit owner's edition preference through the normal cache and
+  // quota path. Preserve search IDs and metadata; only ingest its publisher art.
+  for (const item of response.items) {
+    const preferred = preferredCoverIsbn(item.volumeInfo);
+    if (preferred && preferred !== item.source.isbn13) {
+      try { await lookup(admin, userId, preferred); } catch { /* Keep usable cached search results. */ }
+      break;
+    }
+  }
   return { ...response, items: response.items.map(normalizeIsbnDbEdition) };
 }
 

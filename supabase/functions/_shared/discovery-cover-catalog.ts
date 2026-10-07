@@ -1,3 +1,4 @@
+import { cachedWorkCovers } from './catalog-metadata-covers.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { selectCanonicalGoogleCoversForWorkIds } from './book-cover-selector.ts';
 import { attachSeriesCatalogIdentities } from './series-book-catalog.ts';
@@ -8,7 +9,7 @@ export async function attachDiscoveryCatalogCovers(admin: SupabaseClient, payloa
   const ids = [...new Set<string>((verified.books ?? []).map((book: any) => book.coverBookId).filter(Boolean))];
   if (!ids.length) return { ...verified, books: verified.books.map((book: any) => ({ ...book, coverUrl: null })) };
   const { data: editions, error } = await admin.from('book_editions')
-    .select('provider_book_id,work_id,metadata').in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
+    .select('id,provider,provider_book_id,work_id,isbn_13,language,metadata').in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
   if (error) throw error;
   const works = [...new Set<string>((editions ?? []).map((row: any) => row.work_id).filter(Boolean))];
   await selectCanonicalGoogleCoversForWorkIds(admin, works);
@@ -27,11 +28,13 @@ export async function attachDiscoveryCatalogCovers(admin: SupabaseClient, payloa
     const candidate: any = urls.get(row.candidate_id);
     return [row.work_id, candidate && (row.locked || candidate.provider !== 'hardcover') ? candidate.url : null];
   }));
+  const fallbackCovers = cachedWorkCovers(editions ?? []);
   const byId = new Map((editions ?? []).map((row: any) => [row.provider_book_id, row]));
   return { ...verified, books: verified.books.map((book: any) => {
     const edition: any = byId.get(book.coverBookId);
-    const links = edition?.metadata?.volumeInfo?.imageLinks;
-    const coverUrl = selected.get(edition?.work_id) ?? links?.extraLarge ?? links?.large ?? links?.medium ?? links?.thumbnail;
+    const fallback = fallbackCovers.get(edition?.work_id);
+    const selection = (selections ?? []).find((row: any) => row.work_id === edition?.work_id);
+    const coverUrl = fallback?.preferred && !selection?.locked ? fallback.url : selected.get(edition?.work_id) ?? fallback?.url;
     return { ...book, coverUrl: coverUrl ? String(coverUrl).replace(/^http:\/\//i, 'https://') : null };
   }) };
 }

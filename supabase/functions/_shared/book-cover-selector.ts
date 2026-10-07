@@ -1,3 +1,4 @@
+import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 import type {
@@ -5,7 +6,7 @@ import type {
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SELECTOR_VERSION =
-  5;
+  6;
 
 const GOOGLE_PROVIDER =
   'google_books';
@@ -52,6 +53,7 @@ type CandidateRow = {
 };
 
 type EditionRow = {
+  isbn_13?: string | null;
   metadata?: { volumeInfo: any; novoriEdition?: { binding?: string; format?: string } };
   id: string;
   detail_complete:
@@ -181,8 +183,9 @@ function candidateScore(
     return null;
   }
 
+  const preference = edition.metadata?.volumeInfo ? preferredCoverIsbn(edition.metadata.volumeInfo) : null;
   return (
-    qualityScore - (edition.metadata ? 250 * audioEditionPenalty(edition.metadata) : 0) +
+    (preference && edition.isbn_13 === preference ? 1000 : 0) + qualityScore - (edition.metadata ? 250 * audioEditionPenalty(edition.metadata) : 0) +
     editionLocaleScore +
     (
       candidate.provider !== 'isbndb' && edition.detail_complete
@@ -352,7 +355,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
       for (let offset = 0; offset < editionIds.length; offset += 200) {
         const { data, error } = await supabaseAdmin
           .from('book_editions')
-          .select('id, detail_complete, language, sale_country, metadata')
+          .select('id, isbn_13, detail_complete, language, sale_country, metadata')
           .in('id', editionIds.slice(offset, offset + 200));
         if (error) {
           console.warn('Could not read editions for Novori cover selection:', error.message);
@@ -514,8 +517,12 @@ export async function selectCanonicalGoogleCoversForWorkIds(
 
           // Ordinary reads and metadata enrichment must not switch eligible art.
           const retained = ranked.find(item => item.candidate.id === previous?.candidate_id);
+          const preferred = ranked.find(item => {
+            const isbn = item.edition.metadata?.volumeInfo ? preferredCoverIsbn(item.edition.metadata.volumeInfo) : null;
+            return isbn && item.edition.isbn_13 === isbn;
+          });
           const selected =
-            retained ?? strongRanked[0] ??
+            preferred ?? retained ?? strongRanked[0] ??
             ranked[0] ??
             null;
 

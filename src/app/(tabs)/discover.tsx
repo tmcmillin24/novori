@@ -1,3 +1,4 @@
+import DiscoveryCoverImage from '../../components/DiscoveryCoverImage';
 import { displayBookTitle } from '../../lib/book-title';
 import { discoveryCoverInput, getDiscoveryBookId, getDiscoveryBookVersion, subscribeDiscoveryBooks } from '../../lib/discovery-books';
 import { getBookLayout } from '../../lib/book-layout';
@@ -3560,28 +3561,7 @@ export default function DiscoverScreen() {
             styles.trendingCoverWrap
           }
         >
-          {(getDiscoveryBookId(item) || item.coverUrl) ? (
-            <BookCoverImage
-              {...discoveryCoverInput(item)}
-              style={
-                styles.trendingCover
-              }
-            />
-          ) : (
-            <View
-              style={
-                styles.trendingCoverPlaceholder
-              }
-            >
-              <Text
-                style={
-                  styles.coverPlaceholderText
-                }
-              >
-                No Cover
-              </Text>
-            </View>
-          )}
+          <DiscoveryCoverImage book={item} style={styles.trendingCover} />
 
 
         </View>
@@ -3638,28 +3618,7 @@ export default function DiscoverScreen() {
             styles.newReleaseCoverWrap
           }
         >
-          {(getDiscoveryBookId(item) || item.coverUrl) ? (
-            <BookCoverImage
-              {...discoveryCoverInput(item)}
-              style={
-                styles.newReleaseCover
-              }
-            />
-          ) : (
-            <View
-              style={
-                styles.newReleaseCoverPlaceholder
-              }
-            >
-              <Text
-                style={
-                  styles.coverPlaceholderText
-                }
-              >
-                No Cover
-              </Text>
-            </View>
-          )}
+          <DiscoveryCoverImage book={item} style={styles.newReleaseCover} />
 
 
         </View>
@@ -3795,7 +3754,6 @@ export default function DiscoverScreen() {
     [...recentReleasePool]
       .filter(
         (book) =>
-          !!book.coverUrl &&
           !!book.authors?.[0] &&
           !fixedTrendingIds.has(
             book.id
