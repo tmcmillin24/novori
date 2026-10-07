@@ -647,8 +647,8 @@ export default function AuthScreen() {
               </View>
             ) : null}
 
-            {isSignUp ? <LegalSignupAcknowledgment adult={adultConfirmed} accepted={termsAccepted} onAdultChange={setAdultConfirmed} onAcceptedChange={setTermsAccepted} disabled={loading} /> : null}
             {isSignUp ? <BetaSignupEnrollment phase={betaPhase} optIn={betaOptIn} onChange={setBetaOptIn} disabled={loading} /> : null}
+            {isSignUp ? <LegalSignupAcknowledgment adult={adultConfirmed} accepted={termsAccepted} onAdultChange={setAdultConfirmed} onAcceptedChange={setTermsAccepted} disabled={loading} /> : null}
 
             {!isSignUp ? (
               <Pressable
@@ -689,6 +689,7 @@ export default function AuthScreen() {
               }
               style={({ pressed }) => [
                 styles.primaryButton,
+                isSignUp && { marginTop: 0 },
                 keyboardVisible && !Platform.isPad &&
                   styles.keyboardHiddenAction,
                 pressed &&

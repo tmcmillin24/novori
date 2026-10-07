@@ -19,7 +19,7 @@ export default function LegalSignupAcknowledgment({
   const router = useRouter();
   const { colors } = useNovoriTheme();
   const styles = StyleSheet.create({
-    block: { marginVertical: 8 },
+    block: { marginTop: 8 },
     row: { flexDirection: "row", alignItems: "center", minHeight: 48, gap: 12 },
     copy: {
       flex: 1,
@@ -28,7 +28,7 @@ export default function LegalSignupAcknowledgment({
       fontSize: 13,
       lineHeight: 20,
     },
-    links: { flexDirection: "row", flexWrap: "wrap", gap: 16, marginLeft: 34 },
+    links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 20, marginVertical: 12 },
     link: { minHeight: 44, justifyContent: "center" },
     linkText: {
       color: colors.gold,
