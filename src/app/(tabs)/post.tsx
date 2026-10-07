@@ -35,10 +35,14 @@ export default function PostScreen() {
     if(positions[anchor]===undefined)return;
     // Keep already visible cards where they are. Scroll only enough to reveal a clipped card.
     let cancelled=false;
-    target.ref.current?.measureInWindow((_x,y,_w,h)=>{
-      if(cancelled)return;
-      const offset=tutorialRevealOffset(y,h,scrollOffset.current,insets.top+20,screenHeight-insets.bottom-94);
-      if(Math.abs(offset-scrollOffset.current)>1)scroll.current?.scrollTo({y:offset,animated:false});
+    scroll.current?.getNativeScrollRef()?.measureInWindow((_viewX,viewY,_viewW,viewH)=>{
+      if(cancelled||viewH<=0)return;
+      target.ref.current?.measureInWindow((_x,y,_w,h)=>{
+        if(cancelled||h<=0)return;
+        // The tab bar and safe areas are already excluded from this native viewport.
+        const offset=tutorialRevealOffset(y,h,scrollOffset.current,viewY+12,viewY+viewH-12);
+        if(Math.abs(offset-scrollOffset.current)>1)scroll.current?.scrollTo({y:offset,animated:false});
+      });
     });
     return()=>{cancelled=true;};
   },[tutorial?.active,tutorial?.step.anchor,positions,gridY,screenHeight,insets.top,insets.bottom]);

@@ -158,3 +158,9 @@ test('same-screen preparation retains the settled prompt and highlight without a
  await act(async()=>mockTour.measure('home-feed',{x:40,y:180,width:140,height:44,radius:10}));
  expect(view.root.findAllByType('Text').some(t=>t.props.children==='Your Feed')).toBe(true);
 });
+
+test('bottom-row reveal uses the measured viewport instead of subtracting tab insets twice',()=>{
+ // Both cards fit in a native viewport ending at 810; a guessed 740 bottom would scroll them.
+ expect(tutorialRevealOffset(610,184,0,92,798)).toBe(0);
+ expect(tutorialRevealOffset(630,184,0,92,798)).toBe(16);
+});
