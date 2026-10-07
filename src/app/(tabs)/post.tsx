@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import {useEffect,useRef} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { useRouter } from 'expo-router';
 import {
@@ -22,8 +22,15 @@ import {
 } from '../../context/theme-context';
 
 export default function PostScreen() {
-  const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post'),scroll=useRef<ScrollView>(null);
-  useEffect(()=>{if(tutorial?.active&&tutorial.step.path==='/post')scroll.current?.scrollTo({y:0,animated:false});},[tutorial?.active,tutorial?.step.anchor]);
+  const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post'),readingTarget=useTutorialTarget('create-reading-update'),askTarget=useTutorialTarget('create-ask-readers'),stackTarget=useTutorialTarget('create-book-stack'),scroll=useRef<ScrollView>(null);
+  const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
+  const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
+  useEffect(()=>{
+    if(tutorial?.active&&tutorial.step.path==='/post'){
+      const anchor=tutorial.step.anchor,y=positions[anchor];
+      scroll.current?.scrollTo({y:y===undefined?0:Math.max(0,y+(anchor==='create-ask-readers'||anchor==='create-book-stack'?gridY:0)-20),animated:false});
+    }
+  },[tutorial?.active,tutorial?.step.anchor,positions,gridY]);
   const router =
     useRouter();
 
@@ -111,7 +118,7 @@ export default function PostScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Post"
-            ref={postTarget.ref} onLayout={postTarget.onLayout}
+            ref={postTarget.ref} onLayout={event=>{postTarget.onLayout();recordPosition('create-post',event.nativeEvent.layout.y);}}
             accessibilityHint="Create a new social post."
             onPress={() =>
               router.push(
@@ -205,6 +212,7 @@ export default function PostScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Reading Update"
+              ref={readingTarget.ref} onLayout={event=>{readingTarget.onLayout();recordPosition('create-reading-update',event.nativeEvent.layout.y);}}
             accessibilityHint="Share your reading progress."
             onPress={() =>
               router.push(
@@ -360,10 +368,12 @@ export default function PostScreen() {
             style={
               styles.bottomGrid
             }
+            onLayout={event=>setGridY(event.nativeEvent.layout.y)}
           >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Ask Readers"
+              ref={askTarget.ref} onLayout={event=>{askTarget.onLayout();recordPosition('create-ask-readers',event.nativeEvent.layout.y);}}
               accessibilityHint="Ask readers a question."
               onPress={() =>
                 router.push(
@@ -466,6 +476,7 @@ export default function PostScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Book Stack"
+              ref={stackTarget.ref} onLayout={event=>{stackTarget.onLayout();recordPosition('create-book-stack',event.nativeEvent.layout.y);}}
               accessibilityHint="Build and save a book stack."
               onPress={() =>
                 router.push(

@@ -29,7 +29,7 @@ export function TutorialProvider({children}:{children:ReactNode}){
   finally{saving.current=false;setBusy(false);}
  }
  function change(index:number){if(busy||!run)return;setBounds(null);setRun({...run,index});}
- return <Context.Provider value={{active:!!run,index:run?.index??0,step,pathname,bounds,busy,error,start,next:()=>run&&run.index===9?void finish():change((run?.index??0)+1),back:()=>change(Math.max(0,(run?.index??0)-1)),finish,clearError:()=>setError(''),measure}}>{children}</Context.Provider>;
+ return <Context.Provider value={{active:!!run,index:run?.index??0,step,pathname,bounds,busy,error,start,next:()=>run&&run.index===TUTORIAL_STEPS.length-1?void finish():change((run?.index??0)+1),back:()=>change(Math.max(0,(run?.index??0)-1)),finish,clearError:()=>setError(''),measure}}>{children}</Context.Provider>;
 }
 /** Attach to the actual native control; its measured frame follows screen size and rotation. */
 export function useTutorialTarget(id:string){

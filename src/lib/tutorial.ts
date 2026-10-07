@@ -9,6 +9,9 @@ export const TUTORIAL_STEPS = [
  {title:'Find your readers',anchor:'discover-readers',path:'/discover',route:'/(tabs)/discover',description:'Switch to Readers to search for people. Visit a profile, explore their books and follow readers you enjoy.'},
  {title:'Make something worth sharing',anchor:'tab-create',path:'/post',route:'/(tabs)/post',description:'The + button opens your creation hub: posts, reading updates, questions and book stacks.'},
  {title:'Start a conversation',anchor:'create-post',path:'/post',route:'/(tabs)/post',description:'Use Post to share a thought or photo. Choose Your Feed or a club before publishing, and mark spoilers when you reveal plot details.'},
+ {title:'Share your reading progress',anchor:'create-reading-update',path:'/post',route:'/(tabs)/post',description:'Reading Update shares your current book, page or chapter, and thoughts so far. Choose your audience and flag spoilers before publishing.'},
+ {title:'Ask the community',anchor:'create-ask-readers',path:'/post',route:'/(tabs)/post',description:'Ask Readers starts a question for your feed or a club. Get recommendations, compare favorites, or open a discussion.'},
+ {title:'Build a book stack',anchor:'create-book-stack',path:'/post',route:'/(tabs)/post',description:'Book Stack groups books around a theme. Name your stack, choose and arrange its books, then save it to your profile or share it as a post.'},
  {title:'Your own library',anchor:'tab-library',path:'/library',route:'/(tabs)/library',description:'Your books are organized here. Search and filter your library, then tap a cover to reopen its details.'},
  {title:'Make Novori yours',anchor:'tab-profile',path:'/profile',route:'/(tabs)/profile',description:'Your profile holds your books, reviews and stacks. Open My Reading for check-ins, recaps and goals. Replay this tour from Settings anytime.'},
 ] as const;

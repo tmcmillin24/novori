@@ -37,8 +37,8 @@ async function render(element=<Harness/>){await act(async()=>{view=renderer.crea
 async function redraw(){await act(async()=>view.update(<Harness/>));}
 async function start(){await render();await act(async()=>mockTour.start());await redraw();}
 async function press(label){const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel===label);expect(button.props.disabled).toBeFalsy();await act(async()=>button.props.onPress());await redraw();}
-test('ten real-control steps navigate through Home, Discover, creation, Library and Profile',async()=>{
- await start();expect(TUTORIAL_STEPS).toHaveLength(10);
+test('all creation options and real-control steps navigate through Home, Discover, creation, Library and Profile',async()=>{
+ await start();expect(TUTORIAL_STEPS).toHaveLength(13);
  expect(mockTour.step.anchor).toBe('tab-home');
  await press('Continue from highlighted control');expect(mockTour.step.anchor).toBe('home-feed');
  await press('Next tutorial step');expect(mockTour.step.anchor).toBe('home-clubs');
@@ -47,6 +47,9 @@ test('ten real-control steps navigate through Home, Discover, creation, Library 
  await press('Next tutorial step');expect(mockTour.step.anchor).toBe('discover-readers');
  await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/post');
  await press('Next tutorial step');expect(mockTour.step.anchor).toBe('create-post');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('create-reading-update');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('create-ask-readers');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('create-book-stack');
  await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/library');
  await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/profile');
  await press('Previous tutorial step');expect(mockTour.step.anchor).toBe('tab-library');
@@ -57,7 +60,10 @@ test('ten real-control steps navigate through Home, Discover, creation, Library 
 test('highlight uses measured native coordinates and leaves Next on the actual control',async()=>{
  await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
  expect(button.props.style).toMatchObject({left:26,top:744,width:52,height:58,borderWidth:2});
- expect(view.root.findAllByType('View').some(v=>v.props.style?.backgroundColor==='rgba(0,0,0,0.72)')).toBe(true);
+ const mask=view.root.findByProps({testID:'tutorial-rounded-mask'});
+ expect(mask.props.style.borderColor).toBe('rgba(0,0,0,0.72)');
+ expect(mask.props.style.borderRadius-mask.props.style.borderWidth).toBe(button.props.style.borderRadius);
+ expect(button.props.style.borderRadius).toBe(26);
 });
 test('skip saves completion and automatic tours finish on Home',async()=>{
  mockParams={welcome:'1'};await render(<Harness launch/>);await redraw();await press('Skip tutorial');
@@ -87,4 +93,13 @@ test('automatic start waits for legal acceptance and normal navigation and runs 
  mockNavigation={index:0,routes:[{name:'auth'}]};await act(async()=>mockAuthCallback('USER_UPDATED',{user:reader}));expect(mockRouter.push).not.toHaveBeenCalled();
  mockNavigation={index:0,routes:[{name:'(tabs)'}]};await act(async()=>view.update(<TutorialGate/>));expect(mockRouter.push).toHaveBeenCalledTimes(1);
  await act(async()=>mockAuthCallback('TOKEN_REFRESHED',{user:reader}));expect(mockRouter.push).toHaveBeenCalledTimes(1);
+});
+
+test('spotlight follows circular plus and rounded card/button geometry',()=>{
+ const plus=spotlightLayout({x:168,y:720,width:54,height:54},390,844,44,34,230,true,'tab-create').target;
+ expect(plus).toMatchObject({x:164,y:716,width:62,height:62,radius:31});
+ for(const [anchor,radius] of [['home-feed',13],['discover-books',13],['create-post',25],['create-reading-update',21],['create-ask-readers',21],['create-book-stack',21]]){
+  const target=spotlightLayout({x:20,y:150,width:160,height:120},390,844,44,34,230,false,anchor).target;
+  expect(target).toMatchObject({x:17,y:147,width:166,height:126,radius});
+ }
 });
