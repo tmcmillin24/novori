@@ -65,7 +65,7 @@ export function createPublicationHandler({ client, supabaseUrl, publishableKey, 
       if (raw.length > 100000) throw new ScreeningError('This submission is too large.', 413);
       let envelope;
       try { envelope = JSON.parse(raw); } catch { throw new ScreeningError('Invalid submission.'); }
-      const { path, query = '', method, body, prefer = '', accept = '' } = envelope;
+      const { path, query = '', method, body, prefer = '' } = envelope;
       if (typeof path !== 'string' || !['POST', 'PATCH', 'PUT'].includes(method) || typeof query !== 'string' || (query && !query.startsWith('?')) || query.length > 4000) throw new ScreeningError('Invalid submission.');
       let fields;try {fields=publicationFields(path,body);}catch {throw new ScreeningError('Invalid publication.');}
       if (fields === null) throw new ScreeningError('Unsupported publishing path.');
@@ -121,9 +121,6 @@ export function createPublicationHandler({ client, supabaseUrl, publishableKey, 
       if (ticket.error) throw new ScreeningError('Could not authorize publication. Please retry.', 503);
       const headers = { Authorization: authorization, apikey: publishableKey, 'Content-Type': 'application/json', 'X-Novori-Moderation-Ticket': ticket.data };
       const allowedPreferences = prefer.split(',').map(v => v.trim()).filter(v => /^(return=(representation|minimal)|resolution=(merge-duplicates|ignore-duplicates)|missing=default|count=(exact|planned|estimated))$/.test(v));
-      // Preserve Supabase .single() response semantics across the gateway.
-      // Allow only the object media type, never caller-controlled schema headers.
-      if (accept === 'application/vnd.pgrst.object+json') headers.Accept = accept;
       if (allowedPreferences.length) headers.Prefer = allowedPreferences.join(',');
       try {
         const forwarded = await transport(`${supabaseUrl}/rest/v1/${path}${query}`, { method, headers, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
