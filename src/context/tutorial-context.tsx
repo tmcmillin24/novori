@@ -58,7 +58,13 @@ export function useTutorialTarget(id:string,radius=0){
   });
  },[enabled,id,register,width,height,radius]);
  useEffect(()=>{if(!enabled){candidate.current=null;return;}measure();const timer=current?setInterval(measure,180):null;return()=>{if(settleFrame.current!==null)cancelAnimationFrame(settleFrame.current);if(timer!==null)clearInterval(timer);};},[enabled,current,measure]);
- return {ref,onLayout:measure};
+ const trackMotion=useCallback(()=>{
+  if(!current)return;
+  ref.current?.measureInWindow((x,y,w,h)=>{
+   if(activeTarget.current===id&&w>0&&h>0)register?.(id,{x,y,width:w,height:h,radius});
+  });
+ },[current,id,register,radius]);
+ return {ref,onLayout:measure,trackMotion};
 }
 export function TutorialTarget({id,children,...props}:ViewProps&{id:string;children:ReactNode}){
  const target=useTutorialTarget(id);

@@ -72,7 +72,14 @@ export default function PostScreen() {
         ref={scroll}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
-        onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y;}}
+        onScroll={event=>{
+          scrollOffset.current=event.nativeEvent.contentOffset.y;
+          if(tutorial?.active){
+            const anchor=tutorial.step.anchor;
+            const target=anchor==='create-post'?postTarget:anchor==='create-reading-update'?readingTarget:anchor==='create-ask-readers'?askTarget:anchor==='create-book-stack'?stackTarget:null;
+            target?.trackMotion();
+          }
+        }}
         scrollEventThrottle={16}
         scrollEnabled={!tutorial?.active}
         bounces={!tutorial?.active}

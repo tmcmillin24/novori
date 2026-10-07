@@ -182,3 +182,16 @@ test('outer dimming panels stretch to the overlay edges without relying on repor
  expect(view.root.findByProps({testID:'tutorial-dim-panel-1'}).props.style).toMatchObject({left:0,right:0,bottom:0});
  expect(view.root.findByProps({testID:'tutorial-dim-panel-3'}).props.style.right).toBe(0);
 });
+
+test('prompt and highlight update together while a creation card moves through the viewport',async()=>{
+ await start();
+ for(let index=0;index<9;index++)await press('Next tutorial step');
+ expect(mockTour.step.anchor).toBe('create-ask-readers');
+ for(const y of [500,460,420]){
+  await act(async()=>mockTour.measure('create-ask-readers',{x:20,y,width:180,height:184,radius:18}));
+  const outline=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
+  expect(outline.parent.props.style.top).toBe(y);
+  expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(1);
+  expect(view.root.findAllByProps({testID:'tutorial-preparing-screen'})).toHaveLength(0);
+ }
+});
