@@ -1,7 +1,7 @@
 import { getBookLayout, getProfileBookWidth, getLibraryBookWidth } from '../src/lib/book-layout';
 
-test.each([375, 390, 440])('phone %s keeps its existing cover sizes and two columns', width => {
-  expect(getBookLayout(width)).toEqual({ libraryColumns: 2, searchCoverWidth: 75, trendingCoverWidth: 122, releaseCoverWidth: 112 });
+test.each([320, 360, 375, 390, 440, 600, 744])('phone %s matches Trending to Recent Releases and keeps two library columns', width => {
+  expect(getBookLayout(width)).toEqual({ libraryColumns: 2, searchCoverWidth: 75, trendingCoverWidth: 112, releaseCoverWidth: 112 });
 });
 
 test.each([768, 820, 834, 1024, 1032, 1180, 1194, 1366])('tablet %s keeps library covers near a practical size', width => {
@@ -10,7 +10,8 @@ test.each([768, 820, 834, 1024, 1032, 1180, 1194, 1366])('tablet %s keeps librar
   expect(coverWidth).toBeGreaterThan(150);
   expect(coverWidth).toBeLessThan(240);
   expect(layout.searchCoverWidth).toBeGreaterThan(75);
-  expect(layout.trendingCoverWidth).toBeLessThanOrEqual(200);
+  expect(layout.trendingCoverWidth).toBe(layout.releaseCoverWidth);
+  expect(layout.releaseCoverWidth).toBe(Math.min(190, Math.max(150, Math.round(width * 0.15))));
   expect(layout.releaseCoverWidth).toBeLessThanOrEqual(190);
 });
 
