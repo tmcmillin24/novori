@@ -1,6 +1,6 @@
 import React,{useEffect} from 'react';
 import renderer,{act} from 'react-test-renderer';
-import TutorialOverlay,{spotlightLayout} from '../src/components/TutorialOverlay';
+import TutorialOverlay,{spotlightLayout,spotlightMaskPieces} from '../src/components/TutorialOverlay';
 import TutorialLauncher from '../src/app/tutorial';
 import TutorialGate from '../src/components/TutorialGate';
 import {TutorialProvider,useTutorial} from '../src/context/tutorial-context';
@@ -61,8 +61,8 @@ test('highlight uses measured native coordinates and leaves Next on the actual c
  await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
  expect(button.parent.props.style).toMatchObject({left:40,top:750,width:24,height:24});
  const mask=view.root.findByProps({testID:'tutorial-rounded-mask'});
- expect(mask.props.style.borderColor).toBe('rgba(0,0,0,0.72)');
- expect(mask.props.style.borderRadius-mask.props.style.borderWidth).toBe(button.props.style.borderRadius);
+ expect(mask.props.style).toMatchObject({top:0,left:0,right:0,bottom:0});
+ expect(mask.findAllByType('View').some(v=>v.props.style?.backgroundColor==='rgba(0,0,0,0.72)')).toBe(true);
  expect(button.props.style.borderRadius).toBe(10);
 });
 test('skip saves completion and automatic tours finish on Home',async()=>{
@@ -163,4 +163,15 @@ test('bottom-row reveal uses the measured viewport instead of subtracting tab in
  // Both cards fit in a native viewport ending at 810; a guessed 740 bottom would scroll them.
  expect(tutorialRevealOffset(610,184,0,92,798)).toBe(0);
  expect(tutorialRevealOffset(630,184,0,92,798)).toBe(16);
+});
+
+test('dimming panels cover all area outside the highlight on 13-inch iPad and rotation',()=>{
+ for(const [width,height] of [[1032,1376],[1376,1032],[390,844]]){
+  for(const target of [{x:20,y:80,width:width-40,height:186,radius:22},{x:width/2,y:height-100,width:54,height:54,radius:27},{x:0,y:height-100,width:width/5,height:52,radius:10}]){
+   const mask=spotlightMaskPieces(target,width,height);
+   expect(mask.panels.reduce((area,p)=>area+p.width*p.height,0)).toBeCloseTo(width*height-target.width*target.height);
+   expect(mask.corners).toHaveLength(4);
+   expect(mask.panels.every(p=>p.left>=0&&p.top>=0&&p.left+p.width<=width&&p.top+p.height<=height)).toBe(true);
+  }
+ }
 });

@@ -22,12 +22,17 @@ export function spotlightLayout(bounds:{x:number;y:number;width:number;height:nu
  }
  return {target,card};
 }
+/** Bounded rectangles cover the whole window; clipped corner rings preserve the rounded hole. */
+export function spotlightMaskPieces(t:{x:number;y:number;width:number;height:number;radius:number},width:number,height:number){
+ const r=t.radius;
+ return {panels:[{left:0,top:0,width,height:t.y},{left:0,top:t.y+t.height,width,height:Math.max(0,height-t.y-t.height)},{left:0,top:t.y,width:t.x,height:t.height},{left:t.x+t.width,top:t.y,width:Math.max(0,width-t.x-t.width),height:t.height}],corners:r>0?[{left:t.x,top:t.y,x:-r,y:-r},{left:t.x+t.width-r,top:t.y,x:-2*r,y:-r},{left:t.x,top:t.y+t.height-r,x:-r,y:-2*r},{left:t.x+t.width-r,top:t.y+t.height-r,x:-2*r,y:-2*r}]:[]};
+}
 export default function TutorialOverlay(){
  const tour=useTutorial(),{colors}=useNovoriTheme(),{width,height}=useWindowDimensions(),insets=useSafeAreaInsets();
  const host=useRef<View>(null),[origin,setOrigin]=useState({x:0,y:0});
  const settled=useRef<{path:string;index:number;step:typeof TUTORIAL_STEPS[number];bounds:NonNullable<ReturnType<typeof useTutorial>>['bounds'];width:number;height:number}|null>(null);
  const cardHeight=width>height?220:280,ready=!!tour?.bounds;
- const spread=Math.max(width,height);
+
  function advance(direction:number){
   if(!tour||tour.busy||!ready)return;
   if(direction>0)tour.next();else tour.back();
@@ -45,8 +50,10 @@ export default function TutorialOverlay(){
  return <View ref={host} onLayout={()=>host.current?.measureInWindow((x,y)=>setOrigin(old=>old.x===x&&old.y===y?old:{x,y}))} style={{position:'absolute',top:0,left:0,right:0,bottom:0,zIndex:1000}} accessibilityViewIsModal>
   <Pressable accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={()=>{}} style={{position:'absolute',top:0,left:0,right:0,bottom:0}}/>
   {target?<>
-   {/* A single rounded native border dims the outside without a square cutout at the corners. */}
-   <View testID="tutorial-rounded-mask" pointerEvents="none" style={{position:'absolute',left:target.x-spread,top:target.y-spread,width:target.width+spread*2,height:target.height+spread*2,borderRadius:spread+target.radius,borderWidth:spread,borderColor:dim}}/>
+   <View testID="tutorial-rounded-mask" pointerEvents="none" style={{position:'absolute',top:0,left:0,right:0,bottom:0}}>
+    {spotlightMaskPieces(target,width,height).panels.map((panel,index)=><View key={'panel'+index} style={{position:'absolute',...panel,backgroundColor:dim}}/>)}
+    {spotlightMaskPieces(target,width,height).corners.map((corner,index)=><View key={'corner'+index} style={{position:'absolute',left:corner.left,top:corner.top,width:target.radius,height:target.radius,overflow:'hidden'}}><View style={{position:'absolute',left:corner.x,top:corner.y,width:target.radius*4,height:target.radius*4,borderRadius:target.radius*2,borderWidth:target.radius,borderColor:dim}}/></View>)}
+   </View>
    <View style={{position:'absolute',left:target.x,top:target.y,width:target.width,height:target.height}}><Pressable accessibilityRole="button" accessibilityLabel="Continue from highlighted control" disabled={tour.busy||!ready} onPress={()=>advance(1)} style={{flex:1,borderRadius:target.radius,borderWidth:2,borderColor:colors.gold}}>
     <View style={{position:'absolute',right:-2,top:-13,width:28,height:28,borderRadius:14,backgroundColor:colors.gold,alignItems:'center',justifyContent:'center'}}><Ionicons name={lastStep?'checkmark':'arrow-forward'} size={17} color={colors.background}/></View>
    </Pressable></View>
