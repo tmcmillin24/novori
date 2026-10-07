@@ -1,0 +1,20 @@
+{
+  "name": "decode-uri-component",
+  "version": "0.5.0",
+  "description": "A better decodeURIComponent",
+  "license": "MIT",
+  "repository": "SamVerschueren/decode-uri-component",
+  "author": {
+    "name": "Sam Verschueren",
+    "email": "sam.verschueren@gmail.com",
+    "url": "github.com/SamVerschueren"
+  },
+  "main": "index.cjs",
+  "type": "commonjs",
+  "files": [
+    "index.cjs",
+    "upstream-index.mjs",
+    "LICENSE",
+    "README.md"
+  ]
+}
