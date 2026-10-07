@@ -24,7 +24,7 @@ test('standard edition labels and catalog source markers are cleaned for any ISB
 test('description-identified sets keep their actual pages and a distinct title',()=>{
  const raw={source:{provider:'isbndb'},volumeInfo:{title:'A court of thorns and roses',pageCount:3300,description:'All five of the Court of Thorns and Roses hardcovers with the new series look in a luxe box set.'}};
  const result=normalizeIsbnDbEdition(raw);
- expect(result.volumeInfo.title).toBe('A court of thorns and roses (Box Set)');
+ expect(result.volumeInfo.title).toBe('A Court of Thorns and Roses (Box Set)');
  expect(result.volumeInfo.pageCount).toBe(3300);
  expect(isCatalogCollection(result)).toBe(true);
  expect(normalizeIsbnDbEdition(result)).toEqual(result);

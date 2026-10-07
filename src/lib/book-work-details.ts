@@ -1,4 +1,4 @@
-import { cleanCatalogBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { isEnglishBookLanguage } from '../../supabase/functions/_shared/book-language';
 import type { GoogleBookSearchItem } from './book-search';
 
@@ -15,6 +15,8 @@ export function applyBookWorkDetails<T extends GoogleBookSearchItem>(edition: T,
   if (!sameBookWork(edition, representative)) return edition;
   return { ...edition, novoriDetails: { bookId: representative.id, isbns: (representative.volumeInfo.industryIdentifiers ?? []).map(identifier => identifier.identifier) }, novoriPublication: representative.novoriPublication ?? edition.novoriPublication,
     volumeInfo: { ...representative.volumeInfo,
+      title: displayBookTitle(representative.volumeInfo.title ?? edition.volumeInfo.title ?? ''),
+      publishedDate: edition.volumeInfo.publishedDate,
       imageLinks: edition.volumeInfo.imageLinks,
       industryIdentifiers: edition.volumeInfo.industryIdentifiers,
     } };

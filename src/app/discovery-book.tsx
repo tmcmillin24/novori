@@ -28,7 +28,7 @@ export default function DiscoveryBookScreen() {
       if (!active) return;
       if (id) router.replace({ pathname: '/book/[id]', params: {
         id, source: 'discover', clickedTitle: book.title, clickedAuthors: JSON.stringify(book.authors),
-        discoveryId: String(book.id), canonicalizeWork: '1',
+        discoveryId: String(book.id), canonicalizeWork: '0',
         ...(book.coverUrl ? { coverUrl: book.coverUrl } : {}),
       } });
     }).catch(() => { if (active) setFailed(true); }).finally(() => { if (active) setLoading(false); });

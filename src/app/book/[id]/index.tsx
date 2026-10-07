@@ -1,3 +1,5 @@
+import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
+import { matchesSeriesCatalogEdition } from '../../../../supabase/functions/_shared/series-book-catalog';
 import { rememberDiscoveryBookId } from '../../../lib/discovery-books';
 import { formatBookDescription } from '../../../lib/book-description';
 import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../../lib/reading-status-display';
@@ -175,7 +177,7 @@ function normalizeSeriesWorkTitle(
 
   const cleanTitle =
     getSeriesWorkSearchTitle(
-      title
+      cleanCatalogBookTitle(title)
     ) ||
     title;
 
@@ -241,13 +243,8 @@ function bookMatchesClickedIdentity(
   }
 
   const titleMatches =
-    normalizeTitle(
-      candidate.volumeInfo
-        .title
-    ) ===
-    normalizeTitle(
-      clickedTitle
-    );
+    normalizeTitle(cleanCatalogBookTitle(candidate.volumeInfo.title ?? '')) ===
+    normalizeTitle(cleanCatalogBookTitle(clickedTitle));
 
   if (!titleMatches) {
     return false;
@@ -813,7 +810,7 @@ function getDisplayTitle(
     title.trim() &&
     title.trim().toLowerCase() !== 'untitled'
   ) {
-    return title;
+    return displayBookTitle(title);
   }
 
   return 'Unannounced';
@@ -2045,9 +2042,9 @@ export default function BookDetailsScreen() {
         response.series ??
           null;
 
-      const resolvedSeriesBooks =
-        response.books ??
-          [];
+      const currentAuthors = (currentBook.volumeInfo.authors ?? []).map(name => normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const resolvedSeriesBooks = (response.books ?? []).filter(row =>
+        !currentAuthors.length || row.authors?.some(name => currentAuthors.includes(normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''))));
       rememberBookPublications(resolvedSeriesBooks);
 
       setSeries(
@@ -2130,7 +2127,7 @@ export default function BookDetailsScreen() {
       results: GoogleBook[]
     ): RankedSeriesCandidate[] {
       return results
-        .filter(result => isEnglishBookLanguage(result.volumeInfo.language))
+        .filter(result => matchesSeriesCatalogEdition(seriesBook, { metadata: result }))
         .map(
           (
             result
@@ -3057,9 +3054,7 @@ export default function BookDetailsScreen() {
           canonicalizeWork:
             '0',
           clickedTitle:
-            resolved.volumeInfo
-              .title ??
-            seriesBook.title,
+            displayBookTitle(seriesBook.title),
           clickedAuthors:
             JSON.stringify(
               resolved.volumeInfo
@@ -3651,8 +3646,7 @@ export default function BookDetailsScreen() {
                 styles.title
               }
             >
-              {info.title ??
-                'Untitled'}
+              {info.title ? displayBookTitle(info.title) : 'Untitled'}
             </Text>
 
             {info.subtitle ? (

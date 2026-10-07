@@ -54,6 +54,10 @@ Persist/reuse catalog-confirmed originals and their known aliases safely; keep s
 
 Both discovery shelves now open available listing information before edition resolution, retain verified/canonicalized IDs for their cards, and prevent old cover reads from replacing newer confirmed originals. Missing catalog matches remain viewable but require a verified edition for saving/tracking. See [discovery opening and artwork findings](DISCOVERY_BOOK_OPENING.md). Automated follow-up: **83 suites, 901 tests**, app/test type checks, iOS/Android bundle exports, **17 website tests**, **729 notices** pass. Original affected titles and live-device/provider-counter acceptance remain pending.
 
+### Work title / series repair
+
+Shared work presentation now repairs provider casing and edition/numbered-series suffixes, retains ISBN edition dates separately from verified original-release facts, and strictly verifies every series candidate. ISBNdb mode restores catalog-verified Hardcover series artwork under the existing selector/manual-lock policy. **86 suites, 919 tests**, app/test type checks, iOS/Android bundles, **17 website tests**, **729 notices** pass. Backend deployment and live image-family acceptance remain pending; see [repair findings and deployment](WORK_TITLES_AND_SERIES_REPAIR.md).
+
 ## Remaining phases
 
 | Phase | Work | Completion evidence |

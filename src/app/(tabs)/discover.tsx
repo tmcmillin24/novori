@@ -3402,7 +3402,7 @@ export default function DiscoverScreen() {
         title: trendingBook.title,
         authors: trendingBook.authors,
         isbn: trendingBook.isbns[0],
-        canonicalizeWork: true,
+        canonicalizeWork: false,
         discoveryId: trendingBook.id,
       });
       return;

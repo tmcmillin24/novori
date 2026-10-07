@@ -26,7 +26,27 @@ export function cleanCatalogBookTitle(title: string) {
   .replace(/\s*\((?:Standard Edition|English(?:[- ]language)? edition|Engelstalige editie)\)\s*$/i, '')
   // Confirmed series-name label used by the Empyrean catalog editions.
   .replace(/\s*\((?:the )?Empyrean\)\s*$/i, '')
+  .replace(/\s*[\[(][^\])]*(?:\b(?:edition|collector|deluxe|special|anniversary|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series)|#\s*\d+|,\s*\d+)[^\])]*[\])]\s*$/i, '')
+  .replace(/\s*(?:[:–—-]\s*)?\b(?:limited\s+)?(?:collector[’']?s?|collectors|deluxe|special|exclusive|anniversary|standard|international|hardcover|paperback|large print)\s+edition(?:\s*[:–—-]\s*(?:a novel|the novel))?\s*$/i, '')
   .replace(/[\s:–—]+$/, '').trim() || title.trim();
+}
+
+/** Work labels are independent of edition ISBN, release date and artwork. */
+export function displayBookTitle(title: string) {
+ const clean = cleanCatalogBookTitle(title);
+ const minor = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'as', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'to', 'with', 'vs']);
+ const words = [...clean.matchAll(/[\p{L}\p{N}]+(?:[’'][\p{L}]+)*/gu)];
+ const allCaps = clean === clean.toUpperCase();
+ let index = 0;
+ return clean.replace(/[\p{L}\p{N}]+(?:[’'][\p{L}]+)*/gu, word => {
+  const position = index++;
+  const lower = word.toLowerCase();
+  const startsPhrase = position === 0 || /[(:—–]\s*$/.test(clean.slice(0, words[position].index));
+  if (!startsPhrase && position < words.length - 1 && minor.has(lower)) return lower;
+  // Preserve acronyms and deliberately mixed-case names inside a title.
+  if (!allCaps && /[A-Z].*[A-Z]|[a-z][A-Z]/.test(word)) return word;
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+ });
 }
 
 export function normalizeCatalogAuthor(name: string) {
@@ -52,7 +72,7 @@ export function normalizeIsbnDbEdition<T extends EditionBook>(book: T): T {
  if (book.source?.provider !== 'isbndb') return book;
  const format = editionFormat(book);
  const collection = isCatalogCollection(book);
- const cleanTitle = book.volumeInfo.title ? cleanCatalogBookTitle(book.volumeInfo.title) : book.volumeInfo.title;
+ const cleanTitle = book.volumeInfo.title ? displayBookTitle(book.volumeInfo.title) : book.volumeInfo.title;
  // Provider short titles can hide an entire set under the first novel's name.
  // Keep its ISBN/pages intact but give the product a distinct work identity.
  const title = collection && cleanTitle && !/\b(?:box(?:ed)?\s*set|bundle|omnibus|collection|\d+\s*[-–—]\s*\d+)\b/i.test(cleanTitle)

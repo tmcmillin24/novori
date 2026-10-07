@@ -1,7 +1,7 @@
 import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
-import { normalizeIsbnDbEdition, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { normalizeIsbnDbEdition, cleanCatalogBookTitle, displayBookTitle, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, getCanonicalBookCoverRevision, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
@@ -2629,7 +2629,7 @@ function collapseDuplicateEditions(
 
               // Prefer the plain-title record to normalized marketing/edition labels.
               const titleLabelPenalty = (book: GoogleBookSearchItem) =>
-                book.novoriEdition?.originalTitle && book.novoriEdition.originalTitle !== book.volumeInfo.title ? 1 : 0;
+                book.novoriEdition?.originalTitle && cleanCatalogBookTitle(book.novoriEdition.originalTitle) !== book.novoriEdition.originalTitle ? 1 : 0;
               const titleLabelDifference = titleLabelPenalty(a) - titleLabelPenalty(b);
               if (titleLabelDifference !== 0) return titleLabelDifference;
 
@@ -2702,6 +2702,9 @@ function collapseDuplicateEditions(
               const dateDifference = Number(Boolean(validPublicationDate(b.volumeInfo.publishedDate))) -
                 Number(Boolean(validPublicationDate(a.volumeInfo.publishedDate)));
               if (dateDifference !== 0) return dateDifference;
+              const aDate = validPublicationDate(a.volumeInfo.publishedDate);
+              const bDate = validPublicationDate(b.volumeInfo.publishedDate);
+              if (aDate && bDate && aDate.slice(0, 4) !== bDate.slice(0, 4)) return aDate.localeCompare(bDate);
 
               const aHardcover =
                 hardcoverPopularity[
@@ -3056,8 +3059,8 @@ async function loadNovoriBooks(searchTerm: string) {
     );
   }
 
-  let initialResults =
-    (response.data.items ?? []).map(normalizeIsbnDbEdition);
+  let initialResults: GoogleBookSearchItem[] =
+    (response.data.items ?? []).map(normalizeIsbnDbEdition).map(book => ({ ...book, volumeInfo: { ...book.volumeInfo, title: book.volumeInfo.title ? displayBookTitle(book.volumeInfo.title) : undefined } }));
 
   const normalizedQuery =
     normalizeTitle(

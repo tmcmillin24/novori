@@ -1,3 +1,4 @@
+import { promoteVerifiedSeriesCovers } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
@@ -3345,6 +3346,13 @@ Deno.serve(async (req) => {
     });
     await promoteVerifiedSeriesCover(responsePayload);
     const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
+    if (isbnDbEnabled()) {
+      try {
+        await promoteVerifiedSeriesCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({
+          ...row, coverBookId: verifiedPayload.books?.find((verified: any) => verified.id === row.id)?.coverBookId,
+        })) }, requestedAuthors);
+      } catch (error) { console.warn('Could not restore verified series artwork:', error); }
+    }
     await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
     return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
