@@ -1,3 +1,4 @@
+import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -11,6 +12,7 @@ import {
 import {
     useCallback,
     useMemo,
+    useRef,
     useState,
 } from 'react';
 import {
@@ -47,6 +49,7 @@ import {
     ClubPrivacy,
     ClubWithMembership,
     getClub,
+    deleteClub,
     updateClub,
     uploadClubCover,
 } from '../lib/clubs';
@@ -65,6 +68,11 @@ export default function EditClubScreen() {
   } =
     useNovoriTheme();
 
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const deleteInFlight = useRef(false);
+  const deleted = useRef(false);
   const [saveWarning, setSaveWarning] = useState<{ title: string; message: string } | null>(null);
   const styles =
     createStyles(
@@ -645,7 +653,7 @@ export default function EditClubScreen() {
 
           <Pressable
             disabled={
-              !canSave
+              !canSave || deleting || deleteVisible
             }
             onPress={
               saveClub
@@ -1075,8 +1083,20 @@ export default function EditClubScreen() {
           >
             Only the club owner can change these settings.
           </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Delete club" disabled={saving || deleting} onPress={async () => { if (saving || deleteInFlight.current) return; await dismissKeyboardBeforeWarning(); setDeleteError(''); setDeleteVisible(true); }} style={{marginTop:24, marginBottom:12, paddingVertical:16, borderTopWidth:1, borderTopColor:colors.border, alignItems:'center'}}>
+            <Text style={{color:colors.danger,fontFamily:'Inter_600SemiBold',fontSize:15}}>Delete club</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+      <DeletePostConfirmSheet visible={deleteVisible} busy={deleting} title="Delete this club?" message="This permanently deletes the club, its posts, comments, events, and discussions. Members’ personal libraries and book stacks stay saved. This can’t be undone." confirmLabel="Delete club" onDismiss={() => {setDeleteVisible(false); if (deleted.current) router.replace('/(tabs)');}} onConfirm={async () => {
+        if (deleteInFlight.current || saving || !club) throw new Error('Unavailable');
+        deleteInFlight.current=true; setDeleting(true); setDeleteError('');
+        try {await deleteClub(club.id); deleted.current=true;}
+        catch(error) {setDeleteError(error instanceof Error ? error.message : 'Could not delete this club. Please try again.'); throw error;}
+        finally {deleteInFlight.current=false;setDeleting(false);}
+      }}>
+        {deleteError ? <Text accessibilityRole="alert" style={{color:colors.danger,fontFamily:'Inter_500Medium',marginTop:12}}>{deleteError}</Text> : null}
+      </DeletePostConfirmSheet>
 
       <ClubPhotoCropper
         visible={

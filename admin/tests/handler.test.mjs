@@ -28,6 +28,7 @@ function fake({
     },
     from: () => ({
       select: () => ({
+        limit: async () => ({ data: [] }),
         eq: () => ({
           maybeSingle: async () => ({
             data: { user_id: id, role, enabled, email_alerts: true },
@@ -238,6 +239,7 @@ test("failed Auth synchronization finishes the lease as retryable", async () => 
     },
     from: () => ({
       select: () => ({
+        limit: async () => ({ data: [] }),
         eq: () => ({
           eq: () => ({ order: () => ({ limit: async () => ({ data: [] }) }) }),
         }),

@@ -1,3 +1,4 @@
+import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
@@ -124,6 +125,7 @@ export default function PostDetailScreen() {
     const [post, setPost,] = useState<FeedPost | null>(null);
     const [comments, setComments,] = useState<PostComment[]>([]);
     const [revealedDiscussion, setRevealedDiscussion] = useState('');
+    const {hidden:postSpoilersHidden,reveal:revealPostSpoilers}=usePostSpoiler(post);
     const discussionSpoilersHidden = Boolean(post?.club_discussion?.contains_spoilers && revealedDiscussion !== discussionRevealKey(post.club_discussion));
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [allowExplicitLanguage, setAllowExplicitLanguage,] = useState(false);
@@ -1154,7 +1156,7 @@ export default function PostDetailScreen() {
 
             <PostTypeIdentifier event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
 
-            {post.post_type ===
+            {postSpoilersHidden ? <PostSpoilerNotice onReveal={revealPostSpoilers}/> : post.post_type ===
                 'question' ? ((() => {
                 const questionContent = splitQuestionPostBody(post.body);
                 return (<>

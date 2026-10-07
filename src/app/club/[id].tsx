@@ -1,3 +1,4 @@
+import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
@@ -989,6 +990,7 @@ export default function ClubDetailScreen() {
 
         <PostTypeIdentifier event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
 
+        <PostSpoilerContent post={post}>
         {questionContent ? (<>
             <Text style={styles.questionPostTitle}>
               {questionContent.question}
@@ -1007,6 +1009,7 @@ export default function ClubDetailScreen() {
 
         {post.post_image_url ? (<FeedPostImage uri={post.post_image_url} colors={colors}/>) : null}
 
+        </PostSpoilerContent>
         {post.book_title ? (post.post_image_url ? (<Pressable disabled={!post.google_book_id} onPress={() => {
                     if (!post.google_book_id) {
                         return;

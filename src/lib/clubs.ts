@@ -1,3 +1,4 @@
+import { markPostMutation } from './feed';
 import {
   ClubGenreKey,
 } from '../constants/club-genres';
@@ -1469,4 +1470,10 @@ export async function kickClubMember(
   if (error) {
     throw error;
   }
+}
+
+export async function deleteClub(clubId: string) {
+  const { error } = await supabase.rpc('novori_delete_club', { p_club_id: clubId });
+  if (error) throw new Error(error.message || 'Could not delete this club. Please try again.');
+  markPostMutation();
 }

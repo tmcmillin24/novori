@@ -33,6 +33,7 @@ export type FeedPost = {
   club_id: string | null;
   post_type: FeedPostType;
   body: string;
+  contains_spoilers?: boolean;
   google_book_id: string | null;
   book_title: string | null;
   book_cover_url: string | null;
@@ -145,7 +146,7 @@ export async function attachPostImageUrls(
     await supabase
       .from('posts')
       .select(
-        'id, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement, club_event:club_events!club_events_post_id_fkey(id,club_id,post_id,created_by,title,description,starts_at,ends_at,timezone,kind,location,meeting_url,book,cancelled_at,created_at,updated_at), club_discussion:club_discussions!club_discussions_post_id_fkey(id,club_id,post_id,read_id,created_by,kind,title,prompt,book,contains_spoilers,spoiler_label,options,closed_at,voting_started_at,created_at,updated_at)'
+        'id, contains_spoilers, post_image_url, book_authors, book_series_name, book_series_position, book_stack_id, reading_recap, is_club_announcement, club_event:club_events!club_events_post_id_fkey(id,club_id,post_id,created_by,title,description,starts_at,ends_at,timezone,kind,location,meeting_url,book,cancelled_at,created_at,updated_at), club_discussion:club_discussions!club_discussions_post_id_fkey(id,club_id,post_id,read_id,created_by,kind,title,prompt,book,contains_spoilers,spoiler_label,options,closed_at,voting_started_at,created_at,updated_at)'
       )
       .in(
         'id',
@@ -208,6 +209,7 @@ export async function attachPostImageUrls(
         (row) => [
           row.id as string,
           {
+            spoilers: row.contains_spoilers === true,
             clubEvent: parseClubEvent(row.club_event),
             clubDiscussion: parseClubDiscussion(row.club_discussion),
             announcement: row.is_club_announcement === true,
@@ -269,6 +271,7 @@ export async function attachPostImageUrls(
 
       return {
         ...post,
+        contains_spoilers: metadata?.spoilers ?? post.contains_spoilers ?? false,
         club_event: metadata?.clubEvent ?? parseClubEvent(post.club_event),
         club_discussion: metadata?.clubDiscussion ?? parseClubDiscussion(post.club_discussion),
         is_club_announcement: metadata?.announcement ?? post.is_club_announcement ?? false,
@@ -548,6 +551,7 @@ export async function togglePostVote(
 
 export async function createPost(input: {
   body: string;
+  containsSpoilers?: boolean;
   clubId?: string | null;
   postType?: FeedPostType;
   isClubAnnouncement?: boolean;
@@ -604,6 +608,7 @@ export async function createPost(input: {
           input.postType ??
           'post',
         body,
+        contains_spoilers: input.containsSpoilers === true,
         google_book_id:
           input.googleBookId ??
           null,
@@ -647,6 +652,7 @@ export async function updatePost(
   postId: string,
   input: {
     body: string;
+    containsSpoilers?: boolean;
     allowEmptyBody?: boolean;
     clubId?: string | null;
     googleBookId?: string | null;
@@ -684,6 +690,7 @@ export async function updatePost(
       .from('posts')
       .update({
         body,
+        ...('containsSpoilers' in input ? { contains_spoilers: input.containsSpoilers === true } : {}),
         club_id:
           input.clubId ??
           null,

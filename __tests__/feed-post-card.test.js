@@ -35,3 +35,13 @@ test('opening the whole post can navigate independently from the quick comment b
  const comment=view.root.findAllByType('Pressable').find(b=>b.findAllByType('Icon').length===1&&b.findAllByType('Icon').some(i=>i.props.name==='chatbubble-outline'));
  await act(async()=>comment.props.onPress({stopPropagation:jest.fn()}));expect(callbacks.onComments).toHaveBeenCalledWith(post);expect(onOpen).toHaveBeenCalledTimes(1);
 });
+
+test('spoiler posts hide text and photos until revealed and hide again after editing',async()=>{
+ const flagged={...post,contains_spoilers:true,updated_at:'v1',post_image_url:'photo.jpg'};
+ await render({post:flagged,currentUserId:'reader'});
+ expect(allText()).not.toContain('A post');expect(view.root.findAllByType('FeedPostImage')).toHaveLength(0);
+ await act(async()=>byLabel('Reveal post spoilers').props.onPress({stopPropagation:jest.fn()}));
+ expect(allText()).toContain('A post');expect(view.root.findAllByType('FeedPostImage')).toHaveLength(1);
+ await act(async()=>view.update(<FeedPostCard post={{...flagged,updated_at:'v2',body:'Edited spoiler'}} onComments={()=>{}} onVote={()=>{}} onShare={()=>{}}/>));
+ expect(allText()).not.toContain('Edited spoiler');expect(view.root.findAllByType('FeedPostImage')).toHaveLength(0);
+});

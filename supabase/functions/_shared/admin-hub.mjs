@@ -96,6 +96,15 @@ export async function runAdminJobs(client, { sendAlert, moderationConfigured = f
     failed = 0,
     delivered = 0,
     alerts = 0;
+  const cleanup = await client.from('novori_club_media_cleanup').select('bucket,path').limit(20);
+  if (!cleanup.error) for (const item of cleanup.data ?? []) {
+    if (item.bucket !== 'club-covers') { failed++; continue; }
+    const removed = await client.storage.from(item.bucket).remove([item.path]);
+    if (removed.error) {failed++;continue;}
+    const done = await client.from('novori_club_media_cleanup').delete().eq('bucket',item.bucket).eq('path',item.path);
+    if (done.error) failed++;
+  }
+  else if (!['42P01','PGRST205'].includes(cleanup.error.code)) failed++;
   const deadline = Date.now() + 40000;
   for (let i = 0; i < 10 && Date.now() < deadline; i++) {
     const job = check(await client.rpc("novori_admin_claim_auth_job"));

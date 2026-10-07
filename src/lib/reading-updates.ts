@@ -8,6 +8,7 @@ import {
 
 type PublishReadingUpdateInput = {
   googleBookId: string;
+  containsSpoilers?: boolean;
   clubId?: string | null;
   progress?: string;
   chapter?: string;
@@ -274,18 +275,10 @@ export async function publishReadingUpdate(
     private_note_body: thought || null,
     source_note_id: thought ? input.sourceNoteId?.trim() || null : null,
   };
-  let { data, error } = await supabase.rpc('publish_reading_update_to_destination', {
-    ...rpcInput,
-    target_club_id: input.clubId ?? null,
+  const { data, error } = await supabase.rpc('novori_publish_reading_update', {
+    p_input: {...rpcInput, target_club_id: input.clubId ?? null},
+    p_spoilers: input.containsSpoilers === true,
   });
-  // Older deployments can still publish to the feed. Never silently publish a
-  // club-bound draft to the feed if the destination-aware transaction is absent.
-  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
-    if (input.clubId) {
-      throw new Error('Club publishing needs the Reading Update destination SQL update.');
-    }
-    ({ data, error } = await supabase.rpc('publish_reading_update', rpcInput));
-  }
   if (error) throw error;
 
   const postId =
@@ -444,6 +437,7 @@ export async function updateReadingUpdate(
       )
       .update({
         body,
+        contains_spoilers: input.containsSpoilers === true,
         ...('clubId' in input ? { club_id: input.clubId ?? null } : {}),
         updated_at:
           new Date()

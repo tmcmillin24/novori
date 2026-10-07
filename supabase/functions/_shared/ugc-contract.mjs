@@ -18,6 +18,7 @@ export const UGC_RPC_FIELDS = {
   save_club_discussion: ['discussion_input'],
   save_club_event: ['event_input'],
   save_club_read: ['read_input'],
+  novori_publish_reading_update: ['p_input'],
   publish_reading_update: ['post_body'],
   publish_reading_update_to_destination: ['post_body'],
   publish_reading_recap_post: ['post_caption', 'expected_snapshot'],
@@ -32,6 +33,7 @@ export function publicationFields(path, body) {
   if (rows.length > 20 || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) throw Error('Invalid publication.');
   return rows.map(row => Object.fromEntries(fields.filter(field => Object.hasOwn(row, field)).map(field => {
     let value = row[field];
+    if (field === 'p_input') value = { post_body: value?.post_body };
     // Nested RPC inputs: screen visible user fields, not catalog data or private notes.
     if (field === 'discussion_input') value = Object.fromEntries(UGC_TABLE_FIELDS.club_discussions.filter(k => Object.hasOwn(value ?? {}, k)).map(k => [k, value[k]]));
     if (field === 'event_input') value = Object.fromEntries(UGC_TABLE_FIELDS.club_events.filter(k => Object.hasOwn(value ?? {}, k)).map(k => [k, value[k]]));

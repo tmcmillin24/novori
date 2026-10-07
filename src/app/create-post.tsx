@@ -1,3 +1,4 @@
+import SpoilerToggle from '../components/SpoilerToggle';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -181,6 +182,7 @@ export default function CreatePostScreen() {
     }>();
 
   const requestedAnnouncement = params.announcement === '1';
+  const [containsSpoilers, setContainsSpoilers] = useState(false);
   const [announcement, setAnnouncement] = useState(requestedAnnouncement);
 
   const requestedClubId =
@@ -451,6 +453,7 @@ export default function CreatePostScreen() {
             return;
           }
 
+          setContainsSpoilers(editingPost.contains_spoilers === true);
           setAnnouncement(editingPost.is_club_announcement === true);
 
           setBody(
@@ -1015,6 +1018,7 @@ export default function CreatePostScreen() {
       }
 
       const postPayload = {
+        containsSpoilers,
         ...(announcement ? { isClubAnnouncement: true } : {}),
         body:
           trimmedBody,
@@ -1728,6 +1732,7 @@ export default function CreatePostScreen() {
                   }
                 />
 
+                <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={saving} />
                 {visibleImageUrl ? (
                   <View
                     style={

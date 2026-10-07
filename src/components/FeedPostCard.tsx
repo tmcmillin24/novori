@@ -1,3 +1,4 @@
+import {PostSpoilerNotice,usePostSpoiler} from './PostSpoilerNotice';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import {Ionicons} from '@expo/vector-icons';
 import {BlurView} from 'expo-blur';
@@ -22,6 +23,7 @@ type Props={post:FeedPost;currentUserId?:string|null;votingPostId?:string|null;d
 
 // The same post markup and styles serve Home and both Profile Activity views.
 export default function FeedPostCard({post,currentUserId,votingPostId,deletingPostId,allowExplicitLanguage=false,onAlwaysShow,onOpen,onComments:openCommentsSheet,onVote:handlePostVote,onMore,onShare:shareFeedPost,onReader,onClub,renderText}:Props){
+ const {hidden:spoilersHidden,reveal:revealSpoilers}=usePostSpoiler(post);
  const {colors}=useNovoriTheme();const router=useRouter();const styles=useMemo(()=>createStyles(colors),[colors]);
  const [revealedExplicitPosts,setRevealedExplicitPosts]=useState<Record<string,boolean>>({});
  const [localExplicit,setLocalExplicit]=useState(false);const [warning,setWarning]=useState('');
@@ -561,7 +563,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
             }
           />
 
-          {questionContent ? (
+          {spoilersHidden ? <PostSpoilerNotice onReveal={revealSpoilers}/> : questionContent ? (
             <>
               {renderExplicitContentWarning(
                 questionContent.question,
@@ -628,7 +630,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
             </View>
           ) : null}
 
-          {post.post_image_url ? (
+          {!spoilersHidden && post.post_image_url ? (
             <FeedPostImage
               uri={
                 post.post_image_url

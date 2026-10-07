@@ -1,3 +1,4 @@
+import SpoilerToggle from '../components/SpoilerToggle';
 import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -155,6 +156,7 @@ function parseReadingUpdateBody(
 }
 
 export default function CreateReadingUpdateScreen() {
+  const [containsSpoilers, setContainsSpoilers] = useState(false);
   const router =
     useRouter();
 
@@ -545,6 +547,7 @@ export default function CreateReadingUpdateScreen() {
             );
           }
 
+          setContainsSpoilers(post.contains_spoilers === true);
           setPostClubId(post.club_id);
           setPostClubName(post.club_name);
 
@@ -652,6 +655,7 @@ export default function CreateReadingUpdateScreen() {
       );
 
       await publishReadingUpdate({
+        containsSpoilers,
         googleBookId:
           selectedBook.google_book_id,
         progress:
@@ -705,6 +709,7 @@ export default function CreateReadingUpdateScreen() {
       await updateReadingUpdate(
         editPostId,
         {
+          containsSpoilers,
           googleBookId:
             selectedBook.google_book_id,
           progress,
@@ -859,6 +864,7 @@ export default function CreateReadingUpdateScreen() {
                 style={styles.cardThoughtInput}
               />
               <Text style={styles.editCharacterCount}>{thought.length}/500</Text>
+              <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={publishing} />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={selectedBook ? `Selected book: ${selectedBook.title}` : 'Choose a currently reading book'}
