@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
     ActivityIndicator,
@@ -26,6 +26,7 @@ import {
 } from '../context/theme-context';
 import {
     getProfilePrivacy,
+    type ProfilePrivacyPreferences,
     updateProfilePrivacy,
 } from '../lib/profile-privacy';
 
@@ -186,6 +187,10 @@ export default function PrivacySettingsScreen() {
   ] =
     useState(true);
 
+  const profilePrivacyRef = useRef<ProfilePrivacyPreferences | null>(null);
+  const privacyWriteInFlight = useRef(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -212,6 +217,7 @@ export default function PrivacySettingsScreen() {
                 )
               : {};
 
+          profilePrivacyRef.current = profilePrivacy;
           setPreferences({
             ...DEFAULT_PREFERENCES,
             ...parsed,
@@ -250,6 +256,9 @@ export default function PrivacySettingsScreen() {
     value:
       boolean
   ) {
+    if (privacyWriteInFlight.current) return;
+    const serverPreference = ['privateProfile', 'showReadingActivity', 'showReviews'].includes(key);
+    if (serverPreference && !profilePrivacyRef.current) return;
     const next = {
       ...preferences,
 
@@ -278,15 +287,26 @@ export default function PrivacySettingsScreen() {
       key ===
         'showReviews'
     ) {
+      const current = profilePrivacyRef.current;
+      if (!current) return;
+      privacyWriteInFlight.current = true;
+      setSavingPrivacy(true);
+      const updated: ProfilePrivacyPreferences = {
+        ...current,
+        is_private: next.privateProfile,
+        show_reviews: next.showReviews,
+        ...(key === 'showReadingActivity' ? {
+          show_books: value,
+          show_tbr_books: value,
+          show_reading_books: value,
+          show_read_books: value,
+          show_dnf_books: value,
+          show_owned_books: value,
+        } : {}),
+      };
       try {
-        await updateProfilePrivacy({
-          is_private:
-            next.privateProfile,
-          show_books:
-            next.showReadingActivity,
-          show_reviews:
-            next.showReviews,
-        });
+        await updateProfilePrivacy(updated);
+        profilePrivacyRef.current = updated;
       } catch (
         error
       ) {
@@ -300,6 +320,9 @@ export default function PrivacySettingsScreen() {
         );
 
         return;
+      } finally {
+        privacyWriteInFlight.current = false;
+        setSavingPrivacy(false);
       }
     }
 
@@ -442,6 +465,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="lock-closed-outline"
             title="Private Profile"
+            disabled={savingPrivacy || !profilePrivacyRef.current}
             subtitle="Limit your full profile and activity to approved followers"
             value={
               preferences.privateProfile
@@ -476,6 +500,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="library-outline"
             title="Library Books"
+            disabled={savingPrivacy || !profilePrivacyRef.current}
             subtitle="Show your Reading, TBR, Read, and DNF books on your profile"
             value={
               preferences.showReadingActivity
@@ -502,6 +527,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="star-outline"
             title="Reviews & Ratings"
+            disabled={savingPrivacy || !profilePrivacyRef.current}
             subtitle="Show reviews and ratings you publish"
             value={
               preferences.showReviews

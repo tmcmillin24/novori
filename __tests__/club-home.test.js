@@ -29,7 +29,7 @@ function harness(signedIn=true){
   const query={insert:payload=>{write={kind:'insert',payload,filters:[]};writes.push(write);return query;},update:payload=>{write={kind:'update',payload,filters:[]};writes.push(write);return query;},
     eq:(key,value)=>{write.filters.push([key,value]);return query;},select:()=>query,single:async()=>({data:{id:'club',...write.payload}})};
   const supabase={auth:{getUser:async()=>({data:{user:signedIn?{id:'owner'}:null}})},from:table=>{if(table!=='clubs')throw Error('Unexpected data access');return query;}};
-  const api=load('clubs.ts',name=>name==='./supabase'?{supabase}:name==='./club-home'?home:name==='./canonical-book-covers'?{resolveCanonicalBookCover:()=>{throw Error('No cover calls expected');}}:(()=>{throw Error(name);})());
+  const api=load('clubs.ts',name=>name==='./supabase'?{supabase}:name==='./club-home'?home:name==='./feed'?{markPostMutation:()=>{}}:name==='./canonical-book-covers'?{resolveCanonicalBookCover:()=>{throw Error('No cover calls expected');}}:(()=>{throw Error(name);})());
   return {api,writes};
 }
 test('create includes optional rules in the same existing club write',async()=>{

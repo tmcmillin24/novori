@@ -191,14 +191,14 @@ export default function ReaderProfileScreen() {
                     : item;
             }
             const mergedBookData = Array.from(new Map([
-                ...bookData.map(applyVerifiedCover),
-                ...ownedBookData.map(applyVerifiedCover)
+                ...bookData.map(item => applyVerifiedCover(item)),
+                ...ownedBookData.map(item => applyVerifiedCover(item))
             ].map((item) => [
                 item.id,
                 item
             ])).values());
             setBooks(sortProfileBooks(mergedBookData));
-            setReviews(reviewData.map(applyVerifiedCover));
+            setReviews(reviewData.map(item => applyVerifiedCover(item)));
             const visibleProfilePosts = postData.filter((post) => !post.club_id ||
                 viewerClubIds.has(post.club_id));
             const sharedFeedPosts = viewerFeed.filter((post) => post.author_id ===

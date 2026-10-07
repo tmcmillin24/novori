@@ -518,35 +518,24 @@ export default function PostDetailScreen() {
             const confirmedId = await createPostComment(postIdForComment, cleaned, parentId);
             if (!mounted.current || viewPostId.current !== postIdForComment)
                 return;
-        setComments((current) => [
-            ...current,
-            optimisticComment
-        ]);
-        setPost((current) => current
-            ? {
-                ...current,
-                comment_count: (current.comment_count ??
-                    0) +
-                    1,
-            }
-            : current);
-        setCommentBody('');
-        setReplyTo(null);
+            setCommentBody('');
+            setReplyTo(null);
             if (typeof confirmedId === 'string') {
                 if (parentId)
                     setVisibleReplyCounts(current => ({ ...current, [parentId]: Math.max(current[parentId] ?? COMMENT_REPLY_BATCH_SIZE, (threadData.nodes.get(parentId)?.children.length ?? 0) + 1) }));
-                const missingLocalComment = !commentsState.current.some(item => item.id === optimisticId || item.id === confirmedId);
+                const missingLocalComment = !commentsState.current.some(item => item.id === confirmedId);
                 if (missingLocalComment)
                     setPost(current => current ? { ...current, comment_count: (current.comment_count ?? 0) + 1 } : current);
-                setComments(current => current.some(item => item.id === confirmedId) ? current.filter(item => item.id !== optimisticId) : current.some(item => item.id === optimisticId) ? current.map(item => item.id === optimisticId ? { ...item, id: confirmedId } : item) : [...current, { ...optimisticComment, id: confirmedId }]);
+                setComments(current => current.some(item => item.id === confirmedId) ? current : [...current, { ...optimisticComment, id: confirmedId }]);
             }
             // The write is confirmed. A failed refresh must never undo it or invite duplicate submission.
             const request = loadSequence.current;
             void getPostComments(postIdForComment).then(nextComments => {
                 if (request !== loadSequence.current || loadedPostId.current !== postIdForComment)
                     return;
-                setComments(current => [...nextComments, ...current.filter(item => item.id.startsWith('optimistic-') || (nextComments.length >= 500 && item.id === confirmedId && !nextComments.some(next => next.id === item.id)))]);
-                setPost(current => current ? { ...current, comment_count: nextComments.length >= 500 ? Math.max(current.comment_count ?? 0, nextComments.length) : nextComments.length } : current);
+                setComments(current => [...nextComments, ...current.filter(item => item.id.startsWith('optimistic-') || (item.id === confirmedId && !nextComments.some(next => next.id === item.id)))]);
+                const confirmedMissing = typeof confirmedId === 'string' && !nextComments.some(item => item.id === confirmedId);
+                setPost(current => current ? { ...current, comment_count: nextComments.length >= 500 ? Math.max(current.comment_count ?? 0, nextComments.length) : nextComments.length + (confirmedMissing ? 1 : 0) } : current);
             }).catch(refreshError => {
                 if (request !== loadSequence.current || loadedPostId.current !== postIdForComment)
                     return;

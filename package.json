@@ -57,7 +57,8 @@
     "lint": "expo lint",
     "test": "jest",
     "licenses:generate": "node scripts/generate-open-source-notices.mjs",
-    "licenses:check": "node scripts/generate-open-source-notices.mjs --check"
+    "licenses:check": "node scripts/generate-open-source-notices.mjs --check",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json"
   },
   "jest": {
     "preset": "jest-expo",

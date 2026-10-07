@@ -203,7 +203,8 @@ export default function ClubDetailScreen() {
             const [authResult, clubData] = await Promise.all([supabase.auth.getUser(), getClub(clubId)]);
             setCurrentUserId(authResult.data.user?.id ?? null);
             if (clubData.cover_url && typeof Image.prefetch === 'function') {
-                void Image.prefetch(moderationMediaUrl(clubData.cover_url)).catch(() => {});
+                const coverUrl = moderationMediaUrl(clubData.cover_url);
+                if (coverUrl) void Image.prefetch(coverUrl).catch(() => {});
             }
             const canReadPrivateContent = clubData.privacy === 'public' || Boolean(clubData.membership_role);
             const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';

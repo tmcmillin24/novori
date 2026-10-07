@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import type {ComponentProps} from 'react';
+import type {ComponentPropsWithoutRef} from 'react';
 import { Tabs } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
@@ -159,7 +159,7 @@ export default function TabLayout() {
 }
 
 /** Measure the complete native tab button, including its visible icon and label. */
-function TutorialTabButton({targetId,...props}: ComponentProps<typeof Pressable>&{targetId:string}) {
+function TutorialTabButton({targetId,...props}: ComponentPropsWithoutRef<typeof Pressable>&{targetId:string}) {
  const target=useTutorialTarget(targetId,10);
  return <Pressable {...props} ref={target.ref} collapsable={false} onLayout={event=>{props.onLayout?.(event);target.onLayout();}}/>;
 }

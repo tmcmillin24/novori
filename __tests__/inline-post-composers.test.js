@@ -12,7 +12,7 @@ import PostDestinationPicker from '../src/components/PostDestinationPicker';
 import BookStackShowcase from '../src/components/BookStackShowcase';
 import { getUserBooks } from '../src/lib/user-books';
 import { publishReadingUpdate, updateReadingUpdate } from '../src/lib/reading-updates';
-import { createBookStack, updateBookStack, deleteBookStack, getBookStack } from '../src/lib/book-stacks';
+import { createBookStack, updateBookStack, deleteBookStack, getBookStack, saveBookStackSubmission } from '../src/lib/book-stacks';
 import { createPost, updatePost, getPostDetail } from '../src/lib/feed';
 import { searchNovoriBooks } from '../src/lib/book-search';
 import { getMyClubs } from '../src/lib/clubs';
@@ -26,12 +26,13 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (callback) => require('react').useEffect(callback, [callback]),
 }));
 jest.mock('react-native', () => ({
+  Switch: 'Switch', useWindowDimensions: () => ({width:390,height:844,scale:3,fontScale:1}),
   AppState:{addEventListener:()=>({remove:()=>{}})},ActivityIndicator: 'ActivityIndicator', Image: 'Image', Pressable: 'Pressable',
   ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View',
   Modal: ({ visible, ...props }) => visible ? require('react').createElement('Modal', props) : null,
   StyleSheet: { create: (value) => value, hairlineWidth: 1 },
   Alert: { alert: jest.fn() },
-  Keyboard: { dismiss: jest.fn() },
+  Keyboard: { dismiss: jest.fn(), isVisible: () => false },
   Animated: {
     View: 'AnimatedView',
     Value: class { setValue() {} stopAnimation() {} },
@@ -61,7 +62,7 @@ jest.mock('../src/components/BookStackVisual', () => 'BookStackVisual');
 jest.mock('../src/components/SortableBookStackRow', () => 'SortableBookStackRow');
 jest.mock('../src/lib/user-books', () => ({ getUserBooks: jest.fn() }));
 jest.mock('../src/lib/reading-updates', () => ({ publishReadingUpdate: jest.fn(), updateReadingUpdate: jest.fn() }));
-jest.mock('../src/lib/book-stacks', () => ({ createBookStack: jest.fn(), updateBookStack: jest.fn(), deleteBookStack: jest.fn(), getBookStack: jest.fn() }));
+jest.mock('../src/lib/book-stacks', () => ({ createBookStack: jest.fn(), updateBookStack: jest.fn(), deleteBookStack: jest.fn(), getBookStack: jest.fn(), saveBookStackSubmission: jest.fn() }));
 jest.mock('../src/lib/feed', () => ({ createPost: jest.fn(), updatePost: jest.fn(), getPostDetail: jest.fn() }));
 jest.mock('../src/lib/book-search', () => ({
   searchNovoriBooks: jest.fn(), resolveHardcoverRating: jest.fn(),
@@ -97,6 +98,7 @@ beforeEach(() => {
   getUserBooks.mockResolvedValue(books);
   getBookStack.mockResolvedValue(stack);
   createBookStack.mockResolvedValue(stack);
+  saveBookStackSubmission.mockResolvedValue(stack);
   updateBookStack.mockResolvedValue(stack);
   deleteBookStack.mockResolvedValue(undefined);
   createPost.mockResolvedValue({ id: 'new-post' });
@@ -143,7 +145,7 @@ test('Reading Update publishes directly with entered progress, thought and sourc
   const publish = button('Publish Reading Update').props.onPress;
   await act(async () => { publish(); publish(); });
   expect(publishReadingUpdate).toHaveBeenCalledTimes(1);
-  expect(publishReadingUpdate).toHaveBeenCalledWith({ googleBookId: 'book-a', progress: '245', chapter: '', audioPosition: '', thought: 'A great chapter', sourceNoteId: 'note-1', clubId: null });
+  expect(publishReadingUpdate).toHaveBeenCalledWith({ googleBookId: 'book-a', progress: '245', chapter: '', audioPosition: '', thought: 'A great chapter', sourceNoteId: 'note-1', clubId: null, containsSpoilers: false });
   expect(mockRouter.replace).toHaveBeenCalledWith('/');
 });
 
@@ -164,7 +166,7 @@ test('editing an audiobook update preloads its original book and updates the exi
   await fill('Audiobook time', '2:10:05');
   await fill('Your reading update thoughts (optional)', 'Updated thought');
   await press('Save Reading Update changes');
-  expect(updateReadingUpdate).toHaveBeenCalledWith('update-1', { googleBookId: 'book-b', progress: '', chapter: '', audioPosition: '2:10:05', thought: 'Updated thought', clubId: null });
+  expect(updateReadingUpdate).toHaveBeenCalledWith('update-1', { googleBookId: 'book-b', progress: '', chapter: '', audioPosition: '2:10:05', thought: 'Updated thought', clubId: null, containsSpoilers: false });
   expect(publishReadingUpdate).not.toHaveBeenCalled();
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
@@ -185,10 +187,10 @@ test('stack Save & Post uses inline text, destination and reordered books withou
   await act(async () => firstRow.props.onDragEnd());
   const publish = button('Save and publish Book Stack').props.onPress;
   await act(async () => { publish(); publish(); });
-  expect(createBookStack).toHaveBeenCalledTimes(1);
-  expect(createBookStack.mock.calls[0][1].map((book) => book.googleBookId)).toEqual(['book-b', 'book-a']);
-  expect(createPost).toHaveBeenCalledTimes(1);
-  expect(createPost).toHaveBeenCalledWith({ body: 'Books I loved', postType: 'book_stack', bookStackId: 'stack-1', clubId: 'club-1' });
+  expect(saveBookStackSubmission).toHaveBeenCalledTimes(1);
+  expect(saveBookStackSubmission.mock.calls[0][0].items.map((book) => book.googleBookId)).toEqual(['book-b', 'book-a']);
+  expect(saveBookStackSubmission).toHaveBeenCalledWith(expect.objectContaining({name:'Favorites',body:'  Books I loved  ',publish:true,clubId:'club-1',stackId:null,postId:null}));
+  expect(createPost).not.toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
 });
 
@@ -202,13 +204,13 @@ test('stack text starts compact, grows and shrinks with its content, and remains
   await act(async () => field('Optional text about this stack').props.onContentSizeChange({ nativeEvent: { contentSize: { height: 22 } } }));
   expect(field('Optional text about this stack').props.style[1].height).toBe(22);
   await press('Save and publish Book Stack');
-  expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: '', postType: 'book_stack' }));
+  expect(saveBookStackSubmission).toHaveBeenCalledWith(expect.objectContaining({body:'',publish:true}));
 });
 
 test('saving a stack without posting never creates a feed post', async () => {
   await buildNewStack('A caption for later');
   await press('Save stack to profile without posting');
-  expect(createBookStack).toHaveBeenCalledTimes(1);
+  expect(saveBookStackSubmission).toHaveBeenCalledTimes(1);
   expect(createPost).not.toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)/profile');
 });
@@ -222,23 +224,23 @@ test('editing a stack post preserves its destination and edits the existing stac
   await fill('Stack name', 'New favorites');
   await fill('Optional text about this stack', 'New text');
   await press('Save Book Stack post changes');
-  expect(updateBookStack).toHaveBeenCalledWith('stack-1', 'New favorites', expect.any(Array));
-  expect(updatePost).toHaveBeenCalledWith('post-1', { body: 'New text', allowEmptyBody: true, clubId: 'club-1' });
+  expect(saveBookStackSubmission).toHaveBeenCalledWith(expect.objectContaining({stackId:'stack-1',name:'New favorites',items:expect.any(Array),body:'New text',publish:true,clubId:'club-1',postId:'post-1'}));
+  expect(updatePost).not.toHaveBeenCalled();
   expect(createBookStack).not.toHaveBeenCalled();
   expect(createPost).not.toHaveBeenCalled();
 });
 
-test('a failed stack publication cleans up the new stack and leaves the inline draft available to retry', async () => {
+test('a failed atomic stack publication leaves no client cleanup and leaves the inline draft available to retry', async () => {
   await buildNewStack('Try this stack');
-  createPost.mockRejectedValueOnce(new Error('Offline'));
+  saveBookStackSubmission.mockRejectedValueOnce(new Error('Offline'));
   await press('Save and publish Book Stack');
-  expect(deleteBookStack).toHaveBeenCalledWith('stack-1');
+  expect(deleteBookStack).not.toHaveBeenCalled();
   expect(mockRouter.replace).not.toHaveBeenCalled();
-  expect(Alert.alert).toHaveBeenCalledWith('Could not publish stack', 'Offline');
+  expect(view.root.findByType(require('../src/components/ValidationWarningSheet').default).props).toMatchObject({title:'Could not publish stack',message:'Offline'});
   expect(field('Stack name').props.value).toBe('Favorites');
   expect(field('Optional text about this stack').props.value).toBe('Try this stack');
   await press('Save and publish Book Stack');
-  expect(createPost).toHaveBeenCalledTimes(2);
+  expect(saveBookStackSubmission).toHaveBeenCalledTimes(2);
   expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
 });
 

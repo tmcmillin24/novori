@@ -9,7 +9,7 @@ function harness({ missing = false, member = true, publishError = null } = {}) {
     auth: { getUser: async () => ({ data: { user: { id: 'reader' } } }) },
     rpc: async (name, args) => {
       calls.push({ name, args });
-      if (missing && name === 'publish_reading_update_to_destination') return { error: { code: 'PGRST202', message: 'Missing RPC' } };
+      if (missing && name === 'novori_publish_reading_update') return { error: { code: 'PGRST202', message: 'Missing RPC' } };
       return publishError ? { error: publishError } : { data: 'post-1', error: null };
     },
     from(table) {
@@ -35,26 +35,19 @@ function harness({ missing = false, member = true, publishError = null } = {}) {
 test('club publication passes progress, audio, private thought and source note through one atomic publisher', async () => {
   const h = harness();
   await h.api.publishReadingUpdate({ googleBookId: 'book-1', clubId: 'club-1', progress: '50%', chapter: '4', audioPosition: '1:02:03', thought: 'A thought', sourceNoteId: 'note-1' });
-  expect(h.calls).toEqual([{ name: 'publish_reading_update_to_destination', args: {
+  expect(h.calls).toEqual([{ name: 'novori_publish_reading_update', args: { p_spoilers: false, p_input: {
     target_google_book_id: 'book-1', target_club_id: 'club-1', post_body: '50% · Chapter 4 · Audio 1:02:03\n\nA thought',
     checkpoint_page_number: null, checkpoint_progress_percent: 50, checkpoint_chapter: '4',
     checkpoint_audio_position_seconds: 3723, private_note_body: 'A thought', source_note_id: 'note-1',
-  } }]);
+  } } }]);
   expect(h.checkins).toEqual([[['book-1'], 'reading_update']]);
   expect(h.updates).toHaveLength(0);
 });
 
-test('feed publishing remains compatible before the destination SQL is installed', async () => {
+test.each([null, 'club-1'])('missing moderated publisher fails closed for destination %s', async (clubId) => {
   const h = harness({ missing: true });
-  await h.api.publishReadingUpdate({ googleBookId: 'book-1', progress: '12' });
-  expect(h.calls.map((call) => call.name)).toEqual(['publish_reading_update_to_destination', 'publish_reading_update']);
-  expect(h.calls[1].args).not.toHaveProperty('target_club_id');
-});
-
-test('a club draft never falls back to feed publishing if the new publisher is missing', async () => {
-  const h = harness({ missing: true });
-  await expect(h.api.publishReadingUpdate({ googleBookId: 'book-1', clubId: 'club-1', progress: '12' })).rejects.toThrow('SQL update');
-  expect(h.calls).toHaveLength(1);
+  await expect(h.api.publishReadingUpdate({ googleBookId: 'book-1', clubId, progress: '12' })).rejects.toMatchObject({code: 'PGRST202'});
+  expect(h.calls.map(call => call.name)).toEqual(['novori_publish_reading_update']);
   expect(h.checkins).toHaveLength(0);
 });
 

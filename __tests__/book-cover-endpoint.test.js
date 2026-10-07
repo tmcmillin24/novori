@@ -43,8 +43,9 @@ function endpoint(locked = false) {
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   vm.runInNewContext(compiled, {
     exports: {}, Response, console,
-    Deno: { env: { get: () => 'configured' }, serve: callback => { handler = callback; } },
+    Deno: { env: { get: name => name === 'NOVORI_SERVER_KEY' ? 'sb_secret_test' : name === 'SUPABASE_URL' ? 'https://test.supabase.co' : undefined }, serve: callback => { handler = callback; } },
     require: name => name.startsWith('https:') ? { createClient: () => client }
+      : name.includes('supabase-keys') ? { getServerKey: read => read('NOVORI_SERVER_KEY') }
       : name.includes('book-publication-cache') ? require('../supabase/functions/_shared/book-publication-cache')
       : { selectCanonicalGoogleCoversForWorkIds },
   });

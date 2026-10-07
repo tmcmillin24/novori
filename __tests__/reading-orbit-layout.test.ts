@@ -6,7 +6,7 @@ describe('reading orbit viewport fit', () => {
     ['mini', 744, 1133],
     ['11-inch', 834, 1194],
     ['13-inch', 1032, 1376],
-  ] as const;
+  ] satisfies Array<[string, number, number]>;
 
   test.each(devices)('%s fits portrait and landscape including sticker padding', (_, width, height) => {
     for (const [w, h] of [[width, height], [height, width]]) {

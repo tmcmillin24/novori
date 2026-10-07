@@ -45,7 +45,7 @@ function harness({ catalog = [], mapping = null, fallback = [], fallbackStatus =
         return new Response(JSON.stringify({ items: query.includes('inauthor') ? [] : fallback }),
           { status: query.includes('inauthor') ? 200 : fallbackStatus });
       },
-      Deno: { env: { get: () => 'configured' }, serve: (handler) => { exports.handler = handler; } },
+      Deno: { env: { get: name => name === 'NOVORI_SERVER_KEY' ? undefined : name === 'SUPABASE_SERVICE_ROLE_KEY' ? 'test-service-key' : name === 'SUPABASE_URL' ? 'https://test.supabase.co' : name === 'GOOGLE_BOOKS_API_KEY' ? 'test-google-key' : undefined }, serve: (handler) => { exports.handler = handler; } },
       require: (name) => name.startsWith('https:') ? { createClient: () => admin }
         : name.includes('book-catalog') ? { recordGoogleBooksInCatalog: async () => {} }
         : load(path.relative(path.resolve(__dirname, '..'), path.resolve(path.dirname(filename), name))),

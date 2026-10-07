@@ -119,7 +119,7 @@ export async function getReadingMonthPersonalization(
         raw
       );
 
-    const savedValues =
+    const savedValues: unknown[] =
       Array.isArray(
         parsed?.charms
       )

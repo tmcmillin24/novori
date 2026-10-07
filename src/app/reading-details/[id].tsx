@@ -784,6 +784,7 @@ export default function ReadingDetailsScreen() {
                     new Date(startedAt).getTime()) {
                 throw new Error('The ending date cannot be before the started date.');
             }
+            if (!data.book.status) throw new Error('Choose a reading status before editing dates.');
             setSavingDates(true);
             const updatedBook = await updateReadingDetailsDates(data.session.id, googleBookId, data.book.status, startedAt, finishedAt, dnfAt);
             setData((current) => current

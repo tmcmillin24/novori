@@ -72,7 +72,7 @@ function normalizeItems(
         Array.isArray(row.authors)
           ? row.authors.filter(
               (
-                author
+                author: unknown
               ): author is string =>
                 typeof author ===
                 'string'

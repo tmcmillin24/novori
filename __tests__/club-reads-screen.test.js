@@ -9,6 +9,7 @@ import { searchNovoriBooks,resolveNovoriSearchBookCover } from '../src/lib/book-
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
 jest.mock('react-native',()=>({
+ Switch:'Switch', useWindowDimensions:()=>({width:390,height:844,scale:3,fontScale:1}),
  Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Pressable:'Pressable',ScrollView:'ScrollView',Modal:props=>props.visible?require('react').createElement('Modal',props,props.children):null,StyleSheet:{create:v=>v,absoluteFill:{},hairlineWidth:.5},
  Animated:{View:'AnimatedView',Value:class{setValue(){}stopAnimation(){}},parallel:()=>({start:done=>done?.({finished:true})}),timing:()=>({start:done=>done?.({finished:true})}),spring:()=>({start:done=>done?.({finished:true})})},Easing:{out:v=>v,in:v=>v,cubic:()=>{}},PanResponder:{create:()=>({panHandlers:{}})},
 }));

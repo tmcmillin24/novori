@@ -1134,7 +1134,7 @@ export default function RateReviewScreen() {
 
                   ? 'READ'
 
-                  : book.status
+                  : (book.status ?? 'owned')
 
                       .replace(
 

@@ -940,7 +940,7 @@ export default function LibraryScreen() {
 
                     <View style={styles.sheetStatusPill}>
                       <Text style={styles.sheetStatusText}>
-                        {STATUS_LABELS[selectedBook.status]}
+                        {selectedBook.status ? STATUS_LABELS[selectedBook.status] : 'Owned'}
                       </Text>
                     </View>
                   </View>
