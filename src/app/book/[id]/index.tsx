@@ -1,3 +1,4 @@
+import { formatBookDescription } from '../../../lib/book-description';
 import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../../lib/reading-status-display';
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
@@ -139,25 +140,6 @@ type GoogleSearchResponse = {
   totalItems?: number;
   items?: GoogleBook[];
 };
-
-function cleanDescription(description?: string) {
-  if (!description) {
-    return '';
-  }
-
-  return description
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
 
 function getBookISBN(book: GoogleBook) {
   const identifiers = book.volumeInfo.industryIdentifiers ?? [];
@@ -3103,7 +3085,7 @@ export default function BookDetailsScreen() {
     );
 
   const description =
-    cleanDescription(
+    formatBookDescription(
       info.description
     );
 
