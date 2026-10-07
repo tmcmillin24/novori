@@ -26,7 +26,7 @@ import {
 export default function PostScreen() {
   const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post',22),readingTarget=useTutorialTarget('create-reading-update',18),askTarget=useTutorialTarget('create-ask-readers',18),stackTarget=useTutorialTarget('create-book-stack',18),scroll=useRef<ScrollView>(null);
   const insets=useSafeAreaInsets();
-  const {height:screenHeight}=useWindowDimensions(),scrollOffset=useRef(0);
+  const {height:screenHeight,width:screenWidth}=useWindowDimensions(),scrollOffset=useRef(0);
   const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
   const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
   useEffect(()=>{
@@ -41,11 +41,11 @@ export default function PostScreen() {
         if(cancelled||h<=0)return;
         // The tab bar and safe areas are already excluded from this native viewport.
         const offset=tutorialRevealOffset(y,h,scrollOffset.current,viewY+12,viewY+viewH-12);
-        if(Math.abs(offset-scrollOffset.current)>1)scroll.current?.scrollTo({y:offset,animated:false});
+        if(Math.abs(offset-scrollOffset.current)>1)scroll.current?.scrollTo({y:offset,animated:screenWidth>screenHeight&&screenHeight<800});
       });
     });
     return()=>{cancelled=true;};
-  },[tutorial?.active,tutorial?.step.anchor,positions,gridY,screenHeight,insets.top,insets.bottom]);
+  },[tutorial?.active,tutorial?.step.anchor,positions,gridY,screenHeight,screenWidth,insets.top,insets.bottom]);
   const router =
     useRouter();
 
