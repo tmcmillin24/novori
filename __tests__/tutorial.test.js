@@ -7,7 +7,7 @@ import {TutorialProvider,useTutorial} from '../src/context/tutorial-context';
 import {needsTutorial,TUTORIAL_STEPS,tutorialRevealOffset} from '../src/lib/tutorial';
 import {legalAcceptanceMetadata} from '../src/lib/legal-documents';
 import {supabase} from '../src/lib/supabase';
-let mockPath='/',mockParams={},mockDimensions={width:390,height:844},mockNavigation={index:0,routes:[{name:'(tabs)'}]},mockAuthCallback,mockTour;
+let mockPath='/',mockParams={},mockDimensions={width:390,height:844},mockNavigation={index:0,routes:[{name:'(tabs)'}]},mockAuthCallback,mockTour,mockMeasure=true;
 const routePath=route=>route==='/(tabs)'?'/':route.replace('/(tabs)','');
 const mockRouter={push:jest.fn(),replace:jest.fn(route=>{mockPath=routePath(route);}),navigate:jest.fn(route=>{mockPath=routePath(route);})};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,usePathname:()=>mockPath,useLocalSearchParams:()=>mockParams,useRootNavigationState:()=>mockNavigation}));
@@ -20,13 +20,13 @@ jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:requi
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:jest.fn(),updateUser:jest.fn(),getSession:jest.fn(),onAuthStateChange:jest.fn(callback=>{mockAuthCallback=callback;return {data:{subscription:{unsubscribe:jest.fn()}}};})}}}));
 function Controls(){
  const tour=useTutorial();mockTour=tour;
- useEffect(()=>{if(tour.active&&tour.pathname===tour.step.path)tour.measure(tour.step.anchor,{x:40,y:tour.step.anchor.startsWith('tab-')?750:180,width:tour.step.anchor.startsWith('tab-')?24:140,height:tour.step.anchor.startsWith('tab-')?24:44});},[tour.active,tour.step.anchor,tour.pathname,tour.measure]);
+ useEffect(()=>{if(mockMeasure&&tour.active&&tour.pathname===tour.step.path)tour.measure(tour.step.anchor,{x:40,y:tour.step.anchor.startsWith('tab-')?750:180,width:tour.step.anchor.startsWith('tab-')?24:140,height:tour.step.anchor.startsWith('tab-')?24:44});},[tour.active,tour.step.anchor,tour.pathname,tour.measure]);
  return null;
 }
 function Harness({launch=false}){return <TutorialProvider><Controls/>{launch?<TutorialLauncher/>:null}<TutorialOverlay/></TutorialProvider>;}
 let view,silence;
 beforeEach(()=>{
- globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();mockPath='/';mockParams={};mockDimensions={width:390,height:844};mockNavigation={index:0,routes:[{name:'(tabs)'}]};
+ globalThis.IS_REACT_ACT_ENVIRONMENT=true;mockMeasure=true;jest.clearAllMocks();mockPath='/';mockParams={};mockDimensions={width:390,height:844};mockNavigation={index:0,routes:[{name:'(tabs)'}]};
  supabase.auth.getUser.mockResolvedValue({data:{user:{id:'reader'}},error:null});
  supabase.auth.updateUser.mockResolvedValue({data:{user:{id:'reader'}},error:null});
  supabase.auth.getSession.mockResolvedValue({data:{session:{user:{id:'reader',user_metadata:{}}}}});
@@ -145,4 +145,16 @@ test('creation tour preserves visible cards and reveals clipped cards with minim
  expect(tutorialRevealOffset(630,184,0,80,740)).toBe(74);
  expect(tutorialRevealOffset(50,120,200,80,740)).toBe(170);
  expect(tutorialRevealOffset(500,184,74,80,740)).toBe(74);
+});
+
+test('same-screen preparation retains the settled prompt and highlight without a blink',async()=>{
+ await start();mockMeasure=false;
+ await act(async()=>mockTour.next());
+ expect(mockTour.bounds).toBeNull();
+ expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(1);
+ expect(view.root.findAllByProps({testID:'tutorial-rounded-mask'})).toHaveLength(1);
+ expect(view.root.findAllByProps({testID:'tutorial-preparing-screen'})).toHaveLength(0);
+ expect(view.root.findAllByType('Text').some(t=>t.props.children==='Start at Home')).toBe(true);
+ await act(async()=>mockTour.measure('home-feed',{x:40,y:180,width:140,height:44,radius:10}));
+ expect(view.root.findAllByType('Text').some(t=>t.props.children==='Your Feed')).toBe(true);
 });
