@@ -45,6 +45,7 @@ jest.mock("../src/context/theme-context", () => ({
 jest.mock("../src/lib/supabase", () => ({
   supabase: {
     from: jest.fn(),
+    rpc: jest.fn(),
     auth: {
       signUp: jest.fn(),
       getSession: jest.fn(),
@@ -64,6 +65,7 @@ let view, silence;
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   jest.clearAllMocks();
+  supabase.rpc.mockResolvedValue({data:{phase:'closed'},error:null});
   mockPath = "/auth";
   silence = jest.spyOn(console, "error").mockImplementation(() => {});
   supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
@@ -162,6 +164,22 @@ test("accepted signup records policy versions and an age attestation without col
   expect(mockRouter.push).toHaveBeenCalledWith(
     expect.objectContaining({ pathname: "/confirm-email" }),
   );
+});
+test("beta notice accompanies signup and optional enrollment starts unchecked",async()=>{
+  supabase.rpc.mockResolvedValue({data:{phase:'optional'},error:null});
+  await signup();
+  const choice=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Join beta testing when enrollment is optional');
+  expect(choice.props.accessibilityState.checked).toBe(false);
+  await act(async()=>choice.props.onPress());
+  await pressLabel('I confirm I am 18 or older');
+  await pressLabel('I agree to the Terms of Service and acknowledge the Privacy Policy');
+  await submit();
+  expect(supabase.auth.signUp.mock.calls[0][0].options.data).toMatchObject({novori_beta_notice_version:'2026-10-07-v1',novori_beta_opt_in:true});
+});
+test("automatic beta enrollment is explained before account creation",async()=>{
+  supabase.rpc.mockResolvedValue({data:{phase:'automatic'},error:null});
+  await signup();
+  expect(view.root.findAllByType('Text').some(t=>typeof t.props.children==='string'&&t.props.children.includes('Your account will enroll automatically'))).toBe(true);
 });
 test("terms and privacy can be opened before account creation without submitting the form", async () => {
   await signup();

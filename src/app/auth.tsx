@@ -1,4 +1,5 @@
 import LegalSignupAcknowledgment from '../components/LegalSignupAcknowledgment';
+import BetaSignupEnrollment from '../components/BetaSignupEnrollment';
 import { legalAcceptanceMetadata } from '../lib/legal-documents';
 import { isAccountRestrictedError } from '../lib/account-session-errors';
 import { accountRestrictionNotice, hasAccountRestrictionNotice, clearAccountRestrictionNotice } from '../lib/account-restriction-notice';
@@ -43,13 +44,24 @@ export default function AuthScreen() {
   const { notice } = useLocalSearchParams<{notice?: string}>();
 
   const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [mode, setMode] = useState<AuthMode>('sign-in');
+  const [betaOptIn, setBetaOptIn] = useState(false);
+  const [betaPhase, setBetaPhase] = useState<'automatic'|'optional'|'closed'>('closed');
+  useEffect(() => {
+    let mounted=true;
+    // Informational only: the database assigns the slot atomically at signup.
+    if (typeof supabase.rpc === 'function') {
+      void Promise.resolve(supabase.rpc('novori_beta_signup_status')).then(({data,error})=>{
+        if(mounted&&!error&&['automatic','optional','closed'].includes(data?.phase)) setBetaPhase(data.phase);
+      }).catch(()=>{});
+    }
+    return ()=>{mounted=false;};
+  }, [mode]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [passwordVisible,setPasswordVisible]=useState(false);
   const [confirmPasswordVisible,setConfirmPasswordVisible]=useState(false);
   const [authNotice, setAuthNotice] = useState<{title: string; message: string} | null>(() => notice === 'restricted' || hasAccountRestrictionNotice() ? accountRestrictionNotice : null);
   useEffect(() => { if (notice === 'restricted') setAuthNotice(accountRestrictionNotice); }, [notice]);
-  const [mode, setMode] =
-    useState<AuthMode>('sign-in');
   const [
     displayName,
     setDisplayName,
@@ -271,6 +283,8 @@ export default function AuthScreen() {
                 EMAIL_CONFIRM_REDIRECT,
               data: {
                 ...legalAcceptanceMetadata(),
+                novori_beta_notice_version: betaPhase === 'closed' ? null : '2026-10-07-v1',
+                novori_beta_opt_in: betaOptIn,
                 username:
                   normalizedUsername,
                 display_name:
@@ -634,6 +648,7 @@ export default function AuthScreen() {
             ) : null}
 
             {isSignUp ? <LegalSignupAcknowledgment adult={adultConfirmed} accepted={termsAccepted} onAdultChange={setAdultConfirmed} onAcceptedChange={setTermsAccepted} disabled={loading} /> : null}
+            {isSignUp ? <BetaSignupEnrollment phase={betaPhase} optIn={betaOptIn} onChange={setBetaOptIn} disabled={loading} /> : null}
 
             {!isSignUp ? (
               <Pressable
