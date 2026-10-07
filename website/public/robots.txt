@@ -1,5 +1,0 @@
-User-agent: *
-Disallow: /book/
-Disallow: /post/
-Disallow: /stack/
-Disallow: /share/

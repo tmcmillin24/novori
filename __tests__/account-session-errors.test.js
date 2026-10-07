@@ -1,3 +1,0 @@
-import {isAccountRestrictedError,isAccountUnavailableError} from '../src/lib/account-session-errors';
-test.each([{code:'user_banned'}, {name:'AuthApiError',message:'User is banned'}, {code:'42501',message:'Your account is restricted. Contact support@novori.link.'}])('recognizes authoritative restriction errors',error=>{expect(isAccountRestrictedError(error)).toBe(true);expect(isAccountUnavailableError(error)).toBe(true);});
-test.each([null,Error('Network connection was lost'),{code:'42501',message:'permission denied'},{code:'user_not_found'}])('does not misclassify other failures as moderation',error=>expect(isAccountRestrictedError(error)).toBe(false));

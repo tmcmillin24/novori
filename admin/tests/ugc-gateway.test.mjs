@@ -144,3 +144,20 @@ test('atomic stack screens the name, every book, and caption before any database
  assert.equal(response.status,422);assert.equal(s.forwards.filter(f=>f.url.includes('/rest/v1/')).length,0);
  assert.equal(s.calls.some(c=>c.name==='novori_issue_publication_ticket'),false);
 });
+
+test('single-object club response survives native transport and moderation forwarding',async()=>{
+ const {createModeratedFetch}=await import('../../src/lib/moderated-fetch.ts');
+ const s=setup({state:'passed'}),clubId='50000000-0000-4000-8000-000000000001';
+ let capturedAccept;
+ const publication=createPublicationHandler({...s,supabaseUrl:'https://project.supabase.co',publishableKey:'public-key',openaiKey:'secret-openai',legalVersion:version,transport:async(url,init)=>{
+  capturedAccept=init.headers.Accept;
+  const club={id:clubId,owner_id:user};
+  return new Response(JSON.stringify(capturedAccept==='application/vnd.pgrst.object+json'?club:[club]),{status:201,headers:{'Content-Type':'application/json'}});
+ }});
+ const native=createModeratedFetch('https://project.supabase.co',async(url,init)=>publication(new Request(url,init)));
+ const response=await native('https://project.supabase.co/rest/v1/clubs?select=*',{method:'POST',headers:{Authorization:'Bearer reader-token',Accept:'application/vnd.pgrst.object+json',Prefer:'return=representation'},body:JSON.stringify({owner_id:user,name:'Novori Beta Testers'})});
+ assert.equal(response.status,201);const created=await response.json();assert.equal(created.id,clubId);assert.equal(Array.isArray(created),false);
+ assert.equal(`${user}/${created.id}/cover.jpg`.split('/')[1],clubId);
+ const malicious=setup({state:'passed'});await handler(malicious)(request({...envelope,accept:'application/arbitrary'}));
+ assert.equal(malicious.forwards[0].init.headers.Accept,undefined);
+});

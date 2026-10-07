@@ -1,8 +1,0 @@
-{
-  "name": "novori-moderation-media",
-  "main": "worker.mjs",
-  "compatibility_date": "2026-10-05",
-  "workers_dev": false,
-  "routes": [{ "pattern": "media.novori.link/*", "zone_name": "novori.link" }],
-  "vars": { "SUPABASE_URL": "https://oanpmuiuuwljknwvyzev.supabase.co" }
-}

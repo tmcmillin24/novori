@@ -1,3 +1,0 @@
-
-# Preserve upstream license snapshots exactly, including their original whitespace.
-scripts/legal/upstream/*.txt -whitespace
