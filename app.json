@@ -1,0 +1,77 @@
+{
+  "expo": {
+    "name": "Novori",
+    "slug": "Novori",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/novori_appicon.png",
+    "scheme": "novori",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#242321",
+          "image": "./assets/images/novori_loadingscreen.png",
+          "imageWidth": 200
+        }
+      ],
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Novori uses the photos you select for your profile, posts, and clubs.",
+          "cameraPermission": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4",
+            "enableSceneSupport": true
+          }
+        }
+      ]
+    ],
+    "ios": {
+      "icon": "./assets/images/novori_appicon.png",
+      "bundleIdentifier": "com.anonymous.Novori",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Novori uses your camera to scan book barcodes and take photos you choose to share on your profile, posts, or clubs.",
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
+      },
+      "supportsTablet": true
+    },
+    "android": {
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#242321",
+        "foregroundImage": "./assets/images/novori_appicon.png"
+      },
+      "package": "com.anonymous.Novori"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/novori_appicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

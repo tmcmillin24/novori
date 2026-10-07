@@ -1,0 +1,6563 @@
+import { getBookLayout } from '../../lib/book-layout';
+import { createBookReadCache } from '../../lib/book-read-cache';
+import { getBookPublication, getPublicationVersion, subscribeBookPublications } from '../../lib/book-publication';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  Image as ExpoImage,
+} from 'expo-image';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRouter,
+} from 'expo-router';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  FlatList,
+  type GestureResponderEvent,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+
+import { NovoriColors } from '../../constants/novori-theme';
+import BookCoverImage from '../../components/BookCoverImage';
+import {
+  getNovoriSearchBookCover,
+  searchNovoriBooks,
+} from '../../lib/book-search';
+import { useNovoriTheme } from '../../context/theme-context';
+import { fetchGoogleBooksJson } from '../../lib/google-books';
+import {
+  cancelFollowRequest,
+  followReader,
+  unfollowReader,
+} from '../../lib/feed';
+import {
+  ReaderConnection,
+  searchReaders,
+} from '../../lib/social';
+import { supabase } from '../../lib/supabase';
+import {
+  getLibraryMutationVersion,
+  getUserBooks,
+  UserBook,
+} from '../../lib/user-books';
+
+type GoogleBookItem = {
+  id: string;
+  novoriWork?: {
+    key: string;
+    canonicalTitle: string;
+    primaryAuthor: string;
+    googleBookIds: string[];
+    isbns: string[];
+    hardcoverRating?: number | null;
+    hardcoverRatingsCount?: number | null;
+    canonicalCoverUrl?: string | null;
+  };
+
+  volumeInfo: {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publishedDate?: string;
+    description?: string;
+
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
+    };
+
+    industryIdentifiers?: {
+      type: string;
+      identifier: string;
+    }[];
+
+    pageCount?: number;
+    categories?: string[];
+
+    averageRating?: number;
+    ratingsCount?: number;
+  };
+};
+
+type GoogleBooksResponse = {
+  totalItems?: number;
+  items?: GoogleBookItem[];
+};
+
+type SharedGoogleBooksResolverEnvelope = {
+  ok?: boolean;
+  status?: number;
+  data?: {
+    kind?: 'isbn' | 'trending';
+    book?: GoogleBookItem | null;
+    googleBookId?: string | null;
+  } | null;
+  error?: string;
+  reason?: string;
+  cache?: {
+    status?: 'hit' | 'miss' | 'stale';
+    googleRequestMade?: boolean;
+    expiresAt?: string;
+    reason?: string;
+  };
+  quota?: {
+    upstreamRequestsToday?: number;
+    userWindowRequests?: number | null;
+    userDailyRequests?: number | null;
+  };
+};
+
+const readDiscoverBookIdentity = createBookReadCache<SharedGoogleBooksResolverEnvelope | null>();
+function invokeSharedGoogleBooksResolver(body: { mode: 'isbn' | 'trending'; isbn?: string; title?: string; author?: string }) {
+  return readDiscoverBookIdentity(JSON.stringify([body.mode, body.isbn ?? '', body.title ?? '', body.author ?? '']),
+    () => loadSharedGoogleBooksResolver(body), value => value?.ok === true && Boolean(value.data));
+}
+
+async function loadSharedGoogleBooksResolver(
+  body: {
+    mode: 'isbn' | 'trending';
+    isbn?: string;
+    title?: string;
+    author?: string;
+  }
+): Promise<
+  SharedGoogleBooksResolverEnvelope | null
+> {
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.functions.invoke(
+        'google-books-resolve',
+        {
+          body,
+        }
+      );
+
+    if (error) {
+      console.warn(
+        'Shared Google Books resolver unavailable; using direct fallback:',
+        error
+      );
+      return null;
+    }
+
+    const response =
+      data as
+        SharedGoogleBooksResolverEnvelope;
+
+    if (
+      response?.ok ===
+        true &&
+      response.data
+    ) {
+      if (__DEV__) {
+        console.log(
+          '[Novori Google resolver cache]',
+          {
+            mode:
+              body.mode,
+            cache:
+              response.cache
+                ?.status ??
+              'unknown',
+            googleRequestMade:
+              response.cache
+                ?.googleRequestMade ??
+              false,
+            quota:
+              response.quota ??
+              null,
+          }
+        );
+      }
+
+      return response;
+    }
+
+    if (
+      response?.ok ===
+        false &&
+      (
+        response.status ??
+        500
+      ) <
+        500
+    ) {
+      return response;
+    }
+
+    console.warn(
+      'Shared Google Books resolver failed; using direct fallback:',
+      response?.error ??
+        response?.status ??
+        'unexpected response'
+    );
+    return null;
+  } catch (
+    error
+  ) {
+    console.warn(
+      'Shared Google Books resolver failed; using direct fallback:',
+      error
+    );
+    return null;
+  }
+}
+
+type HardcoverSearchPopularityResponse = {
+  popularity?: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >;
+  error?: string;
+  details?: unknown;
+};
+
+type TrendingBook = {
+  rank: number;
+  id: number;
+  title: string;
+  slug: string | null;
+  releaseDate?: string | null;
+  releaseYear: number | null;
+  rating: number | null;
+  usersCount: number | null;
+  coverUrl: string | null;
+  coverBookId?: string | null;
+  authors: string[];
+  isbns: string[];
+  genres: string[];
+};
+
+type TrendingResponse = {
+  books?: TrendingBook[];
+  windowDays?: number;
+  source?: string;
+  cache?: {
+    status?: string;
+    refreshedAt?: string;
+    ttlSeconds?: number;
+  };
+  error?: string;
+  details?: unknown;
+};
+
+type RecentReleasesResponse = {
+  books?: TrendingBook[];
+  windowMonths?: number;
+  source?: string;
+  cache?: {
+    status?: string;
+    refreshedAt?: string;
+    ttlSeconds?: number;
+  };
+  error?: string;
+  details?: unknown;
+};
+
+
+function normalizeBookIdentityText(
+  value?: string | null
+) {
+  return (
+    value
+      ?.toLowerCase()
+      .replace(
+        /[^a-z0-9]/g,
+        ''
+      ) ?? ''
+  );
+}
+
+function normalizeIsbn(
+  value?: string | null
+) {
+  return (
+    value
+      ?.replace(
+        /[^0-9Xx]/g,
+        ''
+      )
+      .toUpperCase() ??
+    ''
+  );
+}
+
+function isbn13ToIsbn10(
+  isbn13: string
+) {
+  const normalized =
+    normalizeIsbn(
+      isbn13
+    );
+
+  if (
+    normalized.length !==
+      13 ||
+    !normalized.startsWith(
+      '978'
+    )
+  ) {
+    return null;
+  }
+
+  const body =
+    normalized.slice(
+      3,
+      12
+    );
+
+  let total =
+    0;
+
+  for (
+    let index = 0;
+    index <
+    body.length;
+    index += 1
+  ) {
+    total +=
+      Number(
+        body[index]
+      ) *
+      (
+        10 -
+        index
+      );
+  }
+
+  const remainder =
+    11 -
+    (
+      total %
+      11
+    );
+
+  const checkDigit =
+    remainder ===
+      10
+      ? 'X'
+      : remainder ===
+          11
+        ? '0'
+        : String(
+            remainder
+          );
+
+  return `${body}${checkDigit}`;
+}
+
+function bookMatchesAnyIsbn(
+  book: GoogleBookItem,
+  isbns: string[]
+) {
+  const wanted =
+    new Set(
+      isbns
+        .map(
+          normalizeIsbn
+        )
+        .filter(Boolean)
+    );
+
+  return Boolean(
+    book.volumeInfo
+      .industryIdentifiers
+      ?.some(
+        (
+          identifier
+        ) =>
+          wanted.has(
+            normalizeIsbn(
+              identifier.identifier
+            )
+          )
+      )
+  );
+}
+
+async function findGoogleBookForScannedIsbn(
+  scannedIsbn: string
+) {
+  const isbn13 =
+    normalizeIsbn(
+      scannedIsbn
+    );
+
+  const sharedResolver =
+    await invokeSharedGoogleBooksResolver({
+      mode:
+        'isbn',
+      isbn:
+        isbn13,
+    });
+
+  if (
+    sharedResolver
+  ) {
+    if (
+      sharedResolver.ok ===
+        true
+    ) {
+      return (
+        sharedResolver.data
+          ?.book ??
+        null
+      );
+    }
+
+    if (
+      sharedResolver.status ===
+        429
+    ) {
+      throw new Error(
+        'Google Books rate limit reached.'
+      );
+    }
+
+    return null;
+  }
+
+  const isbn10 =
+    isbn13ToIsbn10(
+      isbn13
+    );
+
+  const isbnCandidates =
+    Array.from(
+      new Set(
+        [
+          isbn13,
+          isbn10,
+        ].filter(
+          (
+            value
+          ): value is string =>
+            Boolean(
+              value
+            )
+        )
+      )
+    );
+
+  const queries =
+    [
+      ...isbnCandidates.map(
+        (
+          isbn
+        ) =>
+          `isbn:${isbn}`
+      ),
+      ...isbnCandidates,
+    ];
+
+  for (
+    const query of
+      queries
+  ) {
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          query
+        )}&maxResults=10&printType=books&projection=full`
+      );
+
+    if (
+      !response.ok ||
+      !response.data
+    ) {
+      if (
+        response.status ===
+          429
+      ) {
+        throw new Error(
+          'Google Books rate limit reached.'
+        );
+      }
+
+      continue;
+    }
+
+    const matches =
+      response.data.items ??
+      [];
+
+    const exactMatch =
+      matches.find(
+        (
+          candidate
+        ) =>
+          bookMatchesAnyIsbn(
+            candidate,
+            isbnCandidates
+          )
+      );
+
+    if (
+      exactMatch
+    ) {
+      return exactMatch;
+    }
+
+    if (
+      matches[0]
+    ) {
+      return matches[0];
+    }
+  }
+
+  return null;
+}
+
+function isDiscoverBookInLibrary(
+  book: TrendingBook,
+  libraryBooks: UserBook[]
+) {
+  const bookIsbns =
+    new Set(
+      (book.isbns ?? [])
+        .map(normalizeIsbn)
+        .filter(Boolean)
+    );
+
+  const bookTitle =
+    normalizeBookIdentityText(
+      book.title
+    );
+
+  const bookAuthors =
+    (book.authors ?? [])
+      .map(
+        normalizeBookIdentityText
+      )
+      .filter(Boolean);
+
+  return libraryBooks.some(
+    (savedBook) => {
+      const shouldHideFromDiscover =
+        Boolean(
+          savedBook.owned ||
+          savedBook.status
+        );
+
+      if (
+        !shouldHideFromDiscover
+      ) {
+        return false;
+      }
+
+      const savedIsbn =
+        normalizeIsbn(
+          savedBook.isbn
+        );
+
+      if (
+        savedIsbn &&
+        bookIsbns.has(
+          savedIsbn
+        )
+      ) {
+        return true;
+      }
+
+      const savedTitle =
+        normalizeBookIdentityText(
+          savedBook.title
+        );
+
+      if (
+        !bookTitle ||
+        !savedTitle ||
+        bookTitle !==
+          savedTitle
+      ) {
+        return false;
+      }
+
+      const savedAuthors =
+        (
+          savedBook.authors ??
+          []
+        )
+          .map(
+            normalizeBookIdentityText
+          )
+          .filter(Boolean);
+
+      if (
+        bookAuthors.length ===
+          0 ||
+        savedAuthors.length ===
+          0
+      ) {
+        return true;
+      }
+
+      return bookAuthors.some(
+        (bookAuthor) =>
+          savedAuthors.some(
+            (savedAuthor) =>
+              bookAuthor ===
+                savedAuthor ||
+              bookAuthor.includes(
+                savedAuthor
+              ) ||
+              savedAuthor.includes(
+                bookAuthor
+              )
+          )
+      );
+    }
+  );
+}
+
+const MIN_SEARCH_LENGTH = 2;
+const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
+const BOOK_SEARCH_DELAY_MS = 700;
+const DISCOVER_AUTO_REFRESH_MS =
+  3 * 60 * 60 * 1000;
+const DISCOVER_LIBRARY_STALE_MS =
+  5 * 60 * 1000;
+
+let discoverSessionCache = {
+  trendingBooks:
+    [] as TrendingBook[],
+  recentReleasePool:
+    [] as TrendingBook[],
+  libraryBooks:
+    [] as UserBook[],
+  refreshedAt:
+    0,
+  libraryRefreshedAt:
+    0,
+  libraryMutationVersion:
+    -1,
+};
+
+const READER_SEARCH_DELAY_MS = 300;
+const MIN_READER_SEARCH_LENGTH = 2;
+
+type DiscoverMode =
+  | 'books'
+  | 'readers';
+
+type GenreNode = {
+  key: string;
+  label: string;
+  shortLabel?: string;
+  terms: string[];
+  allTerms?: string[];
+  excludeTerms?: string[];
+  children?: GenreNode[];
+};
+
+// Discover intentionally exposes only two levels:
+// broad genre -> subgenre. Hardcover still supplies the
+// underlying tags, while Novori owns the cleaner navigation.
+const GENRE_TREE: GenreNode[] = [
+  {
+    key: 'fantasy',
+    label: 'Fantasy',
+    terms: ['fantasy'],
+    children: [
+      {
+        key: 'epic-fantasy',
+        label: 'Epic Fantasy',
+        shortLabel: 'Epic',
+        terms: ['epic fantasy', 'high fantasy'],
+      },
+      {
+        key: 'romantic-fantasy',
+        label: 'Romantic Fantasy',
+        shortLabel: 'Romantic',
+        terms: ['romantic fantasy', 'fantasy romance', 'romantasy'],
+        allTerms: ['fantasy', 'romance'],
+      },
+      {
+        key: 'dark-fantasy',
+        label: 'Dark Fantasy',
+        shortLabel: 'Dark',
+        terms: ['dark fantasy'],
+      },
+      {
+        key: 'urban-fantasy',
+        label: 'Urban Fantasy',
+        shortLabel: 'Urban',
+        terms: ['urban fantasy'],
+      },
+      {
+        key: 'cozy-fantasy',
+        label: 'Cozy Fantasy',
+        shortLabel: 'Cozy',
+        terms: ['cozy fantasy'],
+      },
+      {
+        key: 'historical-fantasy',
+        label: 'Historical Fantasy',
+        shortLabel: 'Historical',
+        terms: ['historical fantasy'],
+      },
+    ],
+  },
+  {
+    key: 'romance',
+    label: 'Romance',
+    terms: ['romance'],
+    excludeTerms: [
+      'fantasy',
+      'romantasy',
+      'romantic fantasy',
+      'fantasy romance',
+    ],
+    children: [
+      {
+        key: 'contemporary-romance',
+        label: 'Contemporary Romance',
+        shortLabel: 'Contemporary',
+        terms: ['contemporary romance'],
+        allTerms: ['contemporary', 'romance'],
+      },
+      {
+        key: 'historical-romance',
+        label: 'Historical Romance',
+        shortLabel: 'Historical',
+        terms: ['historical romance'],
+        allTerms: ['historical', 'romance'],
+      },
+      {
+        key: 'romantic-comedy',
+        label: 'Romantic Comedy',
+        shortLabel: 'Rom-Com',
+        terms: ['romantic comedy', 'romcom', 'rom com'],
+      },
+      {
+        key: 'dark-romance',
+        label: 'Dark Romance',
+        shortLabel: 'Dark',
+        terms: ['dark romance'],
+        allTerms: ['dark', 'romance'],
+      },
+      {
+        key: 'sports-romance',
+        label: 'Sports Romance',
+        shortLabel: 'Sports',
+        terms: ['sports romance'],
+        allTerms: ['sports', 'romance'],
+      },
+    ],
+  },
+  {
+    key: 'mystery-thriller',
+    label: 'Mystery & Thriller',
+    terms: ['mystery', 'thriller', 'crime', 'suspense'],
+    children: [
+      {
+        key: 'mystery',
+        label: 'Mystery',
+        terms: ['mystery'],
+      },
+      {
+        key: 'thriller',
+        label: 'Thriller',
+        terms: ['thriller'],
+      },
+      {
+        key: 'crime',
+        label: 'Crime',
+        terms: ['crime'],
+      },
+      {
+        key: 'cozy-mystery',
+        label: 'Cozy Mystery',
+        shortLabel: 'Cozy',
+        terms: ['cozy mystery'],
+      },
+      {
+        key: 'psychological-thriller',
+        label: 'Psychological Thriller',
+        shortLabel: 'Psychological',
+        terms: ['psychological thriller'],
+      },
+    ],
+  },
+  {
+    key: 'science-fiction',
+    label: 'Science Fiction',
+    terms: ['science fiction', 'sci fi'],
+    children: [
+      {
+        key: 'space-opera',
+        label: 'Space Opera',
+        terms: ['space opera'],
+      },
+      {
+        key: 'dystopian',
+        label: 'Dystopian',
+        terms: ['dystopian', 'dystopia'],
+      },
+      {
+        key: 'cyberpunk',
+        label: 'Cyberpunk',
+        terms: ['cyberpunk'],
+      },
+      {
+        key: 'time-travel',
+        label: 'Time Travel',
+        terms: ['time travel'],
+      },
+      {
+        key: 'military-science-fiction',
+        label: 'Military Sci-Fi',
+        shortLabel: 'Military',
+        terms: ['military science fiction', 'military sci fi'],
+      },
+    ],
+  },
+  {
+    key: 'horror',
+    label: 'Horror',
+    terms: ['horror'],
+    children: [
+      {
+        key: 'gothic-horror',
+        label: 'Gothic Horror',
+        shortLabel: 'Gothic',
+        terms: ['gothic horror', 'gothic'],
+      },
+      {
+        key: 'psychological-horror',
+        label: 'Psychological Horror',
+        shortLabel: 'Psychological',
+        terms: ['psychological horror'],
+      },
+      {
+        key: 'supernatural-horror',
+        label: 'Supernatural Horror',
+        shortLabel: 'Supernatural',
+        terms: ['supernatural horror'],
+      },
+      {
+        key: 'cosmic-horror',
+        label: 'Cosmic Horror',
+        shortLabel: 'Cosmic',
+        terms: ['cosmic horror'],
+      },
+    ],
+  },
+  {
+    key: 'historical',
+    label: 'Historical',
+    terms: ['historical fiction'],
+    children: [
+      {
+        key: 'historical-fiction',
+        label: 'Historical Fiction',
+        shortLabel: 'Fiction',
+        terms: ['historical fiction'],
+      },
+      {
+        key: 'historical-mystery',
+        label: 'Historical Mystery',
+        shortLabel: 'Mystery',
+        terms: ['historical mystery'],
+        allTerms: ['historical', 'mystery'],
+      },
+    ],
+  },
+  {
+    key: 'young-adult',
+    label: 'Young Adult',
+    terms: ['young adult', 'ya'],
+    children: [
+      {
+        key: 'ya-fantasy',
+        label: 'YA Fantasy',
+        shortLabel: 'Fantasy',
+        terms: ['young adult fantasy', 'ya fantasy'],
+        allTerms: ['young adult', 'fantasy'],
+      },
+      {
+        key: 'ya-romance',
+        label: 'YA Romance',
+        shortLabel: 'Romance',
+        terms: ['young adult romance', 'ya romance'],
+        allTerms: ['young adult', 'romance'],
+      },
+      {
+        key: 'ya-thriller',
+        label: 'YA Thriller',
+        shortLabel: 'Thriller',
+        terms: ['young adult thriller', 'ya thriller'],
+        allTerms: ['young adult', 'thriller'],
+      },
+    ],
+  },
+  {
+    key: 'nonfiction',
+    label: 'Nonfiction',
+    terms: ['nonfiction', 'non fiction', 'memoir', 'biography'],
+    children: [
+      {
+        key: 'memoir',
+        label: 'Memoir',
+        terms: ['memoir'],
+      },
+      {
+        key: 'biography',
+        label: 'Biography',
+        terms: ['biography'],
+      },
+      {
+        key: 'history-nonfiction',
+        label: 'History',
+        terms: ['history'],
+      },
+      {
+        key: 'science-nonfiction',
+        label: 'Science',
+        terms: ['science'],
+      },
+      {
+        key: 'true-crime',
+        label: 'True Crime',
+        terms: ['true crime'],
+      },
+      {
+        key: 'self-help',
+        label: 'Self-Help',
+        terms: ['self help', 'self improvement'],
+      },
+    ],
+  },
+];
+
+function normalizeGenre(value?: string) {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function tagContainsTerm(
+  normalizedTags: string[],
+  rawTerm: string
+) {
+  const term = normalizeGenre(rawTerm);
+
+  return normalizedTags.some(
+    (tag) =>
+      tag === term ||
+      tag.includes(term)
+  );
+}
+
+function bookMatchesGenreNode(
+  book: TrendingBook,
+  node: GenreNode | null
+) {
+  if (!node) {
+    return true;
+  }
+
+  const normalizedTags =
+    (book.genres ?? []).map(
+      normalizeGenre
+    );
+
+  if (
+    node.excludeTerms?.some(
+      (term) =>
+        tagContainsTerm(
+          normalizedTags,
+          term
+        )
+    )
+  ) {
+    return false;
+  }
+
+  const matchesAnyTerm =
+    node.terms.some(
+      (term) =>
+        tagContainsTerm(
+          normalizedTags,
+          term
+        )
+    );
+
+  const matchesAllTerms =
+    node.allTerms?.length
+      ? node.allTerms.every(
+          (term) =>
+            tagContainsTerm(
+              normalizedTags,
+              term
+            )
+        )
+      : false;
+
+  return (
+    matchesAnyTerm ||
+    matchesAllTerms
+  );
+}
+
+function diversifyByAuthor(
+  books: TrendingBook[],
+  limit = 12
+) {
+  const result: TrendingBook[] = [];
+  const addedIds = new Set<number>();
+  const authorCounts =
+    new Map<string, number>();
+
+  // First pass: one book per primary author.
+  // Second pass: allow one additional book per
+  // author if the genre still needs more titles.
+  for (const maxPerAuthor of [1, 2]) {
+    for (const book of books) {
+      if (result.length >= limit) {
+        return result;
+      }
+
+      if (addedIds.has(book.id)) {
+        continue;
+      }
+
+      const primaryAuthor =
+        book.authors?.[0]
+          ?.trim()
+          .toLowerCase() ||
+        `unknown-${book.id}`;
+
+      const currentCount =
+        authorCounts.get(
+          primaryAuthor
+        ) ?? 0;
+
+      if (
+        currentCount >=
+        maxPerAuthor
+      ) {
+        continue;
+      }
+
+      result.push(book);
+      addedIds.add(book.id);
+      authorCounts.set(
+        primaryAuthor,
+        currentCount + 1
+      );
+    }
+  }
+
+  return result;
+}
+
+function normalizeTitle(value?: string) {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+
+function getGoogleBookPopularity(
+  book: GoogleBookItem
+) {
+  const ratingsCount =
+    book.volumeInfo.ratingsCount ??
+    0;
+
+  const averageRating =
+    book.volumeInfo.averageRating ??
+    0;
+
+  return {
+    ratingsCount,
+    averageRating,
+  };
+}
+
+function getBookIsbns(
+  book: GoogleBookItem
+) {
+  return (
+    book.volumeInfo
+      .industryIdentifiers ?? []
+  )
+    .map(
+      (identifier) =>
+        identifier.identifier
+          ?.replace(
+            /[^0-9Xx]/g,
+            ''
+          )
+          .toUpperCase()
+    )
+    .filter(
+      (
+        value
+      ): value is string =>
+        Boolean(value)
+    );
+}
+
+async function getHardcoverPopularity(
+  books: GoogleBookItem[]
+) {
+  const booksWithIsbns =
+    books
+      .map((book) => ({
+        googleBookId:
+          book.id,
+        isbns:
+          getBookIsbns(
+            book
+          ),
+      }))
+      .filter(
+        (book) =>
+          book.isbns.length >
+          0
+      )
+      .slice(0, 40);
+
+  if (
+    booksWithIsbns.length ===
+    0
+  ) {
+    return {};
+  }
+
+  try {
+    const {
+      data,
+      error:
+        functionError,
+    } =
+      await supabase.functions.invoke(
+        'hardcover-search-popularity',
+        {
+          body: {
+            books:
+              booksWithIsbns,
+          },
+        }
+      );
+
+    if (functionError) {
+      console.warn(
+        'Hardcover popularity unavailable; using Google ranking.'
+      );
+
+      return {};
+    }
+
+    const response =
+      data as HardcoverSearchPopularityResponse;
+
+    if (response?.error) {
+      console.warn(
+        'Hardcover popularity unavailable; using Google ranking.'
+      );
+
+      return {};
+    }
+
+    return (
+      response?.popularity ??
+      {}
+    );
+  } catch (error) {
+    console.warn(
+      'Hardcover popularity unavailable; using Google ranking.'
+    );
+
+    return {};
+  }
+}
+
+function compareBookPopularity(
+  a: GoogleBookItem,
+  b: GoogleBookItem,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const aHardcover =
+    hardcoverPopularity[
+      a.id
+    ];
+
+  const bHardcover =
+    hardcoverPopularity[
+      b.id
+    ];
+
+  const aUsersCount =
+    aHardcover?.usersCount ??
+    0;
+
+  const bUsersCount =
+    bHardcover?.usersCount ??
+    0;
+
+  if (
+    bUsersCount !==
+    aUsersCount
+  ) {
+    return (
+      bUsersCount -
+      aUsersCount
+    );
+  }
+
+  const aGoogle =
+    getGoogleBookPopularity(
+      a
+    );
+
+  const bGoogle =
+    getGoogleBookPopularity(
+      b
+    );
+
+  if (
+    bGoogle.ratingsCount !==
+    aGoogle.ratingsCount
+  ) {
+    return (
+      bGoogle.ratingsCount -
+      aGoogle.ratingsCount
+    );
+  }
+
+  const aHardcoverRating =
+    aHardcover?.rating ??
+    0;
+
+  const bHardcoverRating =
+    bHardcover?.rating ??
+    0;
+
+  if (
+    bHardcoverRating !==
+    aHardcoverRating
+  ) {
+    return (
+      bHardcoverRating -
+      aHardcoverRating
+    );
+  }
+
+  if (
+    bGoogle.averageRating !==
+    aGoogle.averageRating
+  ) {
+    return (
+      bGoogle.averageRating -
+      aGoogle.averageRating
+    );
+  }
+
+  return 0;
+}
+
+function getTitleSearchRelevance(
+  book: GoogleBookItem,
+  normalizedQuery: string
+) {
+  const title =
+    normalizeTitle(
+      book.volumeInfo.title
+    );
+
+  if (!title || !normalizedQuery) {
+    return 0;
+  }
+
+  if (title === normalizedQuery) {
+    return 400;
+  }
+
+  if (
+    title.startsWith(
+      `${normalizedQuery} `
+    )
+  ) {
+    return 300;
+  }
+
+  if (
+    title.includes(
+      normalizedQuery
+    )
+  ) {
+    return 200;
+  }
+
+  const queryWords =
+    normalizedQuery
+      .split(' ')
+      .filter(Boolean);
+
+  if (
+    queryWords.length > 0 &&
+    queryWords.every((word) =>
+      title.includes(word)
+    )
+  ) {
+    return 100;
+  }
+
+  return 0;
+}
+
+function getAuthorSearchRelevance(
+  book: GoogleBookItem,
+  normalizedQuery: string
+) {
+  const authors =
+    book.volumeInfo.authors ?? [];
+
+  let best = 0;
+
+  for (const author of authors) {
+    const normalizedAuthor =
+      normalizeTitle(author);
+
+    if (!normalizedAuthor) {
+      continue;
+    }
+
+    if (
+      normalizedAuthor ===
+      normalizedQuery
+    ) {
+      best = Math.max(
+        best,
+        400
+      );
+
+      continue;
+    }
+
+    if (
+      normalizedAuthor.startsWith(
+        `${normalizedQuery} `
+      ) ||
+      normalizedQuery.startsWith(
+        `${normalizedAuthor} `
+      )
+    ) {
+      best = Math.max(
+        best,
+        300
+      );
+
+      continue;
+    }
+
+    if (
+      normalizedAuthor.includes(
+        normalizedQuery
+      ) ||
+      normalizedQuery.includes(
+        normalizedAuthor
+      )
+    ) {
+      best = Math.max(
+        best,
+        200
+      );
+
+      continue;
+    }
+
+    const queryWords =
+      normalizedQuery
+        .split(' ')
+        .filter(Boolean);
+
+    if (
+      queryWords.length > 0 &&
+      queryWords.every((word) =>
+        normalizedAuthor.includes(
+          word
+        )
+      )
+    ) {
+      best = Math.max(
+        best,
+        100
+      );
+    }
+  }
+
+  return best;
+}
+
+function sortTitleSearchResults(
+  books: GoogleBookItem[],
+  searchTerm: string,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const normalizedQuery =
+    normalizeTitle(
+      searchTerm
+    );
+
+  return [...books].sort(
+    (a, b) => {
+      const relevanceDifference =
+        getTitleSearchRelevance(
+          b,
+          normalizedQuery
+        ) -
+        getTitleSearchRelevance(
+          a,
+          normalizedQuery
+        );
+
+      if (
+        relevanceDifference !== 0
+      ) {
+        return relevanceDifference;
+      }
+
+      return compareBookPopularity(
+        a,
+        b,
+        hardcoverPopularity
+      );
+    }
+  );
+}
+
+function sortAuthorSearchResults(
+  books: GoogleBookItem[],
+  searchTerm: string,
+  hardcoverPopularity: Record<
+    string,
+    {
+      usersCount: number;
+      rating: number | null;
+    }
+  >
+) {
+  const normalizedQuery =
+    normalizeTitle(
+      searchTerm
+    );
+
+  return [...books]
+    .filter(
+      (book) =>
+        getAuthorSearchRelevance(
+          book,
+          normalizedQuery
+        ) > 0
+    )
+    .sort(
+      (a, b) => {
+        const relevanceDifference =
+          getAuthorSearchRelevance(
+            b,
+            normalizedQuery
+          ) -
+          getAuthorSearchRelevance(
+            a,
+            normalizedQuery
+          );
+
+        if (
+          relevanceDifference !== 0
+        ) {
+          return relevanceDifference;
+        }
+
+        return compareBookPopularity(
+          a,
+          b,
+          hardcoverPopularity
+        );
+      }
+    );
+}
+
+function mergeGoogleBookResults(
+  ...groups: GoogleBookItem[][]
+) {
+  const byId =
+    new Map<
+      string,
+      GoogleBookItem
+    >();
+
+  for (const group of groups) {
+    for (const book of group) {
+      if (!byId.has(book.id)) {
+        byId.set(
+          book.id,
+          book
+        );
+      }
+    }
+  }
+
+  return Array.from(
+    byId.values()
+  );
+}
+
+
+function secureGoogleBooksImageUrl(
+  url?: string
+) {
+  return url?.replace(
+    'http://',
+    'https://'
+  );
+}
+
+function getGoogleBooksImageParam(
+  url: string,
+  key: string
+) {
+  const match =
+    url.match(
+      new RegExp(
+        `[?&]${key}=([^&]+)`,
+        'i'
+      )
+    );
+
+  return match?.[1]
+    ? decodeURIComponent(
+        match[1]
+      )
+    : null;
+}
+
+function isSameGoogleBooksCover(
+  referenceUrl: string,
+  candidateUrl: string
+) {
+  const reference =
+    secureGoogleBooksImageUrl(
+      referenceUrl
+    );
+
+  const candidate =
+    secureGoogleBooksImageUrl(
+      candidateUrl
+    );
+
+  if (
+    !reference ||
+    !candidate
+  ) {
+    return false;
+  }
+
+  const referenceId =
+    getGoogleBooksImageParam(
+      reference,
+      'id'
+    );
+
+  const candidateId =
+    getGoogleBooksImageParam(
+      candidate,
+      'id'
+    );
+
+  if (
+    referenceId &&
+    candidateId &&
+    referenceId !==
+      candidateId
+  ) {
+    return false;
+  }
+
+  const referencePrintSec =
+    getGoogleBooksImageParam(
+      reference,
+      'printsec'
+    );
+
+  const candidatePrintSec =
+    getGoogleBooksImageParam(
+      candidate,
+      'printsec'
+    );
+
+  if (
+    referencePrintSec &&
+    candidatePrintSec &&
+    referencePrintSec !==
+      candidatePrintSec
+  ) {
+    return false;
+  }
+
+  if (
+    referencePrintSec ===
+      'frontcover' &&
+    candidatePrintSec &&
+    candidatePrintSec !==
+      'frontcover'
+  ) {
+    return false;
+  }
+
+  if (
+    referenceId &&
+    candidateId
+  ) {
+    return true;
+  }
+
+  return (
+    reference.split('?')[0] ===
+    candidate.split('?')[0]
+  );
+}
+
+type DiscoverStyles =
+  ReturnType<
+    typeof createStyles
+  >;
+
+const DiscoverBookCard = memo(
+  function DiscoverBookCard({
+    item,
+    styles,
+    goldColor,
+    onOpenBook,
+  }: {
+    item: GoogleBookItem;
+    styles: DiscoverStyles;
+    goldColor: string;
+    onOpenBook: (
+      bookId: string,
+      options?: {
+        coverUrl?: string;
+        title?: string;
+        authors?: string[];
+        isbn?: string;
+        canonicalizeWork?: boolean;
+        trustedCover?: boolean;
+      }
+    ) => void;
+  }) {
+    useSyncExternalStore(subscribeBookPublications, getPublicationVersion, getPublicationVersion);
+    const publication = getBookPublication(item);
+    const info =
+      item.volumeInfo;
+
+    const isbn =
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_13'
+        )
+        ?.identifier ??
+      info
+        .industryIdentifiers
+        ?.find(
+          (
+            identifier
+          ) =>
+            identifier.type ===
+              'ISBN_10'
+        )
+        ?.identifier;
+
+    const canonicalCover =
+      item.novoriWork
+        ?.canonicalCoverUrl ??
+      null;
+
+    const cover =
+      getNovoriSearchBookCover(
+        item
+      ) ??
+      undefined;
+
+    return (
+      <Pressable
+        style={({
+          pressed,
+        }) => [
+          styles.bookCard,
+          pressed &&
+            styles.bookCardPressed,
+        ]}
+        onPress={() =>
+          onOpenBook(
+            item.id,
+            {
+              coverUrl:
+                cover,
+              title:
+                info.title,
+              authors:
+                info.authors,
+              isbn,
+              canonicalizeWork:
+                true,
+            }
+          )
+        }
+      >
+        {(item.id || cover) ? (
+          <BookCoverImage
+            googleBookId={item.id}
+            imageLinks={
+              info.imageLinks
+            }
+            isbn={
+              isbn
+            }
+            existingCoverUrl={
+              canonicalCover
+            }
+            style={
+              styles.cover
+            }
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={
+              styles.coverPlaceholder
+            }
+          >
+            <Text
+              style={
+                styles.coverPlaceholderText
+              }
+            >
+              No Cover
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={
+            styles.bookInfo
+          }
+        >
+          <Text
+            style={
+              styles.bookTitle
+            }
+            numberOfLines={2}
+          >
+            {info.title ??
+              'Untitled'}
+          </Text>
+
+          <Text
+            style={
+              styles.author
+            }
+            numberOfLines={1}
+          >
+            {info.authors
+              ?.join(', ') ??
+              'Unknown author'}
+          </Text>
+
+          {typeof item.novoriWork
+            ?.hardcoverRating ===
+          'number' ? (
+            <View
+              style={
+                styles.searchRatingStars
+              }
+            >
+              {[1,2,3,4,5].map(
+                (
+                  star
+                ) => {
+                  const rating =
+                    item.novoriWork
+                      ?.hardcoverRating ??
+                    0;
+
+                  return (
+                    <Ionicons
+                      key={
+                        star
+                      }
+                      name={
+                        rating >=
+                        star
+                          ? 'star'
+                          : rating >=
+                            star -
+                              0.5
+                            ? 'star-half'
+                            : 'star-outline'
+                      }
+                      size={14}
+                      color={
+                        goldColor
+                      }
+                    />
+                  );
+                }
+              )}
+            </View>
+          ) : null}
+
+          {publication.date ? (
+            <Text
+              style={
+                styles.meta
+              }
+            >
+              {
+                `${publication.label} · ${publication.date}`
+              }
+            </Text>
+          ) : null}
+
+          <Text
+            style={
+              styles.viewDetails
+            }
+          >
+            View details →
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+);
+
+const DiscoverReaderCard = memo(
+  function DiscoverReaderCard({
+    item,
+    isBusy,
+    styles,
+    textColor,
+    backgroundColor,
+    onOpenReader,
+    onToggleReaderFollow,
+  }: {
+    item: ReaderConnection;
+    isBusy: boolean;
+    styles: DiscoverStyles;
+    textColor: string;
+    backgroundColor: string;
+    onOpenReader: (
+      readerId: string
+    ) => void;
+    onToggleReaderFollow: (
+      reader: ReaderConnection
+    ) => void;
+  }) {
+    const displayName =
+      item.display_name
+        ?.trim() ||
+      item.username
+        ?.trim() ||
+      'Novori Reader';
+
+    const username =
+      item.username
+        ?.trim()
+        ? `@${item.username.trim()}`
+        : '';
+
+    const initial =
+      displayName
+        .charAt(0)
+        .toUpperCase();
+
+    return (
+      <View
+        style={
+          styles.readerCard
+        }
+      >
+        <Pressable
+          onPress={() =>
+            onOpenReader(
+              item.id
+            )
+          }
+          style={({ pressed }) => [
+            styles.readerMain,
+            pressed &&
+              styles.readerPressed,
+          ]}
+        >
+          {item.avatar_url ? (
+            <ExpoImage
+              source={
+                item.avatar_url
+              }
+              style={
+                styles.readerAvatar
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              recyclingKey={
+                item.avatar_url
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.readerAvatarFallback
+              }
+            >
+              <Text
+                style={
+                  styles.readerAvatarText
+                }
+              >
+                {initial}
+              </Text>
+            </View>
+          )}
+
+          <View
+            style={
+              styles.readerCopy
+            }
+          >
+            <Text
+              style={
+                styles.readerName
+              }
+              numberOfLines={
+                1
+              }
+            >
+              {displayName}
+            </Text>
+
+            {username ? (
+              <Text
+                style={
+                  styles.readerUsername
+                }
+                numberOfLines={
+                  1
+                }
+              >
+                {username}
+              </Text>
+            ) : null}
+
+            <Text
+              style={
+                styles.readerViewProfile
+              }
+            >
+              View profile
+            </Text>
+          </View>
+        </Pressable>
+
+        {item.is_self ? (
+          <View
+            style={
+              styles.readerYouBadge
+            }
+          >
+            <Text
+              style={
+                styles.readerYouBadgeText
+              }
+            >
+              You
+            </Text>
+          </View>
+        ) : (
+          <Pressable
+            disabled={
+              isBusy
+            }
+            onPress={() =>
+              onToggleReaderFollow(
+                item
+              )
+            }
+            style={({ pressed }) => [
+              item.is_following ||
+              item.follow_request_pending
+                ? styles.readerFollowingButton
+                : styles.readerFollowButton,
+              pressed &&
+                !isBusy &&
+                styles.readerPressed,
+            ]}
+          >
+            {isBusy ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  item.is_following ||
+                  item.follow_request_pending
+                    ? textColor
+                    : backgroundColor
+                }
+              />
+            ) : (
+              <Text
+                style={
+                  item.is_following ||
+                  item.follow_request_pending
+                    ? styles.readerFollowingButtonText
+                    : styles.readerFollowButtonText
+                }
+              >
+                {item.is_following
+                  ? 'Following'
+                  : item.follow_request_pending
+                  ? 'Requested'
+                  : item.is_private
+                  ? 'Request'
+                  : 'Follow'}
+              </Text>
+            )}
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+);
+
+export default function DiscoverScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const {
+    colors,
+  } =
+    useNovoriTheme();
+
+  const styles =
+    useMemo(
+      () =>
+        createStyles(
+          colors, windowWidth
+        ),
+      [
+        colors, windowWidth,
+      ]
+    );
+
+  const router = useRouter();
+  const navigation =
+    useNavigation();
+
+  const discoverFocusedRef =
+    useRef(false);
+
+  const discoverHomeScrollRef =
+    useRef<ScrollView | null>(
+      null
+    );
+
+  const discoverHomeScrollOffsetRef =
+    useRef(0);
+
+  const [
+    discoverMode,
+    setDiscoverMode,
+  ] =
+    useState<DiscoverMode>(
+      'books'
+    );
+
+  const [query, setQuery] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const scanLocked = useRef(false);
+
+  const nativeScannerSubscription = useRef<{ remove: () => void } | null>(null);
+  const scannerOpening = useRef(false);
+
+  useEffect(() => () => {
+    nativeScannerSubscription.current?.remove();
+  }, []);
+
+  async function openBarcodeScanner() {
+    if (scannerOpening.current) return;
+    scannerOpening.current = true;
+    try {
+      const permission = cameraPermission?.granted
+        ? cameraPermission
+        : await requestCameraPermission();
+      if (!permission.granted) {
+        Alert.alert('Camera access needed',
+          'Allow camera access to scan a book, or enter its ISBN in the search box.');
+        return;
+      }
+      scanLocked.current = false;
+      nativeScannerSubscription.current?.remove();
+      nativeScannerSubscription.current = null;
+
+      if (Platform.OS === 'ios') {
+        try {
+          nativeScannerSubscription.current = CameraView.onModernBarcodeScanned((event) => {
+            if (scanLocked.current) return;
+            scanLocked.current = true;
+            nativeScannerSubscription.current?.remove();
+            nativeScannerSubscription.current = null;
+            void CameraView.dismissScanner().then(() => {
+              scanLocked.current = false;
+              handleBookBarcode(event.data);
+            }).catch(() => {
+              scanLocked.current = false;
+              Alert.alert('Barcode detected', 'Close the scanner and try again.');
+            });
+          });
+          await CameraView.launchScanner({
+            barcodeTypes: ['ean13'],
+            isGuidanceEnabled: true,
+            isHighlightingEnabled: true,
+            isPinchToZoomEnabled: true,
+          });
+          return;
+        } catch (scannerError) {
+          nativeScannerSubscription.current?.remove();
+          nativeScannerSubscription.current = null;
+          console.warn('Native barcode scanner unavailable; using camera preview.', scannerError);
+        }
+      }
+      setScannerOpen(true);
+    } catch (cameraError) {
+      Alert.alert('Could not open scanner',
+        cameraError instanceof Error ? cameraError.message : 'Please try again.');
+    } finally {
+      scannerOpening.current = false;
+    }
+  }
+
+  async function handleBookBarcode(
+    data: string
+  ) {
+    if (
+      scanLocked.current
+    ) {
+      return;
+    }
+
+    scanLocked.current =
+      true;
+    setScannerOpen(
+      false
+    );
+
+    const isbn =
+      data.replace(
+        /[^0-9]/g,
+        ''
+      );
+
+    if (
+      !/^(978|979)\d{10}$/.test(
+        isbn
+      )
+    ) {
+      scanLocked.current =
+        false;
+
+      Alert.alert(
+        'Not a book ISBN',
+        'Scan the 13-digit ISBN barcode on the back of the book, or enter its ISBN in search.'
+      );
+      return;
+    }
+
+    try {
+      const exactMatch =
+        await findGoogleBookForScannedIsbn(
+          isbn
+        );
+
+      if (
+        !exactMatch
+      ) {
+        Alert.alert(
+          'Book not found',
+          'Google Books could not find that ISBN. Try searching the title manually.'
+        );
+        return;
+      }
+
+      const imageLinks =
+        exactMatch.volumeInfo
+          .imageLinks;
+
+      const coverUrl =
+        imageLinks?.extraLarge ??
+        imageLinks?.large ??
+        imageLinks?.medium ??
+        imageLinks?.thumbnail ??
+        imageLinks?.smallThumbnail;
+
+      openBook(
+        exactMatch.id,
+        {
+          coverUrl,
+          title:
+            exactMatch.volumeInfo
+              .title,
+          authors:
+            exactMatch.volumeInfo
+              .authors,
+          isbn,
+        }
+      );
+    } catch (
+      scanError
+    ) {
+      console.error(
+        'Could not open scanned book:',
+        scanError
+      );
+
+      Alert.alert(
+        'Could not open book',
+        'Novori found the barcode but could not load the book. Please try again.'
+      );
+    } finally {
+      scanLocked.current =
+        false;
+    }
+  }
+
+  const [books, setBooks] = useState<GoogleBookItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [
+    readerQuery,
+    setReaderQuery,
+  ] =
+    useState('');
+  const [
+    readerResults,
+    setReaderResults,
+  ] =
+    useState<ReaderConnection[]>(
+      []
+    );
+
+  const [
+    discoverSearchFocused,
+    setDiscoverSearchFocused,
+  ] =
+    useState(false);
+
+  const [
+    readerLoading,
+    setReaderLoading,
+  ] =
+    useState(false);
+  const [
+    readerError,
+    setReaderError,
+  ] =
+    useState('');
+  const [
+    readerFollowBusyId,
+    setReaderFollowBusyId,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [trendingBooks, setTrendingBooks] =
+    useState<TrendingBook[]>(
+      discoverSessionCache
+        .trendingBooks
+    );
+  const [trendingLoading, setTrendingLoading] =
+    useState(
+      discoverSessionCache
+        .refreshedAt === 0
+    );
+  const [trendingError, setTrendingError] =
+    useState('');
+  const [recentReleasePool, setRecentReleasePool] =
+    useState<TrendingBook[]>(
+      discoverSessionCache
+        .recentReleasePool
+    );
+  const [recentReleasesLoading, setRecentReleasesLoading] =
+    useState(
+      discoverSessionCache
+        .refreshedAt === 0
+    );
+  const [recentReleasesError, setRecentReleasesError] =
+    useState('');
+  const [libraryBooks, setLibraryBooks] =
+    useState<UserBook[]>(
+      discoverSessionCache
+        .libraryBooks
+    );
+  const [discoverRefreshing, setDiscoverRefreshing] =
+    useState(false);
+  const [openingTrendingBookId, setOpeningTrendingBookId] =
+    useState<number | null>(null);
+  const [activeTrendingGenreKey, setActiveTrendingGenreKey] =
+    useState<string>('all');
+  const [genrePath, setGenrePath] =
+    useState<GenreNode[]>([]);
+  const [genreMenuVisible, setGenreMenuVisible] =
+    useState(false);
+  const [genreDropdownScrollY, setGenreDropdownScrollY] =
+    useState(0);
+  const [genreDropdownContentHeight, setGenreDropdownContentHeight] =
+    useState(0);
+  const [genreDropdownViewportHeight, setGenreDropdownViewportHeight] =
+    useState(0);
+
+  const discoverSearchInputRef =
+    useRef<TextInput | null>(
+      null
+    );
+
+  const discoverSearchWrapRef =
+    useRef<View | null>(
+      null
+    );
+
+  const discoverSearchBoundsRef =
+    useRef<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null>(
+      null
+    );
+
+  const debounceTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const latestRequestRef =
+    useRef(0);
+
+  const readerDebounceTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+  const latestReaderRequestRef =
+    useRef(0);
+
+  const readerQueryRef =
+    useRef(
+      readerQuery
+    );
+
+  readerQueryRef.current =
+    readerQuery;
+
+  const performReaderSearchRef =
+    useRef<
+      (
+        searchTerm: string,
+        requestId: number
+      ) => Promise<void>
+    >(
+      async () => {}
+    );
+
+  const trendingListRef =
+    useRef<ScrollView | null>(null);
+
+  const genreChipsScrollRef =
+    useRef<ScrollView | null>(null);
+
+  const lastDiscoverRefreshRef =
+    useRef(
+      discoverSessionCache
+        .refreshedAt
+    );
+
+  const discoverRefreshInFlightRef =
+    useRef(false);
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        discoverFocusedRef.current =
+          true;
+        let active =
+          true;
+
+        const currentMutationVersion =
+          getLibraryMutationVersion();
+
+        const libraryCacheFresh =
+          discoverSessionCache
+            .libraryRefreshedAt >
+            0 &&
+          Date.now() -
+            discoverSessionCache
+              .libraryRefreshedAt <
+            DISCOVER_LIBRARY_STALE_MS;
+
+        const libraryChanged =
+          currentMutationVersion !==
+          discoverSessionCache
+            .libraryMutationVersion;
+
+        if (
+          !libraryCacheFresh ||
+          libraryChanged
+        ) {
+          void getUserBooks()
+            .then(
+              (
+                savedBooks
+              ) => {
+                if (
+                  !active
+                ) {
+                  return;
+                }
+
+                const refreshedAt =
+                  Date.now();
+
+                setLibraryBooks(
+                  savedBooks
+                );
+
+                discoverSessionCache = {
+                  ...discoverSessionCache,
+                  libraryBooks:
+                    savedBooks,
+                  libraryRefreshedAt:
+                    refreshedAt,
+                  libraryMutationVersion:
+                    currentMutationVersion,
+                };
+              }
+            )
+            .catch(
+              (
+                libraryError
+              ) => {
+                console.warn(
+                  'Could not refresh Discover library exclusions:',
+                  libraryError
+                );
+              }
+            );
+        }
+
+        return () => {
+          active =
+            false;
+          discoverFocusedRef.current =
+            false;
+        };
+      },
+      []
+    )
+  );
+
+  useEffect(() => {
+    const discoverCacheFresh =
+      lastDiscoverRefreshRef
+        .current >
+        0 &&
+      Date.now() -
+        lastDiscoverRefreshRef
+          .current <
+        DISCOVER_AUTO_REFRESH_MS;
+
+    if (
+      !discoverCacheFresh
+    ) {
+      refreshDiscoverData(
+        lastDiscoverRefreshRef
+          .current >
+          0,
+        false,
+        false
+      );
+    }
+
+    const refreshInterval =
+      setInterval(() => {
+        if (
+          Date.now() -
+            lastDiscoverRefreshRef.current >=
+          DISCOVER_AUTO_REFRESH_MS
+        ) {
+          refreshDiscoverData(
+            true,
+            false,
+            false
+          );
+        }
+      }, DISCOVER_AUTO_REFRESH_MS);
+
+    const appStateSubscription =
+      AppState.addEventListener(
+        'change',
+        (nextAppState) => {
+          if (
+            nextAppState === 'active' &&
+            Date.now() -
+              lastDiscoverRefreshRef.current >=
+              DISCOVER_AUTO_REFRESH_MS
+          ) {
+            refreshDiscoverData(
+              true,
+              false,
+              false
+            );
+          }
+        }
+      );
+
+    return () => {
+      clearInterval(
+        refreshInterval
+      );
+      appStateSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Keep the book carousel visually anchored while users
+    // narrow their genre. Only reset the subgenre strip when
+    // the broad genre itself changes.
+    const frame = requestAnimationFrame(() => {
+      genreChipsScrollRef.current?.scrollTo({
+        x: 0,
+        y: 0,
+        animated: false,
+      });
+    });
+
+    return () =>
+      cancelAnimationFrame(frame);
+  }, [genrePath[0]?.key]);
+
+  useEffect(() => {
+    if (
+      debounceTimerRef.current
+    ) {
+      clearTimeout(
+        debounceTimerRef.current
+      );
+    }
+
+    if (
+      discoverMode !==
+        'books'
+    ) {
+      return;
+    }
+
+    const trimmedQuery =
+      query.trim();
+
+    if (
+      trimmedQuery.length <
+      AUTO_BOOK_SEARCH_MIN_LENGTH
+    ) {
+      latestRequestRef.current +=
+        1;
+      setLoading(false);
+      return;
+    }
+
+    const requestId =
+      ++latestRequestRef.current;
+
+    debounceTimerRef.current =
+      setTimeout(() => {
+        performSearch(
+          trimmedQuery,
+          requestId
+        );
+      }, BOOK_SEARCH_DELAY_MS);
+
+    return () => {
+      if (
+        debounceTimerRef.current
+      ) {
+        clearTimeout(
+          debounceTimerRef.current
+        );
+      }
+    };
+  }, [
+    query,
+    discoverMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    const trimmedQuery =
+      readerQuery
+        .trim();
+
+    if (
+      trimmedQuery.length <
+      MIN_READER_SEARCH_LENGTH
+    ) {
+      latestReaderRequestRef.current += 1;
+      setReaderResults(
+        []
+      );
+      setReaderError(
+        ''
+      );
+      setReaderLoading(
+        false
+      );
+      return;
+    }
+
+    const requestId =
+      ++latestReaderRequestRef.current;
+
+    readerDebounceTimerRef.current =
+      setTimeout(() => {
+        performReaderSearch(
+          trimmedQuery,
+          requestId
+        );
+      }, READER_SEARCH_DELAY_MS);
+
+    return () => {
+      if (
+        readerDebounceTimerRef.current
+      ) {
+        clearTimeout(
+          readerDebounceTimerRef.current
+        );
+      }
+    };
+  }, [
+    readerQuery,
+  ]);
+
+  performReaderSearchRef.current =
+    performReaderSearch;
+
+  async function loadTrendingBooks(
+    silent = false,
+    forceRefresh = false
+  ) {
+    try {
+      if (!silent) {
+        setTrendingLoading(true);
+        setTrendingError('');
+      }
+
+      const {
+        data,
+        error: functionError,
+      } = await supabase.functions.invoke(
+        'hardcover-trending',
+        {
+          body: {
+            days: 90,
+            poolSize: 100,
+            forceRefresh,
+          },
+        }
+      );
+
+      if (functionError) {
+        throw functionError;
+      }
+
+      const response =
+        data as TrendingResponse;
+
+      if (response?.error) {
+        throw new Error(
+          response.error
+        );
+      }
+
+      const nextTrendingBooks =
+        response?.books ?? [];
+
+      setTrendingBooks(
+        nextTrendingBooks
+      );
+
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        trendingBooks:
+          nextTrendingBooks,
+      };
+
+      setTrendingError('');
+    } catch (err) {
+      console.error(
+        'Could not load trending books:',
+        err
+      );
+
+      if (!silent) {
+        setTrendingBooks([]);
+        setTrendingError(
+          'Trending books are unavailable right now.'
+        );
+      }
+    } finally {
+      if (!silent) {
+        setTrendingLoading(false);
+      }
+    }
+  }
+
+  async function loadRecentReleases(
+    silent = false,
+    forceRefresh = false
+  ) {
+    try {
+      if (!silent) {
+        setRecentReleasesLoading(true);
+        setRecentReleasesError('');
+      }
+
+      const {
+        data,
+        error: functionError,
+      } = await supabase.functions.invoke(
+        'hardcover-recent-releases',
+        {
+          body: {
+            months: 18,
+            poolSize: 150,
+            forceRefresh,
+          },
+        }
+      );
+
+      if (functionError) {
+        throw functionError;
+      }
+
+      const response =
+        data as RecentReleasesResponse;
+
+      if (response?.error) {
+        throw new Error(
+          response.error
+        );
+      }
+
+      const nextRecentReleases =
+        response?.books ?? [];
+
+      setRecentReleasePool(
+        nextRecentReleases
+      );
+
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        recentReleasePool:
+          nextRecentReleases,
+      };
+
+      setRecentReleasesError('');
+    } catch (err) {
+      console.error(
+        'Could not load recent releases:',
+        err
+      );
+
+      if (!silent) {
+        setRecentReleasePool([]);
+        setRecentReleasesError(
+          'Recent releases are unavailable right now.'
+        );
+      }
+    } finally {
+      if (!silent) {
+        setRecentReleasesLoading(false);
+      }
+    }
+  }
+
+  async function refreshDiscoverData(
+    silent: boolean,
+    forceRefresh: boolean,
+    showPullSpinner: boolean
+  ) {
+    if (
+      discoverRefreshInFlightRef.current
+    ) {
+      return;
+    }
+
+    discoverRefreshInFlightRef.current =
+      true;
+
+    if (showPullSpinner) {
+      setDiscoverRefreshing(true);
+    }
+
+    try {
+      await Promise.all([
+        loadTrendingBooks(
+          silent,
+          forceRefresh
+        ),
+        loadRecentReleases(
+          silent,
+          forceRefresh
+        ),
+      ]);
+
+      const refreshedAt =
+        Date.now();
+
+      lastDiscoverRefreshRef.current =
+        refreshedAt;
+      discoverSessionCache = {
+        ...discoverSessionCache,
+        refreshedAt,
+      };
+    } finally {
+      discoverRefreshInFlightRef.current =
+        false;
+
+      if (showPullSpinner) {
+        setDiscoverRefreshing(false);
+      }
+    }
+  }
+
+  function handleDiscoverRefresh() {
+    refreshDiscoverData(
+      true,
+      true,
+      true
+    );
+  }
+
+  useEffect(
+    () => {
+      const unsubscribe =
+        (navigation as any).addListener(
+          'tabPress',
+          () => {
+            if (
+              !discoverFocusedRef.current
+            ) {
+              return;
+            }
+
+            if (
+              discoverHomeScrollOffsetRef.current >
+              24
+            ) {
+              discoverHomeScrollOffsetRef.current =
+                0;
+
+              discoverHomeScrollRef.current?.scrollTo({
+                y: 0,
+                animated: true,
+              });
+              return;
+            }
+
+            // Keep the session-cached Discover data. Pull-to-refresh,
+            // a three-hour TTL, or a relevant mutation will refresh it.
+          }
+        );
+
+      return unsubscribe;
+    },
+    [
+      navigation,
+    ]
+  );
+
+  async function performReaderSearch(
+    searchTerm: string,
+    requestId: number
+  ) {
+    try {
+      setReaderLoading(
+        true
+      );
+      setReaderError(
+        ''
+      );
+
+      const results =
+        await searchReaders(
+          searchTerm
+        );
+
+      if (
+        requestId !==
+        latestReaderRequestRef.current
+      ) {
+        return;
+      }
+
+      setReaderResults(
+        results
+      );
+    } catch (
+      err
+    ) {
+      if (
+        requestId !==
+        latestReaderRequestRef.current
+      ) {
+        return;
+      }
+
+      console.error(
+        'Reader search error:',
+        err
+      );
+
+      setReaderError(
+        'Could not search readers. Please try again.'
+      );
+      setReaderResults(
+        []
+      );
+    } finally {
+      if (
+        requestId ===
+        latestReaderRequestRef.current
+      ) {
+        setReaderLoading(
+          false
+        );
+      }
+    }
+  }
+
+  function searchReadersImmediately() {
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    const trimmedQuery =
+      readerQuery
+        .trim();
+
+    if (
+      trimmedQuery.length <
+      MIN_READER_SEARCH_LENGTH
+    ) {
+      return;
+    }
+
+    const requestId =
+      ++latestReaderRequestRef.current;
+
+    performReaderSearch(
+      trimmedQuery,
+      requestId
+    );
+  }
+
+  async function performSearch(
+    searchTerm: string,
+    requestId: number
+  ) {
+    try {
+      setLoading(true);
+      setError('');
+
+      const rankedResults =
+        await searchNovoriBooks(
+          searchTerm
+        );
+
+      if (
+        requestId !==
+        latestRequestRef.current
+      ) {
+        return;
+      }
+
+      setBooks(
+        rankedResults
+      );
+    } catch (err) {
+      if (
+        requestId !==
+        latestRequestRef.current
+      ) {
+        return;
+      }
+
+      console.error(
+        'Google Books search error:',
+        err
+      );
+
+      setError(
+        'Could not search books. Please try again.'
+      );
+
+      setBooks([]);
+    } finally {
+      if (
+        requestId ===
+        latestRequestRef.current
+      ) {
+        setLoading(false);
+      }
+    }
+  }
+
+  function searchImmediately() {
+    if (
+      debounceTimerRef.current
+    ) {
+      clearTimeout(
+        debounceTimerRef.current
+      );
+    }
+
+    const trimmedQuery =
+      query.trim();
+
+    if (
+      trimmedQuery.length <
+      MIN_SEARCH_LENGTH
+    ) {
+      return;
+    }
+
+    const requestId =
+      ++latestRequestRef.current;
+
+    performSearch(
+      trimmedQuery,
+      requestId
+    );
+  }
+
+  function measureDiscoverSearchBounds() {
+    requestAnimationFrame(
+      () => {
+        discoverSearchWrapRef.current?.measureInWindow(
+          (
+            x,
+            y,
+            width,
+            height
+          ) => {
+            discoverSearchBoundsRef.current = {
+              x,
+              y,
+              width,
+              height,
+            };
+          }
+        );
+      }
+    );
+  }
+
+  function dismissDiscoverSearchFocus() {
+    discoverSearchInputRef.current?.blur();
+    Keyboard.dismiss();
+
+    setDiscoverSearchFocused(
+      false
+    );
+  }
+
+  function captureDiscoverSearchDismiss(
+    event:
+      GestureResponderEvent
+  ) {
+    if (
+      !discoverSearchFocused
+    ) {
+      return false;
+    }
+
+    const bounds =
+      discoverSearchBoundsRef.current;
+
+    const {
+      pageX,
+      pageY,
+    } =
+      event.nativeEvent;
+
+    if (
+      bounds &&
+      pageX >=
+        bounds.x &&
+      pageX <=
+        bounds.x +
+          bounds.width &&
+      pageY >=
+        bounds.y &&
+      pageY <=
+        bounds.y +
+          bounds.height
+    ) {
+      return false;
+    }
+
+    dismissDiscoverSearchFocus();
+
+    return true;
+  }
+
+  function clearActiveSearch() {
+    if (
+      discoverMode ===
+        'books'
+    ) {
+      if (
+        debounceTimerRef.current
+      ) {
+        clearTimeout(
+          debounceTimerRef.current
+        );
+      }
+
+      latestRequestRef.current +=
+        1;
+      setQuery('');
+      setBooks([]);
+      setError('');
+      setLoading(false);
+      return;
+    }
+
+    if (
+      readerDebounceTimerRef.current
+    ) {
+      clearTimeout(
+        readerDebounceTimerRef.current
+      );
+    }
+
+    latestReaderRequestRef.current +=
+      1;
+    setReaderQuery('');
+    setReaderResults([]);
+    setReaderError('');
+    setReaderLoading(false);
+  }
+
+  const openReader =
+    useCallback(
+      (
+        readerId: string
+      ) => {
+        router.push({
+          pathname:
+            '/reader/[id]',
+          params: {
+            id:
+              readerId,
+          },
+        });
+      },
+      [
+        router,
+      ]
+    );
+
+  const toggleReaderFollow =
+    useCallback(
+      async (
+        reader:
+          ReaderConnection
+      ) => {
+        if (
+          reader.is_self
+        ) {
+          return;
+        }
+
+        try {
+          setReaderFollowBusyId(
+            reader.id
+          );
+
+          if (
+            reader.is_following
+          ) {
+            await unfollowReader(
+              reader.id
+            );
+          } else if (
+            reader.follow_request_pending
+          ) {
+            await cancelFollowRequest(
+              reader.id
+            );
+          } else {
+            await followReader(
+              reader.id
+            );
+          }
+
+          const searchTerm =
+            readerQueryRef.current
+              .trim();
+
+          if (
+            searchTerm.length >=
+            MIN_READER_SEARCH_LENGTH
+          ) {
+            const requestId =
+              ++latestReaderRequestRef.current;
+
+            await performReaderSearchRef.current(
+              searchTerm,
+              requestId
+            );
+          }
+        } catch (
+          followError
+        ) {
+          console.error(
+            'Could not update follow from Discover:',
+            followError
+          );
+
+          Alert.alert(
+            'Could not update follow',
+            'Please try again.'
+          );
+        } finally {
+          setReaderFollowBusyId(
+            null
+          );
+        }
+      },
+      []
+    );
+
+  const openBook =
+    useCallback(
+      (
+        bookId: string,
+        options?: {
+          coverUrl?: string;
+          title?: string;
+          authors?: string[];
+          isbn?: string;
+          canonicalizeWork?: boolean;
+          trustedCover?: boolean;
+        }
+      ) => {
+        router.push({
+          pathname:
+            '/book/[id]',
+          params: {
+            id: bookId,
+            source: 'discover',
+            ...(options?.coverUrl
+              ? {
+                  coverUrl:
+                    options.coverUrl,
+                }
+              : {}),
+            ...(options?.title
+              ? {
+                  clickedTitle:
+                    options.title,
+                }
+              : {}),
+            ...(options?.authors?.length
+              ? {
+                  clickedAuthors:
+                    JSON.stringify(
+                      options.authors
+                    ),
+                }
+              : {}),
+            ...(options?.isbn
+              ? {
+                  clickedIsbn:
+                    options.isbn,
+                }
+              : {}),
+            ...(options?.canonicalizeWork
+              ? {
+                  canonicalizeWork:
+                    '1',
+                }
+              : {}),
+            ...(options?.trustedCover
+              ? {
+                  trustedCover:
+                    '1',
+                }
+              : {}),
+          },
+        });
+      },
+      [
+        router,
+      ]
+    );
+
+  async function findGoogleBookIdForTrending(
+    trendingBook: TrendingBook
+  ) {
+    const isbn =
+      trendingBook.isbns[0];
+
+    const sharedResolver =
+      await invokeSharedGoogleBooksResolver({
+        mode:
+          'trending',
+        isbn,
+        title:
+          trendingBook.title,
+        author:
+          trendingBook.authors?.[0],
+      });
+
+    if (
+      sharedResolver
+    ) {
+      if (
+        sharedResolver.ok ===
+          true
+      ) {
+        return (
+          sharedResolver.data
+            ?.googleBookId ??
+          null
+        );
+      }
+
+      if (
+        sharedResolver.status ===
+          429
+      ) {
+        throw new Error(
+          'Google Books rate limit reached.'
+        );
+      }
+
+      return null;
+    }
+
+    if (isbn) {
+      const response =
+        await fetchGoogleBooksJson<
+          GoogleBooksResponse
+        >(
+          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+            `isbn:${isbn}`
+          )}&maxResults=5&printType=books`
+        );
+
+      if (
+        response.ok &&
+        response.data
+      ) {
+        const results =
+          response.data.items ??
+          [];
+
+        const exactIsbnMatch =
+          results.find(
+            (result) =>
+              result.volumeInfo
+                .industryIdentifiers
+                ?.some(
+                  (identifier) =>
+                    identifier.identifier ===
+                    isbn
+                )
+          );
+
+        if (exactIsbnMatch) {
+          return exactIsbnMatch.id;
+        }
+
+        if (results[0]?.id) {
+          return results[0].id;
+        }
+      }
+    }
+
+    const author =
+      trendingBook.authors?.[0];
+
+    const queryParts = [
+      `intitle:"${trendingBook.title}"`,
+    ];
+
+    if (author) {
+      queryParts.push(
+        `inauthor:"${author}"`
+      );
+    }
+
+    const response =
+      await fetchGoogleBooksJson<
+        GoogleBooksResponse
+      >(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+          queryParts.join(' ')
+        )}&maxResults=20&printType=books`
+      );
+
+    if (
+      !response.ok ||
+      !response.data
+    ) {
+      throw new Error(
+        `Google Books search failed: ${response.status}`
+      );
+    }
+
+    const data =
+      response.data;
+
+    const results =
+      data.items ?? [];
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    const wantedTitle =
+      normalizeTitle(
+        trendingBook.title
+      );
+
+    const exactTitle =
+      results.find(
+        (result) =>
+          normalizeTitle(
+            result.volumeInfo.title
+          ) === wantedTitle
+      );
+
+    if (exactTitle) {
+      return exactTitle.id;
+    }
+
+    const titleAndAuthor =
+      results.find(
+        (result) => {
+          const resultTitle =
+            normalizeTitle(
+              result.volumeInfo.title
+            );
+
+          const resultAuthors =
+            result.volumeInfo
+              .authors ?? [];
+
+          const titleMatches =
+            resultTitle.includes(
+              wantedTitle
+            ) ||
+            wantedTitle.includes(
+              resultTitle
+            );
+
+          const authorMatches =
+            !author ||
+            resultAuthors.some(
+              (resultAuthor) =>
+                resultAuthor
+                  .toLowerCase()
+                  .includes(
+                    author.toLowerCase()
+                  ) ||
+                author
+                  .toLowerCase()
+                  .includes(
+                    resultAuthor.toLowerCase()
+                  )
+            );
+
+          return (
+            titleMatches &&
+            authorMatches
+          );
+        }
+      );
+
+    return (
+      titleAndAuthor?.id ??
+      results[0]?.id ??
+      null
+    );
+  }
+
+  async function openTrendingBook(
+    trendingBook: TrendingBook
+  ) {
+    if (openingTrendingBookId !== null) {
+      return;
+    }
+
+    try {
+      setOpeningTrendingBookId(
+        trendingBook.id
+      );
+
+      const googleBookId =
+        trendingBook.coverBookId ?? await findGoogleBookIdForTrending(
+          trendingBook
+        );
+
+      if (!googleBookId) {
+        Alert.alert(
+          'Book not found',
+          'Novori could not find this book in Google Books yet.'
+        );
+        return;
+      }
+
+      openBook(
+        googleBookId,
+        {
+          coverUrl:
+            trendingBook.coverUrl ??
+            undefined,
+          title:
+            trendingBook.title,
+          authors:
+            trendingBook.authors,
+          isbn:
+            trendingBook.isbns[0],
+          canonicalizeWork:
+            true,
+          trustedCover:
+            Boolean(
+              trendingBook.coverUrl
+            ),
+        }
+      );
+    } catch (err) {
+      console.error(
+        'Could not open trending book:',
+        err
+      );
+
+      Alert.alert(
+        'Could not open book',
+        'Novori had trouble finding this book. Please try again.'
+      );
+    } finally {
+      setOpeningTrendingBookId(
+        null
+      );
+    }
+  }
+
+  function selectBroadGenre(
+    node: GenreNode | null
+  ) {
+    setGenreMenuVisible(false);
+
+    if (!node) {
+      setGenrePath([]);
+      setActiveTrendingGenreKey('all');
+      return;
+    }
+
+    // Broad genre selection always resets any prior subgenre.
+    setGenrePath([node]);
+    setActiveTrendingGenreKey(node.key);
+  }
+
+  function selectSubgenre(
+    node: GenreNode | null
+  ) {
+    const broadGenre =
+      genrePath[0];
+
+    if (!broadGenre) {
+      return;
+    }
+
+    if (!node) {
+      setGenrePath([broadGenre]);
+      setActiveTrendingGenreKey(
+        broadGenre.key
+      );
+      return;
+    }
+
+    // Keep the path intentionally capped at two levels.
+    setGenrePath([
+      broadGenre,
+      node,
+    ]);
+    setActiveTrendingGenreKey(
+      node.key
+    );
+  }
+
+  function showAllGenres() {
+    selectBroadGenre(null);
+  }
+
+  const renderBook =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: GoogleBookItem;
+      }) => (
+        <DiscoverBookCard
+          item={
+            item
+          }
+          styles={
+            styles
+          }
+          goldColor={
+            colors.gold
+          }
+          onOpenBook={
+            openBook
+          }
+        />
+      ),
+      [
+        colors.gold,
+        openBook,
+        styles,
+      ]
+    );
+
+  const renderReader =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ReaderConnection;
+      }) => (
+        <DiscoverReaderCard
+          item={
+            item
+          }
+          isBusy={
+            readerFollowBusyId ===
+            item.id
+          }
+          styles={
+            styles
+          }
+          textColor={
+            colors.text
+          }
+          backgroundColor={
+            colors.background
+          }
+          onOpenReader={
+            openReader
+          }
+          onToggleReaderFollow={
+            toggleReaderFollow
+          }
+        />
+      ),
+      [
+        colors.background,
+        colors.text,
+        openReader,
+        readerFollowBusyId,
+        styles,
+        toggleReaderFollow,
+      ]
+    );
+
+  function renderTrendingBook({
+    item,
+  }: {
+    item: TrendingBook;
+  }) {
+    const isOpening =
+      openingTrendingBookId ===
+      item.id;
+
+    return (
+      <Pressable
+        onPress={() =>
+          openTrendingBook(
+            item
+          )
+        }
+        style={({ pressed }) => [
+          styles.trendingCard,
+          (pressed || isOpening) &&
+            styles.bookCardPressed,
+        ]}
+      >
+        <View
+          style={
+            styles.trendingCoverWrap
+          }
+        >
+          {(item.isbns?.length || item.coverUrl) ? (
+            <BookCoverImage
+              googleBookId={item.coverBookId}
+              isbns={item.coverBookId ? undefined : item.isbns}
+              existingCoverUrl={item.coverUrl}
+              style={
+                styles.trendingCover
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.trendingCoverPlaceholder
+              }
+            >
+              <Text
+                style={
+                  styles.coverPlaceholderText
+                }
+              >
+                No Cover
+              </Text>
+            </View>
+          )}
+
+          {isOpening ? (
+            <View
+              style={
+                styles.trendingLoadingOverlay
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={colors.gold}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        <Text
+          style={
+            styles.trendingTitle
+          }
+          numberOfLines={2}
+        >
+          {item.title}
+        </Text>
+
+        <Text
+          style={
+            styles.trendingAuthor
+          }
+          numberOfLines={1}
+        >
+          {item.authors?.[0] ??
+            'Unknown author'}
+        </Text>
+
+        {typeof item.rating ===
+        'number' ? (
+          <Text
+            style={
+              styles.trendingRating
+            }
+          >
+            ★ {item.rating.toFixed(1)}
+          </Text>
+        ) : null}
+      </Pressable>
+    );
+  }
+
+  function renderRecentReleaseBook(
+    item: TrendingBook
+  ) {
+    const isOpening =
+      openingTrendingBookId ===
+      item.id;
+
+    return (
+      <Pressable
+        onPress={() =>
+          openTrendingBook(item)
+        }
+        style={({ pressed }) => [
+          styles.newReleaseCard,
+          (pressed || isOpening) &&
+            styles.bookCardPressed,
+        ]}
+      >
+        <View
+          style={
+            styles.newReleaseCoverWrap
+          }
+        >
+          {(item.isbns?.length || item.coverUrl) ? (
+            <BookCoverImage
+              googleBookId={item.coverBookId}
+              isbns={item.coverBookId ? undefined : item.isbns}
+              existingCoverUrl={item.coverUrl}
+              style={
+                styles.newReleaseCover
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.newReleaseCoverPlaceholder
+              }
+            >
+              <Text
+                style={
+                  styles.coverPlaceholderText
+                }
+              >
+                No Cover
+              </Text>
+            </View>
+          )}
+
+          {isOpening ? (
+            <View
+              style={
+                styles.newReleaseLoadingOverlay
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={colors.gold}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        <Text
+          style={
+            styles.newReleaseTitle
+          }
+          numberOfLines={2}
+        >
+          {item.title}
+        </Text>
+
+        <Text
+          style={
+            styles.newReleaseAuthor
+          }
+          numberOfLines={1}
+        >
+          {item.authors?.[0] ??
+            'Unknown author'}
+        </Text>
+
+        {item.releaseYear ? (
+          <Text
+            style={
+              styles.newReleaseDate
+            }
+          >
+            {item.releaseYear}
+          </Text>
+        ) : null}
+      </Pressable>
+    );
+  }
+
+  const trimmedQuery =
+    query.trim();
+
+  const trimmedReaderQuery =
+    readerQuery
+      .trim();
+
+  const hasReaderSearchText =
+    trimmedReaderQuery.length >=
+    MIN_READER_SEARCH_LENGTH;
+
+  const hasSearchText =
+    trimmedQuery.length >=
+    MIN_SEARCH_LENGTH;
+
+  const showDiscoverHome =
+    trimmedQuery.length === 0;
+
+  const activeBroadGenreNode =
+    genrePath[0] ?? null;
+
+  const activeSubgenreNode =
+    genrePath[1] ?? null;
+
+  const activeTrendingGenreNode =
+    activeSubgenreNode ??
+    activeBroadGenreNode;
+
+  const visibleSubgenres =
+    activeBroadGenreNode?.children ?? [];
+
+  // Keep the overall Trending row strict, but allow genre and
+  // subgenre views to search the full Hardcover trending pool.
+  //
+  // All Genres:
+  //   top 40 only -> strongest overall trends
+  //
+  // Genre / Subgenre:
+  //   full top 100 -> filter first, preserve Hardcover rank,
+  //   then diversify authors
+  //
+  // This prevents narrow categories such as Romantic Fantasy from
+  // appearing empty simply because their first qualifying book sits
+  // below the global top 40.
+  const globallyRankedTrendingBooks =
+    trendingBooks
+      .filter(
+        (book) =>
+          !isDiscoverBookInLibrary(
+            book,
+            libraryBooks
+          )
+      )
+      .sort(
+        (a, b) =>
+          a.rank - b.rank
+      );
+
+  const coreTrendingPool =
+    globallyRankedTrendingBooks.slice(
+      0,
+      40
+    );
+
+  const trendingCandidatePool =
+    activeTrendingGenreNode
+      ? globallyRankedTrendingBooks
+      : coreTrendingPool;
+
+  const genreTrendingBooks =
+    trendingCandidatePool.filter(
+      (book) =>
+        bookMatchesGenreNode(
+          book,
+          activeTrendingGenreNode
+        )
+    );
+
+  const visibleTrendingBooks =
+    diversifyByAuthor(
+      genreTrendingBooks,
+      12
+    );
+
+  // Recent Releases comes from its own release-date query and does
+  // not depend on the genre/subgenre currently selected in Trending.
+  // Keep the fixed global top 40 out of this row so the two sections
+  // do not repeat the same covers.
+  const fixedTrendingIds =
+    new Set(
+      coreTrendingPool.map(
+        (book) => book.id
+      )
+    );
+
+  const recentReleaseCandidates =
+    [...recentReleasePool]
+      .filter(
+        (book) =>
+          !!book.coverUrl &&
+          !!book.authors?.[0] &&
+          !fixedTrendingIds.has(
+            book.id
+          ) &&
+          !isDiscoverBookInLibrary(
+            book,
+            libraryBooks
+          )
+      )
+      .sort((a, b) => {
+        const aDate =
+          a.releaseDate
+            ? new Date(
+                `${a.releaseDate}T00:00:00`
+              ).getTime()
+            : 0;
+
+        const bDate =
+          b.releaseDate
+            ? new Date(
+                `${b.releaseDate}T00:00:00`
+              ).getTime()
+            : 0;
+
+        if (bDate !== aDate) {
+          return bDate - aDate;
+        }
+
+        const readerDifference =
+          (b.usersCount ?? 0) -
+          (a.usersCount ?? 0);
+
+        if (readerDifference !== 0) {
+          return readerDifference;
+        }
+
+        return a.rank - b.rank;
+      });
+
+  const recentReleaseBooks:
+    TrendingBook[] = [];
+
+  const recentReleaseAuthors =
+    new Set<string>();
+
+  const recentReleaseTitles =
+    new Set<string>();
+
+  // First pass: one fresh title for each broad Novori genre when
+  // Hardcover has a qualifying match.
+  for (const genre of GENRE_TREE) {
+    const genrePick =
+      recentReleaseCandidates.find(
+        (book) => {
+          const primaryAuthor =
+            book.authors[0]
+              .trim()
+              .toLowerCase();
+
+          const normalizedBookTitle =
+            normalizeTitle(
+              book.title
+            );
+
+          return (
+            !recentReleaseAuthors.has(
+              primaryAuthor
+            ) &&
+            !recentReleaseTitles.has(
+              normalizedBookTitle
+            ) &&
+            bookMatchesGenreNode(
+              book,
+              genre
+            )
+          );
+        }
+      );
+
+    if (!genrePick) {
+      continue;
+    }
+
+    recentReleaseAuthors.add(
+      genrePick.authors[0]
+        .trim()
+        .toLowerCase()
+    );
+
+    recentReleaseTitles.add(
+      normalizeTitle(
+        genrePick.title
+      )
+    );
+
+    recentReleaseBooks.push(
+      genrePick
+    );
+  }
+
+  // Second pass: fill any remaining slots with the newest qualifying
+  // releases while keeping one book per primary author.
+  for (
+    const book of
+    recentReleaseCandidates
+  ) {
+    if (
+      recentReleaseBooks.length >= 10
+    ) {
+      break;
+    }
+
+    const primaryAuthor =
+      book.authors[0]
+        .trim()
+        .toLowerCase();
+
+    const normalizedBookTitle =
+      normalizeTitle(
+        book.title
+      );
+
+    if (
+      recentReleaseAuthors.has(
+        primaryAuthor
+      ) ||
+      recentReleaseTitles.has(
+        normalizedBookTitle
+      )
+    ) {
+      continue;
+    }
+
+    recentReleaseAuthors.add(
+      primaryAuthor
+    );
+
+    recentReleaseTitles.add(
+      normalizedBookTitle
+    );
+
+    recentReleaseBooks.push(
+      book
+    );
+  }
+
+  const genreScrollbarVisible =
+    genreDropdownContentHeight >
+    genreDropdownViewportHeight + 1;
+
+  const genreScrollbarTrackHeight =
+    Math.max(
+      genreDropdownViewportHeight - 8,
+      0
+    );
+
+  const genreScrollbarThumbHeight =
+    genreScrollbarVisible
+      ? Math.max(
+          32,
+          Math.min(
+            genreScrollbarTrackHeight,
+            genreScrollbarTrackHeight *
+              (genreDropdownViewportHeight /
+                genreDropdownContentHeight)
+          )
+        )
+      : 0;
+
+  const genreScrollbarMaxScroll =
+    Math.max(
+      genreDropdownContentHeight -
+        genreDropdownViewportHeight,
+      1
+    );
+
+  const genreScrollbarMaxTravel =
+    Math.max(
+      genreScrollbarTrackHeight -
+        genreScrollbarThumbHeight,
+      0
+    );
+
+  const genreScrollbarThumbTop =
+    genreScrollbarVisible
+      ? Math.min(
+          genreScrollbarMaxTravel,
+          Math.max(
+            0,
+            (genreDropdownScrollY /
+              genreScrollbarMaxScroll) *
+              genreScrollbarMaxTravel
+          )
+        )
+      : 0;
+
+  return (
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+      edges={['top']}
+    >
+      <View
+        style={
+          styles.screen
+        }
+        onStartShouldSetResponderCapture={
+          captureDiscoverSearchDismiss
+        }
+        onTouchStart={() => {
+          if (genreMenuVisible) {
+            setGenreMenuVisible(false);
+          }
+        }}
+      >
+        <View
+          style={
+            styles.headerArea
+          }
+        >
+          <View
+            style={
+              styles.header
+            }
+          >
+            <Text
+              style={
+                styles.heading
+              }
+            >
+              Discover
+            </Text>
+
+          </View>
+
+          <View
+            style={
+              styles.discoverModeRow
+            }
+          >
+            <Pressable
+              onPress={() => {
+                setDiscoverMode(
+                  'books'
+                );
+                setGenreMenuVisible(
+                  false
+                );
+              }}
+              style={[
+                styles.discoverModeButton,
+                discoverMode ===
+                  'books' &&
+                  styles.discoverModeButtonActive,
+              ]}
+            >
+              <Ionicons
+                name="book-outline"
+                size={
+                  15
+                }
+                color={
+                  discoverMode ===
+                  'books'
+                    ? colors.gold
+                    : colors.mutedText
+                }
+              />
+
+              <Text
+                style={[
+                  styles.discoverModeText,
+                  discoverMode ===
+                    'books' &&
+                    styles.discoverModeTextActive,
+                ]}
+              >
+                Books
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setDiscoverMode(
+                  'readers'
+                );
+                setGenreMenuVisible(
+                  false
+                );
+              }}
+              style={[
+                styles.discoverModeButton,
+                discoverMode ===
+                  'readers' &&
+                  styles.discoverModeButtonActive,
+              ]}
+            >
+              <Ionicons
+                name="people-outline"
+                size={
+                  15
+                }
+                color={
+                  discoverMode ===
+                  'readers'
+                    ? colors.gold
+                    : colors.mutedText
+                }
+              />
+
+              <Text
+                style={[
+                  styles.discoverModeText,
+                  discoverMode ===
+                    'readers' &&
+                    styles.discoverModeTextActive,
+                ]}
+              >
+                Readers
+              </Text>
+            </Pressable>
+          </View>
+
+          <View
+            ref={
+              discoverSearchWrapRef
+            }
+            onLayout={
+              measureDiscoverSearchBounds
+            }
+            style={
+              styles.searchContainer
+            }
+          >
+            <TextInput
+              ref={
+                discoverSearchInputRef
+              }
+              onFocus={() => {
+                setDiscoverSearchFocused(
+                  true
+                );
+                measureDiscoverSearchBounds();
+              }}
+              onBlur={() =>
+                setDiscoverSearchFocused(
+                  false
+                )
+              }
+              style={[
+                styles.input,
+                discoverMode ===
+                  'books' &&
+                  query.length >
+                    0 &&
+                  styles.inputWithScannerAndClear,
+              ]}
+              placeholder={
+                discoverMode ===
+                'books'
+                  ? 'Title, author, or ISBN'
+                  : 'Name or @username'
+              }
+              placeholderTextColor={
+                colors.mutedText
+              }
+              value={
+                discoverMode ===
+                'books'
+                  ? query
+                  : readerQuery
+              }
+              onChangeText={
+                discoverMode ===
+                'books'
+                  ? setQuery
+                  : setReaderQuery
+              }
+              returnKeyType="search"
+              onSubmitEditing={
+                discoverMode ===
+                'books'
+                  ? searchImmediately
+                  : searchReadersImmediately
+              }
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              blurOnSubmit={false}
+            />
+
+            {(
+              discoverMode ===
+                'books'
+                ? query.length >
+                  0
+                : readerQuery.length >
+                  0
+            ) &&
+            !(
+              discoverMode ===
+                'books'
+                ? loading
+                : readerLoading
+            ) ? (
+              <Pressable
+                onPress={
+                  clearActiveSearch
+                }
+                style={[
+                  styles.clearSearchButton,
+                  discoverMode ===
+                    'books' &&
+                    styles.clearSearchButtonWithScanner,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                hitSlop={6}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={
+                    colors.mutedText
+                  }
+                />
+              </Pressable>
+            ) : null}
+
+            {discoverMode === 'books' ? (
+              <Pressable
+                onPress={openBarcodeScanner}
+                style={styles.scanButton}
+                accessibilityRole="button"
+                accessibilityLabel="Scan a book barcode"
+              >
+                <Ionicons name="scan-outline" size={23} color={colors.gold} />
+              </Pressable>
+            ) : null}
+
+            {(discoverMode ===
+              'books'
+                ? loading
+                : readerLoading) ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  colors.gold
+                }
+                style={[
+                  styles.searchSpinner,
+                  discoverMode === 'books' && styles.searchSpinnerWithScanner,
+                ]}
+              />
+            ) : null}
+          </View>
+
+          {(discoverMode ===
+          'books'
+            ? error
+            : readerError) ? (
+            <Text
+              style={
+                styles.error
+              }
+            >
+              {discoverMode ===
+              'books'
+                ? error
+                : readerError}
+            </Text>
+          ) : null}
+        </View>
+
+        {discoverMode ===
+        'readers' ? (
+          <View
+            style={
+              styles.resultsArea
+            }
+          >
+            <FlatList
+              style={
+                styles.list
+              }
+              data={
+                readerResults
+              }
+              keyExtractor={(
+                item
+              ) => item.id}
+              renderItem={
+                renderReader
+              }
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={[
+                styles.readerListContent,
+                readerResults.length ===
+                  0 &&
+                  styles.listContentEmpty,
+              ]}
+              ListHeaderComponent={
+                trimmedReaderQuery.length ===
+                  0 ? (
+                  <View
+                    style={
+                      styles.readerIntro
+                    }
+                  >
+                    <View
+                      style={
+                        styles.readerIntroIcon
+                      }
+                    >
+                      <Ionicons
+                        name="people-outline"
+                        size={
+                          25
+                        }
+                        color={
+                          colors.gold
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.readerIntroTitle
+                      }
+                    >
+                      Find your people.
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.readerIntroText
+                      }
+                    >
+                      Search Novori by display name or @username, then open a reader’s profile or follow them directly.
+                    </Text>
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                !readerLoading &&
+                !readerError &&
+                trimmedReaderQuery.length >
+                  0 ? (
+                  <View
+                    style={
+                      styles.emptyState
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.emptyTitle
+                      }
+                    >
+                      {hasReaderSearchText
+                        ? 'No readers found'
+                        : 'Keep typing'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emptyText
+                      }
+                    >
+                      {hasReaderSearchText
+                        ? 'Try a different name or @username.'
+                        : 'Enter at least two characters to search.'}
+                    </Text>
+                  </View>
+                ) : null
+              }
+            />
+          </View>
+        ) : showDiscoverHome ? (
+          <ScrollView
+            ref={
+              discoverHomeScrollRef
+            }
+            style={
+              styles.discoverHome
+            }
+            onScroll={(event) => {
+              discoverHomeScrollOffsetRef.current =
+                event.nativeEvent
+                  .contentOffset.y;
+            }}
+            scrollEventThrottle={
+              16
+            }
+            contentContainerStyle={
+              styles.discoverHomeContent
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={
+                  discoverRefreshing
+                }
+                onRefresh={
+                  handleDiscoverRefresh
+                }
+                tintColor={
+                  colors.gold
+                }
+                colors={[
+                  colors.gold,
+                ]}
+                progressBackgroundColor={
+                  colors.surface
+                }
+              />
+            }
+            showsVerticalScrollIndicator={
+              false
+            }
+            nestedScrollEnabled
+            directionalLockEnabled
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={
+                styles.sectionHeader
+              }
+            >
+              <View
+                style={
+                  styles.trendingHeaderRow
+                }
+              >
+                <View
+                  style={
+                    styles.trendingHeaderCopy
+                  }
+                >
+                  <Text
+                    style={
+                      styles.sectionTitle
+                    }
+                  >
+                    Trending Now
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.sectionSubtitle
+                    }
+                  >
+                    Popular with readers right now.
+                  </Text>
+                </View>
+
+                {!trendingLoading &&
+                trendingBooks.length > 0 ? (
+                  <View
+                    style={
+                      styles.genreSelectorWrap
+                    }
+                    onTouchStart={(
+                      event
+                    ) =>
+                      event.stopPropagation()
+                    }
+                  >
+                    <Pressable
+                      onPress={() =>
+                        setGenreMenuVisible(
+                          (current) => !current
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.genreSelectorBar,
+                        pressed &&
+                          styles.genreControlPressed,
+                        genreMenuVisible &&
+                          styles.genreSelectorBarOpen,
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.genreSelectorCopy
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.genreSelectorCaption
+                          }
+                        >
+                          Genre
+                        </Text>
+
+                        <View
+                          style={
+                            styles.genreSelectorDivider
+                          }
+                        />
+
+                        <Text
+                          style={
+                            styles.genreSelectorText
+                          }
+                          numberOfLines={1}
+                        >
+                          {activeBroadGenreNode?.label ??
+                            'All Genres'}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name={
+                          genreMenuVisible
+                            ? 'chevron-up'
+                            : 'chevron-down'
+                        }
+                        size={16}
+                        color={colors.gold}
+                      />
+                    </Pressable>
+
+                    {genreMenuVisible ? (
+                      <View
+                        style={
+                          styles.genreDropdown
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.genreDropdownTitle
+                          }
+                        >
+                          Choose a genre
+                        </Text>
+
+                        <View
+                          style={
+                            styles.genreDropdownScrollWrap
+                          }
+                        >
+                          <ScrollView
+                            style={
+                              styles.genreDropdownList
+                            }
+                            contentContainerStyle={
+                              styles.genreDropdownListContent
+                            }
+                            showsVerticalScrollIndicator={
+                              false
+                            }
+                            nestedScrollEnabled
+                            scrollEventThrottle={16}
+                            onLayout={(event) =>
+                              setGenreDropdownViewportHeight(
+                                event.nativeEvent.layout.height
+                              )
+                            }
+                            onContentSizeChange={(
+                              _width,
+                              height
+                            ) =>
+                              setGenreDropdownContentHeight(
+                                height
+                              )
+                            }
+                            onScroll={(event) =>
+                              setGenreDropdownScrollY(
+                                event.nativeEvent.contentOffset.y
+                              )
+                            }
+                          >
+                            <Pressable
+                              onPress={showAllGenres}
+                              style={({ pressed }) => [
+                                styles.genreDropdownRow,
+                                !activeBroadGenreNode &&
+                                  styles.genreDropdownRowActive,
+                                pressed &&
+                                  styles.genreMenuRowPressed,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.genreDropdownRowText,
+                                  !activeBroadGenreNode &&
+                                    styles.genreDropdownRowTextActive,
+                                ]}
+                              >
+                                All Genres
+                              </Text>
+
+                              {!activeBroadGenreNode ? (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={18}
+                                  color={colors.gold}
+                                />
+                              ) : null}
+                            </Pressable>
+
+                            <View
+                              style={
+                                styles.genreDropdownSeparator
+                              }
+                            />
+
+                            {GENRE_TREE.map(
+                              (node, index) => {
+                                const isActive =
+                                  activeBroadGenreNode?.key ===
+                                  node.key;
+
+                                return (
+                                  <View
+                                    key={node.key}
+                                  >
+                                    <Pressable
+                                      onPress={() =>
+                                        selectBroadGenre(
+                                          node
+                                        )
+                                      }
+                                      style={({ pressed }) => [
+                                        styles.genreDropdownRow,
+                                        isActive &&
+                                          styles.genreDropdownRowActive,
+                                        pressed &&
+                                          styles.genreMenuRowPressed,
+                                      ]}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.genreDropdownRowText,
+                                          isActive &&
+                                            styles.genreDropdownRowTextActive,
+                                        ]}
+                                      >
+                                        {node.label}
+                                      </Text>
+
+                                      {isActive ? (
+                                        <Ionicons
+                                          name="checkmark"
+                                          size={18}
+                                          color={colors.gold}
+                                        />
+                                      ) : null}
+                                    </Pressable>
+
+                                    {index <
+                                    GENRE_TREE.length - 1 ? (
+                                      <View
+                                        style={
+                                          styles.genreDropdownDivider
+                                        }
+                                      />
+                                    ) : null}
+                                  </View>
+                                );
+                              }
+                            )}
+                          </ScrollView>
+
+                          {genreScrollbarVisible ? (
+                            <View
+                              pointerEvents="none"
+                              style={
+                                styles.genreScrollbarTrack
+                              }
+                            >
+                              <View
+                                style={[
+                                  styles.genreScrollbarThumb,
+                                  {
+                                    height:
+                                      genreScrollbarThumbHeight,
+                                    transform: [
+                                      {
+                                        translateY:
+                                          genreScrollbarThumbTop,
+                                      },
+                                    ],
+                                  },
+                                ]}
+                              />
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+
+              <View
+                style={
+                  styles.subgenreSlot
+                }
+                onTouchStart={(
+                  event
+                ) =>
+                  event.stopPropagation()
+                }
+              >
+                {!trendingLoading &&
+                trendingBooks.length > 0 ? (
+                  <ScrollView
+                    ref={
+                      genreChipsScrollRef
+                    }
+                    horizontal
+                    nestedScrollEnabled
+                    directionalLockEnabled
+                    canCancelContentTouches
+                    showsHorizontalScrollIndicator={false}
+                    style={
+                      styles.subgenreTabsScroll
+                    }
+                    contentContainerStyle={
+                      styles.subgenreTabs
+                    }
+                  >
+                    <Pressable
+                      onPress={() =>
+                        activeBroadGenreNode
+                          ? selectSubgenre(null)
+                          : showAllGenres()
+                      }
+                      style={[
+                        styles.subgenreTab,
+                        !activeSubgenreNode &&
+                          styles.subgenreTabActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.subgenreTabText,
+                          !activeSubgenreNode &&
+                            styles.subgenreTabTextActive,
+                        ]}
+                      >
+                        {activeBroadGenreNode
+                          ? `All ${activeBroadGenreNode.label}`
+                          : 'All Books'}
+                      </Text>
+                    </Pressable>
+
+                    {activeBroadGenreNode
+                      ? visibleSubgenres.map(
+                          (node) => {
+                            const isActive =
+                              activeSubgenreNode?.key ===
+                              node.key;
+
+                            return (
+                              <Pressable
+                                key={node.key}
+                                onPress={() =>
+                                  selectSubgenre(
+                                    node
+                                  )
+                                }
+                                style={[
+                                  styles.subgenreTab,
+                                  isActive &&
+                                    styles.subgenreTabActive,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.subgenreTabText,
+                                    isActive &&
+                                      styles.subgenreTabTextActive,
+                                  ]}
+                                >
+                                  {node.shortLabel ??
+                                    node.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          }
+                        )
+                      : null}
+                  </ScrollView>
+                ) : null}
+              </View>
+            </View>
+
+            {trendingLoading ? (
+              <View
+                style={
+                  styles.trendingLoading
+                }
+              >
+                <ActivityIndicator
+                  size="small"
+                  color={colors.gold}
+                />
+                <Text
+                  style={
+                    styles.trendingLoadingText
+                  }
+                >
+                  Loading trending books...
+                </Text>
+              </View>
+            ) : trendingError ? (
+              <Pressable
+                onPress={() =>
+                  loadTrendingBooks(
+                    false,
+                    true
+                  )
+                }
+                style={
+                  styles.trendingErrorCard
+                }
+              >
+                <Text
+                  style={
+                    styles.trendingErrorText
+                  }
+                >
+                  {trendingError}
+                </Text>
+                <Text
+                  style={
+                    styles.retryText
+                  }
+                >
+                  Tap to retry
+                </Text>
+              </Pressable>
+            ) : visibleTrendingBooks.length === 0 ? (
+              <View
+                style={
+                  styles.genreEmptyCard
+                }
+              >
+                <Text
+                  style={
+                    styles.genreEmptyTitle
+                  }
+                >
+                  Nothing trending here yet
+                </Text>
+
+                <Text
+                  style={
+                    styles.genreEmptyText
+                  }
+                >
+                  Try the full genre or choose a different genre.
+                </Text>
+
+                <Pressable
+                  onPress={
+                    activeSubgenreNode
+                      ? () => selectSubgenre(null)
+                      : showAllGenres
+                  }
+                  style={({ pressed }) => [
+                    styles.genreEmptyButton,
+                    pressed &&
+                      styles.genreControlPressed,
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.genreEmptyButtonText
+                    }
+                  >
+                    {activeTrendingGenreNode
+                      ? 'Go Broader'
+                      : 'Show All'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <ScrollView
+                ref={
+                  trendingListRef
+                }
+                horizontal
+                scrollEnabled
+                nestedScrollEnabled
+                directionalLockEnabled
+                canCancelContentTouches
+                alwaysBounceHorizontal
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={
+                  false
+                }
+                style={
+                  styles.trendingCarousel
+                }
+                contentContainerStyle={
+                  styles.trendingList
+                }
+              >
+                {visibleTrendingBooks.map(
+                  (item) => (
+                    <View
+                      key={String(item.id)}
+                    >
+                      {renderTrendingBook({
+                        item,
+                      })}
+                    </View>
+                  )
+                )}
+              </ScrollView>
+            )}
+
+            <View
+              style={
+                styles.newReleasesSection
+              }
+            >
+              <View
+                style={
+                  styles.newReleasesHeader
+                }
+              >
+                <Text
+                  style={
+                    styles.newReleasesTitle
+                  }
+                >
+                  Recent Releases
+                </Text>
+
+                <Text
+                  style={
+                    styles.newReleasesSubtitle
+                  }
+                >
+                  Recent standouts across genres.
+                </Text>
+              </View>
+
+              {recentReleasesLoading ? (
+                <View
+                  style={
+                    styles.newReleasesLoading
+                  }
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.gold}
+                  />
+                </View>
+              ) : recentReleasesError ? (
+                <Pressable
+                  onPress={() =>
+                    loadRecentReleases(
+                      false,
+                      true
+                    )
+                  }
+                  style={
+                    styles.newReleasesError
+                  }
+                >
+                  <Text
+                    style={
+                      styles.newReleasesErrorText
+                    }
+                  >
+                    Recent releases are unavailable. Tap to retry.
+                  </Text>
+                </Pressable>
+              ) : recentReleaseBooks.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  scrollEnabled
+                  nestedScrollEnabled
+                  directionalLockEnabled
+                  canCancelContentTouches
+                  alwaysBounceHorizontal
+                  decelerationRate="fast"
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  style={
+                    styles.newReleasesCarousel
+                  }
+                  contentContainerStyle={
+                    styles.newReleasesList
+                  }
+                >
+                  {recentReleaseBooks.map(
+                    (item) => (
+                      <View
+                        key={String(item.id)}
+                      >
+                        {renderRecentReleaseBook(
+                          item
+                        )}
+                      </View>
+                    )
+                  )}
+                </ScrollView>
+              ) : (
+                <View
+                  style={
+                    styles.newReleasesEmpty
+                  }
+                >
+                  <Text
+                    style={
+                      styles.newReleasesEmptyText
+                    }
+                  >
+                    No recent releases to show right now.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        ) : (
+          <View
+            style={
+              styles.resultsArea
+            }
+          >
+            <FlatList
+              style={
+                styles.list
+              }
+              data={books}
+              keyExtractor={(
+                item
+              ) => item.id}
+              renderItem={
+                renderBook
+              }
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                [
+                  styles.listContent,
+                  books.length ===
+                    0 &&
+                    styles.listContentEmpty,
+                ]
+              }
+              ListEmptyComponent={
+                !loading &&
+                !error ? (
+                  <View
+                    style={
+                      styles.emptyState
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.emptyTitle
+                      }
+                    >
+                      {hasSearchText
+                        ? 'No books found'
+                        : 'Keep typing'}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emptyText
+                      }
+                    >
+                      {hasSearchText
+                        ? 'Try a different title, author, or ISBN.'
+                        : 'Enter at least two characters to search.'}
+                    </Text>
+                  </View>
+                ) : null
+              }
+            />
+          </View>
+        )}
+      </View>
+
+      <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
+        visible={scannerOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setScannerOpen(false)}
+      >
+        <SafeAreaProvider initialMetrics={initialWindowMetrics} style={styles.scannerScreen}>
+        <SafeAreaView style={styles.scannerScreen} edges={['top', 'bottom', 'left', 'right']}>
+
+          <View style={styles.scannerHeader}>
+            <View style={styles.scannerHeadingCopy}>
+              <Text style={styles.scannerTitle}>Scan a book</Text>
+              <Text style={styles.scannerSubtitle}>Aim at the ISBN barcode on the back cover.</Text>
+            </View>
+            <Pressable
+              onPress={() => setScannerOpen(false)}
+              style={({ pressed }) => [styles.scannerCloseButton, pressed && styles.scannerClosePressed]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close scanner"
+            >
+              <Ionicons name="close" size={25} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.scannerPreviewArea}>
+            {scannerOpen ? (
+              <CameraView
+                style={styles.scannerCamera}
+                facing="back"
+                autofocus="on"
+                barcodeScannerSettings={{ barcodeTypes: ['ean13'] }}
+                onBarcodeScanned={({ data }) => handleBookBarcode(data)}
+                onMountError={({ message }) => {
+                  setScannerOpen(false);
+                  Alert.alert('Could not open camera', message || 'Close and reopen the scanner to try again.');
+                }}
+              />
+            ) : null}
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <View style={styles.scannerShade} />
+              <View style={styles.scannerGuideRow}>
+                <View style={styles.scannerShade} />
+                <View style={styles.scannerGuideFrame} />
+                <View style={styles.scannerShade} />
+              </View>
+              <View style={styles.scannerShade}>
+                <Text style={styles.scannerGuideLabel}>Center the barcode inside the frame</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.scannerHint}>Check the book details before adding it to your Library.</Text>
+        </SafeAreaView>
+        </SafeAreaProvider>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+function createStyles(
+  colors: NovoriColors, windowWidth = 390
+) {
+  const { searchCoverWidth, trendingCoverWidth, releaseCoverWidth } = getBookLayout(windowWidth);
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
+
+    screen: {
+      flex: 1,
+      backgroundColor:
+        colors.background,
+    },
+
+
+    headerArea: {
+      width: '100%',
+      maxWidth: '100%',
+      alignSelf:
+        'center',
+      paddingHorizontal:
+        20,
+      paddingBottom: 10,
+    },
+
+    header: {
+      paddingTop:
+        22,
+      paddingBottom:
+        12,
+    },
+
+    heading: {
+      color:
+        colors.gold,
+      fontSize: 43,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+      letterSpacing: 0.2,
+    },
+
+    discoverModeRow: {
+      flexDirection:
+        'row',
+      alignSelf:
+        'flex-start',
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 13,
+      padding: 3,
+      marginBottom: 10,
+      gap: 2,
+    },
+
+    discoverModeButton: {
+      minHeight: 34,
+      minWidth: 92,
+      borderRadius: 10,
+      paddingHorizontal: 13,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      gap: 6,
+    },
+
+    discoverModeButtonActive: {
+      backgroundColor:
+        colors.elevated,
+    },
+
+    discoverModeText: {
+      color:
+        colors.mutedText,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+
+    discoverModeTextActive: {
+      color:
+        colors.gold,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    searchContainer: {
+      position:
+        'relative',
+      justifyContent:
+        'center',
+    },
+
+    input: {
+      minHeight: 50,
+      backgroundColor:
+        colors.surface,
+      color:
+        colors.text,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      borderRadius: 14,
+      paddingLeft: 14,
+      paddingRight: 46,
+      fontSize: 15,
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    inputWithScannerAndClear: {
+      paddingRight: 82,
+    },
+
+    clearSearchButton: {
+      position:
+        'absolute',
+      right: 7,
+      top: 5,
+      width: 40,
+      height: 40,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      zIndex: 2,
+    },
+
+    clearSearchButtonWithScanner: {
+      right: 47,
+    },
+
+    scanButton: {
+      position: 'absolute',
+      right: 9,
+      top: 5,
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scannerScreen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scannerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      gap: 12,
+      flexShrink: 0,
+    },
+    scannerHeadingCopy: { flex: 1, minWidth: 0 },
+    scannerCloseButton: {
+      minWidth: 48,
+      minHeight: 48,
+      flexShrink: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    scannerClosePressed: { opacity: 0.65 },
+    scannerTitle: {
+      color: colors.gold,
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      fontSize: 23,
+    },
+    scannerSubtitle: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      marginTop: 5,
+    },
+    scannerPreviewArea: {
+      flex: 1,
+      minHeight: 0,
+      marginHorizontal: 16,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    scannerCamera: { flex: 1 },
+    scannerShade: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    },
+    scannerGuideRow: {
+      flexDirection: 'row',
+      height: '28%',
+    },
+    scannerGuideFrame: {
+      width: '80%',
+      borderWidth: 2,
+      borderColor: colors.gold,
+      borderRadius: 10,
+    },
+    scannerGuideLabel: {
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      textAlign: 'center',
+      marginTop: 16,
+      marginHorizontal: 16,
+    },
+    scannerHint: {
+      color: colors.mutedText,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      textAlign: 'center',
+      marginHorizontal: 24,
+      marginVertical: 22,
+    },
+
+    searchSpinnerWithScanner: { right: 55 },
+
+    searchSpinner: {
+      position:
+        'absolute',
+      right: 15,
+    },
+
+    error: {
+      color:
+        colors.danger,
+      marginTop: 10,
+      fontFamily:
+        'Inter_400Regular',
+      fontSize: 13,
+    },
+
+    discoverHome: {
+      flex: 1,
+      width: '100%',
+      maxWidth: '100%',
+      alignSelf:
+        'center',
+    },
+
+    discoverHomeContent: {
+      paddingTop: 8,
+      paddingBottom: 32,
+    },
+
+    sectionHeader: {
+      position: 'relative',
+      paddingHorizontal: 20,
+      marginBottom: 8,
+      zIndex: 30,
+    },
+
+    trendingHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+
+    trendingHeaderCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 24,
+      fontFamily: 'PlayfairDisplay_700Bold',
+    },
+
+    sectionSubtitle: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      marginTop: 2,
+    },
+
+    genreSelectorWrap: {
+      position: 'relative',
+      width: 158,
+      flexShrink: 0,
+      zIndex: 50,
+    },
+
+    genreSelectorBar: {
+      height: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+
+    genreSelectorBarOpen: {
+      borderColor: colors.gold,
+      backgroundColor: colors.surface,
+    },
+
+    genreSelectorCopy: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    genreSelectorCaption: {
+      color: colors.mutedText,
+      fontSize: 8,
+      fontFamily: 'Inter_600SemiBold',
+      textTransform: 'uppercase',
+      letterSpacing: 0.55,
+    },
+
+    genreSelectorDivider: {
+      width: 1,
+      height: 13,
+      marginHorizontal: 7,
+      backgroundColor: colors.border,
+    },
+
+    genreSelectorText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 12,
+      fontFamily: 'Inter_600SemiBold',
+    },
+
+    genreDropdown: {
+      position: 'absolute',
+      top: 44,
+      right: 0,
+      width: 260,
+      paddingTop: 12,
+      paddingHorizontal: 10,
+      paddingBottom: 8,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      zIndex: 100,
+      elevation: 12,
+      shadowColor: '#000',
+      shadowOpacity: 0.2,
+      shadowRadius: 14,
+      shadowOffset: {
+        width: 0,
+        height: 7,
+      },
+    },
+
+    genreDropdownTitle: {
+      color: colors.mutedText,
+      fontSize: 10,
+      fontFamily: 'Inter_600SemiBold',
+      textTransform: 'uppercase',
+      letterSpacing: 0.75,
+      paddingHorizontal: 10,
+      paddingBottom: 7,
+    },
+
+    genreDropdownScrollWrap: {
+      position: 'relative',
+    },
+
+    genreDropdownList: {
+      maxHeight: 348,
+    },
+
+    genreDropdownListContent: {
+      paddingBottom: 2,
+      paddingRight: 10,
+    },
+
+    genreScrollbarTrack: {
+      position: 'absolute',
+      top: 4,
+      right: 1,
+      bottom: 4,
+      width: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      opacity: 0.72,
+      overflow: 'hidden',
+    },
+
+    genreScrollbarThumb: {
+      width: 4,
+      borderRadius: 2,
+      backgroundColor: colors.gold,
+    },
+
+    genreDropdownRow: {
+      minHeight: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      borderRadius: 9,
+    },
+
+    genreDropdownRowActive: {
+      backgroundColor: colors.elevated,
+    },
+
+    genreDropdownRowText: {
+      flex: 1,
+      color: colors.secondaryText,
+      fontSize: 13,
+      fontFamily: 'Inter_500Medium',
+    },
+
+    genreDropdownRowTextActive: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+    },
+
+    genreDropdownSeparator: {
+      height: 1,
+      marginVertical: 5,
+      marginHorizontal: 10,
+      backgroundColor: colors.border,
+    },
+
+    genreDropdownDivider: {
+      height: 1,
+      marginHorizontal: 10,
+      backgroundColor: colors.border,
+      opacity: 0.55,
+    },
+
+    subgenreSlot: {
+      height: 38,
+      justifyContent: 'center',
+      marginTop: 6,
+      zIndex: 10,
+    },
+
+    subgenreTabsScroll: {
+      flexGrow: 0,
+    },
+
+    subgenreTabs: {
+      alignItems: 'center',
+      gap: 7,
+      paddingRight: 8,
+    },
+
+    subgenreTab: {
+      minHeight: 30,
+      justifyContent: 'center',
+      paddingHorizontal: 11,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: 'transparent',
+    },
+
+    subgenreTabActive: {
+      borderColor: colors.gold,
+      backgroundColor: colors.elevated,
+    },
+
+    subgenreTabText: {
+      color: colors.mutedText,
+      fontSize: 11,
+      fontFamily: 'Inter_600SemiBold',
+    },
+
+    subgenreTabTextActive: {
+      color: colors.gold,
+      fontFamily: 'Inter_700Bold',
+    },
+
+    genreControlPressed: {
+      opacity: 0.7,
+    },
+
+    genreMenuRowPressed: {
+      opacity: 0.65,
+    },
+
+    genreEmptyCard: {
+      marginHorizontal: 20,
+      padding: 22,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+    },
+
+    genreEmptyTitle: {
+      color:
+        colors.text,
+      fontSize: 18,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+    },
+
+    genreEmptyText: {
+      color:
+        colors.mutedText,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 5,
+    },
+
+    genreEmptyButton: {
+      alignSelf: 'flex-start',
+      marginTop: 14,
+    },
+
+    genreEmptyButtonText: {
+      color:
+        colors.gold,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+    },
+    trendingCarousel: {
+      flexGrow: 0,
+      width: '100%',
+    },
+
+    trendingList: {
+      paddingHorizontal: 20,
+      paddingRight: 8,
+    },
+
+    trendingCard: {
+      width: trendingCoverWidth,
+      marginRight: 14,
+    },
+
+    trendingCoverWrap: {
+      position: 'relative',
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
+      marginBottom: 9,
+    },
+
+    trendingCover: {
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
+      borderRadius: 10,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    trendingCoverPlaceholder: {
+      width: trendingCoverWidth,
+      height: Math.round(trendingCoverWidth * 1.5),
+      borderRadius: 10,
+      backgroundColor:
+        colors.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+
+    trendingLoadingOverlay: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        'rgba(0, 0, 0, 0.42)',
+      borderRadius: 10,
+    },
+
+    trendingTitle: {
+      color:
+        colors.text,
+      fontSize: 14,
+      lineHeight: 18,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      minHeight: 36,
+    },
+
+    trendingAuthor: {
+      color:
+        colors.mutedText,
+      fontSize: 11,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 3,
+    },
+
+    trendingRating: {
+      color:
+        colors.softGold,
+      fontSize: 11,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 5,
+    },
+
+    trendingLoading: {
+      minHeight: 210,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
+
+    trendingLoadingText: {
+      color:
+        colors.mutedText,
+      fontSize: 13,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 10,
+    },
+
+    trendingErrorCard: {
+      marginHorizontal: 20,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      backgroundColor:
+        colors.surface,
+      alignItems: 'center',
+    },
+
+    trendingErrorText: {
+      color:
+        colors.secondaryText,
+      fontSize: 13,
+      textAlign: 'center',
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    retryText: {
+      color:
+        colors.softGold,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 8,
+    },
+
+    newReleasesSection: {
+      marginTop: 8,
+      paddingTop: 0,
+    },
+
+    newReleasesHeader: {
+      paddingHorizontal: 20,
+      marginBottom: 14,
+    },
+
+    newReleasesTitle: {
+      color: colors.text,
+      fontSize: 22,
+      fontFamily: 'PlayfairDisplay_700Bold',
+    },
+
+    newReleasesSubtitle: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      marginTop: 3,
+    },
+
+    newReleasesCarousel: {
+      flexGrow: 0,
+      width: '100%',
+    },
+
+    newReleasesList: {
+      paddingLeft: 20,
+      paddingRight: 8,
+    },
+
+    newReleaseCard: {
+      width: releaseCoverWidth,
+      marginRight: 13,
+    },
+
+    newReleaseCoverWrap: {
+      position: 'relative',
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
+      marginBottom: 8,
+    },
+
+    newReleaseCover: {
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
+      borderRadius: 9,
+      backgroundColor: colors.elevated,
+    },
+
+    newReleaseCoverPlaceholder: {
+      width: releaseCoverWidth,
+      height: Math.round(releaseCoverWidth * 1.5),
+      borderRadius: 9,
+      backgroundColor: colors.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+
+    newReleaseLoadingOverlay: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        'rgba(0, 0, 0, 0.42)',
+      borderRadius: 9,
+    },
+
+    newReleaseTitle: {
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 17,
+      fontFamily: 'PlayfairDisplay_600SemiBold',
+      minHeight: 34,
+    },
+
+    newReleaseAuthor: {
+      color: colors.mutedText,
+      fontSize: 10,
+      fontFamily: 'Inter_400Regular',
+      marginTop: 2,
+    },
+
+    newReleaseDate: {
+      color: colors.softGold,
+      fontSize: 10,
+      fontFamily: 'Inter_500Medium',
+      marginTop: 4,
+    },
+
+    newReleasesLoading: {
+      height: 190,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    newReleasesError: {
+      marginHorizontal: 20,
+      paddingVertical: 14,
+    },
+
+    newReleasesErrorText: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+    },
+
+    newReleasesEmpty: {
+      minHeight: 72,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
+
+    newReleasesEmptyText: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+    },
+
+    readerListContent: {
+      paddingHorizontal:
+        20,
+      paddingBottom:
+        28,
+    },
+
+    readerIntro: {
+      alignItems:
+        'center',
+      paddingHorizontal:
+        22,
+      paddingTop: 34,
+      paddingBottom: 28,
+    },
+
+    readerIntroIcon: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor:
+        colors.surface,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    readerIntroTitle: {
+      color:
+        colors.text,
+      fontSize: 22,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      marginTop: 14,
+      textAlign:
+        'center',
+    },
+
+    readerIntroText: {
+      color:
+        colors.mutedText,
+      fontSize: 13,
+      lineHeight: 19,
+      fontFamily:
+        'Inter_400Regular',
+      textAlign:
+        'center',
+      marginTop: 7,
+      maxWidth: 430,
+    },
+
+    readerCard: {
+      width: '100%',
+      minHeight: 76,
+      backgroundColor:
+        colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      marginBottom: 10,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 10,
+    },
+
+    readerMain: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+    },
+
+    readerAvatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor:
+        colors.elevated,
+      marginRight: 11,
+    },
+
+    readerAvatarFallback: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      marginRight: 11,
+    },
+
+    readerAvatarText: {
+      color:
+        colors.gold,
+      fontSize: 19,
+      fontFamily:
+        'PlayfairDisplay_700Bold',
+    },
+
+    readerCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    readerName: {
+      color:
+        colors.text,
+      fontSize: 14,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerUsername: {
+      color:
+        colors.mutedText,
+      fontSize: 11,
+      fontFamily:
+        'Inter_400Regular',
+      marginTop: 2,
+    },
+
+    readerViewProfile: {
+      color:
+        colors.softGold,
+      fontSize: 10,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 5,
+    },
+
+    readerFollowButton: {
+      minWidth: 76,
+      minHeight: 34,
+      borderRadius: 11,
+      backgroundColor:
+        colors.gold,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 10,
+    },
+
+    readerFollowButtonText: {
+      color:
+        colors.background,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerFollowingButton: {
+      minWidth: 76,
+      minHeight: 34,
+      borderRadius: 11,
+      backgroundColor:
+        colors.elevated,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 10,
+    },
+
+    readerFollowingButtonText: {
+      color:
+        colors.text,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerYouBadge: {
+      minWidth: 54,
+      minHeight: 30,
+      borderRadius: 10,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal: 9,
+    },
+
+    readerYouBadgeText: {
+      color:
+        colors.mutedText,
+      fontSize: 10,
+      fontFamily:
+        'Inter_700Bold',
+    },
+
+    readerPressed: {
+      opacity: 0.68,
+    },
+
+    resultsArea: {
+      flex: 1,
+      width: '100%',
+      maxWidth: '100%',
+      alignSelf:
+        'center',
+      marginTop: 14,
+    },
+
+    list: {
+      flex: 1,
+    },
+
+    listContent: {
+      paddingHorizontal:
+        20,
+      paddingBottom:
+        28,
+    },
+
+    listContentEmpty: {
+      flexGrow: 1,
+    },
+
+    bookCard: {
+      flexDirection:
+        'row',
+      width: '100%',
+      backgroundColor:
+        colors.surface,
+      borderRadius: 16,
+      padding: 12,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor:
+        colors.border,
+    },
+
+    bookCardPressed: {
+      opacity: 0.72,
+    },
+
+    cover: {
+      width: searchCoverWidth,
+      height: Math.round(searchCoverWidth * 1.5),
+      borderRadius: 8,
+      backgroundColor:
+        colors.elevated,
+    },
+
+    coverPlaceholder: {
+      width: searchCoverWidth,
+      height: Math.round(searchCoverWidth * 1.5),
+      borderRadius: 8,
+      backgroundColor:
+        colors.elevated,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+    },
+
+    coverPlaceholderText: {
+      color:
+        colors.mutedText,
+      fontSize: 11,
+      fontFamily:
+        'Inter_400Regular',
+    },
+
+    bookInfo: {
+      flex: 1,
+      marginLeft: 14,
+      justifyContent:
+        'center',
+    },
+
+    bookTitle: {
+      color:
+        colors.text,
+      fontSize: 18,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      marginBottom: 5,
+    },
+
+    author: {
+      color:
+        colors.secondaryText,
+      fontSize: 13,
+      fontFamily:
+        'Inter_500Medium',
+      marginBottom: 7,
+    },
+
+    searchRatingStars: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      gap: 2,
+      marginTop: 7,
+      marginBottom: 1,
+    },
+
+    meta: {
+      color:
+        colors.mutedText,
+      fontSize: 12,
+      fontFamily:
+        'Inter_400Regular',
+      marginBottom: 2,
+    },
+
+    viewDetails: {
+      color:
+        colors.softGold,
+      fontSize: 12,
+      fontFamily:
+        'Inter_600SemiBold',
+      marginTop: 7,
+    },
+
+    emptyState: {
+      flex: 1,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      paddingHorizontal:
+        30,
+      paddingBottom:
+        90,
+    },
+
+    emptyTitle: {
+      color:
+        colors.text,
+      fontSize: 22,
+      fontFamily:
+        'PlayfairDisplay_600SemiBold',
+      textAlign:
+        'center',
+    },
+
+    emptyText: {
+      color:
+        colors.mutedText,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily:
+        'Inter_400Regular',
+      textAlign:
+        'center',
+      marginTop: 8,
+    },
+    });
+}

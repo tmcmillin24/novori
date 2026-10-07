@@ -1,0 +1,145 @@
+import { PropsWithChildren } from 'react';
+import type { RefObject } from 'react';
+import {
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    RefreshControl,
+    ScrollView,
+    StyleProp,
+    StyleSheet,
+    View,
+    ViewStyle,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { NovoriColors } from '../constants/novori-theme';
+import { useNovoriTheme } from '../context/theme-context';
+
+type TabScreenProps = PropsWithChildren<{
+  scroll?: boolean;
+  contentStyle?: StyleProp<ViewStyle>;
+  scrollRef?: RefObject<ScrollView | null>;
+  onScroll?: (
+    event:
+      NativeSyntheticEvent<
+        NativeScrollEvent
+      >
+  ) => void;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  refreshTintColor?: string;
+}>;
+
+export function TabScreen({
+  children,
+  scroll = false,
+  contentStyle,
+  scrollRef,
+  onScroll,
+  refreshing = false,
+  onRefresh,
+  refreshTintColor,
+}: TabScreenProps) {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
+  if (scroll) {
+    return (
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={['top', 'left', 'right']}
+      >
+        <ScrollView
+          ref={
+            scrollRef
+          }
+          style={styles.screen}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={
+            Boolean(
+              onRefresh
+            )
+          }
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={
+                  refreshing
+                }
+                onRefresh={
+                  onRefresh
+                }
+                tintColor={
+                  refreshTintColor
+                }
+                colors={
+                  refreshTintColor
+                    ? [
+                        refreshTintColor,
+                      ]
+                    : undefined
+                }
+              />
+            ) : undefined
+          }
+          onScroll={
+            onScroll
+          }
+          scrollEventThrottle={
+            onScroll
+              ? 16
+              : undefined
+          }
+        >
+          <View style={[styles.content, contentStyle]}>
+            {children}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={['top', 'left', 'right']}
+    >
+      <View style={styles.screen}>
+        <View style={[styles.content, styles.flexContent, contentStyle]}>
+          {children}
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const createStyles = (colors: NovoriColors) => StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 22,
+    paddingBottom: 120,
+  },
+
+  content: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+  },
+
+  flexContent: {
+    flex: 1,
+    paddingTop: 22,
+    paddingBottom: 120,
+  },
+});

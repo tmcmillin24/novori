@@ -1,0 +1,33 @@
+import React from 'react';
+import renderer, { act } from 'react-test-renderer';
+import BookStackScreen from '../src/app/book-stack/[id]';
+import { getBookStack } from '../src/lib/book-stacks';
+import { useRouter } from 'expo-router';
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'stack-1' }), useRouter: jest.fn() }));
+jest.mock('react-native', () => ({ ActivityIndicator: 'Spinner', Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', View: 'View' }));
+jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Icon' }));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeArea' }));
+jest.mock('../src/context/theme-context', () => ({ useNovoriTheme: () => ({ colors: {} }) }));
+jest.mock('../src/lib/book-stacks', () => ({ getBookStack: jest.fn() }));
+jest.mock('../src/components/BookStackShowcase', () => 'Showcase');
+let view, router;
+beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; jest.clearAllMocks(); router = { push: jest.fn(), back: jest.fn() }; useRouter.mockReturnValue(router); });
+afterEach(async () => { await act(async () => view?.unmount()); });
+test('opens each book from the shared stack card and returns to the prior screen', async () => {
+  const items = [{ google_book_id: 'book-1' }, { google_book_id: 'book-2' }];
+  getBookStack.mockResolvedValue({ name: 'My Stack', items });
+  await act(async () => { view = renderer.create(<BookStackScreen/>); });
+  expect(getBookStack).toHaveBeenCalledWith('stack-1');
+  const card = view.root.findByType('Showcase');
+  expect(card.props.items).toEqual(items); expect(card.props.interactive).toBe(true);
+  for (const item of items) card.props.onOpenBook(item);
+  expect(router.push.mock.calls.map(([route]) => route.params.id)).toEqual(['book-1', 'book-2']);
+  view.root.findByProps({ accessibilityLabel: 'Back' }).props.onPress(); expect(router.back).toHaveBeenCalledTimes(1);
+});
+test('failed stack loading offers a working retry without a development error overlay', async () => {
+  getBookStack.mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce({ name: 'Recovered', items: [] });
+  await act(async () => { view = renderer.create(<BookStackScreen/>); });
+  const retry = view.root.findAllByType('Pressable').find(node => !node.props.accessibilityLabel);
+  await act(async () => retry.props.onPress());
+  expect(getBookStack).toHaveBeenCalledTimes(2); expect(view.root.findByType('Showcase').props.name).toBe('Recovered');
+});

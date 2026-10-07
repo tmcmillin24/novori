@@ -1,0 +1,85 @@
+import { getServerKey } from "../_shared/supabase-keys.mjs";
+// @ts-ignore -- resolved by the Supabase Edge runtime
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+// @ts-ignore -- module is shared with Node regression tests
+import { createAdminHandler } from "../_shared/admin-hub.mjs";
+declare const Deno: {
+  env: { get(name: string): string | undefined };
+  serve(handler: (request: Request) => Promise<Response>): void;
+};
+const url = Deno.env.get("SUPABASE_URL");
+let key = getServerKey(name => Deno.env.get(name));
+const origins = (
+  Deno.env.get("NOVORI_ADMIN_ORIGINS") ?? "https://admin.novori.link"
+)
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+if (!url || !key) {
+  Deno.serve(
+    async () =>
+      new Response(
+        JSON.stringify({ error: "Admin backend is not configured." }),
+        {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
+  );
+} else {
+  const client = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, signal: AbortSignal.timeout(20000) }),
+    },
+  });
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  const sendAlert = resendKey
+    ? async (alert: { id: string; admin_id: string; kind?: string }) => {
+        const { data, error } = await client.auth.admin.getUserById(
+          alert.admin_id,
+        );
+        if (error || !data.user?.email || !data.user.email_confirmed_at)
+          throw new Error("Verified admin email unavailable.");
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          signal: AbortSignal.timeout(15000),
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `novori-moderation-${alert.kind ?? "report"}-${alert.id}`,
+          },
+          body: JSON.stringify({
+            from:
+              Deno.env.get("NOVORI_ADMIN_ALERT_FROM") ??
+              "Novori <noreply@novori.link>",
+            to: [data.user.email],
+            subject: "Novori moderation needs review",
+            text: "A report or unpublished flagged submission needs review. Sign in to your private Novori admin hub to review it:\n\nhttps://admin.novori.link\n\nThis email intentionally contains no reported content or reporter identity.",
+          }),
+        });
+        if (!response.ok)
+          throw new Error("Admin report email could not be delivered.");
+      }
+    : undefined;
+  Deno.serve(
+    createAdminHandler({
+      client,
+      allowedOrigins: origins,
+      requireMfa: true,
+      sendAlert,
+      workerSecret: Deno.env.get("NOVORI_ADMIN_WORKER_SECRET"),
+      workerConfigured: Boolean(Deno.env.get("NOVORI_ADMIN_WORKER_SECRET")),
+      bookProvider:
+        Deno.env.get("NOVORI_BOOK_PROVIDER") === "isbndb"
+          ? "isbndb"
+          : "google_books",
+      moderationConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
+      isbnDbConfigured: Boolean(Deno.env.get("ISBNDB_API_KEY")),
+    }),
+  );
+}

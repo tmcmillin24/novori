@@ -1,0 +1,440 @@
+{
+  "version": "2026-10-05-moderation",
+  "updated": "October 5, 2026",
+  "operator": "Tristan McMillin",
+  "minimumAge": 18,
+  "contactEmail": "support@novori.link",
+  "documents": {
+    "terms": {
+      "title": "Terms of Service",
+      "summary": "The ground rules for your reading life and our community.",
+      "sections": [
+        {
+          "title": "1. About these terms",
+          "paragraphs": [
+            "Novori is a reading and discussion service operated by Tristan McMillin (\"Novori,\" \"we,\" \"us,\" or \"our\"). These Terms of Service govern your use of the Novori app and related services. Novori is a product name, not a separate legal entity. Questions may be sent to support@novori.link.",
+            "By creating an account or affirmatively accepting these terms, you agree to them. Our Privacy Policy explains how we handle personal information. If you do not agree, do not create an account or use the account-based service."
+          ],
+          "links": [
+            {
+              "label": "Privacy Policy",
+              "url": "https://novori.link/privacy/"
+            }
+          ]
+        },
+        {
+          "title": "2. An adult reading community",
+          "paragraphs": [
+            "You must be at least 18 years old and legally able to enter into these terms to use Novori. Novori is not intended for children or teenagers. Do not misrepresent your age or create an account for someone under 18. We may restrict or close accounts that do not meet this requirement.",
+            "An adult-only audience does not permit pornography, exploitation, harassment, or other prohibited material. Discussions of books must still follow our community standards."
+          ]
+        },
+        {
+          "title": "3. Your account",
+          "paragraphs": [
+            "Provide accurate account information, keep your credentials secure, and use an email address you control. Do not impersonate another person, share access in a way that compromises safety, or bypass account restrictions. You are responsible for activity you authorize through your account. Contact us promptly if you believe your account has been compromised.",
+            "Account names, profile information, and anything you share must comply with these terms. We may require reasonable verification when handling account access, privacy, or deletion requests."
+          ]
+        },
+        {
+          "title": "4. Community standards",
+          "paragraphs": [
+            "Novori welcomes thoughtful discussion and disagreement about books. Treat other readers with respect. Do not post or engage in threats, targeted harassment, bullying, hate speech, discriminatory abuse, stalking, doxxing, fraud, spam, scams, or instructions facilitating violence or illegal conduct. Do not share private information about another person without permission.",
+            "Do not upload pornography, sexually explicit imagery, non-consensual intimate content, or material that exploits or endangers anyone. Do not promote self-harm or encourage dangerous behavior. Literary discussion of difficult subjects must remain contextual and respectful; use spoiler and content-warning tools when appropriate.",
+            "Child sexual abuse and exploitation (CSAE), child sexual abuse material (CSAM), grooming, sexualization of minors, sextortion, and trafficking of children are strictly prohibited, including attempts to solicit or distribute such material. These rules apply to text, images, profiles, clubs, comments, and all other service activity. Our child-safety standards explain reporting and enforcement."
+          ],
+          "links": [
+            {
+              "label": "Child Safety Standards",
+              "url": "https://novori.link/child-safety/"
+            }
+          ]
+        },
+        {
+          "title": "5. Reporting, blocking, and enforcement",
+          "paragraphs": [
+            "Use the reporting controls on content or profiles to flag a concern. Comment actions are also available by pressing and holding a comment. Use blocking controls to limit interactions with another reader. For urgent safety concerns, account issues, appeals, or intellectual-property complaints, contact support@novori.link. Novori is not an emergency service; contact emergency services if someone is in immediate danger.",
+            "We review reports and may remove or restrict content, issue warnings, limit features, suspend access, or close accounts. We may act without advance notice when needed to protect people, comply with law, or preserve service integrity. Enforcement depends on the circumstances, including severity and repeated violations. You may request review of an enforcement decision by emailing support@novori.link with your username and the relevant details. Do not resend illegal content as part of an appeal.",
+            "Moderation is not a guarantee that every item has been reviewed. Language preferences and content warnings are reading controls, not a substitute for reporting prohibited content. We may preserve and disclose relevant evidence where required or permitted by applicable law."
+          ]
+        },
+        {
+          "title": "6. Your content and privacy choices",
+          "paragraphs": [
+            "You keep the rights you hold in the content you create. Share only material you own or have permission to use. Do not publish pirated books, substantial unauthorized excerpts, or other infringing content. Copyright, trademark, and privacy rights continue to apply to reviews, photos, notes, and discussions.",
+            "To provide the features you choose, you grant Novori a non-exclusive, worldwide, royalty-free license to host, store, reproduce, format, display, and distribute your content within the service, subject to your visibility settings. This license is limited to operating, securing, and maintaining Novori; it does not transfer ownership or authorize unrelated sale of your private notes. Authorized hosting providers may process content for these purposes.",
+            "Public posts, reviews, comments, profiles, and shared reading activity may be seen or copied by others. Club content is available according to club access rules. Your private notes are not published to other readers. Privacy settings do not make private information end-to-end encrypted or prevent access by authorized service operators when necessary for support, security, or legal obligations. Do not upload highly sensitive information you do not want processed by the service.",
+            "When you delete content or your account, this license ends for removed content, except to the limited extent necessary for backup expiration, legal preservation, security records, or processing your deletion request. Other readers retain rights in their own replies; anonymous structural deletion notices may remain to preserve a conversation."
+          ]
+        },
+        {
+          "title": "7. Book information and third-party services",
+          "paragraphs": [
+            "Book information, covers, series information, and discovery results may come from ISBNdb, Google Books, Hardcover, and Open Library, including the Open Library Covers API. Book covers, descriptions, and other third-party material remain subject to their owners’ rights. Data may contain errors, duplicates, missing editions, or outdated information. Novori does not guarantee catalog accuracy or availability.",
+            "Novori uses Supabase for backend services, Resend for service email, Cloudflare for web hosting, protected media delivery, email routing, and supplementary matching of cached images against known child sexual abuse material, and OpenAI for automated content moderation, Expo and open-source software for app functionality, and Google ML Kit/code-scanning SDKs for Android barcode recognition. These providers are not sponsors or endorsers of Novori. External websites and services have their own terms and privacy practices. Opening an external link is your choice."
+          ],
+          "links": [
+            {
+              "label": "ISBNdb",
+              "url": "https://isbndb.com/"
+            },
+            {
+              "label": "Google Books",
+              "url": "https://books.google.com/"
+            },
+            {
+              "label": "Hardcover",
+              "url": "https://hardcover.app/"
+            },
+            {
+              "label": "Open Library",
+              "url": "https://openlibrary.org/"
+            },
+            {
+              "label": "Open Source Licenses",
+              "url": "https://novori.link/licenses/"
+            }
+          ]
+        },
+        {
+          "title": "8. Acceptable use of the service",
+          "paragraphs": [
+            "Use Novori for lawful personal reading and community activity. Do not disrupt the service, access another user’s account, circumvent access controls or quotas, introduce malicious code, harvest personal information, or scrape the service in a way that harms it or violates others’ rights. Security research must avoid accessing others’ private data and should be reported responsibly to support@novori.link.",
+            "Novori branding and original software belong to their respective owners. Open-source components are governed by their own licenses. These terms do not restrict rights those licenses grant you."
+          ]
+        },
+        {
+          "title": "9. Availability and changes",
+          "paragraphs": [
+            "We may improve, change, or discontinue features. Third-party outages and network conditions may affect availability. We do not promise uninterrupted service or permanent storage; keep your own copy of information that matters to you.",
+            "We may update these terms and will publish the current version with its effective date. For material changes, we will provide notice through the app or another reasonable channel and seek renewed acceptance where required. Changes do not retrospectively remove rights that applicable law gives you. If you disagree, you may stop using Novori and delete your account."
+          ]
+        },
+        {
+          "title": "10. Closing or deleting your account",
+          "paragraphs": [
+            "You may initiate account deletion in the app under Profile > Settings > Delete account. You can schedule permanent deletion with a seven-day cancellation period, or choose Delete now to start irreversible deletion without that period. Signing in alone does not cancel scheduled deletion. Club owners may need to transfer ownership before leaving a club that has other members.",
+            "Permanent deletion removes your authentication account, personal reading data, uploaded personal content, and authored content from active systems. Posts and comments may be replaced with anonymous deletion notices so other readers’ replies can remain. Shared, non-personal book catalog information may remain. Limited records may be retained for legal obligations, security, or resolution of disputes, and provider backup and log copies expire on their applicable retention schedules.",
+            "If you cannot access the app, you can request deletion through our public account-deletion page. Uninstalling Novori, signing out, or abandoning an account does not delete it."
+          ],
+          "links": [
+            {
+              "label": "Request account deletion",
+              "url": "https://novori.link/delete-account/"
+            },
+            {
+              "label": "Privacy Policy",
+              "url": "https://novori.link/privacy/"
+            }
+          ]
+        },
+        {
+          "title": "11. Disclaimers and responsibility",
+          "paragraphs": [
+            "To the extent permitted by applicable law, the service and third-party content are provided \"as is\" and \"as available,\" without warranties of uninterrupted availability, accuracy, or fitness for a particular purpose. Reader opinions are their own. Novori is not professional medical, legal, financial, or mental-health advice.",
+            "To the extent permitted by applicable law, Novori is not liable for indirect, incidental, special, or consequential losses arising from use of the service. Nothing in these terms excludes or limits liability that cannot lawfully be excluded or limited, including applicable consumer guarantees, fraud, or other non-excludable obligations. Mandatory rights available in your place of residence remain in effect."
+          ]
+        },
+        {
+          "title": "12. App stores and resolving concerns",
+          "paragraphs": [
+            "Apple and Google are not parties to these service terms and do not operate Novori or provide its moderation or support. For an app obtained through Apple’s App Store, Apple’s Standard Licensed Application End User License Agreement governs the app license unless a separate custom EULA is supplied through that store. These terms govern Novori’s service and do not override mandatory store terms.",
+            "Please contact support@novori.link to discuss a problem or dispute. These terms do not require mandatory arbitration or waive your right to pursue a claim in a court or forum available under applicable law. If a provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law."
+          ],
+          "links": [
+            {
+              "label": "Apple Standard EULA",
+              "url": "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+            }
+          ]
+        },
+        {
+          "title": "13. Contact",
+          "paragraphs": [
+            "Operator: Tristan McMillin. Service: Novori. For support, safety reports, privacy questions, deletion requests, appeals, or rights complaints, email support@novori.link. For an intellectual-property complaint, identify the protected work, the content or account involved, and your contact information so we can investigate."
+          ],
+          "links": [
+            {
+              "label": "Email Novori",
+              "url": "mailto:support@novori.link"
+            }
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "summary": "What Novori collects, why we use it, and the choices you have.",
+      "sections": [
+        {
+          "title": "1. Who is responsible for your information",
+          "paragraphs": [
+            "Tristan McMillin operates Novori and is responsible for the personal information handled through the Novori app and related services. In this policy, \"Novori,\" \"we,\" \"us,\" and \"our\" refer to that operator. Contact support@novori.link for privacy questions or requests.",
+            "This policy covers Novori’s app, support communications, public website, and account-based services. It does not govern independently operated websites that you choose to visit."
+          ]
+        },
+        {
+          "title": "2. Information you provide",
+          "paragraphs": [
+            "Account information: your email address, username, display name, profile image, biography and other profile details you choose to add. Authentication is managed by Supabase Auth, including password verification, confirmation emails, session tokens, and account-security records. Do not send your password to support.",
+            "Reading information: books and editions in your library, reading status and progress, goals, check-ins, reading dates and time, ratings, reviews, summaries, private notes, stacks, and reading recaps you create or use. Reading choices and text you submit can reveal personal interests or other sensitive information.",
+            "Community information: posts, comments, replies, votes, follows, club membership and roles, club discussions, polls, event details, photos you upload, blocks, reports, and moderation or account-deletion requests. Event locations or meeting links you enter may be visible to the audience for that event.",
+            "Preferences and support: visibility, language and content preferences, theme choices, reminder settings, your device’s time zone for reading reminders, and information you send when asking for help. New accounts record your 18+ confirmation, the terms version you accepted, your acknowledgment of the Privacy Policy, and the time of acceptance. We do not ask for a full date of birth in the current signup flow."
+          ]
+        },
+        {
+          "title": "3. Technical and usage information",
+          "paragraphs": [
+            "Novori and its hosting providers process information needed to deliver and protect the service, including account identifiers, IP addresses, request times, authentication events, network and error logs, and information supplied by your device or browser when making requests. Support messages may include the app version, operating system, or device details you provide.",
+            "Book searches, identifiers such as ISBNs, cache activity, and API request counts are processed to retrieve results, reduce repeated requests, enforce quotas, and monitor service operation. Some operational counters and records are associated with your account; aggregate provider usage is also used in our private administration dashboard.",
+            "The app stores session information, settings, and caches on your device. Development and testing builds may produce additional diagnostic logs; they should not be treated as production builds for store privacy declarations."
+          ]
+        },
+        {
+          "title": "4. Camera, photos, and device permissions",
+          "paragraphs": [
+            "Camera access is used when you scan book barcodes or choose to take a photo for a profile, post, or club. Barcode identifiers may be sent to book providers to identify a book; scanner video is not uploaded as part of barcode scanning. Photos you take or select for a profile, post, or club may be uploaded to Novori’s storage to display them to the intended audience.",
+            "Device permission prompts apply before accessing permission-protected features. You may deny or revoke camera or photo access in your device settings and continue using features that do not require them. Novori does not request microphone recording for these features and does not require access to your address book or precise device location. Do not include private information in photos or location details you choose to share."
+          ]
+        },
+        {
+          "title": "5. Why we use information",
+          "paragraphs": [
+            "We use information to create and authenticate accounts; sync your library and reading activity; provide posts, conversations, clubs, events, and discovery; respect visibility and blocking choices; deliver reading reminders and service email; and respond to support and privacy requests.",
+            "We also use information to secure accounts, prevent abuse, moderate content, investigate reports, enforce our terms, manage deletion, maintain backups and service reliability, measure provider usage, and comply with legal obligations. We do not sell your personal information or use it for cross-app behavioral advertising. The current app does not include an advertising SDK.",
+            "Where data-protection law requires a legal basis, we rely on performing our agreement with you for core service functions; legitimate interests in security, moderation, support, and reliable operation where those interests do not override your rights; compliance with legal obligations; and consent where required for a particular optional use. Acknowledging this policy is not blanket consent to every possible future use."
+          ]
+        },
+        {
+          "title": "6. Visibility and access",
+          "paragraphs": [
+            "Information you publish may be visible to other readers according to the feature and your visibility settings. Public posts, comments, reviews, profile details, stacks, and shared reading activity can be viewed or copied by others. Club content is available according to club access rules. Choosing a private profile does not retract copies others have already made or necessarily hide comments posted in a public conversation.",
+            "Private notes are not published to other readers. Account email and authentication credentials are not displayed as public profile information. Authorized service operators and hosting providers may access non-public information when necessary to operate the service, respond to support, protect users, or comply with law. Novori does not currently provide end-to-end encryption for private notes or community content.",
+            "Reports and moderation records are restricted to authorized administration rather than posted publicly. A reporter’s identity is not included in the report-alert emails sent to administrators. Moderation may temporarily retain the submitted text or a restricted copy of a flagged image, the screening result, and decision history for review, security, and appeals. Approval of a flagged draft requires the reader to submit it again; it does not publish automatically."
+          ]
+        },
+        {
+          "title": "7. Providers and APIs",
+          "paragraphs": [
+            "Supabase: authentication, database storage, uploaded images and files, backend Edge Functions, and related infrastructure. Account data, reading information, community content, and technical request information are processed there to provide Novori.",
+            "ISBNdb: book search, book details, ISBN and edition resolution, and cover information through Novori’s backend. Google Books: legacy book information and book lookup when configured as the active provider. Hardcover: book discovery, popularity, recent releases, and series information. Open Library and its Covers API: additional book identification and cover information. Requests to these services may include search text, titles, authors, ISBNs, edition identifiers, or other book identifiers. Some requests go through Novori’s backend and caches; the app may also make direct book requests or load provider-hosted images. Direct requests expose ordinary connection information, such as your IP address, to the receiving provider.",
+            "We do not intentionally send account email, credentials, private notes, or your full personal library to book providers as part of book lookup. Avoid putting personal information in a book search. A search query itself can reveal interests. Book cover files may be served by provider or publisher image hosts identified in the returned metadata.",
+            "Resend: delivery of service email, including account-deletion receipts and moderation alerts. Recipient email addresses and the message content needed for delivery are processed by that service. Supabase Auth also handles authentication email through the project’s configured email delivery service.",
+            "Google ML Kit and Google code-scanning components: the Android barcode scanner uses these native SDKs through Expo Camera. Barcode image processing runs on your device. Google may receive SDK performance and usage metrics, app and device information, installation identifiers, event details, and error codes for diagnostics and usage analytics, and the SDK may contact Google for updates or compatibility information. Google states that ML Kit does not send the scanned input images or recognition outputs to its servers as part of on-device processing.",
+            "Cloudflare: hosting and delivery of the public website and administration website, DNS, and email routing. Web requests and support-email routing involve technical connection data and, for email routing, the email information needed to deliver your message. When image protection is enabled, reader-uploaded images are delivered through Cloudflare and may be compared with known child sexual abuse material hashes. This is supplementary protection and does not identify every harmful image.",
+            "OpenAI: when publishing safeguards are enabled, public-facing profile names and biography text, posts, comments, reviews, selected book labels, stack and club information, discussions, shared club-reading notes, event text, and reader-uploaded images are sent to the moderation API to evaluate supported harmful-content categories. Passwords, account email, and private reading notes are not included in moderation inputs. Automated results may prevent publication and may be reviewed by authorized Novori moderators. Screening is fallible; readers can still report content or appeal a decision at support@novori.link.",
+            "Expo and React Native: app frameworks and device functionality, including bundled fonts, icons, camera, selected photos, local preferences, and user interface features. Expo development tools are used during testing. These frameworks are distinct from the book-data APIs. Apple and Google independently operate their app stores and platform services under their own policies.",
+            "GitHub is used to host Novori’s source repository and deliver website builds; normal app use does not send your account or reading data to GitHub. Independent links you open, such as an event meeting link or a book-provider page, are subject to that website’s practices."
+          ],
+          "links": [
+            {
+              "label": "Supabase Privacy Policy",
+              "url": "https://supabase.com/privacy"
+            },
+            {
+              "label": "Google Privacy Policy",
+              "url": "https://policies.google.com/privacy"
+            },
+            {
+              "label": "Hardcover",
+              "url": "https://hardcover.app/"
+            },
+            {
+              "label": "Internet Archive Privacy Policy (Open Library)",
+              "url": "https://archive.org/about/terms.php"
+            },
+            {
+              "label": "Resend Privacy Policy",
+              "url": "https://resend.com/legal/privacy-policy"
+            },
+            {
+              "label": "Cloudflare Privacy Policy",
+              "url": "https://www.cloudflare.com/privacypolicy/"
+            },
+            {
+              "label": "Expo Privacy Policy",
+              "url": "https://expo.dev/privacy"
+            },
+            {
+              "label": "Google ML Kit Terms and Privacy",
+              "url": "https://developers.google.com/ml-kit/terms"
+            },
+            {
+              "label": "OpenAI API data privacy",
+              "url": "https://openai.com/enterprise-privacy/"
+            }
+          ]
+        },
+        {
+          "title": "8. Other disclosures",
+          "paragraphs": [
+            "We may disclose information when required by law or a valid legal request, to protect someone’s safety, investigate abuse, enforce rights, or address fraud or security incidents, subject to applicable law. Information relevant to a report may need to be shared with competent authorities, including child-safety reporting bodies.",
+            "If operation of Novori is transferred, personal information may be transferred as part of that change, subject to this policy, applicable law, and any notice or additional choices that are required. We do not authorize providers to use private reading data for unrelated advertising on our behalf."
+          ]
+        },
+        {
+          "title": "9. Retention and account deletion",
+          "paragraphs": [
+            "We generally retain your account and reading information while your account is active and as needed to provide features you choose. You can remove content through available in-app controls or request help with a specific item. We retain support, security, and moderation records only as needed for their purpose, including legal obligations, investigation of abuse, and resolution of disputes. Exact log and backup retention depends on the provider and configuration; these copies are not a permanent substitute for an active account.",
+            "To delete your account, open Profile > Settings > Delete account. Scheduled deletion hides your profile and provides seven days to explicitly cancel before permanent deletion begins. You may instead choose Delete now to start permanent deletion without a cancellation period. Signing in alone does not cancel scheduled deletion. You may need to transfer ownership of a club with other members first.",
+            "Permanent deletion removes your authentication account, personal library, reading information, private notes, uploads, and authored content from active systems. Posts and comments may be replaced with anonymous deletion notices rather than removing the structure around other people’s replies. Your original comment text and author identity are not kept in those notices. Other people’s own content and non-personal shared book catalog records may remain.",
+            "A limited delivery record containing your email may be used to send a deletion receipt and is removed after successful delivery or expiration. Deletion workers may retry after a network or provider failure. Limited information may be retained where necessary for legal obligations, security, or dispute resolution; provider logs and backups expire under their applicable retention schedules. Any restored backup must respect completed deletion requests.",
+            "You can also initiate an account-deletion request without reinstalling the app through our public deletion page or by emailing support@novori.link. We may verify account ownership before acting. Uninstalling or signing out does not delete your account."
+          ],
+          "links": [
+            {
+              "label": "Account-deletion requests",
+              "url": "https://novori.link/delete-account/"
+            }
+          ]
+        },
+        {
+          "title": "10. Your choices and privacy rights",
+          "paragraphs": [
+            "Use the app’s visibility settings to control eligible profile and reading information, manage reminder and language preferences, remove your own content, block users, and delete your account. Revoke device permissions through system settings.",
+            "Depending on your location and applicable law, you may have rights to access or receive a copy of your information; correct inaccuracies; request deletion; restrict or object to certain processing; request portability; withdraw consent for processing based on consent; appeal a privacy-request decision; or complain to a competent data-protection authority. These rights may have lawful exceptions.",
+            "Email support@novori.link with your request and the account email or username needed to locate your information. Do not send your password or unnecessary identity documents. We may ask for proportionate verification and will respond within applicable legal deadlines. We do not penalize you for exercising privacy rights, although a feature may be unavailable if information essential to it is removed. We do not sell personal information or share it for cross-context behavioral advertising."
+          ]
+        },
+        {
+          "title": "11. Adults only and child safety",
+          "paragraphs": [
+            "Novori is intended only for people 18 and older. We do not knowingly permit accounts for people under 18 or knowingly collect their personal information through permitted account use. If you believe a minor has an account or their information has been submitted, contact support@novori.link so we can investigate and take appropriate action, including removing an ineligible account.",
+            "Our 18+ signup confirmation is an age attestation, not identity verification. We do not collect a full date of birth through the current signup screen. Age-restricted access does not eliminate our obligation to respond to child-safety concerns."
+          ],
+          "links": [
+            {
+              "label": "Child Safety Standards",
+              "url": "https://novori.link/child-safety/"
+            }
+          ]
+        },
+        {
+          "title": "12. Security and international processing",
+          "paragraphs": [
+            "We use access controls, authenticated backend services, encrypted network connections, and other reasonable safeguards designed to protect personal information. No system is completely secure; protect your password and contact us if you suspect unauthorized access.",
+            "Information may be processed where Novori’s service providers operate, including outside your country of residence and in the United States. Those countries may have different privacy laws. Where required, appropriate transfer safeguards must be maintained with the relevant providers. Contact us with questions about the safeguards applicable to your information."
+          ]
+        },
+        {
+          "title": "13. Website and policy changes",
+          "paragraphs": [
+            "The public Novori website serves static information and app-opening links. It does not currently embed advertising trackers or a separate analytics SDK. Hosting providers may still maintain connection and security logs. The private administration website uses sign-in session storage to support authorized account access.",
+            "We will update this policy when our practices materially change and provide notice through the app or another reasonable channel where required. New advertising, payment, tracking, or other materially different processing requires a review of this policy, store disclosures, and any required consent before it begins."
+          ]
+        },
+        {
+          "title": "14. Contact",
+          "paragraphs": [
+            "Privacy contact and service operator: Tristan McMillin. Email: support@novori.link. Please identify Novori and the nature of your request so it can be handled appropriately."
+          ],
+          "links": [
+            {
+              "label": "Email privacy support",
+              "url": "mailto:support@novori.link?subject=Novori%20privacy%20request"
+            }
+          ]
+        }
+      ]
+    },
+    "child-safety": {
+      "title": "Child Safety Standards",
+      "summary": "Novori prohibits child sexual abuse and exploitation in every part of the service.",
+      "sections": [
+        {
+          "title": "An adult-only community with clear safety standards",
+          "paragraphs": [
+            "Novori is operated by Tristan McMillin and is available only to people 18 and older. Accounts for minors are not permitted. These standards apply to all users, content, and conduct, even though Novori is an adult-only community."
+          ]
+        },
+        {
+          "title": "Zero tolerance for abuse and exploitation",
+          "paragraphs": [
+            "Child sexual abuse and exploitation (CSAE) and child sexual abuse material (CSAM) are strictly prohibited. This includes grooming, sexualization of minors, sexual solicitation involving minors, sextortion, trafficking of children, and creating, seeking, possessing for distribution, linking to, or sharing material depicting child sexual abuse, including generated or manipulated material. Do not use Novori to facilitate contact or transactions involving exploitation.",
+            "These prohibitions cover profiles, text, images, posts, comments, clubs, events, links, and any other part of the service."
+          ]
+        },
+        {
+          "title": "How to report a concern",
+          "paragraphs": [
+            "Use the in-app Report action on the relevant content or profile. Comment actions can be opened by pressing and holding a comment. You may also email support@novori.link with the subject \"Novori child safety\" and an account name, content identifier, or other information that helps locate the concern. Do not download, forward, or attach suspected CSAM.",
+            "If someone is in immediate danger, contact local emergency services or the appropriate authorities. Novori is not an emergency-response service."
+          ],
+          "links": [
+            {
+              "label": "Contact our child-safety contact",
+              "url": "mailto:support@novori.link?subject=Novori%20child%20safety"
+            }
+          ]
+        },
+        {
+          "title": "Our response",
+          "paragraphs": [
+            "We review child-safety concerns, remove or restrict access to confirmed prohibited material, and suspend or terminate accounts involved in exploitation. We take appropriate action upon obtaining actual knowledge of CSAM and preserve relevant information only as permitted or required by law.",
+            "We comply with applicable child-safety reporting and preservation laws, including reporting to the National Center for Missing & Exploited Children (NCMEC) or a relevant regional authority where required. We cooperate with valid requests from competent authorities. Ordinary users should not attempt their own investigation or circulate suspected illegal material."
+          ]
+        },
+        {
+          "title": "Designated contact",
+          "paragraphs": [
+            "Tristan McMillin is Novori’s child-safety point of contact and may be reached at support@novori.link. That contact handles questions about these standards and Novori’s child-safety compliance."
+          ],
+          "links": [
+            {
+              "label": "Terms of Service",
+              "url": "https://novori.link/terms/"
+            }
+          ]
+        }
+      ]
+    },
+    "delete-account": {
+      "title": "Delete your Novori account",
+      "summary": "Request account and associated personal-data deletion, including without reinstalling Novori.",
+      "sections": [
+        {
+          "title": "Delete in the app",
+          "paragraphs": [
+            "Open Novori > Profile > Settings > Delete account. Choose Schedule deletion for a seven-day cancellation period or Delete now to begin irreversible deletion without that period. If you own a club with other members, follow the prompts to transfer ownership first. Signing in alone does not cancel a scheduled deletion."
+          ]
+        },
+        {
+          "title": "Request deletion without the app",
+          "paragraphs": [
+            "Email support@novori.link from the email registered to your Novori account with the subject \"Delete my Novori account.\" Include your Novori username if you know it and explicitly ask to delete your account and associated personal data. You do not need to reinstall the app. The email link below opens a request template; sending it initiates a support request, not immediate automatic deletion.",
+            "If you have lost access to the registered email, explain that in your request. We will arrange reasonable ownership verification before acting to protect accounts from unauthorized deletion. Never send your password, a login token, or a password-reset link. We will confirm the request and explain any verification steps and the deletion timeline before proceeding."
+          ],
+          "links": [
+            {
+              "label": "Email an account-deletion request",
+              "url": "mailto:support@novori.link?subject=Delete%20my%20Novori%20account&body=Please%20delete%20my%20Novori%20account%20and%20associated%20personal%20data.%0A%0ANovori%20username%3A%20%0ARegistered%20account%20email%3A%20%0A"
+            }
+          ]
+        },
+        {
+          "title": "What deletion removes",
+          "paragraphs": [
+            "Permanent deletion removes your authentication account, personal library and reading data, private notes, personal uploads, and authored content from active systems. Posts and comments may become anonymous deletion notices so other readers’ own replies remain. Those notices do not retain your original text or author identity. Non-personal shared book catalog information is retained."
+          ]
+        },
+        {
+          "title": "Limited retention and processing",
+          "paragraphs": [
+            "Security, moderation, legal, or dispute records may be retained only where needed for their purpose or required by law. Hosting-provider logs and backups expire according to their applicable retention schedules. A limited email delivery record may remain until a deletion receipt is sent or expires. Failed deletion steps are retried; permanent deletion is not reversed by signing in. See our Privacy Policy for details.",
+            "Uninstalling Novori or signing out does not delete your account. For a request to access, correct, or delete a specific piece of information instead of the whole account, email support@novori.link."
+          ],
+          "links": [
+            {
+              "label": "Privacy Policy",
+              "url": "https://novori.link/privacy/"
+            },
+            {
+              "label": "Email support",
+              "url": "mailto:support@novori.link"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

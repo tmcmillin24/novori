@@ -1,0 +1,370 @@
+[
+  {
+    "name": "Jimp",
+    "version": "0.16.1",
+    "license": "MIT",
+    "file": "upstream/jimp-dev-jimp-v0.16.1-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/jimp-dev/jimp/v0.16.1/LICENSE",
+    "sha256": "942eab097945c835cf41abcbf1b9a6659c5d0c3493e60c56796d2e045c219278"
+  },
+  {
+    "name": "Ionicons",
+    "version": "bundled with @expo/vector-icons 15.1.1",
+    "license": "MIT",
+    "file": "upstream/ionic-team-ionicons-main-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/ionic-team/ionicons/main/LICENSE",
+    "sha256": "c89dabc60b2e4e1a04b33bd7010b5a56bb4725ffe8c00d793a5ae009fbbfebd8"
+  },
+  {
+    "name": "Boost",
+    "version": "1.84.0 (iOS) / 1.83.0 (Android)",
+    "license": "BSL-1.0",
+    "file": "upstream/boostorg-boost-boost-1.84.0-LICENSE_1_0.txt.txt",
+    "source": "https://raw.githubusercontent.com/boostorg/boost/boost-1.84.0/LICENSE_1_0.txt",
+    "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+  },
+  {
+    "name": "Folly",
+    "version": "2024.11.18.00",
+    "license": "Apache-2.0",
+    "file": "upstream/facebook-folly-v2024.11.18.00-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebook/folly/v2024.11.18.00/LICENSE",
+    "sha256": "2206c00af7013581ae0d7c8c8a0089f02fab621913daac019b32336bd4d1e1db"
+  },
+  {
+    "name": "DoubleConversion",
+    "version": "1.1.6",
+    "license": "BSD-3-Clause",
+    "file": "upstream/google-double-conversion-v1.1.6-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/google/double-conversion/v1.1.6/LICENSE",
+    "sha256": "4af93c12062c58058378de2397dc1c92bbff9ddfb1d583a01c84127557ce97ca"
+  },
+  {
+    "name": "glog",
+    "version": "0.3.5",
+    "license": "BSD-3-Clause",
+    "file": "upstream/google-glog-v0.3.5-COPYING.txt",
+    "source": "https://raw.githubusercontent.com/google/glog/v0.3.5/COPYING",
+    "sha256": "0fc497129c5c69ff6f22da6933c7e4aaef082fde8437fd57680c2780100772a4"
+  },
+  {
+    "name": "fmt",
+    "version": "12.1.0",
+    "license": "MIT",
+    "file": "upstream/fmtlib-fmt-12.1.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/fmtlib/fmt/12.1.0/LICENSE",
+    "sha256": "07580f2a3b35709ce703d523f447b242f6dfec7582a8c0df102c7fa2849375f8"
+  },
+  {
+    "name": "fast_float",
+    "version": "8.0.0",
+    "license": "MIT",
+    "file": "upstream/fastfloat-fast_float-v8.0.0-LICENSE-MIT.txt",
+    "source": "https://raw.githubusercontent.com/fastfloat/fast_float/v8.0.0/LICENSE-MIT",
+    "sha256": "e562f3f974ced7e69dd1db77b820b36bcf8f30377f1aa105723fba449c53c4e6"
+  },
+  {
+    "name": "Hermes",
+    "version": "React Native 0.86.3 runtime",
+    "license": "MIT",
+    "file": "upstream/facebook-hermes-main-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebook/hermes/main/LICENSE",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  },
+  {
+    "name": "Yoga",
+    "version": "React Native 0.86.3 layout engine",
+    "license": "MIT",
+    "file": "upstream/facebook-yoga-main-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebook/yoga/main/LICENSE",
+    "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+  },
+  {
+    "name": "SocketRocket",
+    "version": "0.7.1",
+    "license": "BSD-2-Clause",
+    "file": "upstream/facebookincubator-SocketRocket-0.7.1-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebookincubator/SocketRocket/0.7.1/LICENSE",
+    "sha256": "41c74b84758ab303b091b0afbf958de909559556c8f1591dc4d687ea184356ab"
+  },
+  {
+    "name": "SDWebImage",
+    "version": "~> 5.21.0 (ExpoImage iOS dependency)",
+    "license": "MIT",
+    "file": "upstream/SDWebImage-SDWebImage-5.21.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/SDWebImage/SDWebImage/5.21.0/LICENSE",
+    "sha256": "db5ae21958ad3871339a53acfabc7e9c20553a35761878dfd304573de1e88740"
+  },
+  {
+    "name": "SDWebImageAVIFCoder",
+    "version": "~> 0.11.0 (ExpoImage iOS dependency)",
+    "license": "MIT",
+    "file": "upstream/SDWebImage-SDWebImageAVIFCoder-0.11.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/SDWebImage/SDWebImageAVIFCoder/0.11.0/LICENSE",
+    "sha256": "dfe13f75d4b56d438534a6d6330b0ef34d6625e91779726338cbf4dc1e95ca19"
+  },
+  {
+    "name": "SDWebImageSVGCoder",
+    "version": "~> 1.7.0 (ExpoImage iOS dependency)",
+    "license": "MIT",
+    "file": "upstream/SDWebImage-SDWebImageSVGCoder-1.7.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/SDWebImage/SDWebImageSVGCoder/1.7.0/LICENSE",
+    "sha256": "fab473226c0908e2bdca31fe01dccf2347c638a0c6d206d470a69cd3aa2c40cb"
+  },
+  {
+    "name": "SDWebImageWebPCoder",
+    "version": "~> 0.14.6 (ExpoImage iOS dependency)",
+    "license": "MIT",
+    "file": "upstream/SDWebImage-SDWebImageWebPCoder-0.14.6-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/SDWebImage/SDWebImageWebPCoder/0.14.6/LICENSE",
+    "sha256": "2b4e998db6eb1c4f7fe3533dca578b0951274d24bef5f647f42000df43f5af91"
+  },
+  {
+    "name": "libavif",
+    "version": "ExpoImage AVIF dependency",
+    "license": "BSD-2-Clause",
+    "file": "upstream/AOMediaCodec-libavif-main-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/AOMediaCodec/libavif/main/LICENSE",
+    "sha256": "165abf92cc04b39e80d29cadea7a6a7e8fddf59407d4ad2616507a7ebe8216f9"
+  },
+  {
+    "name": "libwebp",
+    "version": "ExpoImage WebP dependency",
+    "license": "BSD-3-Clause",
+    "file": "upstream/webmproject-libwebp-main-COPYING.txt",
+    "source": "https://raw.githubusercontent.com/webmproject/libwebp/main/COPYING",
+    "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+  },
+  {
+    "name": "dav1d",
+    "version": "ExpoImage AVIF dependency",
+    "license": "BSD-2-Clause",
+    "file": "upstream/videolan-dav1d-master-COPYING.txt",
+    "source": "https://raw.githubusercontent.com/videolan/dav1d/master/COPYING",
+    "sha256": "dd92c3c2247c5651606fc23a5e2d6a1ebc5ace9a3e49cbde0e12f05ad1cb1ee5"
+  },
+  {
+    "name": "Fresco",
+    "version": "3.6.0 (React Native Android dependency)",
+    "license": "MIT",
+    "file": "upstream/facebook-fresco-v3.6.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebook/fresco/v3.6.0/LICENSE",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  },
+  {
+    "name": "fbjni",
+    "version": "0.7.0",
+    "license": "Apache-2.0",
+    "file": "upstream/facebookincubator-fbjni-v0.7.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebookincubator/fbjni/v0.7.0/LICENSE",
+    "sha256": "f62d190c08e2b300b45780f0b3cabcacc78d0e373f7a0de79d31f82b084d35ea"
+  },
+  {
+    "name": "SoLoader",
+    "version": "0.12.1",
+    "license": "Apache-2.0",
+    "file": "upstream/facebook-SoLoader-v0.12.1-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/facebook/SoLoader/v0.12.1/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "name": "OkHttp",
+    "version": "4.9.2 (React Native Android dependency)",
+    "license": "Apache-2.0",
+    "file": "upstream/square-okhttp-parent-4.9.2-LICENSE.txt.txt",
+    "source": "https://raw.githubusercontent.com/square/okhttp/parent-4.9.2/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "Okio",
+    "version": "2.9.0 (React Native Android dependency)",
+    "license": "Apache-2.0",
+    "file": "upstream/square-okio-parent-2.9.0-LICENSE.txt.txt",
+    "source": "https://raw.githubusercontent.com/square/okio/parent-2.9.0/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "gflags",
+    "version": "2.2.0 (React Native Android dependency)",
+    "license": "BSD-3-Clause",
+    "file": "upstream/gflags-gflags-v2.2.0-COPYING.txt.txt",
+    "source": "https://raw.githubusercontent.com/gflags/gflags/v2.2.0/COPYING.txt",
+    "sha256": "90d1f3701813c3cd65eee2dc736746fe46b465918f3f7d6d31463a2018b33fa5"
+  },
+  {
+    "name": "nlohmann/json",
+    "version": "3.11.2 (React Native Android dependency)",
+    "license": "MIT",
+    "file": "upstream/nlohmann-json-v3.11.2-LICENSE.MIT.txt",
+    "source": "https://raw.githubusercontent.com/nlohmann/json/v3.11.2/LICENSE.MIT",
+    "sha256": "86b998c792894ccb911a1cb7994f7a9652894e7a094c0b5e45be2f553f45cf14"
+  },
+  {
+    "name": "AndroidX (including CameraX and Compose)",
+    "version": "Android dependency-selected versions",
+    "license": "Apache-2.0",
+    "file": "upstream/androidx-androidx-androidx-main-LICENSE.txt.txt",
+    "source": "https://raw.githubusercontent.com/androidx/androidx/androidx-main/LICENSE.txt",
+    "sha256": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
+  },
+  {
+    "name": "Kotlin standard library",
+    "version": "Android dependency-selected version",
+    "license": "Apache-2.0",
+    "file": "upstream/JetBrains-kotlin-master-license-LICENSE.txt.txt",
+    "source": "https://raw.githubusercontent.com/JetBrains/kotlin/master/license/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "Kotlin coroutines",
+    "version": "1.10.2",
+    "license": "Apache-2.0",
+    "file": "upstream/Kotlin-kotlinx.coroutines-1.10.2-LICENSE.txt.txt",
+    "source": "https://raw.githubusercontent.com/Kotlin/kotlinx.coroutines/1.10.2/LICENSE.txt",
+    "sha256": "b1febe6399dffb10d19d35e7663ab16300c93cb0476a94115df1cc0097a8ffd8"
+  },
+  {
+    "name": "Glide",
+    "version": "5.0.5 (ExpoImage Android)",
+    "license": "BSD-2-Clause AND Apache-2.0 AND MIT",
+    "file": "upstream/bumptech-glide-v5.0.5-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/bumptech/glide/v5.0.5/LICENSE",
+    "sha256": "52973598be02761fb153f9c237f6c6706841d666611bc1c5fd18edfdcb3d47fa"
+  },
+  {
+    "name": "Glide Transformations",
+    "version": "4.3.0",
+    "license": "Apache-2.0",
+    "file": "upstream/wasabeef-glide-transformations-4.3.0-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/wasabeef/glide-transformations/4.3.0/LICENSE",
+    "sha256": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14"
+  },
+  {
+    "name": "Guava ListenableFuture",
+    "version": "1.0",
+    "license": "Apache-2.0",
+    "file": "upstream/google-guava-master-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/google/guava/master/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "libyuv",
+    "version": "native image-codec dependency",
+    "license": "BSD-3-Clause",
+    "file": "upstream/lemenkov-libyuv-master-LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/lemenkov/libyuv/master/LICENSE",
+    "sha256": "2b2cc1180c7e6988328ad2033b04b80117419db9c4c584918bbb3cfec7e9364f"
+  },
+  {
+    "name": "AntDesign icons",
+    "version": "bundled font",
+    "license": "MIT",
+    "file": "upstream/AntDesign-icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/ant-design/ant-design-icons/master/LICENSE",
+    "sha256": "5d367fb0a07340571542eb4ee8eb1add62d37b71bad6786a57c2e9a86bf76c70"
+  },
+  {
+    "name": "Evil Icons",
+    "version": "1.10.1",
+    "license": "MIT",
+    "file": "upstream/Evil-Icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/evil-icons/evil-icons/master/LICENSE.txt",
+    "sha256": "0b1eeb63a858bcbe125c97776711f85347e11661ea58ef3476a753726e18f2b7"
+  },
+  {
+    "name": "Feather icons",
+    "version": "4.28.0",
+    "license": "MIT",
+    "file": "upstream/Feather-icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/feathericons/feather/v4.28.0/LICENSE",
+    "sha256": "afcab584f9ecaf796069d8b3cd2a02e3135d89743a2cf17def2e7935dad91e5d"
+  },
+  {
+    "name": "Font Awesome 5 Free",
+    "version": "5.15.3",
+    "license": "CC-BY-4.0 AND OFL-1.1 AND MIT",
+    "file": "upstream/Font-Awesome-5-Free-notice.txt",
+    "source": "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/5.15.3/LICENSE.txt",
+    "sha256": "a2597c3e50afebce98bae897305533c711087505554cedafd0938e334a5cdafa"
+  },
+  {
+    "name": "Font Awesome 6 Free",
+    "version": "6.6.0",
+    "license": "CC-BY-4.0 AND OFL-1.1 AND MIT",
+    "file": "upstream/Font-Awesome-6-Free-notice.txt",
+    "source": "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/6.6.0/LICENSE.txt",
+    "sha256": "9b914eae88817d63b576eab5aafde7068c7a1abae125d7cdfb034f1da43a9afc"
+  },
+  {
+    "name": "Fontisto",
+    "version": "3.0.4",
+    "license": "MIT",
+    "file": "upstream/Fontisto-notice.txt",
+    "source": "https://raw.githubusercontent.com/kenangundogan/fontisto/master/LICENSE",
+    "sha256": "5a4e7aff65f0b7cb83c0f9b52a9f675a33fb57764e1ecd8f1a706bb4d9ecc6b0"
+  },
+  {
+    "name": "Foundation icons",
+    "version": "3.0",
+    "license": "MIT",
+    "file": "upstream/Foundation-icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/zurb/foundation-icons/master/MIT-LICENSE.txt ; https://raw.githubusercontent.com/spdx/license-list-data/main/text/MIT.txt (full terms)",
+    "sha256": "13b217a6c203de5e7dc16184e2d888d79bece3bf0d38e759a4badc27b49bfb8c"
+  },
+  {
+    "name": "Material Design icons (Google)",
+    "version": "bundled font",
+    "license": "Apache-2.0",
+    "file": "upstream/Material-Design-icons-(Google)-notice.txt",
+    "source": "https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE",
+    "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+  },
+  {
+    "name": "MaterialCommunityIcons",
+    "version": "6.5.95",
+    "license": "Apache-2.0",
+    "file": "upstream/MaterialCommunityIcons-notice.txt",
+    "source": "https://raw.githubusercontent.com/Templarian/MaterialDesign/master/LICENSE ; https://raw.githubusercontent.com/spdx/license-list-data/main/text/Apache-2.0.txt (full terms)",
+    "sha256": "53214ce1244b929a9b74909eebeb13d8a84c748b756bc6214af967796de4a60d"
+  },
+  {
+    "name": "Octicons",
+    "version": "16.3.1",
+    "license": "MIT",
+    "file": "upstream/Octicons-notice.txt",
+    "source": "https://raw.githubusercontent.com/primer/octicons/v16.3.1/LICENSE",
+    "sha256": "f756df0a984e6f373d125eaf3929451b7cc1068f36fd1e3872fd42934db56a0a"
+  },
+  {
+    "name": "Simple Line Icons",
+    "version": "2.5.5",
+    "license": "MIT",
+    "file": "upstream/Simple-Line-Icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/thesabbir/simple-line-icons/master/LICENSE.md",
+    "sha256": "976d947830960c57ad2b3c697dc4c835260876553356e257a3cb023620e4f457"
+  },
+  {
+    "name": "Zocial icons",
+    "version": "1.4.0",
+    "license": "MIT",
+    "file": "upstream/Zocial-icons-notice.txt",
+    "source": "https://raw.githubusercontent.com/samcollins/css-social-buttons/master/LICENSE",
+    "sha256": "6334bc125d12d6ae91b4c9a876f0251e2afbcfc17d9668a24dcca22459609d5a"
+  },
+  {
+    "name": "Entypo+ by Daniel Bruce",
+    "version": "1.0.1 (font adaptation)",
+    "license": "CC-BY-SA-4.0",
+    "file": "upstream/Entypoplus-by-Daniel-Bruce-notice.txt",
+    "source": "https://entypo.webflow.io/faq ; https://raw.githubusercontent.com/spdx/license-list-data/main/text/CC-BY-SA-4.0.txt",
+    "sha256": "de7f1debc8b67300d25c2ea703ea8bc75a8a8b0b845d60784507220d7e7cde49"
+  },
+  {
+    "name": "Font Awesome 4 font",
+    "version": "4.7.0",
+    "license": "OFL-1.1",
+    "file": "upstream/Font-Awesome-4-font-notice.txt",
+    "source": "https://github.com/FortAwesome/Font-Awesome/tree/v4.7.0 (font license and embedded copyright)",
+    "sha256": "27e245d32c3cae3ad153221f453bd52ba44c488baeef2b2e1688a27ca9534255"
+  }
+]
