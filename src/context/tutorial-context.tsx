@@ -35,13 +35,20 @@ export function TutorialProvider({children}:{children:ReactNode}){
 export function useTutorialTarget(id:string,radius=0){
  const context=useTutorial(),ref=useRef<View>(null),{width,height}=useWindowDimensions();
  const enabled=!!context?.active&&context.step.anchor===id&&context.pathname===context.step.path;
- const register=context?.measure;
+ const activeTarget=useRef('');activeTarget.current=enabled?id:'';
+ const register=context?.measure,candidate=useRef<TutorialBounds|null>(null),settleFrame=useRef<number|null>(null);
  const measure=useCallback(()=>{
   if(enabled)ref.current?.measureInWindow((x,y,w,h)=>{
-   if(x>=0&&y>=0&&x<width&&y<height&&w>0&&h>0)register?.(id,{x,y,width:w,height:h,radius});
+   if(activeTarget.current!==id)return;
+   if(x>=0&&y>=0&&x<width&&y<height&&w>0&&h>0){
+    const rect={x,y,width:w,height:h,radius},old=candidate.current;
+    candidate.current=rect;
+    if(old&&Math.abs(old.x-x)<1&&Math.abs(old.y-y)<1&&Math.abs(old.width-w)<1&&Math.abs(old.height-h)<1)register?.(id,rect);
+    else settleFrame.current=requestAnimationFrame(measure);
+   }
   });
  },[enabled,id,register,width,height,radius]);
- useEffect(()=>{if(!enabled)return;const frame=requestAnimationFrame(measure),timer=setInterval(measure,180);return()=>{cancelAnimationFrame(frame);clearInterval(timer);};},[enabled,measure]);
+ useEffect(()=>{candidate.current=null;if(!enabled)return;const frame=requestAnimationFrame(measure),timer=setInterval(measure,180);return()=>{cancelAnimationFrame(frame);if(settleFrame.current!==null)cancelAnimationFrame(settleFrame.current);clearInterval(timer);};},[enabled,measure]);
  return {ref,onLayout:measure};
 }
 export function TutorialTarget({id,children,...props}:ViewProps&{id:string;children:ReactNode}){

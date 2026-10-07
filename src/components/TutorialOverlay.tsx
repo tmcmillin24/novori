@@ -10,8 +10,17 @@ import ValidationWarningSheet from './ValidationWarningSheet';
 export function spotlightLayout(bounds:{x:number;y:number;width:number;height:number;radius?:number}|null,width:number,height:number,topInset:number,bottomInset:number,cardHeight:number,isTab:boolean,anchor:string=''){
  const target=bounds?{x:Math.max(0,Math.min(width,bounds.x)),y:Math.max(0,Math.min(height,bounds.y)),width:bounds.width,height:bounds.height,radius:Math.min(bounds.radius??(anchor==='tab-create'?27:anchor==='create-post'?22:anchor.startsWith('create-')?18:10),bounds.width/2,bounds.height/2)}:null;
  if(target){target.width=Math.min(target.width,width-target.x);target.height=Math.min(target.height,height-target.y);}
- const cardWidth=Math.min(width>height?600:420,width-32);
- return {target,card:{width:cardWidth,left:(width-cardWidth)/2,top:Math.max(topInset+64,height-bottomInset-82-16-cardHeight)}};
+ const cardWidth=Math.min(width>height?600:360,width-32),gap=16,minTop=topInset+64,maxBottom=height-bottomInset-16;
+ const left=target?Math.max(16,Math.min(width-cardWidth-16,target.x+target.width/2-cardWidth/2)):(width-cardWidth)/2;
+ const below=target?target.y+target.height+gap:minTop,above=target?target.y-cardHeight-gap:minTop;
+ let card={width:cardWidth,left,top:below};
+ if(target&&below+cardHeight>maxBottom){
+  if(above>=minTop)card.top=above;
+  else if(target.x+target.width+gap+cardWidth<=width-16)card={width:cardWidth,left:target.x+target.width+gap,top:Math.max(minTop,Math.min(maxBottom-cardHeight,target.y))};
+  else if(target.x-gap-cardWidth>=16)card={width:cardWidth,left:target.x-gap-cardWidth,top:Math.max(minTop,Math.min(maxBottom-cardHeight,target.y))};
+  else card.top=Math.max(minTop,above);
+ }
+ return {target,card};
 }
 export default function TutorialOverlay(){
  const tour=useTutorial(),{colors}=useNovoriTheme(),{width,height}=useWindowDimensions(),insets=useSafeAreaInsets();
@@ -38,7 +47,7 @@ export default function TutorialOverlay(){
    </Pressable></View>
   </>:<View pointerEvents="none" style={{position:'absolute',top:0,left:0,right:0,bottom:0,backgroundColor:dim}}/>}
   <Pressable accessibilityRole="button" accessibilityLabel="Skip tutorial" disabled={tour.busy} onPress={()=>void tour.finish()} style={{position:'absolute',right:16,top:insets.top+10,paddingHorizontal:16,minHeight:40,borderRadius:20,backgroundColor:colors.surface,justifyContent:'center'}}><Text style={label}>Skip tour</Text></Pressable>
-  <View testID="tutorial-description-panel" style={{position:'absolute',...card,padding:20,borderRadius:22,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,shadowColor:'#000',shadowOpacity:.25,shadowRadius:18,shadowOffset:{width:0,height:6},elevation:12,height:cardHeight}}>
+  {ready?<View testID="tutorial-description-panel" style={{position:'absolute',...card,padding:20,borderRadius:22,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,shadowColor:'#000',shadowOpacity:.25,shadowRadius:18,shadowOffset:{width:0,height:6},elevation:12,height:cardHeight}}>
    <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:10,letterSpacing:1.5,marginBottom:8}}>YOUR NOVORI TOUR · {tour.index+1} / {TUTORIAL_STEPS.length}</Text>
    <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={{color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:23,lineHeight:29,marginBottom:10}}>{tour.step.title}</Text>
    <Text style={{color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:14,lineHeight:22}}>{tour.step.description}</Text>
@@ -47,7 +56,7 @@ export default function TutorialOverlay(){
     {tour.index>0?<Pressable accessibilityRole="button" accessibilityLabel="Previous tutorial step" disabled={tour.busy} onPress={()=>advance(-1)} style={{minHeight:44,paddingHorizontal:8,justifyContent:'center'}}><Text style={label}>Back</Text></Pressable>:<View/>}
     <Pressable accessibilityRole="button" accessibilityLabel={lastStep?'Finish tutorial':'Next tutorial step'} disabled={tour.busy||!ready} onPress={()=>advance(1)} style={{minHeight:44,paddingHorizontal:18,borderRadius:13,backgroundColor:colors.gold,flexDirection:'row',alignItems:'center',gap:8,opacity:(tour.busy||!ready) ? 0.5 : 1}}>{tour.busy||!ready?<ActivityIndicator color={colors.background}/>:<><Text style={{...label,color:colors.background}}>{lastStep?'Finish':'Next'}</Text><Ionicons name={lastStep?'checkmark':'arrow-forward'} size={17} color={colors.background}/></>}</Pressable>
    </View>
-  </View>
+  </View>:null}
   <ValidationWarningSheet visible={!!tour.error} title="Could not save progress" message={tour.error} onDismiss={tour.clearError}/>
  </View>;
 }

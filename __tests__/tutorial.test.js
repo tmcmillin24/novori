@@ -104,11 +104,26 @@ test('spotlight follows circular plus and rounded card/button geometry',()=>{
  }
 });
 
-test('description panel stays fixed as highlights change, with no animated tutorial elements',async()=>{
- await start();const position=view.root.findByProps({testID:'tutorial-description-panel'}).props.style;
- await press('Next tutorial step');
- expect(view.root.findByProps({testID:'tutorial-description-panel'}).props.style).toMatchObject({left:position.left,top:position.top,width:position.width,height:position.height});
+test('prompt follows the highlighted control without covering it or animating',async()=>{
+ await start();await press('Next tutorial step');
+ const panel=view.root.findByProps({testID:'tutorial-description-panel'}).props.style;
+ expect(panel.top).toBeGreaterThanOrEqual(180+44+16);
  expect(view.root.findAllByType('AnimatedView')).toHaveLength(0);
- await press('Next tutorial step');
- expect(view.root.findByProps({testID:'tutorial-description-panel'}).props.style.top).toBe(position.top);
+});
+test('prompt is absent until the corresponding highlight is measured',async()=>{
+ await render();await act(async()=>mockTour.start());
+ // The route has not yet rendered its new native controls.
+ await act(async()=>mockTour.next());await act(async()=>mockTour.next());await act(async()=>mockTour.next());
+ expect(mockTour.bounds).toBeNull();
+ expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(0);
+ expect(view.root.findAllByProps({testID:'tutorial-rounded-mask'})).toHaveLength(0);
+});
+test('creation-card prompts clear the complete target on phone and tablet',()=>{
+ for(const [width,height] of [[390,844],[834,1194],[1194,834],[744,1133]]){
+  for(const anchor of ['create-post','create-reading-update','create-ask-readers','create-book-stack']){
+   const result=spotlightLayout({x:20,y:84,width:width-40,height:anchor==='create-post'?230:184,radius:18},width,height,44,34,280,false,anchor);
+   expect(result.card.top).toBeGreaterThanOrEqual(result.target.y+result.target.height+16);
+   expect(result.card.top+280).toBeLessThanOrEqual(height-34-16);
+  }
+ }
 });

@@ -23,12 +23,16 @@ import {
 
 export default function PostScreen() {
   const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post',22),readingTarget=useTutorialTarget('create-reading-update',18),askTarget=useTutorialTarget('create-ask-readers',18),stackTarget=useTutorialTarget('create-book-stack',18),scroll=useRef<ScrollView>(null);
+  const lastTourScroll=useRef('');
   const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
   const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
   useEffect(()=>{
-    if(tutorial?.active&&tutorial.step.path==='/post'){
-      const anchor=tutorial.step.anchor,y=positions[anchor];
-      scroll.current?.scrollTo({y:y===undefined?0:Math.max(0,y+(anchor==='create-ask-readers'||anchor==='create-book-stack'?gridY:0)-20),animated:false});
+    if(!tutorial?.active){lastTourScroll.current='';return;}
+    if(tutorial.step.path==='/post'){
+      const anchor=tutorial.step.anchor,y=anchor==='tab-create'?0:positions[anchor];
+      if(y===undefined)return;
+      const offset=anchor==='tab-create'?0:Math.max(0,y+(anchor==='create-ask-readers'||anchor==='create-book-stack'?gridY:0)-20),key=anchor+':'+offset;
+      if(lastTourScroll.current!==key){lastTourScroll.current=key;scroll.current?.scrollTo({y:offset,animated:false});}
     }
   },[tutorial?.active,tutorial?.step.anchor,positions,gridY]);
   const router =
@@ -55,6 +59,8 @@ export default function PostScreen() {
     >
       <ScrollView
         ref={scroll}
+        scrollEnabled={!tutorial?.active}
+        bounces={!tutorial?.active}
         style={
           styles.screen
         }
