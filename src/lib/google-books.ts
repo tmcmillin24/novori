@@ -21,6 +21,7 @@ type GoogleBooksJsonResult<T> = {
   status: number;
   data: T | null;
   fromCache: boolean;
+  workDetails?: Promise<T>;
 };
 
 const SEARCH_CACHE_MS =
@@ -748,11 +749,23 @@ async function loadGoogleBooksIdentity(
   }
 }
 
-export async function fetchGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResult<T>> {
+export async function fetchGoogleBooksJson<T>(url: string, options?: {
+  cachedFirst?: boolean;
+  onWorkDetails?: (book: T) => void;
+}): Promise<GoogleBooksJsonResult<T>> {
   const result = await loadGoogleBooksJson<T>(url);
   // Apply current metadata rules even to older memory, device, and server rows.
   if (isVolumeDetailUrl(url) && result.data && typeof result.data === 'object' && 'volumeInfo' in result.data) {
     const edition = normalizeIsbnDbEdition(result.data as any);
+    if (options?.cachedFirst) {
+      const known = bookWorkDetails.peek(edition);
+      if (known) return { ...result, data: known as T };
+      // Keep the existing deduplicated work lookup, but never hold cached edition
+      // data behind it. No raw memory/device/catalog cache rows are rewritten.
+      const workDetails = bookWorkDetails.resolve(edition) as Promise<T>;
+      void workDetails.then(book => options.onWorkDetails?.(book)).catch(() => {});
+      return { ...result, data: edition as T, workDetails };
+    }
     return { ...result, data: await bookWorkDetails.resolve(edition) as T };
   }
   return result;

@@ -35,6 +35,10 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
       while (cache.size > 150) cache.delete(cache.keys().next().value!);
     }
   }
+  function peek<T extends GoogleBookSearchItem>(edition: T): T | null {
+    const known = cache.get(key(edition));
+    return known && known.expiresAt > Date.now() ? applyBookWorkDetails(edition, known.book) : null;
+  }
   async function resolve<T extends GoogleBookSearchItem>(edition: T): Promise<T> {
     if (!eligible(edition) || !titleKey(edition) || !authors(edition).length) return edition;
     const workKey = key(edition);
@@ -59,7 +63,7 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
       if (pending.get(workKey) === request) pending.delete(workKey);
     }
   }
-  return { remember, resolve };
+  return { remember, resolve, peek };
 }
 
 // Lazy import avoids a runtime initialization cycle: search uses the raw shared

@@ -3,7 +3,7 @@ import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../..
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
-import { resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
+import { getCanonicalBookCover, resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
 import { getBookPublication, rememberBookPublications } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
@@ -1077,6 +1077,10 @@ export default function BookDetailsScreen() {
     );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [readerStateReady, setReaderStateReady] = useState(false);
+  const [readerStateError, setReaderStateError] = useState(false);
+  const firstFocusBook = useRef<string | null>(null);
+  const bookLoadGeneration = useRef(0);
   const [descriptionExpanded, setDescriptionExpanded] =
     useState(false);
   const savedStatusVersion = useRef(0);
@@ -1287,6 +1291,12 @@ export default function BookDetailsScreen() {
   }, [seriesExpanded, seriesLoading, series?.id, id, loading]);
 
   useEffect(() => {
+    let active = true;
+    const openingStartedAt = Date.now();
+    bookLoadGeneration.current += 1;
+    let coreReady = false;
+    let openingBookId = id;
+    let latestWorkDetails: GoogleBook | null = null;
     async function loadBook() {
       if (!id) {
         return;
@@ -1295,6 +1305,18 @@ export default function BookDetailsScreen() {
       try {
         setLoading(true);
         setError('');
+        setBook(null);
+        setSavedBook(null);
+        setReadingStatus(null);
+        setReaderStateReady(false);
+        setReaderStateError(false);
+        setBookCartBusy(true);
+        setInBookCart(false);
+        setHardcoverRating(null);
+        setHardcoverRatingsCount(null);
+        setCommunityReviews([]);
+        setHardcoverRatingLoading(true);
+        setCommunityReviewsLoading(true);
         setSelectedWorkCoverUrl(
           null
         );
@@ -1303,26 +1325,27 @@ export default function BookDetailsScreen() {
         );
         setSeries(null);
         setSeriesBooks([]);
+        setSeriesLoading(true);
         setSeriesExpanded(false);
 
         // Ignore reads that started before a successful status change.
         const initialStatusVersion = savedStatusVersion.current;
-        // Start independent library and metadata reads together.
-        const [savedLookup, response] = await Promise.all([
-          getUserBook(id).then(
-            value => ({ value, error: null }),
-            error => ({ value: null, error })
-          ),
-          fetchGoogleBooksJson<GoogleBook>(
-            `https://www.googleapis.com/books/v1/volumes/${id}`
-          ),
-        ]);
-        if (savedLookup.error) {
-          console.warn('Could not check saved book status:', savedLookup.error);
-        } else if (initialStatusVersion === savedStatusVersion.current) {
-          setSavedBook(savedLookup.value);
-          setReadingStatus(savedLookup.value?.status ?? null);
-        }
+        // Start the private read early, but do not gate public book details on it.
+        const savedLookup = getUserBook(id).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error })
+        );
+        const response = await fetchGoogleBooksJson<GoogleBook>(
+          `https://www.googleapis.com/books/v1/volumes/${id}`,
+          {
+            cachedFirst: true,
+            onWorkDetails: enriched => {
+              latestWorkDetails = enriched;
+              if (active && coreReady && enriched.id === openingBookId) setBook(enriched);
+            },
+          }
+        );
+        if (!active) return;
 
         if (
           !response.ok ||
@@ -1366,163 +1389,191 @@ export default function BookDetailsScreen() {
           );
         }
 
-        setBook(
-          resolvedBook
-        );
-
-        // Reuse the shared catalog choice already loaded by search. Optional
-        // series enrichment must not keep cached book details behind a spinner.
-        const canonicalCover = await resolveCanonicalBookCover({
+        if (!active) return;
+        openingBookId = resolvedBook.id;
+        coreReady = true;
+        setBook(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
+        const coverInput = {
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
           imageLinks: resolvedBook.volumeInfo.imageLinks,
           existingCoverUrl: discoverCoverUrl,
+        };
+        setSelectedWorkCoverUrl(getCanonicalBookCover(coverInput));
+        // The shared cover component keeps rendering the established choice
+        // while the existing catalog recheck runs. Never select new artwork here.
+        void resolveCanonicalBookCover(coverInput).then(cover => {
+          if (active) setSelectedWorkCoverUrl(cover);
         });
-        setSelectedWorkCoverUrl(canonicalCover);
+        setLoading(false);
+        if (__DEV__) console.log('[Novori book opening]', {
+          bookId: resolvedBook.id,
+          metadataCacheHit: response.fromCache,
+          contentReadyMs: Date.now() - openingStartedAt,
+        });
 
-        // Render with the shared canonical cover before optional enrichment.
-        setLoading(
-          false
-        );
-
-        void loadSeries(resolvedBook);
-
-        try {
-          const cartItem =
-            await getBookCartItem(
-              resolvedBook.id
-            );
-
-          setInBookCart(
-            Boolean(
-              cartItem
-            )
+        void (async () => {
+          const lookup = resolvedBook.id === id ? await savedLookup : await getUserBook(resolvedBook.id).then(
+            value => ({ value, error: null }), error => ({ value: null, error })
           );
-        } catch (
-          cartError
-        ) {
-          console.error(
-            'Could not load Book Cart status:',
-            cartError
-          );
-
-          setInBookCart(
-            false
-          );
-        }
-
-        setHardcoverRatingLoading(
-          true
-        );
-
-        try {
-          const resolvedRating =
-            await resolveHardcoverRating({
-              googleBookId:
-                resolvedBook.novoriDetails?.bookId ?? resolvedBook.id,
-              title:
-                resolvedBook.volumeInfo
-                  .title ??
-                clickedTitle ??
-                '',
-              authors:
-                resolvedBook.volumeInfo
-                  .authors ??
-                discoverClickedAuthors,
-              isbns:
-                resolvedBook.novoriDetails?.isbns ?? (
-                  resolvedBook.volumeInfo
-                    .industryIdentifiers ??
-                  []
-                ).map(
-                  (
-                    identifier
-                  ) =>
-                    identifier.identifier
-                ),
-              allowGoogleLookup:
-                false,
-            });
-
-          setHardcoverRating(
-            resolvedRating?.rating ??
-            null
-          );
-
-          setHardcoverRatingsCount(
-            resolvedRating?.ratingsCount ??
-            null
-          );
-        } catch (
-          ratingError
-        ) {
-          console.error(
-            'Could not load Hardcover rating:',
-            ratingError
-          );
-
-          setHardcoverRating(
-            null
-          );
-
-          setHardcoverRatingsCount(
-            null
-          );
-        } finally {
-          setHardcoverRatingLoading(
-            false
-          );
-        }
-
-        setCommunityReviewsLoading(
-          true
-        );
-
-        try {
-          const reviews =
-            await getCommunityBookReviews(
-              resolvedBook.id,
-              resolvedBook.volumeInfo
-                .title,
-              30
-            );
-
-          setCommunityReviews(
-            reviews
-          );
-        } catch (
-          reviewError
-        ) {
-          console.error(
-            'Could not load community reviews:',
-            reviewError
-          );
-
-          setCommunityReviews(
-            []
-          );
-        } finally {
-          setCommunityReviewsLoading(
-            false
-          );
-        }
-
-        try {
-          const readVersion = savedStatusVersion.current;
-          const savedBook = await getUserBook(resolvedBook.id);
-          if (readVersion === savedStatusVersion.current) {
-            setSavedBook(savedBook);
-            setReadingStatus(savedBook?.status ?? null);
+          if (!active || initialStatusVersion !== savedStatusVersion.current) return;
+          if (lookup.error) {
+            console.warn('Could not check saved book status:', lookup.error);
+            setReaderStateError(true);
+          } else {
+            setSavedBook(lookup.value);
+            setReadingStatus(lookup.value?.status ?? null);
+            setReaderStateReady(true);
           }
-        } catch (statusError) {
-          console.error(
-            'Could not load saved reading status:',
-            statusError
+        })();
+
+        const enrichedBook = response.workDetails && resolvedBook.id === id
+          ? response.workDetails : Promise.resolve(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
+        void enrichedBook.then(enriched => { if (active) void loadSeries(enriched, () => active); });
+
+        const cartTask = (async () => {
+          try {
+            const cartItem =
+              await getBookCartItem(
+                resolvedBook.id
+              );
+
+            if (!active) return;
+            setInBookCart(
+              Boolean(
+                cartItem
+              )
+            );
+          } catch (
+            cartError
+          ) {
+            console.error(
+              'Could not load Book Cart status:',
+              cartError
+            );
+
+            if (!active) return;
+            setInBookCart(
+              false
+            );
+          }
+
+          if (active) setBookCartBusy(false);
+        })();
+
+        const ratingTask = (async () => {
+          const ratingBook = await enrichedBook;
+          if (!active) return;
+          setHardcoverRatingLoading(
+            true
           );
-        }
+
+          try {
+            const resolvedRating =
+              await resolveHardcoverRating({
+                googleBookId:
+                  ratingBook.novoriDetails?.bookId ?? ratingBook.id,
+                title:
+                  ratingBook.volumeInfo
+                    .title ??
+                  clickedTitle ??
+                  '',
+                authors:
+                  ratingBook.volumeInfo
+                    .authors ??
+                  discoverClickedAuthors,
+                isbns:
+                  ratingBook.novoriDetails?.isbns ?? (
+                    ratingBook.volumeInfo
+                      .industryIdentifiers ??
+                    []
+                  ).map(
+                    (
+                      identifier
+                    ) =>
+                      identifier.identifier
+                  ),
+                allowGoogleLookup:
+                  false,
+              });
+
+            if (!active) return;
+            setHardcoverRating(
+              resolvedRating?.rating ??
+              null
+            );
+
+            setHardcoverRatingsCount(
+              resolvedRating?.ratingsCount ??
+              null
+            );
+          } catch (
+            ratingError
+          ) {
+            console.error(
+              'Could not load Hardcover rating:',
+              ratingError
+            );
+
+            if (!active) return;
+            setHardcoverRating(
+              null
+            );
+
+            setHardcoverRatingsCount(
+              null
+            );
+          } finally {
+            if (active) setHardcoverRatingLoading(
+              false
+            );
+          }
+
+        })();
+
+        const reviewTask = (async () => {
+          setCommunityReviewsLoading(
+            true
+          );
+
+          try {
+            const reviews =
+              await getCommunityBookReviews(
+                resolvedBook.id,
+                resolvedBook.volumeInfo
+                  .title,
+                30
+              );
+
+            if (!active) return;
+            setCommunityReviews(
+              reviews
+            );
+          } catch (
+            reviewError
+          ) {
+            console.error(
+              'Could not load community reviews:',
+              reviewError
+            );
+
+            if (!active) return;
+            setCommunityReviews(
+              []
+            );
+          } finally {
+            if (active) setCommunityReviewsLoading(
+              false
+            );
+          }
+
+        })();
+        await Promise.all([cartTask, ratingTask, reviewTask]);
+
 
 
       } catch (err) {
+        if (!active) return;
         const message =
           err instanceof Error
             ? err.message
@@ -1549,11 +1600,12 @@ export default function BookDetailsScreen() {
           );
         }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
-    loadBook();
+    void loadBook();
+    return () => { active = false; bookLoadGeneration.current += 1; };
   }, [
     id,
     source,
@@ -1574,6 +1626,11 @@ export default function BookDetailsScreen() {
           return;
         }
 
+        if (firstFocusBook.current !== id) {
+          firstFocusBook.current = id;
+          return;
+        }
+        const readVersion = savedStatusVersion.current;
         let active =
           true;
 
@@ -1585,11 +1642,13 @@ export default function BookDetailsScreen() {
               refreshedBook
             ) => {
               if (
-                !active
+                !active || readVersion !== savedStatusVersion.current
               ) {
                 return;
               }
 
+              setReaderStateReady(true);
+              setReaderStateError(false);
               setSavedBook(
                 refreshedBook
               );
@@ -1881,7 +1940,8 @@ export default function BookDetailsScreen() {
   }
 
   async function loadSeries(
-    currentBook: GoogleBook
+    currentBook: GoogleBook,
+    isCurrent = () => true
   ) {
     const exactIsbn =
       getBookISBN(
@@ -1922,6 +1982,7 @@ export default function BookDetailsScreen() {
         0 &&
       !title
     ) {
+      if (isCurrent()) setSeriesLoading(false);
       return null;
     }
 
@@ -1952,6 +2013,7 @@ export default function BookDetailsScreen() {
           }
         );
 
+      if (!isCurrent()) return null;
       if (
         functionError
       ) {
@@ -1997,15 +2059,17 @@ export default function BookDetailsScreen() {
         isbn: getBookISBN(currentBook),
         imageLinks: currentBook.volumeInfo.imageLinks,
       }, true);
+      if (!isCurrent()) return null;
       setSeriesWorkCoverUrl(canonicalCover);
       setSelectedWorkCoverUrl(canonicalCover);
       return canonicalCover;
     } catch {
+      if (!isCurrent()) return null;
       setSeries(null);
       setSeriesBooks([]);
       return null;
     } finally {
-      setSeriesLoading(false);
+      if (isCurrent()) setSeriesLoading(false);
     }
   }
 
@@ -2468,7 +2532,7 @@ export default function BookDetailsScreen() {
   async function saveReadingStatus(
     status: UserBookStatus
   ) {
-    if (!book || savingStatus) {
+    if (!book || savingStatus || !readerStateReady) {
       return;
     }
 
@@ -2536,6 +2600,7 @@ export default function BookDetailsScreen() {
   async function toggleOwned() {
     if (
       !book ||
+      !readerStateReady ||
       savingOwned
     ) {
       return;
@@ -3211,6 +3276,21 @@ export default function BookDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {!readerStateReady ? (
+          <Pressable disabled={!readerStateError} onPress={() => {
+            const version = savedStatusVersion.current;
+            const generation = bookLoadGeneration.current;
+            setReaderStateError(false);
+            void getUserBook(book.id).then(row => {
+              if (generation !== bookLoadGeneration.current || version !== savedStatusVersion.current) return;
+              setSavedBook(row);
+              setReadingStatus(row?.status ?? null);
+              setReaderStateReady(true);
+            }).catch(() => { if (generation === bookLoadGeneration.current) setReaderStateError(true); });
+          }}>
+            <Text style={styles.loadingText}>{readerStateError ? 'Couldn’t load your library status. Tap to retry.' : 'Loading your library status…'}</Text>
+          </Pressable>
+        ) : null}
         {isSavedBookContext ? (
           <>
             <View
@@ -3408,7 +3488,7 @@ export default function BookDetailsScreen() {
                   void toggleOwned()
                 }
                 disabled={
-                  savingOwned
+                  !readerStateReady || savingOwned
                 }
                 style={({ pressed }) => [
                   styles.libraryCartButton,
@@ -3689,7 +3769,7 @@ export default function BookDetailsScreen() {
                   void toggleOwned()
                 }
                 disabled={
-                  savingOwned
+                  !readerStateReady || savingOwned
                 }
                 style={({ pressed }) => [
                   styles.bookCartButton,
@@ -4165,7 +4245,7 @@ export default function BookDetailsScreen() {
                             status.value
                           }
                           disabled={
-                            savingStatus !==
+                            !readerStateReady || savingStatus !==
                             null
                           }
                           onPress={() =>
@@ -4264,7 +4344,7 @@ export default function BookDetailsScreen() {
                       : openReadingDetails
                   }
                   disabled={
-                    savingStatus !==
+                    !readerStateReady || savingStatus !==
                     null
                   }
                   style={({
@@ -4460,7 +4540,7 @@ export default function BookDetailsScreen() {
                           status.value
                         }
                         disabled={
-                          savingStatus !==
+                          !readerStateReady || savingStatus !==
                           null
                         }
                         onPress={() =>

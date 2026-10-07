@@ -85,3 +85,28 @@ test('old persistent editions pass through shared work metadata without new deta
  expect(h.calls).toHaveLength(0);
  expect(h.storage).toEqual(before);
 });
+
+test('cached-first details return while work enrichment is pending, without rewriting caches or repeating searches', async () => {
+ const {createBookWorkDetails}=require('../src/lib/book-work-details');
+ let finish;
+ const search=jest.fn(() => new Promise(resolve => { finish=resolve; }));
+ const h=harness(createBookWorkDetails(search));
+ const edition={id:'saved',volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:600,imageLinks:{thumbnail:'https://covers/saved'}}};
+ h.storage.set('novori:google-books:detail:v5:saved',JSON.stringify({id:'saved',savedAt:Date.now(),data:edition}));
+ const before=new Map(h.storage),onWorkDetails=jest.fn(),api=h.load();
+ const first=await api.fetchGoogleBooksJson(detail('saved'),{cachedFirst:true,onWorkDetails});
+ const second=await api.fetchGoogleBooksJson(detail('saved'),{cachedFirst:true});
+ expect(first.data.volumeInfo.pageCount).toBe(600);
+ expect(second.fromCache).toBe(true);
+ expect(onWorkDetails).not.toHaveBeenCalled();
+ expect(search).toHaveBeenCalledTimes(1);
+ finish([{id:'representative',volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:412}}]);
+ await flush();
+ expect(onWorkDetails.mock.calls[0][0].volumeInfo.pageCount).toBe(412);
+ expect(onWorkDetails.mock.calls[0][0].volumeInfo.imageLinks).toEqual(edition.volumeInfo.imageLinks);
+ const warm=await api.fetchGoogleBooksJson(detail('saved'),{cachedFirst:true});
+ expect(warm.data.volumeInfo.pageCount).toBe(412);
+ expect(search).toHaveBeenCalledTimes(1);
+ expect(h.calls).toHaveLength(0);
+ expect(h.storage).toEqual(before);
+});
