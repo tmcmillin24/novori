@@ -59,10 +59,10 @@ test('all creation options and real-control steps navigate through Home, Discove
 });
 test('highlight uses measured native coordinates and leaves Next on the actual control',async()=>{
  await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
- expect(button.parent.props.style[1]).toMatchObject({left:40,top:750,width:24,height:24,borderRadius:10});
+ expect(button.parent.props.style).toMatchObject({left:40,top:750,width:24,height:24});
  const mask=view.root.findByProps({testID:'tutorial-rounded-mask'});
- expect(mask.props.style[1].borderColor).toBe('rgba(0,0,0,0.72)');
- expect(mask.props.style[0].borderRadius-mask.props.style[1].borderWidth).toBe(button.props.style.borderRadius);
+ expect(mask.props.style.borderColor).toBe('rgba(0,0,0,0.72)');
+ expect(mask.props.style.borderRadius-mask.props.style.borderWidth).toBe(button.props.style.borderRadius);
  expect(button.props.style.borderRadius).toBe(10);
 });
 test('skip saves completion and automatic tours finish on Home',async()=>{
@@ -102,4 +102,13 @@ test('spotlight follows circular plus and rounded card/button geometry',()=>{
   const target=spotlightLayout({x:20,y:150,width:160,height:120},390,844,44,34,230,false,anchor).target;
   expect(target).toMatchObject({x:20,y:150,width:160,height:120,radius});
  }
+});
+
+test('description panel stays fixed as highlights change, with no animated tutorial elements',async()=>{
+ await start();const position=view.root.findByProps({testID:'tutorial-description-panel'}).props.style;
+ await press('Next tutorial step');
+ expect(view.root.findByProps({testID:'tutorial-description-panel'}).props.style).toMatchObject({left:position.left,top:position.top,width:position.width,height:position.height});
+ expect(view.root.findAllByType('AnimatedView')).toHaveLength(0);
+ await press('Next tutorial step');
+ expect(view.root.findByProps({testID:'tutorial-description-panel'}).props.style.top).toBe(position.top);
 });
