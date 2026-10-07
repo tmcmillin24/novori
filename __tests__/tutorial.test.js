@@ -175,3 +175,10 @@ test('dimming panels cover all area outside the highlight on 13-inch iPad and ro
   }
  }
 });
+
+test('outer dimming panels stretch to the overlay edges without relying on reported screen width',async()=>{
+ await start();
+ expect(view.root.findByProps({testID:'tutorial-dim-panel-0'}).props.style).toMatchObject({left:0,right:0,top:0});
+ expect(view.root.findByProps({testID:'tutorial-dim-panel-1'}).props.style).toMatchObject({left:0,right:0,bottom:0});
+ expect(view.root.findByProps({testID:'tutorial-dim-panel-3'}).props.style.right).toBe(0);
+});

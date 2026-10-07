@@ -28,8 +28,9 @@ export function spotlightMaskPieces(t:{x:number;y:number;width:number;height:num
  return {panels:[{left:0,top:0,width,height:t.y},{left:0,top:t.y+t.height,width,height:Math.max(0,height-t.y-t.height)},{left:0,top:t.y,width:t.x,height:t.height},{left:t.x+t.width,top:t.y,width:Math.max(0,width-t.x-t.width),height:t.height}],corners:r>0?[{left:t.x,top:t.y,x:-r,y:-r},{left:t.x+t.width-r,top:t.y,x:-2*r,y:-r},{left:t.x,top:t.y+t.height-r,x:-r,y:-2*r},{left:t.x+t.width-r,top:t.y+t.height-r,x:-2*r,y:-2*r}]:[]};
 }
 export default function TutorialOverlay(){
- const tour=useTutorial(),{colors}=useNovoriTheme(),{width,height}=useWindowDimensions(),insets=useSafeAreaInsets();
- const host=useRef<View>(null),[origin,setOrigin]=useState({x:0,y:0});
+ const tour=useTutorial(),{colors}=useNovoriTheme(),{width:windowWidth,height:windowHeight}=useWindowDimensions(),insets=useSafeAreaInsets();
+ const host=useRef<View>(null),[origin,setOrigin]=useState({x:0,y:0}),[hostSize,setHostSize]=useState<{width:number;height:number}|null>(null);
+ const width=hostSize?.width??windowWidth,height=hostSize?.height??windowHeight;
  const settled=useRef<{path:string;index:number;step:typeof TUTORIAL_STEPS[number];bounds:NonNullable<ReturnType<typeof useTutorial>>['bounds'];width:number;height:number}|null>(null);
  const cardHeight=width>height?220:280,ready=!!tour?.bounds;
 
@@ -47,11 +48,11 @@ export default function TutorialOverlay(){
  if(!tour?.active)return null;
  const target=layout.target,card=layout.card,lastStep=display?.index===TUTORIAL_STEPS.length-1;
  const dim='rgba(0,0,0,0.72)',label={color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:13} as const;
- return <View ref={host} onLayout={()=>host.current?.measureInWindow((x,y)=>setOrigin(old=>old.x===x&&old.y===y?old:{x,y}))} style={{position:'absolute',top:0,left:0,right:0,bottom:0,zIndex:1000}} accessibilityViewIsModal>
+ return <View ref={host} onLayout={event=>{const {width:w,height:h}=event.nativeEvent.layout;setHostSize(old=>old?.width===w&&old?.height===h?old:{width:w,height:h});host.current?.measureInWindow((x,y)=>setOrigin(old=>old.x===x&&old.y===y?old:{x,y}));}} style={{position:'absolute',top:0,left:0,right:0,bottom:0,zIndex:1000}} accessibilityViewIsModal>
   <Pressable accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={()=>{}} style={{position:'absolute',top:0,left:0,right:0,bottom:0}}/>
   {target?<>
    <View testID="tutorial-rounded-mask" pointerEvents="none" style={{position:'absolute',top:0,left:0,right:0,bottom:0}}>
-    {spotlightMaskPieces(target,width,height).panels.map((panel,index)=><View key={'panel'+index} style={{position:'absolute',...panel,backgroundColor:dim}}/>)}
+    {[{top:0,left:0,right:0,height:target.y},{top:target.y+target.height,left:0,right:0,bottom:0},{top:target.y,left:0,width:target.x,height:target.height},{top:target.y,left:target.x+target.width,right:0,height:target.height}].map((panel,index)=><View testID={'tutorial-dim-panel-'+index} key={'panel'+index} style={{position:'absolute',...panel,backgroundColor:dim}}/>)}
     {spotlightMaskPieces(target,width,height).corners.map((corner,index)=><View key={'corner'+index} style={{position:'absolute',left:corner.left,top:corner.top,width:target.radius,height:target.radius,overflow:'hidden'}}><View style={{position:'absolute',left:corner.x,top:corner.y,width:target.radius*4,height:target.radius*4,borderRadius:target.radius*2,borderWidth:target.radius,borderColor:dim}}/></View>)}
    </View>
    <View style={{position:'absolute',left:target.x,top:target.y,width:target.width,height:target.height}}><Pressable accessibilityRole="button" accessibilityLabel="Continue from highlighted control" disabled={tour.busy||!ready} onPress={()=>advance(1)} style={{flex:1,borderRadius:target.radius,borderWidth:2,borderColor:colors.gold}}>
