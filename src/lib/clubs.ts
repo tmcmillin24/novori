@@ -329,6 +329,9 @@ export async function uploadClubCover(
   clubId: string,
   photo: ClubCoverUpload
 ) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clubId ?? '')) {
+    throw new Error('The club could not be identified. Reopen Edit club and try again.');
+  }
   const userId =
     await getCurrentUserId();
 

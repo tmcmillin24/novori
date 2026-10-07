@@ -21,7 +21,7 @@ export function createModeratedFetch(baseUrl: string, transport: typeof fetch = 
         return transport(`${origin}/functions/v1/ugc-publish`, {
           method: 'POST', headers: { Authorization: headers.get('Authorization') ?? '', apikey: headers.get('apikey') ?? '', 'Content-Type': 'application/json' },
           signal: init?.signal,
-          body: JSON.stringify({ path, query: url.search, method, body, prefer: headers.get('Prefer') ?? '' }),
+          body: JSON.stringify({ path, query: url.search, method, body, prefer: headers.get('Prefer') ?? '', accept: headers.get('Accept') ?? '' }),
         });
       }
     }
