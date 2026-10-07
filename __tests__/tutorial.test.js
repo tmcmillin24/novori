@@ -12,7 +12,7 @@ const routePath=route=>route==='/(tabs)'?'/':route.replace('/(tabs)','');
 const mockRouter={push:jest.fn(),replace:jest.fn(route=>{mockPath=routePath(route);}),navigate:jest.fn(route=>{mockPath=routePath(route);})};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,usePathname:()=>mockPath,useLocalSearchParams:()=>mockParams,useRootNavigationState:()=>mockNavigation}));
 jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},Keyboard:{dismiss:jest.fn()},BackHandler:{addEventListener:()=>({remove:jest.fn()})},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',StyleSheet:{create:v=>v},useWindowDimensions:()=>mockDimensions}));
-jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},useSharedValue:value=>require('react').useRef({value}).current,useAnimatedStyle:fn=>fn(),withTiming:value=>value}));
+jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},useSharedValue:value=>require('react').useRef({value}).current,useAnimatedStyle:fn=>fn(),withTiming:(value,config,callback)=>{callback?.(true);return value;},runOnJS:fn=>fn}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native-safe-area-context',()=>({useSafeAreaInsets:()=>({top:44,bottom:34})}));
 jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
@@ -59,7 +59,7 @@ test('all creation options and real-control steps navigate through Home, Discove
 });
 test('highlight uses measured native coordinates and leaves Next on the actual control',async()=>{
  await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
- expect(button.parent.props.style[0]).toMatchObject({left:40,top:750,width:24,height:24,borderRadius:10});
+ expect(button.parent.props.style[1]).toMatchObject({left:40,top:750,width:24,height:24,borderRadius:10});
  const mask=view.root.findByProps({testID:'tutorial-rounded-mask'});
  expect(mask.props.style[1].borderColor).toBe('rgba(0,0,0,0.72)');
  expect(mask.props.style[0].borderRadius-mask.props.style[1].borderWidth).toBe(button.props.style.borderRadius);
