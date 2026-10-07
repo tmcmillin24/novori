@@ -1,4 +1,5 @@
 import { getBookLayout } from '../../lib/book-layout';
+import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { createBookReadCache } from '../../lib/book-read-cache';
 import { getBookPublication, getPublicationVersion, subscribeBookPublications } from '../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
@@ -2091,6 +2092,7 @@ const DiscoverReaderCard = memo(
 );
 
 export default function DiscoverScreen() {
+  const tutorial=useTutorial(),booksTarget=useTutorialTarget('discover-books'),readersTarget=useTutorialTarget('discover-readers');
   const { width: windowWidth } = useWindowDimensions();
   const {
     colors,
@@ -2132,6 +2134,12 @@ export default function DiscoverScreen() {
     );
 
   const [query, setQuery] = useState('');
+  useEffect(()=>{
+    if(tutorial?.active&&tutorial.step.path==='/discover'){
+      setDiscoverMode(tutorial.step.anchor==='discover-readers'?'readers':'books');
+      discoverHomeScrollRef.current?.scrollTo({y:0,animated:false});
+    }
+  },[tutorial?.active,tutorial?.step.anchor]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scanLocked = useRef(false);
@@ -4292,6 +4300,7 @@ export default function DiscoverScreen() {
             }
           >
             <Pressable
+              ref={booksTarget.ref} onLayout={booksTarget.onLayout}
               onPress={() => {
                 setDiscoverMode(
                   'books'
@@ -4333,6 +4342,7 @@ export default function DiscoverScreen() {
             </Pressable>
 
             <Pressable
+              ref={readersTarget.ref} onLayout={readersTarget.onLayout}
               onPress={() => {
                 setDiscoverMode(
                   'readers'

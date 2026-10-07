@@ -17,6 +17,7 @@ import { getAccountEntryRoute } from '../../lib/account-entry';
 import { isAccountUnavailableError, isAccountRestrictedError } from '../../lib/account-session-errors';
 import { signOutCurrentDevice } from '../../lib/sign-out';
 import FeedPostCard from '../../components/FeedPostCard';
+import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { COMMENT_REPLY_BATCH_SIZE, getCommentBranchIds, buildCommentThreads, countThreadReplies, getCommentDepthLimit } from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
@@ -106,6 +107,13 @@ export default function HomeScreen() {
     const {full: commentsFullHeight, partial: commentsPartialHeight} = getCommentSheetBounds(windowHeight, insets.top);
     const commentsEntranceStartHeight = Math.max(320, Math.round(windowHeight * 0.50));
     const [activeSection, setActiveSection] = useState<HomeSection>('feed');
+    const tutorial=useTutorial(),feedTarget=useTutorialTarget('home-feed'),clubsTarget=useTutorialTarget('home-clubs');
+    useEffect(()=>{
+        if(tutorial?.active&&tutorial.step.path==='/'){
+            setActiveSection(tutorial.step.anchor==='home-clubs'?'clubs':'feed');
+            homeScrollRef.current?.scrollTo({y:0,animated:false});
+        }
+    },[tutorial?.active,tutorial?.step.anchor]);
     const [attentionCount, setAttentionCount,] = useState(0);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [reportTargetPost, setReportTargetPost,] = useState<FeedPost | null>(null);
@@ -2211,7 +2219,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.sectionSwitch}>
-            <Pressable onPress={() => setActiveSection('feed')} style={[
+            <Pressable ref={feedTarget.ref} onLayout={feedTarget.onLayout} onPress={() => setActiveSection('feed')} style={[
             styles.sectionSwitchButton,
             activeSection ===
                 'feed' &&
@@ -2227,7 +2235,7 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
 
-            <Pressable onPress={() => setActiveSection('clubs')} style={[
+            <Pressable ref={clubsTarget.ref} onLayout={clubsTarget.onLayout} onPress={() => setActiveSection('clubs')} style={[
             styles.sectionSwitchButton,
             activeSection ===
                 'clubs' &&

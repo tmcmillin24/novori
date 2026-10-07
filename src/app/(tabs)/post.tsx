@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import {useEffect,useRef} from 'react';
+import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { useRouter } from 'expo-router';
 import {
   Pressable,
@@ -20,6 +22,8 @@ import {
 } from '../../context/theme-context';
 
 export default function PostScreen() {
+  const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post'),scroll=useRef<ScrollView>(null);
+  useEffect(()=>{if(tutorial?.active&&tutorial.step.path==='/post')scroll.current?.scrollTo({y:0,animated:false});},[tutorial?.active,tutorial?.step.anchor]);
   const router =
     useRouter();
 
@@ -43,6 +47,7 @@ export default function PostScreen() {
       edges={['top']}
     >
       <ScrollView
+        ref={scroll}
         style={
           styles.screen
         }
@@ -106,6 +111,7 @@ export default function PostScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Post"
+            ref={postTarget.ref} onLayout={postTarget.onLayout}
             accessibilityHint="Create a new social post."
             onPress={() =>
               router.push(

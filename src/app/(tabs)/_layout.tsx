@@ -3,8 +3,10 @@ import { Tabs } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useNovoriTheme } from '../../context/theme-context';
+import {TutorialTarget,useTutorialTarget} from '../../context/tutorial-context';
 
 export default function TabLayout() {
+  const createTarget=useTutorialTarget('tab-create');
   const {
     colors,
   } =
@@ -45,11 +47,11 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
+            <TutorialTarget id="tab-home"><Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={size}
               color={color}
-            />
+            /></TutorialTarget>
           ),
         }}
       />
@@ -60,11 +62,11 @@ export default function TabLayout() {
           title: 'Discover',
           freezeOnBlur: false,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
+            <TutorialTarget id="tab-discover"><Ionicons
               name={focused ? 'compass' : 'compass-outline'}
               size={size}
               color={color}
-            />
+            /></TutorialTarget>
           ),
         }}
       />
@@ -90,6 +92,7 @@ export default function TabLayout() {
               }}
             >
               <View
+                ref={createTarget.ref} collapsable={false} onLayout={createTarget.onLayout}
                 style={{
                   width: 54,
                   height: 54,
@@ -116,11 +119,11 @@ export default function TabLayout() {
         options={{
           title: 'Library',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
+            <TutorialTarget id="tab-library"><Ionicons
               name={focused ? 'library' : 'library-outline'}
               size={size}
               color={color}
-            />
+            /></TutorialTarget>
           ),
         }}
       />
@@ -130,11 +133,11 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
+            <TutorialTarget id="tab-profile"><Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={size}
               color={color}
-            />
+            /></TutorialTarget>
           ),
         }}
       />

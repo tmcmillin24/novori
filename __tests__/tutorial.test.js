@@ -1,66 +1,90 @@
-import React from 'react';
+import React,{useEffect} from 'react';
 import renderer,{act} from 'react-test-renderer';
-import TutorialScreen from '../src/app/tutorial';
+import TutorialOverlay,{spotlightLayout} from '../src/components/TutorialOverlay';
+import TutorialLauncher from '../src/app/tutorial';
 import TutorialGate from '../src/components/TutorialGate';
+import {TutorialProvider,useTutorial} from '../src/context/tutorial-context';
 import {needsTutorial,TUTORIAL_STEPS} from '../src/lib/tutorial';
 import {legalAcceptanceMetadata} from '../src/lib/legal-documents';
 import {supabase} from '../src/lib/supabase';
-const mockRouter={push:jest.fn(),replace:jest.fn(),back:jest.fn(),canGoBack:()=>true};
-let mockParams={},mockDimensions={width:390,height:844},mockNavigation={index:0,routes:[{name:'(tabs)'}]},mockAuthCallback;
-jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useRootNavigationState:()=>mockNavigation}));
-jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',ScrollView:'ScrollView',StyleSheet:{create:v=>v},useWindowDimensions:()=>mockDimensions}));
+let mockPath='/',mockParams={},mockDimensions={width:390,height:844},mockNavigation={index:0,routes:[{name:'(tabs)'}]},mockAuthCallback,mockTour;
+const routePath=route=>route==='/(tabs)'?'/':route.replace('/(tabs)','');
+const mockRouter={push:jest.fn(),replace:jest.fn(route=>{mockPath=routePath(route);}),navigate:jest.fn(route=>{mockPath=routePath(route);})};
+jest.mock('expo-router',()=>({useRouter:()=>mockRouter,usePathname:()=>mockPath,useLocalSearchParams:()=>mockParams,useRootNavigationState:()=>mockNavigation}));
+jest.mock('react-native',()=>({Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},Keyboard:{dismiss:jest.fn()},BackHandler:{addEventListener:()=>({remove:jest.fn()})},ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',View:'View',Text:'Text',StyleSheet:{create:v=>v},useWindowDimensions:()=>mockDimensions}));
 jest.mock('react-native-reanimated',()=>({__esModule:true,default:{View:'AnimatedView'},FadeIn:{duration:()=>undefined}}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
-jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView'}));
+jest.mock('react-native-safe-area-context',()=>({useSafeAreaInsets:()=>({top:44,bottom:34})}));
 jest.mock('../src/components/ValidationWarningSheet',()=> 'ValidationWarningSheet');
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').LIGHT_COLORS})}));
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:jest.fn(),updateUser:jest.fn(),getSession:jest.fn(),onAuthStateChange:jest.fn(callback=>{mockAuthCallback=callback;return {data:{subscription:{unsubscribe:jest.fn()}}};})}}}));
+function Controls(){
+ const tour=useTutorial();mockTour=tour;
+ useEffect(()=>{if(tour.active&&tour.pathname===tour.step.path)tour.measure(tour.step.anchor,{x:40,y:tour.step.anchor.startsWith('tab-')?750:180,width:tour.step.anchor.startsWith('tab-')?24:140,height:tour.step.anchor.startsWith('tab-')?24:44});},[tour.active,tour.step.anchor,tour.pathname,tour.measure]);
+ return null;
+}
+function Harness({launch=false}){return <TutorialProvider><Controls/>{launch?<TutorialLauncher/>:null}<TutorialOverlay/></TutorialProvider>;}
 let view,silence;
 beforeEach(()=>{
- globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();mockParams={};mockDimensions={width:390,height:844};mockNavigation={index:0,routes:[{name:'(tabs)'}]};
+ globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();mockPath='/';mockParams={};mockDimensions={width:390,height:844};mockNavigation={index:0,routes:[{name:'(tabs)'}]};
  supabase.auth.getUser.mockResolvedValue({data:{user:{id:'reader'}},error:null});
  supabase.auth.updateUser.mockResolvedValue({data:{user:{id:'reader'}},error:null});
  supabase.auth.getSession.mockResolvedValue({data:{session:{user:{id:'reader',user_metadata:{}}}}});
  silence=jest.spyOn(console,'error').mockImplementation(()=>{});
 });
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;silence.mockRestore();});
-async function render(element=<TutorialScreen/>){await act(async()=>{view=renderer.create(element);});}
-async function press(label){await act(async()=>view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel===label).props.onPress());}
-test('all ten steps navigate and completion is saved before returning to settings',async()=>{
- await render();expect(TUTORIAL_STEPS).toHaveLength(10);
- for(let n=0;n<9;n++)await press('Next tutorial step');
- expect(view.root.findAllByType('Text').some(t=>t.props.children===TUTORIAL_STEPS[9].title)).toBe(true);
- await press('Previous tutorial step');await press('Next tutorial step');await press('Finish tutorial');
+async function render(element=<Harness/>){await act(async()=>{view=renderer.create(element);});}
+async function redraw(){await act(async()=>view.update(<Harness/>));}
+async function start(){await render();await act(async()=>mockTour.start());await redraw();}
+async function press(label){const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel===label);expect(button.props.disabled).toBeFalsy();await act(async()=>button.props.onPress());await redraw();}
+test('ten real-control steps navigate through Home, Discover, creation, Library and Profile',async()=>{
+ await start();expect(TUTORIAL_STEPS).toHaveLength(10);
+ expect(mockTour.step.anchor).toBe('tab-home');
+ await press('Continue from highlighted control');expect(mockTour.step.anchor).toBe('home-feed');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('home-clubs');
+ await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/discover');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('discover-books');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('discover-readers');
+ await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/post');
+ await press('Next tutorial step');expect(mockTour.step.anchor).toBe('create-post');
+ await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/library');
+ await press('Next tutorial step');expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)/profile');
+ await press('Previous tutorial step');expect(mockTour.step.anchor).toBe('tab-library');
+ await press('Next tutorial step');await press('Finish tutorial');
  expect(supabase.auth.updateUser).toHaveBeenCalledWith({data:expect.objectContaining({novori_tutorial_pending:false,novori_tutorial_version:'1'})});
- expect(mockRouter.back).toHaveBeenCalledTimes(1);
+ expect(mockTour.active).toBe(false);expect(mockRouter.navigate).toHaveBeenCalledWith('/settings');
 });
-test('skip saves completion for first-login users and goes to Home',async()=>{
- mockParams={welcome:'1'};await render();await press('Skip tutorial');
- expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+test('highlight uses measured native coordinates and leaves Next on the actual control',async()=>{
+ await start();const button=view.root.findAllByType('Pressable').find(p=>p.props.accessibilityLabel==='Continue from highlighted control');
+ expect(button.props.style).toMatchObject({left:26,top:744,width:52,height:58,borderWidth:2});
+ expect(view.root.findAllByType('View').some(v=>v.props.style?.backgroundColor==='rgba(0,0,0,0.72)')).toBe(true);
 });
-test('failed persistence keeps the tutorial open with a Novori warning',async()=>{
- supabase.auth.updateUser.mockResolvedValue({data:{user:null},error:new Error('Offline')});
- await render();await press('Skip tutorial');
- expect(mockRouter.back).not.toHaveBeenCalled();expect(view.root.findByType('ValidationWarningSheet').props.visible).toBe(true);
+test('skip saves completion and automatic tours finish on Home',async()=>{
+ mockParams={welcome:'1'};await render(<Harness launch/>);await redraw();await press('Skip tutorial');
+ expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);expect(mockRouter.navigate).toHaveBeenCalledWith('/(tabs)');
 });
-test('landscape tablet content adapts to rotation without resetting the step',async()=>{
- await render();await press('Next tutorial step');mockDimensions={width:1194,height:834};
- await act(async()=>view.update(<TutorialScreen/>));
- expect(view.root.findByType('AnimatedView').props.style.flexDirection).toBe('row');
- expect(view.root.findAllByType('Text').some(t=>t.props.children===TUTORIAL_STEPS[1].title)).toBe(true);
- mockDimensions={width:834,height:1194};await act(async()=>view.update(<TutorialScreen/>));
- expect(view.root.findByType('AnimatedView').props.style.flexDirection).toBe('column');
+test('failed persistence keeps the tour open with the familiar warning',async()=>{
+ supabase.auth.updateUser.mockResolvedValue({data:{user:null},error:new Error('Offline')});await start();await press('Skip tutorial');
+ expect(mockTour.active).toBe(true);expect(view.root.findByType('ValidationWarningSheet').props.visible).toBe(true);
 });
-test('existing and completed accounts do not open the tutorial automatically',async()=>{
+test('tooltip and highlight remain inside iPhone and rotated iPad bounds',()=>{
+ for(const [width,height] of [[390,844],[834,1194],[1194,834],[744,1133]]){
+  const result=spotlightLayout({x:width-65,y:height-85,width:24,height:24},width,height,44,34,230,true);
+  expect(result.card.left).toBeGreaterThanOrEqual(16);expect(result.card.left+result.card.width).toBeLessThanOrEqual(width-16);
+  expect(result.card.top).toBeGreaterThanOrEqual(44);expect(result.card.top+230).toBeLessThanOrEqual(height-34);
+  expect(result.target.x+result.target.width).toBeLessThanOrEqual(width);
+ }
+ const stale=spotlightLayout({x:1100,y:750,width:24,height:24},744,1133,44,34,230,true);expect(stale.target.width).toBeGreaterThan(0);
+});
+test('existing and completed accounts do not automatically launch',async()=>{
  expect(needsTutorial({})).toBe(false);expect(needsTutorial({novori_tutorial_pending:true,novori_tutorial_version:'1'})).toBe(false);
  await render(<TutorialGate/>);expect(mockRouter.push).not.toHaveBeenCalled();
 });
-test('new readers wait for legal acceptance and the tab navigator, then launch once',async()=>{
+test('automatic start waits for legal acceptance and normal navigation and runs once',async()=>{
  const reader={id:'new-reader',user_metadata:{...legalAcceptanceMetadata(),novori_tutorial_pending:true}};
  supabase.auth.getSession.mockResolvedValue({data:{session:{user:{id:'new-reader',user_metadata:{novori_tutorial_pending:true}}}}});
  await render(<TutorialGate/>);expect(mockRouter.push).not.toHaveBeenCalled();
  mockNavigation={index:0,routes:[{name:'auth'}]};await act(async()=>mockAuthCallback('USER_UPDATED',{user:reader}));expect(mockRouter.push).not.toHaveBeenCalled();
- mockNavigation={index:0,routes:[{name:'(tabs)'}]};await act(async()=>view.update(<TutorialGate/>));
- expect(mockRouter.push).toHaveBeenCalledTimes(1);
+ mockNavigation={index:0,routes:[{name:'(tabs)'}]};await act(async()=>view.update(<TutorialGate/>));expect(mockRouter.push).toHaveBeenCalledTimes(1);
  await act(async()=>mockAuthCallback('TOKEN_REFRESHED',{user:reader}));expect(mockRouter.push).toHaveBeenCalledTimes(1);
 });

@@ -23,6 +23,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AccountDeletionGate from '../components/AccountDeletionGate';
 import LegalAcceptanceGate from '../components/LegalAcceptanceGate';
 import TutorialGate from '../components/TutorialGate';
+import TutorialOverlay from '../components/TutorialOverlay';
+import {TutorialProvider,TutorialBackground} from '../context/tutorial-context';
 import ConversationHandoffOverlay from '../components/ConversationHandoffOverlay';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
@@ -55,7 +57,7 @@ function AppNavigator() {
   }
 
   return (
-    <View
+    <TutorialProvider><View
       style={{
         flex: 1,
         backgroundColor: colors.background,
@@ -63,7 +65,7 @@ function AppNavigator() {
     >
       <AccountDeletionGate />
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      <Stack
+      <TutorialBackground><Stack
         screenOptions={{
           headerShown: false,
           animation: 'none',
@@ -73,11 +75,12 @@ function AppNavigator() {
         }}
       >
         <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
-      </Stack>
+      </Stack></TutorialBackground>
       <ConversationHandoffOverlay />
       <LegalAcceptanceGate />
       <TutorialGate />
-    </View>
+      <TutorialOverlay />
+    </View></TutorialProvider>
   );
 }
 
