@@ -32,6 +32,10 @@ const toggle=label=>view.root.findAllByType('Switch').find(n=>n.props.accessibil
 async function press(label){expect(button(label)).toBeDefined();await act(async()=>button(label).props.onPress());}
 async function change(label,value){await act(async()=>toggle(label).props.onValueChange(value));}
 
+test('existing readers can preview the tutorial from Settings',async()=>{
+  await render(<SettingsScreen/>);await press('View tutorial');expect(mockRouter.push).toHaveBeenCalledWith('/tutorial');
+});
+
 test('Settings keeps real destinations together and marks unavailable account options',async()=>{
  await render(<SettingsScreen/>);expect(text()).toContain('reader@example.com');expect(button('Edit Profile')).toBeUndefined();
  for(const [title,path] of [['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers'],['About Novori','/about-novori'],['Help & Support','/help-support'],['Password & Security','/password-security']]){expect(button(title).props.disabled).not.toBe(true);await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);}

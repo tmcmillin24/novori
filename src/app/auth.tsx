@@ -283,6 +283,7 @@ export default function AuthScreen() {
                 EMAIL_CONFIRM_REDIRECT,
               data: {
                 ...legalAcceptanceMetadata(),
+                novori_tutorial_pending: true,
                 novori_beta_notice_version: betaPhase === 'closed' ? null : '2026-10-07-v1',
                 novori_beta_opt_in: betaOptIn,
                 username:

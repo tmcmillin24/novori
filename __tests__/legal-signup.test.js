@@ -157,6 +157,7 @@ test("accepted signup records policy versions and an age attestation without col
     terms_version: LEGAL_VERSION,
     privacy_version: LEGAL_VERSION,
     adult_confirmed: true,
+    novori_tutorial_pending: true,
     username: "reader",
   });
   expect(new Date(call.options.data.terms_accepted_at).getTime()).not.toBeNaN();

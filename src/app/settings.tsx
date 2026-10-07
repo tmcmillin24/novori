@@ -105,6 +105,8 @@ export default function SettingsScreen() {
         <SettingsRow icon="lock-closed-outline" title="Password & Security" subtitle="Password, verified email, and signed-in devices" onPress={() => router.push('/password-security')}/>
       </SettingsSection>
       <SettingsSection icon="help-circle-outline" title="About & support">
+        <SettingsRow icon="book-outline" title="View tutorial" subtitle="A quick guide to reading, sharing, and connecting" onPress={() => router.push('/tutorial')}/>
+        <SettingsDivider/>
         <SettingsRow icon="information-circle-outline" title="About Novori" subtitle="Read. Discuss. Belong." onPress={() => router.push('/about-novori')}/>
         <SettingsDivider/>
         <SettingsRow icon="help-circle-outline" title="Help & Support" subtitle="Get help, report a problem, or share an idea" onPress={() => router.push('/help-support')}/>

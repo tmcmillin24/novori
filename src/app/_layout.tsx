@@ -22,6 +22,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AccountDeletionGate from '../components/AccountDeletionGate';
 import LegalAcceptanceGate from '../components/LegalAcceptanceGate';
+import TutorialGate from '../components/TutorialGate';
 import ConversationHandoffOverlay from '../components/ConversationHandoffOverlay';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
@@ -75,6 +76,7 @@ function AppNavigator() {
       </Stack>
       <ConversationHandoffOverlay />
       <LegalAcceptanceGate />
+      <TutorialGate />
     </View>
   );
 }
