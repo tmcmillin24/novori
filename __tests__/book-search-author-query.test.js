@@ -8,7 +8,7 @@ function load(items,responses={},popularity={}){
  if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
  if(name.includes('book-publication'))return require('../src/lib/book-publication');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
- if(name.includes('canonical-book-covers'))return{getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
+ if(name.includes('canonical-book-covers'))return{getCanonicalBookCoverRevision:()=>0,getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
  if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};
  if(name==='./google-books')return{fetchGoogleBooksJson:async url=>{const query=new URL(url).searchParams.get('q');calls.push(query);if(responses[query] instanceof Error)throw responses[query];return{ok:true,status:200,data:{items:JSON.parse(JSON.stringify(responses[query]??items))}}}};
  if(name==='./book-covers')return{getBookCoverPlan:({imageLinks,existingCoverUrl})=>({primaryUrl:existingCoverUrl??imageLinks?.medium??imageLinks?.thumbnail??null})};

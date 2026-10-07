@@ -1,3 +1,4 @@
+import { rememberDiscoveryBookId } from '../../../lib/discovery-books';
 import { formatBookDescription } from '../../../lib/book-description';
 import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../../lib/reading-status-display';
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
@@ -1019,6 +1020,7 @@ export default function BookDetailsScreen() {
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
+    discoveryId,
     canonicalizeWork,
     trustedCover,
   } = useLocalSearchParams<{
@@ -1028,6 +1030,7 @@ export default function BookDetailsScreen() {
     clickedTitle?: string;
     clickedAuthors?: string;
     clickedIsbn?: string;
+    discoveryId?: string;
     canonicalizeWork?: string;
     trustedCover?: string;
   }>();
@@ -1385,11 +1388,14 @@ export default function BookDetailsScreen() {
 
         if (!resolvedBook) {
           throw new Error(
-            'Google Books returned conflicting metadata for this search result. Please choose another edition.'
+            'The book catalog returned conflicting metadata for this search result. Please choose another edition.'
           );
         }
 
         if (!active) return;
+        if (discoveryId && clickedTitle) rememberDiscoveryBookId({
+          id: Number(discoveryId), title: clickedTitle, authors: discoverClickedAuthors,
+        }, resolvedBook.id);
         openingBookId = resolvedBook.id;
         coreReady = true;
         setBook(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
@@ -1612,6 +1618,7 @@ export default function BookDetailsScreen() {
     clickedTitle,
     clickedAuthors,
     clickedIsbn,
+    discoveryId,
     canonicalizeWork,
     trustedCover,
   ]);

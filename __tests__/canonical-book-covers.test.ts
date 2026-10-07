@@ -13,6 +13,30 @@ describe('one catalog artwork across book surfaces', () => {
   });
   afterEach(() => { jest.useRealTimers(); });
 
+  test('late catalog reads cannot revert a newer choice through a newly discovered alias', async () => {
+    let finish!: (value: any) => void;
+    invoke.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const read = covers.resolveCanonicalBookCover({ isbn: '9781234567897', existingCoverUrl: 'https://old/tiny' });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    covers.publishCatalogCovers({ verified: 'https://best/original' }, { verified: { workId: 'work' } });
+    finish({ data: { ok: true, data: { covers: { 'isbn:9781234567897': 'https://old/tiny' }, details: { 'isbn:9781234567897': { workId: 'work' } } } } });
+    await jest.runAllTimersAsync();
+    expect(await read).toBe('https://best/original');
+    expect(covers.getCanonicalBookCover({ googleBookId: 'verified' })).toBe('https://best/original');
+    // A later read can still publish a legitimate catalog change.
+    const revision = covers.getCanonicalBookCoverRevision();
+    covers.publishCatalogCovers({ verified: 'https://new/original' }, { verified: { workId: 'work' } }, revision);
+    expect(covers.getCanonicalBookCover({ isbn: '9781234567897' })).toBe('https://new/original');
+  });
+
+  test('late reads for the same ID cannot replace a newer catalog selection', () => {
+    const revision = covers.getCanonicalBookCoverRevision();
+    covers.publishCatalogCovers({ same: 'https://best/original' });
+    covers.publishCatalogCovers({ same: 'https://old/tiny' }, {}, revision);
+    expect(covers.getCanonicalBookCover({ googleBookId: 'same' })).toBe('https://best/original');
+  });
+
   test('batches different books and deduplicates simultaneous requests for the same book', async () => {
     invoke.mockResolvedValue({ data: { ok: true, data: { covers: { a: 'https://art/a-original.jpg', b: 'https://art/b-original.jpg' } } } });
     const requests = [covers.resolveCanonicalBookCover({ googleBookId: 'a' }),

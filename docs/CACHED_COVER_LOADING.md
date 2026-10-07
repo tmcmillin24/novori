@@ -44,3 +44,7 @@ This measures controlled request counts, not real device latency or deployed pro
 6. Run the existing read-only `admin/verify-api-usage.sql` immediately before and after controlled cached-book actions, without unrelated testers/actions and within the same UTC day. Compare ISBNdb/Hardcover/Google deltas and the admin refresh timestamp. Expect no upstream increase for fresh fully cached reads; distinguish legitimate missing/expired metadata enrichment from cover selection rechecks. Record actual counters and `[Novori book opening]` timings rather than inferring them from automated checks.
 
 No live account/backend credentials or physical devices were used for this validation. Native/offline image behavior and deployed counter evidence remain device checks. Phase 2's open dependency dispositions and pre-existing app-web static-export error remain recorded separately; Phase 3 does not close them.
+
+## Discovery response ordering follow-up
+
+Cover and search-catalog reads capture a session revision. Responses started before a newer confirmed selection cannot overwrite it through the same ID or a newly learned work alias. Later reads can still publish genuine catalog changes. Revisions are not written to device storage; the existing v1 records remain compatible. Discovery cards now use verified catalog IDs and otherwise retain their listing artwork without unverified ISBN cover queries. See [discovery follow-up](DISCOVERY_BOOK_OPENING.md) for matching, missing-detail behavior and device acceptance limits.

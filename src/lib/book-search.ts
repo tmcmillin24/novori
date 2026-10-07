@@ -2,7 +2,7 @@ import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
 import { normalizeIsbnDbEdition, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
-import { getCanonicalBookCover, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
+import { getCanonicalBookCover, getCanonicalBookCoverRevision, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
 import {
@@ -177,6 +177,7 @@ async function attachCatalogSearchCovers(
           book.id
       );
 
+    const readRevision = getCanonicalBookCoverRevision();
     const {
       data,
       error,
@@ -225,7 +226,7 @@ async function attachCatalogSearchCovers(
     for (const book of books) {
       if (publications[book.id]) book.novoriPublication = publications[book.id];
     }
-    publishCatalogCovers(covers, (data as any)?.data?.details ?? {});
+    publishCatalogCovers(covers, (data as any)?.data?.details ?? {}, readRevision);
 
     for (
       const book of

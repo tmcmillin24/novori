@@ -10,7 +10,7 @@ export type CanonicalCoverInput = {
   existingCoverUrl?: string | null;
 };
 
-type Entry = { url: string | null; workId?: string; checkedAt: number; confirmed: boolean };
+type Entry = { url: string | null; workId?: string; checkedAt: number; confirmed: boolean; revision: number };
 type SelectionDetail = { workId?: string | null; url?: string | null };
 const entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
@@ -25,6 +25,8 @@ const STORAGE_KEY = 'novori:canonical-book-covers:v1';
 // A single Android storage record must also be bounded by size, not just count.
 // This character budget is at most 1.54 MB in UTF-8, keeping native storage rows small.
 const MAX_STORAGE_CHARS = 512_000;
+let catalogRevision = 0;
+export function getCanonicalBookCoverRevision() { return catalogRevision; }
 let scheduled = false;
 let hydrated = false;
 let hydration: Promise<void> | undefined;
@@ -58,7 +60,7 @@ function storedEntry(value: unknown, now: number): [string, Entry] | null {
       typeof entry.url !== 'string' || entry.url.length > 4096 || !/^https?:\/\/[^\s]+$/i.test(entry.url) ||
       !Number.isFinite(entry.checkedAt) || entry.checkedAt < 0 || entry.checkedAt > now || now - entry.checkedAt >= RETENTION_MS ||
       (entry.workId !== undefined && (typeof entry.workId !== 'string' || !entry.workId || entry.workId.length > 256))) return null;
-  return [key, { url: secure(entry.url), checkedAt: entry.checkedAt, workId: entry.workId, confirmed: true }];
+  return [key, { url: secure(entry.url), checkedAt: entry.checkedAt, workId: entry.workId, confirmed: true, revision: 0 }];
 }
 
 function hydrate(): Promise<void> {
@@ -113,7 +115,8 @@ function persist() {
         for (const value of [...entries].reverse()) {
           if (saved.length === MAX_IDLE_ENTRIES) break;
           if (!storedEntry(value, now)) continue;
-          const encoded = JSON.stringify(value);
+          const [key, entry] = value;
+          const encoded = JSON.stringify([key, { url: entry.url, workId: entry.workId, checkedAt: entry.checkedAt, confirmed: true }]);
           const added = encoded.length + (saved.length ? 1 : 0);
           if (length + added > MAX_STORAGE_CHARS) continue;
           saved.push(encoded);
@@ -172,13 +175,21 @@ export function subscribeCanonicalBookCovers(listener: () => void, key?: string 
 export function publishCatalogCovers(
   covers: Record<string, string | null>,
   details: Record<string, SelectionDetail> = {},
+  readRevision?: number,
 ) {
+  const publicationRevision = ++catalogRevision;
   for (const [key, rawUrl] of Object.entries(covers)) {
     const url = secure(rawUrl);
     const previous = entries.get(key);
     const workId = details[key]?.workId ?? previous?.workId;
     if (!url) continue;
-    const entry = { url, workId: workId || undefined, checkedAt: Date.now(), confirmed: true };
+    // A read started before another catalog result cannot undo that selection,
+    // even when its response introduces a previously unknown ISBN/work alias.
+    const newer = readRevision === undefined ? undefined : [...entries.values()].find(entry =>
+      entry.confirmed && entry.revision > readRevision && entry.revision < publicationRevision &&
+      (entry === previous || Boolean(workId && entry.workId === workId)));
+    if (newer) { remember(key, newer); continue; }
+    const entry = { url, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
     if (workId) {
       for (const [alias, oldEntry] of entries) {
         if (oldEntry.workId === workId) entries.set(alias, entry);
@@ -197,6 +208,7 @@ async function flush() {
   if (pending.size) schedule();
   const inputs = requests.map(([, waiters]) => waiters[0].input);
   requests.forEach(([key]) => { const flight = inFlight.get(key); if (flight) flight.started = true; });
+  const readRevision = catalogRevision;
   try {
     const { data, error } = await supabase.functions.invoke('book-cover-selection', {
       body: {
@@ -206,9 +218,9 @@ async function flush() {
       },
     });
     if (error || data?.ok !== true) throw error ?? new Error('Cover catalog unavailable');
-    publishCatalogCovers(data.data?.covers ?? {}, data.data?.details ?? {});
+    publishCatalogCovers(data.data?.covers ?? {}, data.data?.details ?? {}, readRevision);
     for (const [key, waiters] of requests) {
-      if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: Date.now(), confirmed: false });
+      if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: Date.now(), confirmed: false, revision: 0 });
       else remember(key, { ...entries.get(key)!, checkedAt: Date.now() });
     }
     persist();
@@ -216,7 +228,7 @@ async function flush() {
     // Keep one shared fallback while offline. Retry on the next mount/read;
     // do not probe other providers or choose different artwork per screen.
     for (const [key, waiters] of requests) {
-      if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: 0, confirmed: false });
+      if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: 0, confirmed: false, revision: 0 });
     }
   }
   notify();
@@ -247,7 +259,7 @@ export function resolveCanonicalBookCover(input: CanonicalCoverInput, refresh = 
   }
   if (key.startsWith('url:')) {
     if (!existing) {
-      remember(key, { url: fallback(input), checkedAt: Date.now(), confirmed: false });
+      remember(key, { url: fallback(input), checkedAt: Date.now(), confirmed: false, revision: 0 });
       notify();
     }
     return Promise.resolve(entries.get(key)?.url ?? fallback(input));

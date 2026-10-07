@@ -50,6 +50,10 @@ Persist/reuse catalog-confirmed originals and their known aliases safely; keep s
 - Existing metadata/provider cache TTLs/keys, canonical ranking, image file URLs/cache policy, manual locks, quotas, and reader-specific data boundaries are preserved. No native package/backend changes or new provider request path were added.
 - **Pending:** real iPhone/iPad restart/offline/rapid navigation checks, measured deployed provider counter deltas and device opening timings. Implementation success is not a claim that live-device acceptance or the remaining TestFlight gates are complete.
 
+### Discovery follow-up
+
+Both discovery shelves now open available listing information before edition resolution, retain verified/canonicalized IDs for their cards, and prevent old cover reads from replacing newer confirmed originals. Missing catalog matches remain viewable but require a verified edition for saving/tracking. See [discovery opening and artwork findings](DISCOVERY_BOOK_OPENING.md). Automated follow-up: **83 suites, 901 tests**, app/test type checks, iOS/Android bundle exports, **17 website tests**, **729 notices** pass. Original affected titles and live-device/provider-counter acceptance remain pending.
+
 ## Remaining phases
 
 | Phase | Work | Completion evidence |

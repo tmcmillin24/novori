@@ -3,14 +3,14 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/book/[id]/index.
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const flush = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
 
-function harness({ canonicalId = 'book', failStatus = false } = {}) {
+function harness({ canonicalId = 'book', failStatus = false, discoveryId = undefined } = {}) {
   const state = {}, reader = deferred(), cover = deferred(), cart = deferred(), rating = deferred(), reviews = deferred(), work = deferred();
   const book = { id: 'book', volumeInfo: { title: 'Dune', authors: ['Frank Herbert'], industryIdentifiers: [] } };
   const setters = Object.fromEntries([...new Set(source.match(/\bset[A-Z]\w+/g))].map(name => [name, jest.fn(value => { state[name] = value; })]));
   let metadataOptions;
   const getUserBook = jest.fn(id => failStatus ? Promise.reject(Error('offline')) : reader.promise.then(row => ({ ...row, google_book_id: id })));
   const deps = {
-    ...setters, id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
+    ...setters, discoveryId, rememberDiscoveryBookId: jest.fn(), id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
     clickedTitle: 'Dune', discoverClickedAuthors: ['Frank Herbert'], clickedIsbn: undefined, discoverCoverUrl: 'https://covers/current',
     savedStatusVersion: { current: 0 }, bookLoadGeneration: { current: 0 }, firstFocusBook: { current: null }, isSavedBookContext: true,
     getUserBook,
@@ -93,4 +93,10 @@ test('refocus cannot overwrite a reading-status mutation that finishes during it
   const h = harness(); h.focus(); h.focus(); h.deps.savedStatusVersion.current += 1;
   h.reader.resolve({ status: 'want_to_read' }); await flush();
   expect(h.deps.setSavedBook).not.toHaveBeenCalled();
+});
+
+test('verified canonicalized details update the discovery card identity', async () => {
+  const h = harness({ canonicalId: 'canonical', discoveryId: '42' }); h.open(); await flush();
+  expect(h.deps.rememberDiscoveryBookId).toHaveBeenCalledWith({ id: 42, title: 'Dune', authors: ['Frank Herbert'] }, 'canonical');
+  expect(h.state.setBook.id).toBe('canonical');
 });

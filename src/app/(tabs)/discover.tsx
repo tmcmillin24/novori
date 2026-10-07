@@ -1,3 +1,4 @@
+import { discoveryCoverInput, getDiscoveryBookId, getDiscoveryBookVersion, subscribeDiscoveryBooks } from '../../lib/discovery-books';
 import { getBookLayout } from '../../lib/book-layout';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { createBookReadCache } from '../../lib/book-read-cache';
@@ -138,7 +139,7 @@ type SharedGoogleBooksResolverEnvelope = {
 const readDiscoverBookIdentity = createBookReadCache<SharedGoogleBooksResolverEnvelope | null>();
 function invokeSharedGoogleBooksResolver(body: { mode: 'isbn' | 'trending'; isbn?: string; title?: string; author?: string }) {
   return readDiscoverBookIdentity(JSON.stringify([body.mode, body.isbn ?? '', body.title ?? '', body.author ?? '']),
-    () => loadSharedGoogleBooksResolver(body), value => value?.ok === true && Boolean(value.data));
+    () => loadSharedGoogleBooksResolver(body), value => value?.ok === true && Boolean(value.data?.book || value.data?.googleBookId));
 }
 
 async function loadSharedGoogleBooksResolver(
@@ -2092,6 +2093,7 @@ const DiscoverReaderCard = memo(
 );
 
 export default function DiscoverScreen() {
+  useSyncExternalStore(subscribeDiscoveryBooks, getDiscoveryBookVersion, getDiscoveryBookVersion);
   const tutorial=useTutorial(),booksTarget=useTutorialTarget('discover-books',10),readersTarget=useTutorialTarget('discover-readers',10);
   const { width: windowWidth } = useWindowDimensions();
   const {
@@ -2370,8 +2372,6 @@ export default function DiscoverScreen() {
     );
   const [discoverRefreshing, setDiscoverRefreshing] =
     useState(false);
-  const [openingTrendingBookId, setOpeningTrendingBookId] =
-    useState<number | null>(null);
   const [activeTrendingGenreKey, setActiveTrendingGenreKey] =
     useState<string>('all');
   const [genrePath, setGenrePath] =
@@ -3338,6 +3338,7 @@ export default function DiscoverScreen() {
           isbn?: string;
           canonicalizeWork?: boolean;
           trustedCover?: boolean;
+          discoveryId?: number;
         }
       ) => {
         router.push({
@@ -3346,6 +3347,7 @@ export default function DiscoverScreen() {
           params: {
             id: bookId,
             source: 'discover',
+            ...(options?.discoveryId ? { discoveryId: String(options.discoveryId) } : {}),
             ...(options?.coverUrl
               ? {
                   coverUrl:
@@ -3392,257 +3394,26 @@ export default function DiscoverScreen() {
       ]
     );
 
-  async function findGoogleBookIdForTrending(
-    trendingBook: TrendingBook
-  ) {
-    const isbn =
-      trendingBook.isbns[0];
-
-    const sharedResolver =
-      await invokeSharedGoogleBooksResolver({
-        mode:
-          'trending',
-        isbn,
-        title:
-          trendingBook.title,
-        author:
-          trendingBook.authors?.[0],
+  function openTrendingBook(trendingBook: TrendingBook) {
+    const bookId = getDiscoveryBookId(trendingBook);
+    if (bookId) {
+      openBook(bookId, {
+        coverUrl: trendingBook.coverUrl ?? undefined,
+        title: trendingBook.title,
+        authors: trendingBook.authors,
+        isbn: trendingBook.isbns[0],
+        canonicalizeWork: true,
+        discoveryId: trendingBook.id,
       });
-
-    if (
-      sharedResolver
-    ) {
-      if (
-        sharedResolver.ok ===
-          true
-      ) {
-        return (
-          sharedResolver.data
-            ?.googleBookId ??
-          null
-        );
-      }
-
-      if (
-        sharedResolver.status ===
-          429
-      ) {
-        throw new Error(
-          'Google Books rate limit reached.'
-        );
-      }
-
-      return null;
-    }
-
-    if (isbn) {
-      const response =
-        await fetchGoogleBooksJson<
-          GoogleBooksResponse
-        >(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-            `isbn:${isbn}`
-          )}&maxResults=5&printType=books`
-        );
-
-      if (
-        response.ok &&
-        response.data
-      ) {
-        const results =
-          response.data.items ??
-          [];
-
-        const exactIsbnMatch =
-          results.find(
-            (result) =>
-              result.volumeInfo
-                .industryIdentifiers
-                ?.some(
-                  (identifier) =>
-                    identifier.identifier ===
-                    isbn
-                )
-          );
-
-        if (exactIsbnMatch) {
-          return exactIsbnMatch.id;
-        }
-
-        if (results[0]?.id) {
-          return results[0].id;
-        }
-      }
-    }
-
-    const author =
-      trendingBook.authors?.[0];
-
-    const queryParts = [
-      `intitle:"${trendingBook.title}"`,
-    ];
-
-    if (author) {
-      queryParts.push(
-        `inauthor:"${author}"`
-      );
-    }
-
-    const response =
-      await fetchGoogleBooksJson<
-        GoogleBooksResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          queryParts.join(' ')
-        )}&maxResults=20&printType=books`
-      );
-
-    if (
-      !response.ok ||
-      !response.data
-    ) {
-      throw new Error(
-        `Google Books search failed: ${response.status}`
-      );
-    }
-
-    const data =
-      response.data;
-
-    const results =
-      data.items ?? [];
-
-    if (results.length === 0) {
-      return null;
-    }
-
-    const wantedTitle =
-      normalizeTitle(
-        trendingBook.title
-      );
-
-    const exactTitle =
-      results.find(
-        (result) =>
-          normalizeTitle(
-            result.volumeInfo.title
-          ) === wantedTitle
-      );
-
-    if (exactTitle) {
-      return exactTitle.id;
-    }
-
-    const titleAndAuthor =
-      results.find(
-        (result) => {
-          const resultTitle =
-            normalizeTitle(
-              result.volumeInfo.title
-            );
-
-          const resultAuthors =
-            result.volumeInfo
-              .authors ?? [];
-
-          const titleMatches =
-            resultTitle.includes(
-              wantedTitle
-            ) ||
-            wantedTitle.includes(
-              resultTitle
-            );
-
-          const authorMatches =
-            !author ||
-            resultAuthors.some(
-              (resultAuthor) =>
-                resultAuthor
-                  .toLowerCase()
-                  .includes(
-                    author.toLowerCase()
-                  ) ||
-                author
-                  .toLowerCase()
-                  .includes(
-                    resultAuthor.toLowerCase()
-                  )
-            );
-
-          return (
-            titleMatches &&
-            authorMatches
-          );
-        }
-      );
-
-    return (
-      titleAndAuthor?.id ??
-      results[0]?.id ??
-      null
-    );
-  }
-
-  async function openTrendingBook(
-    trendingBook: TrendingBook
-  ) {
-    if (openingTrendingBookId !== null) {
       return;
     }
-
-    try {
-      setOpeningTrendingBookId(
-        trendingBook.id
-      );
-
-      const googleBookId =
-        trendingBook.coverBookId ?? await findGoogleBookIdForTrending(
-          trendingBook
-        );
-
-      if (!googleBookId) {
-        Alert.alert(
-          'Book not found',
-          'Novori could not find this book in Google Books yet.'
-        );
-        return;
-      }
-
-      openBook(
-        googleBookId,
-        {
-          coverUrl:
-            trendingBook.coverUrl ??
-            undefined,
-          title:
-            trendingBook.title,
-          authors:
-            trendingBook.authors,
-          isbn:
-            trendingBook.isbns[0],
-          canonicalizeWork:
-            true,
-          trustedCover:
-            Boolean(
-              trendingBook.coverUrl
-            ),
-        }
-      );
-    } catch (err) {
-      console.error(
-        'Could not open trending book:',
-        err
-      );
-
-      Alert.alert(
-        'Could not open book',
-        'Novori had trouble finding this book. Please try again.'
-      );
-    } finally {
-      setOpeningTrendingBookId(
-        null
-      );
-    }
+    // Show the existing listing immediately while a verified edition resolves.
+    router.push({ pathname: '/discovery-book', params: { book: JSON.stringify({
+      id: trendingBook.id, title: trendingBook.title, authors: trendingBook.authors,
+      isbns: trendingBook.isbns, coverUrl: trendingBook.coverUrl,
+      releaseDate: trendingBook.releaseDate, releaseYear: trendingBook.releaseYear,
+      rating: trendingBook.rating,
+    }) } });
   }
 
   function selectBroadGenre(
@@ -3770,10 +3541,6 @@ export default function DiscoverScreen() {
   }: {
     item: TrendingBook;
   }) {
-    const isOpening =
-      openingTrendingBookId ===
-      item.id;
-
     return (
       <Pressable
         onPress={() =>
@@ -3783,7 +3550,7 @@ export default function DiscoverScreen() {
         }
         style={({ pressed }) => [
           styles.trendingCard,
-          (pressed || isOpening) &&
+          pressed &&
             styles.bookCardPressed,
         ]}
       >
@@ -3792,11 +3559,9 @@ export default function DiscoverScreen() {
             styles.trendingCoverWrap
           }
         >
-          {(item.isbns?.length || item.coverUrl) ? (
+          {(getDiscoveryBookId(item) || item.coverUrl) ? (
             <BookCoverImage
-              googleBookId={item.coverBookId}
-              isbns={item.coverBookId ? undefined : item.isbns}
-              existingCoverUrl={item.coverUrl}
+              {...discoveryCoverInput(item)}
               style={
                 styles.trendingCover
               }
@@ -3817,18 +3582,7 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {isOpening ? (
-            <View
-              style={
-                styles.trendingLoadingOverlay
-              }
-            >
-              <ActivityIndicator
-                size="small"
-                color={colors.gold}
-              />
-            </View>
-          ) : null}
+
         </View>
 
         <Text
@@ -3867,10 +3621,6 @@ export default function DiscoverScreen() {
   function renderRecentReleaseBook(
     item: TrendingBook
   ) {
-    const isOpening =
-      openingTrendingBookId ===
-      item.id;
-
     return (
       <Pressable
         onPress={() =>
@@ -3878,7 +3628,7 @@ export default function DiscoverScreen() {
         }
         style={({ pressed }) => [
           styles.newReleaseCard,
-          (pressed || isOpening) &&
+          pressed &&
             styles.bookCardPressed,
         ]}
       >
@@ -3887,11 +3637,9 @@ export default function DiscoverScreen() {
             styles.newReleaseCoverWrap
           }
         >
-          {(item.isbns?.length || item.coverUrl) ? (
+          {(getDiscoveryBookId(item) || item.coverUrl) ? (
             <BookCoverImage
-              googleBookId={item.coverBookId}
-              isbns={item.coverBookId ? undefined : item.isbns}
-              existingCoverUrl={item.coverUrl}
+              {...discoveryCoverInput(item)}
               style={
                 styles.newReleaseCover
               }
@@ -3912,18 +3660,7 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {isOpening ? (
-            <View
-              style={
-                styles.newReleaseLoadingOverlay
-              }
-            >
-              <ActivityIndicator
-                size="small"
-                color={colors.gold}
-              />
-            </View>
-          ) : null}
+
         </View>
 
         <Text
