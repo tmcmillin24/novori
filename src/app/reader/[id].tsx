@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
@@ -562,7 +563,7 @@ export default function ReaderProfileScreen() {
         </View>
 
         <Text style={styles.publicBookTitle} numberOfLines={3}>
-          {book.title}
+          {displayBookTitle(book.title ?? '')}
         </Text>
 
         <Text style={styles.publicBookAuthor} numberOfLines={1}>
@@ -584,7 +585,7 @@ export default function ReaderProfileScreen() {
 
           <View style={styles.reviewBookCopy}>
             <Text style={styles.reviewTitle} numberOfLines={2}>
-              {review.title}
+              {displayBookTitle(review.title)}
             </Text>
 
             <Text style={styles.reviewAuthor} numberOfLines={1}>

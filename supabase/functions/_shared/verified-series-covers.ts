@@ -1,8 +1,37 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
-import { normalizeCatalogAuthor } from './book-edition-metadata.ts';
+import { cleanCatalogBookTitle, normalizeCatalogAuthor } from './book-edition-metadata.ts';
 import { selectCanonicalGoogleCoversForWorkIds } from './book-cover-selector.ts';
+import { isEnglishBookLanguage } from './book-language.ts';
+const titleKey = (value: string) => cleanCatalogBookTitle(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 const authorKey = (name: string) => normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Choose artwork from the same edition that supplies the language and title.
+ * A work's cached_image is NOT evidence of English artwork.
+ */
+export function verifiedEnglishSeriesArt(book: any) {
+ const choices = (book?.editions ?? []).filter((edition: any) =>
+  Number.isSafeInteger(edition.id) && edition.id > 0 &&
+  [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage) &&
+  typeof edition.title === 'string' && titleKey(edition.title) === titleKey(book.title ?? '') &&
+  !edition.compilation && !/audio/i.test(edition.reading_format?.format ?? '') &&
+  [edition.isbn_13, edition.isbn_10].some(value => typeof value === 'string' && /^(?:\d{13}|\d{9}[\dX])$/.test(value)) &&
+  typeof edition.image?.url === 'string'
+ ).sort((a: any, b: any) => {
+  const print = (e: any) => /physical|print|paperback|hardcover/i.test(e.reading_format?.format ?? '') ? 0 : 1;
+  const date = (e: any) => /^\d{4}(?:-\d{2})?(?:-\d{2})?$/.test(e.release_date ?? '') ? e.release_date : '9999';
+  return print(a) - print(b) || date(a).localeCompare(date(b)) || a.id - b.id;
+ });
+ for (const edition of choices) {
+  try {
+   const url = new URL(edition.image.url);
+   if (url.protocol !== 'https:' || url.username || url.password || /placeholder|no[-_]?image|no[-_]?cover/i.test(url.pathname) || url.searchParams.has('Expires') || url.searchParams.has('X-Amz-Signature')) continue;
+   return { version: 1, editionId: edition.id, title: edition.title, language: 'en',
+    isbn: edition.isbn_13 || edition.isbn_10, url: url.toString() };
+  } catch { /* An invalid edition image does not justify using the work image. */ }
+ }
+ return null;
+}
 
 /** Catalog-only identity verification before restoring Hardcover's series art.
  * No ISBN alone can attach artwork. Existing manual locks remain authoritative.
@@ -30,6 +59,10 @@ export async function promoteVerifiedSeriesCovers(admin: SupabaseClient, payload
  }
  const workIds: string[] = [];
  for (const row of rows) {
+  const proof = row.coverEdition;
+  if (proof?.version !== 1 || !Number.isSafeInteger(proof.editionId) || proof.editionId <= 0 || !isEnglishBookLanguage(proof.language) ||
+      !/^(?:\d{13}|\d{9}[\dX])$/.test(proof.isbn ?? '') || !row.isbns?.includes(proof.isbn) ||
+      !proof.title || titleKey(proof.title) !== titleKey(row.title) || proof.url !== row.imageUrl) continue;
   let url: URL;
   try { url = new URL(row.imageUrl); } catch { continue; }
   if (url.protocol !== 'https:' || url.username || url.password || /placeholder|no[-_]?image|no[-_]?cover/i.test(url.pathname) || url.searchParams.has('Expires') || url.searchParams.has('X-Amz-Signature')) continue;
@@ -40,7 +73,7 @@ export async function promoteVerifiedSeriesCovers(admin: SupabaseClient, payload
    scope: 'edition', source_kind: 'series_cover', external_id: String(row.id), url: url.toString(),
    candidate_key: `hardcover:${row.id}:${edition.provider_book_id}:series_verified`,
    discovery_source: 'hardcover_series_verified', last_seen_at: new Date().toISOString(),
-   source_metadata: { hardcoverBookId: row.id, seriesId: payload.series.id, seriesPosition: row.position },
+   source_metadata: { hardcoverBookId: row.id, seriesId: payload.series.id, seriesPosition: row.position, coverEdition: proof },
   }, { onConflict: 'candidate_key' });
   if (error) throw error;
   workIds.push(edition.work_id);

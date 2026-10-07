@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -231,7 +232,7 @@ export default function CurrentlyReadingScreen() {
           }
         >
           {
-            item.title
+            displayBookTitle(item.title ?? '')
           }
         </Text>
 

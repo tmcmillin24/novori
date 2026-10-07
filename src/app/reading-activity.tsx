@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { getReadingOrbitLayout } from '../lib/reading-orbit-layout';
 import BookCoverImage from '../components/BookCoverImage';
 import {
@@ -1637,10 +1638,8 @@ export default function ReadingActivityScreen() {
                             2
                           }
                         >
-                          {
-                            selectedDayBooks[0]
-                              .title
-                          }
+                          {displayBookTitle(selectedDayBooks[0]
+                              .title ?? '')}
                         </Text>
 
                         {showCenterAuthor &&

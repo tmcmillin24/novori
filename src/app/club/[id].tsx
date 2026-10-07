@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
@@ -1035,7 +1036,7 @@ export default function ClubDetailScreen() {
 
               <View style={styles.postCompactBookCopy}>
                 <Text style={styles.postCompactBookTitle} numberOfLines={1}>
-                  {post.book_title}
+                  {displayBookTitle(post.book_title ?? '')}
                 </Text>
 
                 {(post.book_authors &&
@@ -1084,7 +1085,7 @@ export default function ClubDetailScreen() {
 
               <View style={styles.postBookCopy}>
                 <Text style={styles.postBookTitle} numberOfLines={2}>
-                  {post.book_title}
+                  {displayBookTitle(post.book_title ?? '')}
                 </Text>
 
                 {post.book_authors &&

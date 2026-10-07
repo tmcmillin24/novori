@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useUiSwipeDismiss } from '../lib/use-ui-swipe-dismiss';
@@ -198,7 +199,7 @@ export default function BookCartScreen() {
 
               <View style={styles.bookCopy}>
                 <Text style={styles.bookTitle} numberOfLines={2}>
-                  {item.title}
+                  {displayBookTitle(item.title ?? '')}
                 </Text>
 
                 <Text style={styles.bookAuthor} numberOfLines={1}>

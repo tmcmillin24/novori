@@ -5,7 +5,7 @@ function catalog(candidates: any[], selections: any[] = [], audio = false, extra
   const writes: any[] = [];
   const editions = [
     ...extraEditions,
-    { id: 'edition', detail_complete: true, language: 'en', sale_country: 'US' },
+    { id: 'edition', metadata: { volumeInfo: { title: 'Catching Fire', language: 'en' } }, detail_complete: true, language: 'en', sale_country: 'US' },
     { id: 'foreign', detail_complete: true, language: 'fr', sale_country: 'FR' },
     { id: 'audio', detail_complete: true, language: 'en', sale_country: 'US', metadata: {volumeInfo:{description: audio ? 'MP3 CD Format' : ''},novoriEdition:{format: audio ? 'audio' : 'unknown'}} },
   ];
@@ -26,7 +26,7 @@ function catalog(candidates: any[], selections: any[] = [], audio = false, extra
   return { client, writes };
 }
 function candidate(id: string, variant: string, provider = 'google_books', work = 'work') {
-  return { id, work_id: work, edition_id: 'edition', provider, source_variant: variant, scope: 'edition', url: `https://art/${id}` };
+  return { id, work_id: work, edition_id: 'edition', provider, source_variant: variant, scope: 'edition', url: `https://art/${id}`, source_metadata: provider === 'hardcover' ? { coverEdition: { version: 1, editionId: 2, language: 'en', title: 'Catching Fire', isbn: '9780439023498', url: `https://art/${id}` } } : undefined };
 }
 
 test('catalog chooses extraLarge, then verified series, then Google large', async () => {
@@ -58,7 +58,7 @@ test('does not borrow another work or explicitly foreign artwork', async () => {
 
 test('reading an unchanged canonical cover does not rewrite the saved selection', async () => {
   const { client, writes } = catalog([candidate('best', 'extraLarge')], [{
-    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 3,
+    work_id: 'work', locked: false, candidate_id: 'best', status: 'selected', score: 700, selector_version: 4,
   }]);
   await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
   expect(writes).toEqual([]);
@@ -120,7 +120,7 @@ test('cached Iron Flame original print editions beat the opened 2025 reissue', a
   for (const candidates of [covers, [...covers].reverse()]) {
     const { client, writes } = catalog(candidates, [{work_id:'work', locked:false, candidate_id:'b9554419', selector_version:1, status:'selected',score:480}], false, editions);
     await selectCanonicalGoogleCoversForWorkIds(client as any, ['work']);
-    expect(writes[0]).toMatchObject({candidate_id:'2e882e58', score:460, selector_version:3});
+    expect(writes[0]).toMatchObject({candidate_id:'2e882e58', score:460, selector_version:4});
   }
 });
 
@@ -128,7 +128,7 @@ test('fetching another equal ISBNdb edition cannot replace original release artw
   for (const complete of [false, true]) {
     const {client, writes} = catalog([
       isbnArt('z-original', 'original'), isbnArt('a-later', 'later')
-    ], [{work_id:'work', locked:false,candidate_id:'z-original',status:'selected',score:460,selector_version:3}], false, [
+    ], [{work_id:'work', locked:false,candidate_id:'z-original',status:'selected',score:460,selector_version:4}], false, [
       isbnEdition('original','2020-05-01'), isbnEdition('later','2024-05-01',complete)
     ]);
     await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
@@ -138,7 +138,7 @@ test('fetching another equal ISBNdb edition cannot replace original release artw
 
 test('equivalent cached editions retain their winner instead of changing with new UUIDs', async () => {
   const {client,writes}=catalog([isbnArt('a-new','equal'),isbnArt('z-existing','original')],
-    [{work_id:'work',locked:false,candidate_id:'z-existing',status:'selected',score:460,selector_version:3}], false,
+    [{work_id:'work',locked:false,candidate_id:'z-existing',status:'selected',score:460,selector_version:4}], false,
     [isbnEdition('equal','2020-05-01',true),isbnEdition('original','2020-05-01')]);
   await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
   expect(writes).toEqual([]);
@@ -153,7 +153,7 @@ test('print and valid precise release dates beat unknown, ebook and invalid date
 });
 
 test('existing winner still upgrades to larger artwork and cannot keep an ineligible language',async()=>{
-  const existing=[{work_id:'work',locked:false,candidate_id:'old',status:'selected',score:460,selector_version:3}];
+  const existing=[{work_id:'work',locked:false,candidate_id:'old',status:'selected',score:460,selector_version:4}];
   const {client,writes}=catalog([isbnArt('old','original'),candidate('sharp','extraLarge')],existing,false,[isbnEdition('original','2020-01-01')]);
   await selectCanonicalGoogleCoversForWorkIds(client as any,['work']);
   expect(writes[0].candidate_id).toBe('sharp');
@@ -171,4 +171,16 @@ test('mislabeled sets already stored under a novel cannot supply its cover',asyn
  const only=catalog([isbnArt('set-cover','set')],[],false,extras);
  await selectCanonicalGoogleCoversForWorkIds(only.client as any,['work']);
  expect(only.writes[0].candidate_id).toBe('set-cover');
+});
+
+test('retires legacy unproven series artwork even when linked catalog metadata is English', async () => {
+ const unsafe = { ...candidate('spanish-art', 'series_verified', 'hardcover'), source_metadata: { hardcoverBookId: 1 } };
+ const rejected: string[] = [];
+ const { client, writes } = catalog([unsafe, candidate('english-art', 'medium', 'isbndb')]);
+ await selectCanonicalGoogleCoversForWorkIds(client as any, ['work'], (_work, url) => rejected.push(url));
+ expect(writes[0].candidate_id).toBe('english-art');
+ expect(rejected).toEqual(['https://art/spanish-art']);
+ const locked = catalog([unsafe], [{ work_id: 'work', locked: true, candidate_id: 'spanish-art' }]);
+ await selectCanonicalGoogleCoversForWorkIds(locked.client as any, ['work'], () => { throw new Error('Manual locks must not be invalidated'); });
+ expect(locked.writes).toEqual([]);
 });

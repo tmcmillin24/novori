@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -658,7 +659,7 @@ export default function AskReadersScreen() {
               <View style={styles.feedPreviewBookCard}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Change attached book: ${attachedBook.title}`}
+                  accessibilityLabel={`Change attached book: ${displayBookTitle(attachedBook.title)}`}
                   disabled={publishing}
                   onPress={() => setBookPickerVisible(true)}
                   style={({ pressed }) => [
@@ -699,7 +700,7 @@ export default function AskReadersScreen() {
                       style={styles.feedPreviewBookTitle}
                       numberOfLines={2}
                     >
-                      {attachedBook.title}
+                      {displayBookTitle(attachedBook.title)}
                     </Text>
 
                     {attachedBook.authors.length ? (
@@ -715,9 +716,7 @@ export default function AskReadersScreen() {
                       googleBookId={
                         attachedBook.id
                       }
-                      title={
-                        attachedBook.title
-                      }
+                      title={displayBookTitle(attachedBook.title)}
                       authors={
                         attachedBook.authors
                       }
@@ -993,7 +992,7 @@ export default function AskReadersScreen() {
                       style={styles.resultTitle}
                       numberOfLines={2}
                     >
-                      {item.volumeInfo.title || 'Untitled book'}
+                      {displayBookTitle(item.volumeInfo.title || 'Untitled book')}
                     </Text>
 
                     <Text

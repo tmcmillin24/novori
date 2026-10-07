@@ -1,3 +1,5 @@
+> The October 7 app-wide repair supersedes the earlier work-level Hardcover artwork policy below. See [CATALOG_APP_WIDE_REPAIR.md](CATALOG_APP_WIDE_REPAIR.md) for the current edition-proof requirement, all affected deployments and outstanding live checks.
+
 # Discover listing and cover follow-up
 
 October 7, 2026. Client follow-up to Phase 3.

@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Pressable,StyleSheet,Text,View } from 'react-native';
@@ -25,7 +26,7 @@ export default function ClubEventCard({event,onOpen,next=false,detail=false,now=
       <Text style={styles.meta}>{event.kind==='virtual'?'Virtual meeting':event.location}</Text>
       {detail&&event.description ? <Text style={styles.description}>{event.description}</Text>:null}
       {event.book ? <View style={styles.book}><BookCoverImage googleBookId={event.book.googleBookId} isbn={event.book.isbn} existingCoverUrl={event.book.coverUrl} style={styles.cover}/>
-        <View style={styles.bookCopy}><Text style={styles.bookTitle} numberOfLines={detail?undefined:2}>{event.book.title}</Text><Text style={styles.author} numberOfLines={2}>{event.book.authors.join(', ')}</Text></View></View>:null}
+        <View style={styles.bookCopy}><Text style={styles.bookTitle} numberOfLines={detail?undefined:2}>{displayBookTitle(event.book.title ?? '')}</Text><Text style={styles.author} numberOfLines={2}>{event.book.authors.join(', ')}</Text></View></View>:null}
       {onOpen ? <View style={styles.footer}><Ionicons name="calendar-outline" size={14} color={colors.gold}/><Text style={styles.footerText}>View event</Text><Ionicons name="chevron-forward" size={13} color={colors.gold}/></View>:null}
     </View>
   </Pressable>;

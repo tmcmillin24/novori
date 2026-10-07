@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { discoveryCoverInput, getDiscoveryBookId, getDiscoveryBookVersion, subscribeDiscoveryBooks } from '../../lib/discovery-books';
 import { getBookLayout } from '../../lib/book-layout';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
@@ -1763,7 +1764,7 @@ const DiscoverBookCard = memo(
                 info.authors,
               isbn,
               canonicalizeWork:
-                true,
+                false,
             }
           )
         }
@@ -1812,8 +1813,8 @@ const DiscoverBookCard = memo(
             }
             numberOfLines={2}
           >
-            {info.title ??
-              'Untitled'}
+            {displayBookTitle(info.title ??
+              'Untitled')}
           </Text>
 
           <Text
@@ -3591,7 +3592,7 @@ export default function DiscoverScreen() {
           }
           numberOfLines={2}
         >
-          {item.title}
+          {displayBookTitle(item.title ?? '')}
         </Text>
 
         <Text
@@ -3669,7 +3670,7 @@ export default function DiscoverScreen() {
           }
           numberOfLines={2}
         >
-          {item.title}
+          {displayBookTitle(item.title ?? '')}
         </Text>
 
         <Text

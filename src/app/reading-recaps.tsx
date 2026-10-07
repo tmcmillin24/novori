@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import BookCoverImage from '../components/BookCoverImage';
 import YearInReading from '../components/YearInReading';
 import PeriodReadingInsights from '../components/PeriodReadingInsights';
@@ -1986,9 +1987,7 @@ export default function ReadingRecapsScreen() {
                                 2
                               }
                             >
-                              {
-                                journey.book.title
-                              }
+                              {displayBookTitle(journey.book.title)}
                             </Text>
 
                             {journey.book.authors.length >

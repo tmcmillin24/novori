@@ -1,9 +1,10 @@
-import { promoteVerifiedSeriesCovers } from '../_shared/verified-series-covers.ts';
+import { cleanCatalogBookTitle, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
+import { promoteVerifiedSeriesCovers, verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
 import { isbnDbEnabled } from '../_shared/isbndb.ts';
-import { englishEditionIsbns } from '../_shared/book-language.ts';
+import { englishEditionIsbns, isEnglishBookLanguage } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectCanonicalGoogleCoversForWorkIds } from "../_shared/book-cover-selector.ts";
@@ -272,7 +273,7 @@ Deno.serve(async (req) => {
 
       [
 
-        "series:v2:english-isbns",
+        "series:v3:edition-art-and-membership",
 
         requestedIsbns
 
@@ -301,297 +302,6 @@ Deno.serve(async (req) => {
       ].join("::");
 
 
-
-    async function promoteVerifiedSeriesCover(
-      payload: any
-    ) {
-      // ISBNdb mode uses verified catalog artwork, never raw series cached_image.
-      if (isbnDbEnabled()) return;
-
-      if (
-        !supabaseAdmin ||
-        !payload?.series ||
-        !Array.isArray(payload?.books)
-      ) {
-        return;
-      }
-
-      const currentPosition =
-        payload.series.currentPosition;
-
-      if (
-        currentPosition === null ||
-        currentPosition === undefined
-      ) {
-        return;
-      }
-
-      const currentSeriesBook =
-        payload.books.find(
-          (book: any) =>
-            book?.position ===
-            currentPosition
-        );
-
-      const imageUrl =
-        typeof currentSeriesBook?.imageUrl === "string"
-          ? currentSeriesBook.imageUrl
-              .replace(/^http:\/\//i, "https://")
-              .trim()
-          : "";
-
-      if (!imageUrl) {
-        return;
-      }
-
-      const seriesIsbns =
-        Array.isArray(
-          currentSeriesBook?.isbns
-        )
-          ? currentSeriesBook.isbns
-              .map((value: unknown) =>
-                String(value ?? "")
-                  .replace(/[^0-9Xx]/g, "")
-                  .toUpperCase()
-              )
-              .filter(Boolean)
-          : [];
-
-      const matchingIsbns =
-        Array.from(
-          new Set([
-            ...requestedIsbns,
-            ...seriesIsbns,
-          ])
-        );
-
-      let edition:
-        | {
-            id: string;
-            work_id: string;
-            provider_book_id: string;
-          }
-        | null =
-        null;
-
-      if (requestedGoogleBookId) {
-        const {
-          data,
-          error,
-        } =
-          await supabaseAdmin
-            .from("book_editions")
-            .select(
-              "id, work_id, provider_book_id"
-            )
-            .eq("provider", "google_books")
-            .eq(
-              "provider_book_id",
-              requestedGoogleBookId
-            )
-            .maybeSingle();
-
-        if (error) {
-          console.warn(
-            "Could not resolve exact Google edition for verified Hardcover cover:",
-            error.message
-          );
-        } else if (
-          data?.id &&
-          data?.work_id &&
-          data?.provider_book_id
-        ) {
-          edition =
-            data as {
-              id: string;
-              work_id: string;
-              provider_book_id: string;
-            };
-        }
-      }
-
-      if (!edition) {
-        const isbn13s =
-          matchingIsbns.filter(
-            (isbn) =>
-              isbn.length === 13
-          );
-
-        if (isbn13s.length > 0) {
-          const {
-            data,
-            error,
-          } =
-            await supabaseAdmin
-              .from("book_editions")
-              .select(
-                "id, work_id, provider_book_id"
-              )
-              .eq("provider", "google_books")
-              .in(
-                "isbn_13",
-                isbn13s
-              )
-              .order(
-                "detail_complete",
-                {
-                  ascending: false,
-                }
-              )
-              .limit(1)
-              .maybeSingle();
-
-          if (error) {
-            console.warn(
-              "Could not resolve ISBN-13 edition for verified Hardcover cover:",
-              error.message
-            );
-          } else if (
-            data?.id &&
-            data?.work_id &&
-            data?.provider_book_id
-          ) {
-            edition =
-              data as {
-                id: string;
-                work_id: string;
-                provider_book_id: string;
-              };
-          }
-        }
-      }
-
-      if (!edition) {
-        const isbn10s =
-          matchingIsbns.filter(
-            (isbn) =>
-              isbn.length === 10
-          );
-
-        if (isbn10s.length > 0) {
-          const {
-            data,
-            error,
-          } =
-            await supabaseAdmin
-              .from("book_editions")
-              .select(
-                "id, work_id, provider_book_id"
-              )
-              .eq("provider", "google_books")
-              .in(
-                "isbn_10",
-                isbn10s
-              )
-              .order(
-                "detail_complete",
-                {
-                  ascending: false,
-                }
-              )
-              .limit(1)
-              .maybeSingle();
-
-          if (error) {
-            console.warn(
-              "Could not resolve ISBN-10 edition for verified Hardcover cover:",
-              error.message
-            );
-          } else if (
-            data?.id &&
-            data?.work_id &&
-            data?.provider_book_id
-          ) {
-            edition =
-              data as {
-                id: string;
-                work_id: string;
-                provider_book_id: string;
-              };
-          }
-        }
-      }
-
-      if (!edition) {
-        console.info(
-          "Verified Hardcover series cover has no matching Novori Google edition yet."
-        );
-        return;
-      }
-
-      const hardcoverBookId =
-        currentSeriesBook?.id !== null &&
-        currentSeriesBook?.id !== undefined
-          ? String(currentSeriesBook.id)
-          : String(currentPosition);
-
-      const now =
-        new Date().toISOString();
-
-      const {
-        error: candidateError,
-      } =
-        await supabaseAdmin
-          .from("book_cover_candidates")
-          .upsert(
-            {
-              candidate_key:
-                `hardcover:${hardcoverBookId}:${edition.provider_book_id}:series_verified`,
-              work_id:
-                edition.work_id,
-              edition_id:
-                edition.id,
-              scope:
-                "edition",
-              provider:
-                "hardcover",
-              source_kind:
-                "series_cover",
-              source_variant:
-                "series_verified",
-              external_id:
-                hardcoverBookId,
-              url:
-                imageUrl,
-              discovery_source:
-                "hardcover_series_verified",
-              source_metadata: {
-                requestedGoogleBookId:
-                  requestedGoogleBookId || null,
-                linkedGoogleBookId:
-                  edition.provider_book_id,
-                hardcoverBookId,
-                seriesId:
-                  payload.series.id ?? null,
-                seriesPosition:
-                  currentPosition,
-                matchedIsbns:
-                  matchingIsbns,
-              },
-              last_seen_at:
-                now,
-            },
-            {
-              onConflict:
-                "candidate_key",
-            }
-          );
-
-      if (candidateError) {
-        console.warn(
-          "Could not save verified Hardcover series cover:",
-          candidateError.message
-        );
-        return;
-      }
-
-      await selectCanonicalGoogleCoversForWorkIds(
-        supabaseAdmin,
-        [
-          edition.work_id,
-        ]
-      );
-    }
 
     const responsePayload = await cachedProviderValue({
       admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,
@@ -999,6 +709,34 @@ Deno.serve(async (req) => {
 
 
 
+      function normalizeSearchText(
+        value: unknown
+      ) {
+        return String(
+          value ?? ""
+        )
+          .toLowerCase()
+          .normalize(
+            "NFKD"
+          )
+          .replace(
+            /[\u0300-\u036f]/g,
+            ""
+          )
+          .replace(
+            /[^a-z0-9]+/g,
+            " "
+          )
+          .trim();
+      }
+
+    const workTitleKey = (value: string) => normalizeSearchText(cleanCatalogBookTitle(value ?? ''));
+    const workAuthorKey = (value: string) => normalizeSearchText(normalizeCatalogAuthor(value ?? ''));
+    const matchesRequestedBook = (book: any) => Boolean(book) &&
+      (!requestedTitle || workTitleKey(book.title) === workTitleKey(requestedTitle)) &&
+      (!requestedAuthors.length || requestedAuthors.some((wanted: string) =>
+        (book.contributions ?? []).some((item: any) => workAuthorKey(item.author?.name) === workAuthorKey(wanted))));
+
     const findBookQuery = `
 
       query FindBookByISBN($isbn: String!) {
@@ -1071,7 +809,15 @@ Deno.serve(async (req) => {
 
 
 
-            editions(limit: 25) {
+            editions(limit: 100
+            where: { language: { code2: { _eq: "en" } } }
+            order_by: [{ release_date: asc_nulls_last }, { id: asc }]) {
+                id
+                title
+                image { url width height }
+                reading_format { format }
+                release_date
+                compilation
 
               isbn_10
 
@@ -1175,7 +921,9 @@ Deno.serve(async (req) => {
         editions.find(
           (edition: any) =>
             edition.book?.book_series
-              ?.length
+              ?.length && matchesRequestedBook(edition.book) &&
+            (![edition.language?.code2, edition.language?.code3, edition.language?.language].some(Boolean) ||
+             [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage))
         );
 
       if (match) {
@@ -1266,27 +1014,6 @@ Deno.serve(async (req) => {
           ? searchResults.hits
           : [];
 
-      function normalizeSearchText(
-        value: unknown
-      ) {
-        return String(
-          value ?? ""
-        )
-          .toLowerCase()
-          .normalize(
-            "NFKD"
-          )
-          .replace(
-            /[\u0300-\u036f]/g,
-            ""
-          )
-          .replace(
-            /[^a-z0-9]+/g,
-            " "
-          )
-          .trim();
-      }
-
       const wantedTitle =
         normalizeSearchText(
           requestedTitle
@@ -1306,7 +1033,9 @@ Deno.serve(async (req) => {
               hit?.document ??
               null
           )
-          .filter(Boolean)
+          .filter((document: any) => document && matchesRequestedBook({
+            title: document.title, contributions: (document.author_names ?? []).map((name: string) => ({ author: { name } })),
+          }))
           .map(
             (
               document: any
@@ -1398,13 +1127,9 @@ Deno.serve(async (req) => {
               a.score
           );
 
-      const bestId =
-        scoredHits[0]?.id ??
-        null;
-
-      if (
-        bestId
-      ) {
+      // Duplicate Hardcover records can have identical titles but only one has
+      // series membership. Reuse the cached fetch for each bounded candidate.
+      for (const { id: bestId } of scoredHits.slice(0, 5)) {
         const fullBookQuery = `
           query HardcoverBookById(
             $id: Int!
@@ -1431,7 +1156,15 @@ Deno.serve(async (req) => {
                 }
               }
 
-              editions(limit: 25) {
+              editions(limit: 100
+            where: { language: { code2: { _eq: "en" } } }
+            order_by: [{ release_date: asc_nulls_last }, { id: asc }]) {
+                id
+                title
+                image { url width height }
+                reading_format { format }
+                release_date
+                compilation
                 isbn_10
                 isbn_13
 
@@ -1489,7 +1222,7 @@ Deno.serve(async (req) => {
         if (
           resolved
             ?.book_series
-            ?.length
+            ?.length && matchesRequestedBook(resolved)
         ) {
           currentBook =
             resolved;
@@ -1498,38 +1231,17 @@ Deno.serve(async (req) => {
             book:
               resolved,
             language:
-              resolved
-                ?.editions?.[0]
-                ?.language ??
+              resolved?.editions?.find((edition: any) =>
+                [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage))?.language ??
               null,
           };
+          break;
         }
       }
     }
 
-    // Use the language of the exact ISBN-matched
-
-    // edition as Novori's preferred language for
-
-    // this series lookup. This keeps the cleanup
-
-    // generic: English ISBNs prefer English records,
-
-    // Spanish ISBNs prefer Spanish records, etc.
-
-    let preferredLanguageKeys =
-
-      expandLanguageKeys([
-
-        editionWithSeries?.language?.code2,
-
-        editionWithSeries?.language?.code3,
-
-        editionWithSeries?.language?.language,
-
-      ]);
-
-
+    // Novori's English catalog must not inherit a mixed work's first edition language.
+    const preferredLanguageKeys = expandLanguageKeys(['en', 'eng', 'english']);
 
     const membership =
 
@@ -1557,44 +1269,6 @@ Deno.serve(async (req) => {
 
       return emptySeriesPayload;
     }
-
-    // Hardcover sometimes leaves the exact edition's
-
-    // language blank even when the ISBN is known.
-
-    // In that case, ISBN lookup through Google Books
-
-    // gives us a much more reliable preferred language
-
-    // than trying to infer it from a title.
-
-    if (
-
-      preferredLanguageKeys.size === 0
-
-    ) {
-
-      const isbnLanguages =
-
-        await lookupIsbnLanguages(
-
-          String(matchedIsbn)
-
-        );
-
-
-
-      preferredLanguageKeys =
-
-        expandLanguageKeys(
-
-          isbnLanguages
-
-        );
-
-    }
-
-
 
     // -----------------------------------
 
@@ -1666,7 +1340,15 @@ Deno.serve(async (req) => {
 
 
 
-              editions(limit: 25) {
+              editions(limit: 100
+            where: { language: { code2: { _eq: "en" } } }
+            order_by: [{ release_date: asc_nulls_last }, { id: asc }]) {
+                id
+                title
+                image { url width height }
+                reading_format { format }
+                release_date
+                compilation
 
                 isbn_10
 
@@ -1926,19 +1608,8 @@ Deno.serve(async (req) => {
 
 
 
-      const imageUrl =
-
-        typeof book?.cached_image ===
-
-        "string"
-
-          ? book.cached_image
-
-          : book?.cached_image?.url ??
-
-            null;
-
-
+      const coverEdition = verifiedEnglishSeriesArt(book);
+      const imageUrl = coverEdition?.url ?? null;
 
       return {
 
@@ -1973,6 +1644,7 @@ Deno.serve(async (req) => {
 
 
         imageUrl,
+        coverEdition,
 
 
 
@@ -3344,9 +3016,8 @@ Deno.serve(async (req) => {
     return seriesPayload;
       },
     });
-    await promoteVerifiedSeriesCover(responsePayload);
     const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
-    if (isbnDbEnabled()) {
+    {
       try {
         await promoteVerifiedSeriesCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({
           ...row, coverBookId: verifiedPayload.books?.find((verified: any) => verified.id === row.id)?.coverBookId,

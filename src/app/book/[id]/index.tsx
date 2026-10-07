@@ -3349,8 +3349,8 @@ export default function BookDetailsScreen() {
                   3
                 }
               >
-                {info.title ??
-                  'Untitled'}
+                {displayBookTitle(info.title ??
+                  'Untitled')}
               </Text>
 
               <Text
@@ -5489,8 +5489,8 @@ export default function BookDetailsScreen() {
                   style={styles.dateModalSubtitle}
                   numberOfLines={2}
                 >
-                  {book?.volumeInfo.title ??
-                    'Book'}
+                  {displayBookTitle(book?.volumeInfo.title ??
+                    'Book')}
                 </Text>
               </View>
 

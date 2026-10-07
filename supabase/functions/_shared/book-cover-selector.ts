@@ -1,11 +1,11 @@
-import { audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
+import { cleanCatalogBookTitle, audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SELECTOR_VERSION =
-  3;
+  4;
 
 const GOOGLE_PROVIDER =
   'google_books';
@@ -48,6 +48,7 @@ type CandidateRow = {
   source_variant:
     string | null;
   url: string;
+  source_metadata?: { coverEdition?: { version?: number; editionId?: number; language?: string; isbn?: string; url?: string; title?: string } };
 };
 
 type EditionRow = {
@@ -167,6 +168,12 @@ function candidateScore(
   if (
     isVerifiedHardcoverSeries
   ) {
+    const proof = candidate.source_metadata?.coverEdition;
+    const titleKey = (value: string) => cleanCatalogBookTitle(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (proof?.version !== 1 || !Number.isSafeInteger(proof.editionId) || (proof.editionId ?? 0) <= 0 ||
+        !isEnglishBookLanguage(proof.language) || proof.url !== candidate.url ||
+        !/^(?:\d{13}|\d{9}[\dX])$/.test(proof.isbn ?? '') || !proof.title ||
+        !edition.metadata?.volumeInfo?.title || titleKey(proof.title) !== titleKey(edition.metadata.volumeInfo.title)) return null;
     // Verified Hardcover series artwork is trusted ahead of
     // Google large/medium renditions for the same work, while
     // Google extraLarge remains the highest-priority automatic
@@ -243,7 +250,8 @@ function compareIsbnDbEditions(a: EditionRow, b: EditionRow) {
 export async function selectCanonicalGoogleCoversForWorkIds(
   supabaseAdmin:
     SupabaseClient,
-  workIds: string[]
+  workIds: string[],
+  onRejected?: (workId: string, url: string) => void
 ) {
   try {
     const uniqueWorkIds =
@@ -340,7 +348,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await supabaseAdmin
         .from('book_cover_candidates')
-        .select('id, work_id, edition_id, provider, source_variant, url')
+        .select('id, work_id, edition_id, provider, source_variant, url, source_metadata')
         .in('provider', [GOOGLE_PROVIDER, HARDCOVER_PROVIDER, 'isbndb'])
         .eq('scope', 'edition')
         .in('work_id', eligibleWorkIds)
@@ -470,6 +478,8 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                     return null;
                   }
 
+                  if (candidate.provider === HARDCOVER_PROVIDER && candidate.source_variant === 'series_verified' &&
+                      candidateScore(candidate, edition) === null) onRejected?.(workId, candidate.url);
                   const score =
                     candidateScore(
                       candidate,

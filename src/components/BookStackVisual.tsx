@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -295,7 +296,7 @@ function StackCover({
               numberOfLines={2}
             >
               {
-                item.title
+                displayBookTitle(item.title ?? '')
               }
             </Text>
           </View>

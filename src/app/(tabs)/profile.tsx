@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
@@ -571,7 +572,7 @@ export default function ProfileScreen() {
               </View>
 
               <Text style={styles.gridBookTitle} numberOfLines={3}>
-                {book.title}
+                {displayBookTitle(book.title ?? '')}
               </Text>
 
               {book.rating !==
@@ -611,7 +612,7 @@ export default function ProfileScreen() {
 
                 <View style={styles.reviewBookInfo}>
                   <Text style={styles.reviewBookTitle} numberOfLines={2}>
-                    {book.title}
+                    {displayBookTitle(book.title ?? '')}
                   </Text>
 
                   <Text style={styles.reviewBookAuthor} numberOfLines={1}>

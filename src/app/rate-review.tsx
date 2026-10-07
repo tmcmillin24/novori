@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { Ionicons } from '@expo/vector-icons';
@@ -704,7 +705,7 @@ export default function RateReviewScreen() {
 
           >
 
-            Your rating and review stay attached to {book.title}. Sharing is optional.
+            Your rating and review stay attached to {displayBookTitle(book.title ?? '')}. Sharing is optional.
 
           </Text>
 
@@ -1060,7 +1061,7 @@ export default function RateReviewScreen() {
 
             >
 
-              {book.title}
+              {displayBookTitle(book.title ?? '')}
 
             </Text>
 

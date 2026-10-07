@@ -11,8 +11,13 @@ export type CanonicalCoverInput = {
 };
 
 type Entry = { url: string | null; workId?: string; checkedAt: number; confirmed: boolean; revision: number };
-type SelectionDetail = { workId?: string | null; url?: string | null };
+type SelectionDetail = { workId?: string | null; url?: string | null; rejectedUrls?: string[] };
 const entries = new Map<string, Entry>();
+// Rejections are scoped to a work so another work's manual selection is untouched.
+const rejectedByWork = new Map<string, Set<string>>();
+function permitted(url: string | null, workId?: string) {
+  return url && workId && rejectedByWork.get(workId)?.has(url) ? null : url;
+}
 const listeners = new Set<() => void>();
 const activeKeys = new Map<string, number>();
 const pending = new Map<string, { input: CanonicalCoverInput; resolve: (url: string | null) => void }[]>();
@@ -57,7 +62,8 @@ function storedEntry(value: unknown, now: number): [string, Entry] | null {
   const [key, entry] = value;
   if (typeof key !== 'string' || !/^(?:[A-Za-z0-9_-]{1,200}|isbn:(?:[0-9]{13}|[0-9]{9}[0-9X]))$/.test(key) ||
       !entry || typeof entry !== 'object' || entry.confirmed !== true ||
-      typeof entry.url !== 'string' || entry.url.length > 4096 || !/^https?:\/\/[^\s]+$/i.test(entry.url) ||
+      (entry.url !== null && (typeof entry.url !== 'string' || entry.url.length > 4096 || !/^https?:\/\/[^\s]+$/i.test(entry.url))) ||
+      (entry.url === null && !entry.workId) ||
       !Number.isFinite(entry.checkedAt) || entry.checkedAt < 0 || entry.checkedAt > now || now - entry.checkedAt >= RETENTION_MS ||
       (entry.workId !== undefined && (typeof entry.workId !== 'string' || !entry.workId || entry.workId.length > 256))) return null;
   return [key, { url: secure(entry.url), checkedAt: entry.checkedAt, workId: entry.workId, confirmed: true, revision: 0 }];
@@ -71,6 +77,14 @@ function hydrate(): Promise<void> {
       if (!raw || raw.length > MAX_STORAGE_CHARS) return;
       const saved = JSON.parse(raw);
       if (saved?.version !== 1 || !Array.isArray(saved.entries)) return;
+      if (Array.isArray(saved.rejections)) for (const value of saved.rejections.slice(-MAX_IDLE_ENTRIES)) {
+        if (!Array.isArray(value) || value.length !== 2) continue;
+        const [workId, urls] = value;
+        if (typeof workId !== 'string' || !workId || workId.length > 256 || !Array.isArray(urls)) continue;
+        if (rejectedByWork.has(workId)) continue; // Live responses win over disk.
+        rejectedByWork.set(workId, new Set(urls.slice(-20).filter((url: unknown): url is string =>
+          typeof url === 'string' && url.length <= 4096 && /^https:\/\/[^\s]+$/i.test(url))));
+      }
       const now = Date.now();
       const restored = saved.entries.slice(-MAX_IDLE_ENTRIES).map((value: unknown) => storedEntry(value, now))
         .filter((value: [string, Entry] | null): value is [string, Entry] => value !== null)
@@ -88,7 +102,7 @@ function hydrate(): Promise<void> {
       for (const [key, entry] of restoredKeys) {
         if (entries.get(key)?.confirmed) continue;
         const winner = entry.workId ? liveWorks.get(entry.workId) ?? restoredWorks.get(entry.workId) ?? entry : entry;
-        remember(key, winner);
+        remember(key, { ...winner, url: permitted(winner.url, winner.workId) });
         changed = true;
       }
       if (changed) notify();
@@ -109,13 +123,20 @@ function persist() {
       try {
         const now = Date.now();
         const prefix = '{"version":1,"entries":[';
-        const suffix = ']}';
+        // Include revocations in the same bounded, atomic storage snapshot.
+        const revocations = [...rejectedByWork].slice(-MAX_IDLE_ENTRIES).map(([id, urls]) => [id, [...urls].slice(-20)]);
+        while (revocations.length && JSON.stringify(revocations).length > MAX_STORAGE_CHARS / 2) revocations.shift();
+        const suffix = '],"rejections":' + JSON.stringify(revocations) + '}';
         const saved: string[] = [];
         let length = prefix.length + suffix.length;
         for (const value of [...entries].reverse()) {
           if (saved.length === MAX_IDLE_ENTRIES) break;
-          if (!storedEntry(value, now)) continue;
-          const [key, entry] = value;
+          const [key, original] = value;
+          // A safe snapshot fallback is still not a catalog-selected image.
+          // Persist only its rejection tombstone until a selection is confirmed.
+          const entry = !original.confirmed && original.workId && rejectedByWork.get(original.workId)?.size
+            ? { ...original, url: null, confirmed: true } : original;
+          if (!storedEntry([key, entry], now)) continue;
           const encoded = JSON.stringify([key, { url: entry.url, workId: entry.workId, checkedAt: entry.checkedAt, confirmed: true }]);
           const added = encoded.length + (saved.length ? 1 : 0);
           if (length + added > MAX_STORAGE_CHARS) continue;
@@ -145,8 +166,10 @@ export function canonicalCoverKey(input: CanonicalCoverInput) {
 
 function fallback(input: CanonicalCoverInput) {
   const links = input.imageLinks;
-  return secure(input.existingCoverUrl) ?? secure(links?.extraLarge) ?? secure(links?.large) ??
-    secure(links?.medium) ?? secure(links?.small) ?? secure(links?.thumbnail) ?? secure(links?.smallThumbnail);
+  const key = input.googleBookId || (validIsbns(input)[0] ? `isbn:${validIsbns(input)[0]}` : undefined);
+  const workId = key ? entries.get(key)?.workId : undefined;
+  return [input.existingCoverUrl, links?.extraLarge, links?.large, links?.medium, links?.small, links?.thumbnail, links?.smallThumbnail]
+    .map(url => permitted(secure(url), workId)).find(Boolean) ?? null;
 }
 
 export function getCanonicalBookCover(input: CanonicalCoverInput) {
@@ -179,16 +202,30 @@ export function publishCatalogCovers(
 ) {
   const publicationRevision = ++catalogRevision;
   for (const [key, rawUrl] of Object.entries(covers)) {
-    const url = secure(rawUrl);
+    let url = secure(rawUrl);
     const previous = entries.get(key);
     const workId = details[key]?.workId ?? previous?.workId;
-    if (!url) continue;
     // A read started before another catalog result cannot undo that selection,
     // even when its response introduces a previously unknown ISBN/work alias.
     const newer = readRevision === undefined ? undefined : [...entries.values()].find(entry =>
       entry.confirmed && entry.revision > readRevision && entry.revision < publicationRevision &&
       (entry === previous || Boolean(workId && entry.workId === workId)));
     if (newer) { remember(key, newer); continue; }
+    // Explicit rejection is different from an unavailable catalog response.
+    // It must also retire the same image from saved post/library aliases.
+    if (workId && Array.isArray(details[key]?.rejectedUrls) &&
+        !(readRevision !== undefined && previous && previous.revision > readRevision)) {
+      const rejected = new Set((details[key].rejectedUrls ?? []).map(secure).filter((value): value is string => Boolean(value)));
+      rejectedByWork.set(workId, rejected);
+      while (rejectedByWork.size > MAX_IDLE_ENTRIES) rejectedByWork.delete(rejectedByWork.keys().next().value!);
+      for (const [alias, old] of [...entries]) {
+        if (old.workId === workId && old.url && rejected.has(old.url))
+          remember(alias, { ...old, url: null, checkedAt: Date.now(), revision: publicationRevision });
+      }
+      if (!entries.has(key) && rejected.size) remember(key, { url: null, workId, confirmed: true, checkedAt: Date.now(), revision: publicationRevision });
+    }
+    url = permitted(url, workId ?? undefined);
+    if (!url) continue;
     const entry = { url, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
     if (workId) {
       for (const [alias, oldEntry] of entries) {
@@ -220,7 +257,11 @@ async function flush() {
     if (error || data?.ok !== true) throw error ?? new Error('Cover catalog unavailable');
     publishCatalogCovers(data.data?.covers ?? {}, data.data?.details ?? {}, readRevision);
     for (const [key, waiters] of requests) {
-      if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: Date.now(), confirmed: false, revision: 0 });
+      if (!entries.get(key)?.url) {
+        const old = entries.get(key);
+        remember(key, { ...old, url: waiters.map(waiter => fallback(waiter.input)).find(Boolean) ?? null,
+          checkedAt: Date.now(), confirmed: false, revision: old?.revision ?? 0 });
+      }
       else remember(key, { ...entries.get(key)!, checkedAt: Date.now() });
     }
     persist();
@@ -253,7 +294,7 @@ export function resolveCanonicalBookCover(input: CanonicalCoverInput, refresh = 
   }
   let existing = entries.get(key);
   if (existing && !existing.url && fallback(input)) {
-    existing = { ...existing, url: fallback(input) };
+    existing = { ...existing, url: fallback(input), confirmed: false };
     remember(key, existing);
     notify();
   }

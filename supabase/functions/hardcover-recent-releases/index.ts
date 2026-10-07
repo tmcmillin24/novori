@@ -1,3 +1,5 @@
+import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
+import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { cachedProviderValue, fetchHardcoverUpstream, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import {
@@ -347,7 +349,7 @@ if (
     }
 
     const cacheKey =
-      `hardcover-recent-releases:v2:${months}:${poolSize}`;
+      `hardcover-recent-releases:v3:${months}:${poolSize}`;
 
     cachedRow =
       await readCache(
@@ -448,13 +450,14 @@ if (
           }
 
           editions(
-            limit: 10
-            order_by: {
-              users_count: desc
-            }
+            limit: 100
+            where: { language: { code2: { _eq: "en" } } }
+            order_by: [{ release_date: asc_nulls_last }, { id: asc }]
           ) {
-            isbn_10
-            isbn_13
+            id title isbn_10 isbn_13 release_date compilation
+            language { code2 code3 language }
+            image { url width height }
+            reading_format { format }
           }
         }
       }
@@ -557,20 +560,7 @@ if (
                 )
                 .filter(Boolean);
 
-          const isbns =
-            (
-              book?.editions ??
-              []
-            )
-              .flatMap(
-                (
-                  edition: any
-                ) => [
-                  edition?.isbn_13,
-                  edition?.isbn_10,
-                ]
-              )
-              .filter(Boolean);
+          const isbns = englishEditionIsbns(book?.editions);
 
           return {
             rank:
@@ -594,9 +584,7 @@ if (
             usersCount:
               book.users_count ??
               null,
-            coverUrl:
-              book.image?.url ??
-              null,
+            coverUrl: verifiedEnglishSeriesArt(book)?.url ?? null,
             authors,
             isbns:
               Array.from(

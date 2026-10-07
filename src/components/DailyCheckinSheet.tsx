@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import BookCoverImage from './BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,7 +96,7 @@ export default function DailyCheckinSheet({ visible, books, selectedBookIds, bus
 
                       <View style={styles.bookCopy}>
                         <Text style={styles.bookTitle} numberOfLines={2}>
-                          {book.title}
+                          {displayBookTitle(book.title ?? '')}
                         </Text>
 
                         <Text style={styles.bookAuthor} numberOfLines={1}>

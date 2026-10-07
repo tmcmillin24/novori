@@ -28,6 +28,7 @@ export function cleanCatalogBookTitle(title: string) {
   .replace(/\s*\((?:the )?Empyrean\)\s*$/i, '')
   .replace(/\s*[\[(][^\])]*(?:\b(?:edition|collector|deluxe|special|anniversary|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series)|#\s*\d+|,\s*\d+)[^\])]*[\])]\s*$/i, '')
   .replace(/\s*(?:[:–—-]\s*)?\b(?:limited\s+)?(?:collector[’']?s?|collectors|deluxe|special|exclusive|anniversary|standard|international|hardcover|paperback|large print)\s+edition(?:\s*[:–—-]\s*(?:a novel|the novel))?\s*$/i, '')
+  .replace(/\s*[:–—]\s*[^:–—]*(?:\bbook\s*\d+|\bvolume\s*\d+|#\s*\d+)\s*$/i, '')
   .replace(/[\s:–—]+$/, '').trim() || title.trim();
 }
 

@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { getBookLayout, getLibraryBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -106,7 +107,7 @@ const LibraryBookCard = memo(function LibraryBookCard({ item, updating, styles, 
 
         <View style={styles.titleRow}>
           <Text style={styles.bookTitle} numberOfLines={2}>
-            {item.title}
+            {displayBookTitle(item.title ?? '')}
           </Text>
 
           <Pressable accessibilityLabel={`Manage ${item.title}`} hitSlop={8} disabled={updating} onPress={(event) => {
@@ -935,7 +936,7 @@ export default function LibraryScreen() {
 
                   <View style={styles.sheetHeaderText}>
                     <Text style={styles.sheetTitle} numberOfLines={2}>
-                      {selectedBook.title}
+                      {displayBookTitle(selectedBook.title ?? '')}
                     </Text>
 
                     <View style={styles.sheetStatusPill}>

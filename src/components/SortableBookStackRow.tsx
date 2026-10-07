@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import {resolveStackDragTarget} from '../lib/stack-drag-target';
 import {scheduleOnRN} from 'react-native-worklets';
 import BookCoverImage from './BookCoverImage';
@@ -249,7 +250,7 @@ export default function SortableBookStackRow({
               numberOfLines={1}
             >
               {
-                item.title
+                displayBookTitle(item.title ?? '')
               }
             </Text>
 

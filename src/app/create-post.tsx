@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import SpoilerToggle from '../components/SpoilerToggle';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
@@ -1808,7 +1809,7 @@ export default function CreatePostScreen() {
                             1
                           }
                         >
-                          {attachedBook.title}
+                          {displayBookTitle(attachedBook.title)}
                         </Text>
 
                         {attachedBook
@@ -1956,7 +1957,7 @@ export default function CreatePostScreen() {
                             2
                           }
                         >
-                          {attachedBook.title}
+                          {displayBookTitle(attachedBook.title)}
                         </Text>
 
                         {attachedBook
@@ -2709,8 +2710,8 @@ export default function CreatePostScreen() {
                             2
                           }
                         >
-                          {info.title ??
-                            'Untitled'}
+                          {displayBookTitle(info.title ??
+                            'Untitled')}
                         </Text>
 
                         <Text

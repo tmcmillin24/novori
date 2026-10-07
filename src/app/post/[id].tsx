@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
@@ -1178,7 +1179,7 @@ export default function PostDetailScreen() {
 
                 <View style={styles.bookCopy}>
                   <Text style={styles.bookTitle}>
-                    {post.book_title}
+                    {displayBookTitle(post.book_title ?? '')}
                   </Text>
 
                   {(post.post_type ===

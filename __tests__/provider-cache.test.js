@@ -213,7 +213,7 @@ test('a confirmed no-series result is cached and skips Google language lookup',a
 });
 
 test.each(['hardcover-trending','hardcover-recent-releases'])('fresh %s data survives pull-to-refresh with no provider request',async endpoint=>{
-  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v5:90:100':'hardcover-recent-releases:v2:18:150';
+  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v6:90:100':'hardcover-recent-releases:v3:18:150';
   h.discover.set(key,{cache_key:key,payload:{books:[{id:1}]},refreshed_at:new Date(Date.now()-20*60000).toISOString()});
   expect((await h.request(endpoint,{forceRefresh:true})).books).toEqual([{id:1}]);
   expect(h.calls.length).toBe(0);
@@ -481,4 +481,49 @@ test('warm ISBNdb search classifies old short-title sets without a provider requ
  const api=h.load('supabase/functions/_shared/isbndb.ts');
  expect(api.identityMatches(set,'A Court of Thorns and Roses','Sarah J. Maas')).toBe(false);
  expect(api.identityMatches(response.data.items[0],'A Court of Thorns and Roses Box Set','Sarah J. Maas')).toBe(true);
+});
+
+test('series lookup tries a second verified duplicate and rejects another author before requesting full metadata', async () => {
+ const h = harness();
+ h.env.NOVORI_BOOK_PROVIDER = 'isbndb';
+ const language = { code2: 'en' };
+ const make = (id, series) => ({ id, title: 'Catching Fire', contributions: [{ author: { name: 'Suzanne Collins' } }],
+  editions: [{ id: 100 + id, title: 'Catching Fire', isbn_13: '9780439023498', language,
+   image: { url: 'https://art/catching-fire.jpg' }, reading_format: { format: 'Physical Book' } }],
+  book_series: series ? [{ position: 2, series: { id: 50, name: 'The Hunger Games' } }] : [] });
+ h.setUpstream(async (_url, _init, body) => {
+  if (body.query.includes('FindBookByISBN')) return { data: { editions: [] } };
+  if (body.query.includes('HardcoverBookById')) return { data: { books: [make(body.variables.id, body.variables.id === 2)] } };
+  if (body.query.includes('GetSeries')) return { data: { series_by_pk: { id: 50, name: 'The Hunger Games', book_series: [{ position: 2, book: make(2, true) }] } } };
+  return { data: { search: { results: { hits: [
+   { document: { id: 3, title: 'Catching Fire', author_names: ['Other Author'] } },
+   { document: { id: 1, title: 'Catching Fire', author_names: ['Suzanne Collins'] } },
+   { document: { id: 2, title: 'Catching Fire', author_names: ['Suzanne Collins'] } },
+  ] } } } };
+ });
+ const body = { title: 'Catching Fire', authors: ['Suzanne Collins'], isbn: '9780439023498' };
+ const result = await h.request('hardcover-series', body);
+ expect(result.series).toMatchObject({ id: 50, currentPosition: 2 });
+ expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverEdition: { language: 'en', url: 'https://art/catching-fire.jpg' } });
+ expect(h.calls.filter(call => call.body.query.includes('HardcoverBookById')).map(call => call.body.variables.id)).toEqual([1, 2]);
+ const count = h.calls.length;
+ await h.request('hardcover-series', body);
+ expect(h.calls.length).toBe(count);
+ expect(h.claims).toBe(0);
+});
+
+test.each(['hardcover-trending', 'hardcover-recent-releases'])('%s uses English edition artwork and ISBNs before a listing has a Novori ID', async endpoint => {
+ const h = harness();
+ const book = { id: 2, title: 'Catching Fire', image: { url: 'https://art/en-llamas.jpg' },
+  contributions: [{ contribution: 'Author', author: { name: 'Suzanne Collins' } }],
+  editions: [
+   { id: 1, title: 'En Llamas', isbn_13: '9781111111111', language: { code2: 'es' }, image: { url: 'https://art/en-llamas.jpg' } },
+   { id: 2, title: 'Catching Fire', isbn_13: '9780439023498', language: { code2: 'en' }, image: { url: 'https://art/catching-fire.jpg' }, reading_format: { format: 'Physical Book' } },
+  ] };
+ h.setUpstream(async (_url, _init, body) => body.query.includes('GetTrendingBooks') ? { data: { page0: { ids: [2] } } } : { data: { books: [book] } });
+ const result = await h.request(endpoint, {});
+ expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverUrl: 'https://art/catching-fire.jpg', isbns: ['9780439023498'] });
+ const count = h.calls.length;
+ await h.request(endpoint, { forceRefresh: true });
+ expect(h.calls.length).toBe(count);
 });

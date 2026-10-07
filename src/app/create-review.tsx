@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -947,7 +948,7 @@ export default function CreateReviewScreen() {
                             2
                           }
                         >
-                          {book.title}
+                          {displayBookTitle(book.title ?? '')}
                         </Text>
 
                         <Text
@@ -1041,7 +1042,7 @@ export default function CreateReviewScreen() {
                           2
                         }
                       >
-                        {selectedBook.title}
+                        {displayBookTitle(selectedBook.title ?? '')}
                       </Text>
 
                       <Text

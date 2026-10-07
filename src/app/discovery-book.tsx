@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ export default function DiscoveryBookScreen() {
       </Pressable>
       {book ? <>
         <BookCoverImage {...discoveryCoverInput(book)} style={{ width: coverWidth, height: coverWidth * 1.5, alignSelf: 'center', borderRadius: 8 }} />
-        <Text style={[styles.title, { color: colors.text }]}>{book.title}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{displayBookTitle(book.title ?? '')}</Text>
         <Text style={[styles.author, { color: colors.mutedText }]}>{book.authors.join(', ') || 'Unknown author'}</Text>
         {book.releaseDate || book.releaseYear ? <Text style={[styles.author, { color: colors.mutedText }]}>Released {book.releaseDate ?? book.releaseYear}</Text> : null}
         {book.rating != null ? <Text style={[styles.author, { color: colors.gold }]}>★ {book.rating.toFixed(1)}</Text> : null}

@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import {PostSpoilerNotice,usePostSpoiler} from './PostSpoilerNotice';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import {Ionicons} from '@expo/vector-icons';
@@ -701,7 +702,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
                       1
                     }
                   >
-                    {post.book_title}
+                    {displayBookTitle(post.book_title ?? '')}
                   </Text>
 
                   {(post.book_authors &&
@@ -868,7 +869,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
                       2
                     }
                   >
-                    {post.book_title}
+                    {displayBookTitle(post.book_title ?? '')}
                   </Text>
 
                   {post.book_authors &&

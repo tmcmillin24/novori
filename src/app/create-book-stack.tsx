@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import {resolveStackDragTarget} from '../lib/stack-drag-target';
 import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
@@ -1446,8 +1447,7 @@ export default function CreateBookStackScreen() {
                         }
                         numberOfLines={2}
                       >
-                        {info.title ||
-                          'Untitled'}
+                        {displayBookTitle(info.title || 'Untitled')}
                       </Text>
 
                       <Text

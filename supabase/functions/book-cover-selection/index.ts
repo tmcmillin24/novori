@@ -1,3 +1,4 @@
+import { catalogCoverAliases } from '../_shared/catalog-cover-aliases.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import {
   createClient,
@@ -252,6 +253,7 @@ Deno.serve(
 
       const editionRows = editions ?? [];
       const isbnWorkIds = new Map<string, string>();
+      const isbnCandidates = new Map<string, Set<string>>();
       for (const column of ['isbn_10', 'isbn_13'] as const) {
         const wanted = requestedIsbns.filter(value => value.length === (column === 'isbn_10' ? 10 : 13));
         if (!wanted.length) continue;
@@ -260,7 +262,12 @@ Deno.serve(
           .in('provider', ['google_books', 'isbndb']).in(column, wanted);
         if (isbnError) throw new Error(`Could not read ISBN cover identities: ${isbnError.message}`);
         for (const edition of isbnEditions ?? []) {
-          if (edition[column] && edition.work_id) isbnWorkIds.set(`isbn:${edition[column]}`, edition.work_id);
+          if (edition[column] && edition.work_id) {
+            const key = `isbn:${edition[column]}`;
+            const works = isbnCandidates.get(key) ?? new Set<string>();
+            works.add(edition.work_id);
+            isbnCandidates.set(key, works);
+          }
           editionRows.push(edition);
         }
       }
@@ -288,9 +295,22 @@ Deno.serve(
           )
         );
 
+      const aliases = await catalogCoverAliases(supabaseAdmin, editionRows);
+      // An ISBN collision must not choose an arbitrary author's work by row order.
+      for (const [key, candidates] of isbnCandidates) {
+        const ids = [...candidates].sort();
+        if (ids.length === 1 || ids.every(id => aliases.get(ids[0])?.includes(id))) isbnWorkIds.set(key, ids[0]);
+      }
+      for (const ids of aliases.values()) for (const id of ids) if (!workIds.includes(id)) workIds.push(id);
+
       // Re-evaluate existing catalog candidates only. No provider requests or
       // cache invalidation; manual/locked selections remain protected.
-      await selectCanonicalGoogleCoversForWorkIds(supabaseAdmin, workIds);
+      const rejectedByWork = new Map<string, string[]>();
+      await selectCanonicalGoogleCoversForWorkIds(supabaseAdmin, workIds, (workId, url) => {
+        const urls = rejectedByWork.get(workId) ?? [];
+        if (!urls.includes(url)) urls.push(url);
+        rejectedByWork.set(workId, urls);
+      });
 
       const selectionsByWork =
         new Map<
@@ -501,8 +521,16 @@ Deno.serve(
 
       const requestKeys = [...volumeIds, ...requestedIsbns.map(isbn => `isbn:${isbn}`)];
       for (const volumeId of requestKeys) {
-        const workId =
-          workByVolumeId.get(volumeId) ?? isbnWorkIds.get(volumeId);
+        const originalWorkId = workByVolumeId.get(volumeId) ?? isbnWorkIds.get(volumeId);
+        // Keep an explicit manual selection on the requested work. Otherwise,
+        // every verified alias uses the same deterministic stored winner.
+        const eligible = originalWorkId ? aliases.get(originalWorkId) ?? [originalWorkId] : [];
+        const ordered = eligible.filter(id => {
+          const selected = selectionsByWork.get(id);
+          return selected && candidatesById.get(selected.candidate_id)?.url;
+        }).sort((a, b) => Number(selectionsByWork.get(b)?.locked) - Number(selectionsByWork.get(a)?.locked) ||
+          (selectionsByWork.get(b)?.score ?? 0) - (selectionsByWork.get(a)?.score ?? 0) || a.localeCompare(b));
+        const workId = originalWorkId && selectionsByWork.get(originalWorkId)?.locked ? originalWorkId : ordered[0] ?? originalWorkId;
 
         const selection =
           workId
@@ -531,6 +559,7 @@ Deno.serve(
           volumeId
         ] = {
           workId: workId ?? null,
+          rejectedUrls: workId ? [...new Set(eligible.flatMap(id => rejectedByWork.get(id) ?? []))].filter(url => url !== selectedUrl) : [],
           selectionStatus:
             selectedUrl
               ? 'selected'

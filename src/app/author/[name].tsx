@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -494,8 +495,7 @@ export default function AuthorScreen() {
               2
             }
           >
-            {info.title ??
-              'Untitled'}
+            {displayBookTitle(info.title ?? 'Untitled')}
           </Text>
 
           {info.publishedDate ? (

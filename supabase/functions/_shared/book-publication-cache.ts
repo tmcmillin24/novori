@@ -40,7 +40,7 @@ export async function readCatalogPublications(admin: any, editions: any[]) {
   const info = edition.metadata?.volumeInfo;
   if (!info?.title || !info.authors?.length) return [];
   const isbns = [...new Set<string>((info.industryIdentifiers ?? []).map((id: any) => String(id.identifier ?? '').replace(/[^0-9Xx]/g, '').toUpperCase()).filter(Boolean))].sort();
-  return [['series:v2:english-isbns', isbns.join(','), normalize(info.title), info.authors.map(normalize).join('|')].join('::')];
+  return ['series:v2:english-isbns', 'series:v3:edition-art-and-membership'].map(version => [version, isbns.join(','), normalize(info.title), info.authors.map(normalize).join('|')].join('::'));
  });
  try {
   const { data, error } = await admin.from('book_api_cache').select('request_key,response_json')

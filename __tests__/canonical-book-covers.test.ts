@@ -338,4 +338,29 @@ describe('bounded confirmed selections across restart and refresh races', () => 
     expect(invoke).toHaveBeenCalledTimes(1);
     unmount();
   });
+  test('rejected cover snapshots are retired app-wide and cannot reappear after restart', async () => {
+
+    const url = 'https://art/en-llamas.jpg';
+    covers.publishCatalogCovers({ search: url, library: url, post: url, manualOtherWork: url }, {
+      search: { workId: 'catching-fire' }, library: { workId: 'catching-fire' }, post: { workId: 'catching-fire' }, manualOtherWork: { workId: 'other' },
+    });
+    covers.publishCatalogCovers({ search: null }, { search: { workId: 'catching-fire', rejectedUrls: [url] } });
+    for (const googleBookId of ['search', 'library', 'post']) {
+      expect(covers.getCanonicalBookCover({ googleBookId })).toBeNull();
+      expect(await covers.resolveCanonicalBookCover({ googleBookId, existingCoverUrl: url })).toBeNull();
+    }
+    expect(covers.getCanonicalBookCover({ googleBookId: 'manualOtherWork' })).toBe(url);
+    await jest.runAllTimersAsync();
+    restart();
+    expect(await covers.resolveCanonicalBookCover({ googleBookId: 'library', existingCoverUrl: url })).toBeNull();
+  });
+
+  test('late rejection cannot revoke a newer manual choice through an unseen ISBN alias', () => {
+    const revision = covers.getCanonicalBookCoverRevision();
+    covers.publishCatalogCovers({ locked: 'https://art/manual.jpg' }, { locked: { workId: 'work', rejectedUrls: [] } });
+    covers.publishCatalogCovers({ 'isbn:9780439023498': null }, { 'isbn:9780439023498': { workId: 'work', rejectedUrls: ['https://art/manual.jpg'] } }, revision);
+    expect(covers.getCanonicalBookCover({ googleBookId: 'locked' })).toBe('https://art/manual.jpg');
+    expect(covers.getCanonicalBookCover({ isbn: '9780439023498' })).toBe('https://art/manual.jpg');
+  });
+
 });

@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../../lib/book-title';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -956,8 +957,8 @@ export default function ReadingDetailsScreen() {
 
             <View style={styles.bookCopy}>
               <Text numberOfLines={3} style={styles.bookTitle}>
-                {data.book
-            .title}
+                {displayBookTitle(data.book
+            .title ?? '')}
               </Text>
 
               <Text numberOfLines={2} style={styles.bookAuthor}>

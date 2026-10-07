@@ -232,15 +232,7 @@ async function attachCatalogSearchCovers(
       const book of
         books
     ) {
-      const selectedCover =
-        covers[
-          book.id
-        ]
-          ?.replace(
-            'http://',
-            'https://'
-          )
-          .trim();
+      const selectedCover = getCanonicalBookCover({ googleBookId: book.id });
 
       if (
         !selectedCover ||

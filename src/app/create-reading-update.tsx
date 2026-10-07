@@ -1,3 +1,4 @@
+import { displayBookTitle } from '../lib/book-title';
 import SpoilerToggle from '../components/SpoilerToggle';
 import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -881,7 +882,7 @@ export default function CreateReadingUpdateScreen() {
                         <Ionicons name="book-outline" size={12} color={colors.gold} />
                         <Text style={styles.cardBookEyebrowText}>BOOK</Text>
                       </View>
-                      <Text style={styles.cardBookTitle} numberOfLines={2}>{selectedBook.title}</Text>
+                      <Text style={styles.cardBookTitle} numberOfLines={2}>{displayBookTitle(selectedBook.title ?? '')}</Text>
                       <Text style={styles.cardBookAuthor} numberOfLines={1}>{formatAuthors(selectedBook.authors)}</Text>
                       <CanonicalBookRating googleBookId={selectedBook.google_book_id} title={selectedBook.title} authors={selectedBook.authors} />
                     </View>
@@ -941,7 +942,7 @@ export default function CreateReadingUpdateScreen() {
                 >
                   <BookCoverImage googleBookId={book.google_book_id} existingCoverUrl={book.cover_url} style={styles.cover} />
                   <View style={styles.bookCopy}>
-                    <Text style={styles.bookTitle} numberOfLines={2}>{book.title}</Text>
+                    <Text style={styles.bookTitle} numberOfLines={2}>{displayBookTitle(book.title ?? '')}</Text>
                     <Text style={styles.bookAuthor} numberOfLines={2}>{formatAuthors(book.authors)}</Text>
                   </View>
                   {book.google_book_id === selectedBookId ? <Ionicons name="checkmark" size={18} color={colors.gold} /> : null}
