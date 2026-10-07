@@ -1,10 +1,11 @@
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import type { ImageProps } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { CanonicalCoverInput } from '../lib/canonical-book-covers';
 import {
   getCanonicalBookCover,
+  canonicalCoverKey,
   resolveCanonicalBookCover,
   subscribeCanonicalBookCovers,
 } from '../lib/canonical-book-covers';
@@ -18,8 +19,10 @@ export default function BookCoverImage({
   resizeMode, onError, ...imageProps
 }: Props) {
   const input = { googleBookId, isbn, isbns, imageLinks, existingCoverUrl };
+  const key = canonicalCoverKey(input);
+  const subscribe = useCallback((listener: () => void) => subscribeCanonicalBookCovers(listener, key), [key]);
   const url = useSyncExternalStore(
-    subscribeCanonicalBookCovers,
+    subscribe,
     () => getCanonicalBookCover(input),
     () => null,
   );

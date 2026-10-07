@@ -39,3 +39,19 @@ test('a failed image never switches a thumbnail to different provider artwork', 
   expect(onError).toHaveBeenCalledTimes(1);
   await act(async () => { view!.unmount(); });
 });
+
+test('cache churn cannot blank a mounted cover or alter its original URL and image cache policy', async () => {
+  publishCatalogCovers({ mounted: 'https://art/mounted-original.jpg' });
+  let view: renderer.ReactTestRenderer;
+  await act(async () => {
+    view = renderer.create(<BookCoverImage googleBookId="mounted" existingCoverUrl="https://old/tiny.jpg" />);
+  });
+  await act(async () => {
+    publishCatalogCovers(Object.fromEntries(Array.from({ length: 1005 }, (_, i) => [`churn${i}`, `https://art/${i}`])));
+  });
+  const image = view!.root.findByType('ExpoImage' as any);
+  expect(image.props.source.uri).toBe('https://art/mounted-original.jpg');
+  expect(image.props.cachePolicy).toBe('memory-disk');
+  expect(image.props.transition).toBe(0);
+  await act(async () => { view!.unmount(); });
+});

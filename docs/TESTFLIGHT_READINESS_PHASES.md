@@ -40,11 +40,20 @@ Updated the six Expo SDK 57 patch recommendations; patched shell-quote, scoped X
 
 Native Expo patches require a new development client/IPA after pulling and `npm ci`. Book cache keys/TTLs, cover selection and provider request logic were not changed. This phase does not certify deployed backend behavior, device layouts, signing or legal/provider rights. Remaining signing-tool risk must be reviewed before TestFlight clearance.
 
+## Phase 3 — Cached covers/loading: implemented and automated checks pass
+
+Persist/reuse catalog-confirmed originals and their known aliases safely; keep stale confirmed artwork visible during catalog rechecks; bound idle selection memory and disk size/count/retention; pin mounted images against eviction; coalesce forced refreshes while preserving one follow-up after an already-started ordinary read. See [cached cover loading](CACHED_COVER_LOADING.md) for behavior, safeguards and pending device/counter checks.
+
+- Full Jest: **81 suites, 887 tests pass**, including **23 cover-focused tests**.
+- App and typed-test TypeScript checks, iOS/Android production JavaScript/Hermes exports, **17 website tests**, and **729 license notices** pass.
+- Controlled comparison: **20 → 1 catalog reads** for 20 overlapping forced refreshes; fresh selection after simulated restart uses **zero catalog reads** and retains the original URL.
+- Existing metadata/provider cache TTLs/keys, canonical ranking, image file URLs/cache policy, manual locks, quotas, and reader-specific data boundaries are preserved. No native package/backend changes or new provider request path were added.
+- **Pending:** real iPhone/iPad restart/offline/rapid navigation checks, measured deployed provider counter deltas and device opening timings. Implementation success is not a claim that live-device acceptance or the remaining TestFlight gates are complete.
+
 ## Remaining phases
 
 | Phase | Work | Completion evidence |
 | --- | --- | --- |
-| 3 — Cached covers/loading | Persist/reuse confirmed selections safely, bound the selection cache, deduplicate forced refreshes. | Restart/offline/rapid navigation tests; identical artwork across surfaces; measured upstream counters. |
 | 4 — Legal/disclosures | ISBNdb acknowledgment parity; provider usage/cache/artwork/export rights; ownership and native notice reconciliation. | Applicable agreements documented and disclosures reflect actual usage. |
 | 5 — Live backend | Moderation/reporting/blocking/media revocation; deactivation/restoration/immediate and scheduled deletion; installed RLS/RPC review. | Deployed test-account verification and operational support/safety evidence. |
 | 6 — Devices | Smaller iPhone and iPad portrait/landscape/split view; orbit, descriptions, keyboard, accessibility sizing, covers. | Release-build device matrix passes. |
