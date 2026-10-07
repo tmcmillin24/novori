@@ -127,3 +127,14 @@ test('creation-card prompts clear the complete target on phone and tablet',()=>{
   }
  }
 });
+
+test('premeasured controls on the same screen switch prompt and highlight immediately',async()=>{
+ await start();await press('Next tutorial step');
+ await act(async()=>mockTour.measure('home-clubs',{x:180,y:100,width:140,height:40,radius:10}));
+ expect(mockTour.step.anchor).toBe('home-feed');
+ await act(async()=>mockTour.next());
+ expect(mockTour.step.anchor).toBe('home-clubs');
+ expect(mockTour.bounds).not.toBeNull();
+ expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(1);
+ expect(view.root.findAllByProps({testID:'tutorial-rounded-mask'})).toHaveLength(1);
+});
