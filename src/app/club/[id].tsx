@@ -35,7 +35,7 @@ import LeaveClubConfirmSheet from '../../components/LeaveClubConfirmSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
 import { acceptClubInvite, approveClubJoinRequest, cancelClubInvite, cancelPrivateClubRequest, ClubInvitation, ClubInviteCandidate, ClubJoinRequest, ClubMember, ClubWithMembership, declineClubInvite, declineClubJoinRequest, demoteClubAdmin, getClub, getClubMembers, getPendingClubInvite, getPendingClubInvitesForManager, getPendingClubJoinRequestsForManager, getPendingPrivateClubRequest, inviteReaderToClub, joinClub, kickClubMember, leaveClub, promoteClubMember, requestPrivateClubAccess, searchClubInviteCandidates } from '../../lib/clubs';
-import { FeedPost, PostVoteValue, splitQuestionPostBody, togglePostVote } from '../../lib/feed';
+import { FeedPost, PostVoteValue, splitQuestionPostBody, togglePostVote, getPostMutationVersion } from '../../lib/feed';
 import { ReportReason, submitProfileReport } from '../../lib/reports';
 import { blockReader } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
@@ -191,6 +191,7 @@ export default function ClubDetailScreen() {
     const visiblePinnedPosts = pinnedPosts.filter(post => !post.club_event || isUpcomingClubEvent(post.club_event, eventNow));
     const nextEvent = upcomingEvents.find(event => isUpcomingClubEvent(event, eventNow));
     const loadClub = useCallback(async () => {
+        const mutationAtStart = getPostMutationVersion();
         const experienceRequest = ++experienceVersion.current;
         if (!clubId) {
             setError('This club could not be found.');
@@ -239,6 +240,7 @@ export default function ClubDetailScreen() {
             setPendingJoinRequest(pendingJoinRequestData);
             setManagerInvites(outgoingInvites);
             setManagerJoinRequests(joinRequests);
+            loadedClub.current = { id: clubId, version: mutationAtStart };
         }
         catch (loadError) {
             console.error('Could not load club:', loadError);
@@ -250,15 +252,17 @@ export default function ClubDetailScreen() {
     }, [clubId, (params as {
             guide?: string;
         }).guide]);
+    const loadedClub = useRef<{ id: string; version: number } | null>(null);
     useFocusEffect(useCallback(() => {
-        if (preserveClubStateOnNextFocus.current) {
-            preserveClubStateOnNextFocus.current =
-                false;
+        const unchanged = loadedClub.current?.id === clubId && loadedClub.current.version === getPostMutationVersion();
+        if (unchanged && !((params as { guide?: string }).guide === '1' && !requestedGuideShown.current)) {
+            preserveClubStateOnNextFocus.current = false;
             return;
         }
-        setLoading(true);
+        preserveClubStateOnNextFocus.current = false;
+        if (loadedClub.current?.id !== clubId) setLoading(true);
         loadClub();
-    }, [loadClub]));
+    }, [loadClub, clubId]));
     const refreshClub = useCallback(async () => {
         if (refreshing) {
             return;

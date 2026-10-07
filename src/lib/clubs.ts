@@ -193,6 +193,7 @@ export async function createClub(input: {
     throw error;
   }
 
+  markPostMutation();
   return data as Club;
 }
 
@@ -276,6 +277,7 @@ export async function updateClub(
     throw error;
   }
 
+  markPostMutation();
   return data as Club;
 }
 
@@ -322,6 +324,7 @@ export async function updateClubGenres(
     throw error;
   }
 
+  markPostMutation();
   return data as Club;
 }
 

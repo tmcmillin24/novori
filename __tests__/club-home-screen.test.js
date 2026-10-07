@@ -18,7 +18,8 @@ import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/clu
 
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 let mockClubParams={id:'club-1',clubId:'club-1'};
-jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockClubParams,useFocusEffect:callback=>require('react').useEffect(callback,[callback])}));
+let mockClubFocus, mockPostVersion=0;
+jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockClubParams,useFocusEffect:callback=>{mockClubFocus=callback;require('react').useEffect(callback,[callback]);}}));
 jest.mock('react-native',()=>({
   useWindowDimensions:()=>({width:390,height:844}),KeyboardAvoidingView:'KeyboardAvoidingView',Text:'Text',View:'View',Pressable:'Pressable',Image:'Image',TextInput:'TextInput',ActivityIndicator:'ActivityIndicator',RefreshControl:'RefreshControl',Switch:'Switch',
   AppState:{addEventListener:()=>({remove:()=>{}})},Alert:{alert:jest.fn()},Keyboard:{dismiss:jest.fn()},Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},
@@ -47,7 +48,7 @@ jest.mock('../src/lib/notifications',()=>({getNotificationPreferences:jest.fn(),
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}})}}}));
 jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),uploadClubCover:jest.fn(),getClub:jest.fn(),getClubMembers:jest.fn(),getPendingClubInvite:async()=>null,getPendingPrivateClubRequest:async()=>null,
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
-jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn()}));
+jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn(),getPostMutationVersion:()=>mockPostVersion}));
 jest.mock('../src/lib/club-events',()=>({getClubEvents:jest.fn(),CLUB_EVENTS_PAGE_SIZE:20}));
 jest.mock('../src/lib/club-reads',()=>({getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
@@ -65,6 +66,17 @@ beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();ge
 });
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;silence.mockRestore();});
 async function render(element=<ClubDetailScreen/>){await act(async()=>{view=renderer.create(element);});}
+
+test('returning without writes preserves the club; a successful write refreshes without a loading screen',async()=>{
+  await render();
+  const calls=getClub.mock.calls.length;
+  await act(async()=>{mockClubFocus();});
+  expect(getClub).toHaveBeenCalledTimes(calls);
+  mockPostVersion++;
+  await act(async()=>{mockClubFocus();});
+  expect(getClub).toHaveBeenCalledTimes(calls+1);
+  expect(view.root.findAllByType('ActivityIndicator')).toHaveLength(0);
+});
 function text(){return view.root.findAllByType('Text').map(node=>[node.props.children].flat(Infinity).join('')).join(' ');}
 function button(label){return view.root.findAllByType('Pressable').find(node=>node.props.accessibilityLabel===label);}
 async function press(label){await act(async()=>button(label).props.onPress());}
