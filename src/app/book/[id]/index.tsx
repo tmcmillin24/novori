@@ -2062,7 +2062,7 @@ export default function BookDetailsScreen() {
         googleBookId: currentBook.id,
         isbn: getBookISBN(currentBook),
         imageLinks: currentBook.volumeInfo.imageLinks,
-      }, true);
+      });
       if (!isCurrent()) return null;
       setSeriesWorkCoverUrl(canonicalCover);
       setSelectedWorkCoverUrl(canonicalCover);

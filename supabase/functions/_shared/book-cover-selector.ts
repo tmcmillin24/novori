@@ -1,11 +1,11 @@
-import { cleanCatalogBookTitle, audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
+import { audioEditionPenalty, editionFormat, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SELECTOR_VERSION =
-  4;
+  5;
 
 const GOOGLE_PROVIDER =
   'google_books';
@@ -159,28 +159,9 @@ function candidateScore(
       .source_variant ??
     '';
 
-  const isVerifiedHardcoverSeries =
-    candidate.provider ===
-      HARDCOVER_PROVIDER &&
-    variant ===
-      'series_verified';
-
-  if (
-    isVerifiedHardcoverSeries
-  ) {
-    const proof = candidate.source_metadata?.coverEdition;
-    const titleKey = (value: string) => cleanCatalogBookTitle(value).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (proof?.version !== 1 || !Number.isSafeInteger(proof.editionId) || (proof.editionId ?? 0) <= 0 ||
-        !isEnglishBookLanguage(proof.language) || proof.url !== candidate.url ||
-        !/^(?:\d{13}|\d{9}[\dX])$/.test(proof.isbn ?? '') || !proof.title ||
-        !edition.metadata?.volumeInfo?.title || titleKey(proof.title) !== titleKey(edition.metadata.volumeInfo.title)) return null;
-    // Verified Hardcover series artwork is trusted ahead of
-    // Google large/medium renditions for the same work, while
-    // Google extraLarge remains the highest-priority automatic
-    // source. Google large can score as high as 600 after locale
-    // and detail bonuses; the lowest eligible extraLarge is 640.
-    return 620;
-  }
+  // Hardcover work artwork is not a publisher cover source. Keep it for
+  // readership and series membership, never automatic artwork selection.
+  if (candidate.provider === HARDCOVER_PROVIDER) return null;
 
   const qualityScore =
     VARIANT_SCORE[
@@ -211,40 +192,13 @@ function candidateScore(
   );
 }
 
-// ISBNdb's medium/small/thumbnail slots all contain the same image. Neither
-// fetching more text metadata nor a random candidate UUID proves better art.
-// For equally scored ISBNdb images, prefer a known print edition from the
-// original release year over later reissues, then use its recorded date.
-function isbnDbEditionOrder(edition: EditionRow) {
-  const metadata = edition.metadata;
-  const format = metadata ? editionFormat(metadata) : 'unknown';
-  const date = String(metadata?.volumeInfo?.publishedDate ?? '');
-  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(date);
-  let year = Number.POSITIVE_INFINITY;
-  let dateOrder = Number.POSITIVE_INFINITY;
-  if (match && Number(match[1]) >= 1000) {
-    const month = Number(match[2] ?? 1);
-    const day = Number(match[3] ?? 1);
-    const parsed = new Date(Date.UTC(Number(match[1]), month - 1, day));
-    if (parsed.getUTCFullYear() === Number(match[1]) &&
-        parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
-      year = Number(match[1]);
-      // A year-only date does not mean January 1. Prefer a precise date
-      // within the same year rather than inventing an earlier release.
-      if (match[3]) dateOrder = parsed.getTime();
-    }
-  }
-  return { format: format === 'print' ? 0 : format === 'ebook' ? 1 : 2, year, dateOrder };
-}
-
+// ISBNdb slots often share one image; dates do not establish artwork quality.
 function compareIsbnDbEditions(a: EditionRow, b: EditionRow) {
-  const left = isbnDbEditionOrder(a);
-  const right = isbnDbEditionOrder(b);
-  // Explicit comparisons handle unknown dates (Infinity) without NaN.
-  for (const key of ['format', 'year', 'dateOrder'] as const) {
-    if (left[key] !== right[key]) return left[key] < right[key] ? -1 : 1;
-  }
-  return 0;
+  const rank = (edition: EditionRow) => {
+    const format = edition.metadata ? editionFormat(edition.metadata) : 'unknown';
+    return format === 'print' ? 0 : format === 'ebook' ? 1 : 2;
+  };
+  return rank(a) - rank(b);
 }
 
 export async function selectCanonicalGoogleCoversForWorkIds(
@@ -478,8 +432,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                     return null;
                   }
 
-                  if (candidate.provider === HARDCOVER_PROVIDER && candidate.source_variant === 'series_verified' &&
-                      candidateScore(candidate, edition) === null) onRejected?.(workId, candidate.url);
+                  if (candidate.provider === HARDCOVER_PROVIDER) onRejected?.(workId, candidate.url);
                   const score =
                     candidateScore(
                       candidate,
@@ -547,6 +500,9 @@ export async function selectCanonicalGoogleCoversForWorkIds(
           const isProductExtra = (item: typeof ranked[number]) => item.edition.metadata &&
             (isCatalogCollection(item.edition.metadata) || isCatalogSupplement(item.edition.metadata));
           if (ranked.some(item => !isProductExtra(item))) ranked = ranked.filter(item => !isProductExtra(item));
+          // Stability must not pin an audiobook/narrator image when print art exists.
+          const isAudio = (item: typeof ranked[number]) => Boolean(item.edition.metadata && audioEditionPenalty(item.edition.metadata));
+          if (ranked.some(item => !isAudio(item))) ranked = ranked.filter(item => !isAudio(item));
 
           const strongRanked =
             ranked.filter(
@@ -556,8 +512,10 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                 candidate.strong
             );
 
+          // Ordinary reads and metadata enrichment must not switch eligible art.
+          const retained = ranked.find(item => item.candidate.id === previous?.candidate_id);
           const selected =
-            strongRanked[0] ??
+            retained ?? strongRanked[0] ??
             ranked[0] ??
             null;
 
@@ -619,7 +577,7 @@ export async function selectCanonicalGoogleCoversForWorkIds(
                   .detail_complete ??
                 null,
               rule:
-                'Preserve resolution, locale and locked selections; equal ISBNdb artwork prefers original print releases without a detail-fetch bonus; retain equivalent existing winners.',
+                'Preserve eligible catalog artwork and manual locks; exclude automatic Hardcover artwork; dates and metadata refreshes do not replace selected covers.',
             },
             selected_at:
               selected

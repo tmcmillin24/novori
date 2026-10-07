@@ -99,16 +99,16 @@ test('Onyx Storm screenshot editions collapse into the plain-title result with i
 });
 
 
-test('exported ACOTAR catalog excludes sets, calendars, coloring books, adaptations and numbered expansions from novel search',async()=>{
+test('exported ACOTAR catalog keeps products below the novel without merging product ISBNs',async()=>{
  const api=load(require('./fixtures/acotar-catalog.json'));
  const rows=await api.searchNovoriBooks('a court of thorns and roses');
  expect(rows.length).toBeGreaterThan(0);
  expect(rows[0].volumeInfo.title.toLowerCase()).toBe('a court of thorns and roses');
  expect(rows[0].volumeInfo.pageCount).toBeGreaterThanOrEqual(419);
  expect(rows[0].volumeInfo.pageCount).toBeLessThan(1000);
- expect(rows.flatMap(b=>b.novoriWork.isbns)).not.toContain('9781635577716');
- expect(rows.flatMap(b=>b.novoriWork.isbns)).not.toContain('9781526635204');
- expect(rows.some(b=>/calendar|colou?ring|dramatized|box set|roses [67]$/i.test(b.volumeInfo.title))).toBe(false);
+ expect(rows[0].novoriWork.isbns).not.toContain('9781635577716');
+ expect(rows[0].novoriWork.isbns).not.toContain('9781526635204');
+ expect(/calendar|colou?ring|dramatized|box set|roses [67]$/i.test(rows[0].volumeInfo.title)).toBe(false);
 });
 test('supplements and sets remain searchable when explicitly requested',async()=>{
  const api=load(require('./fixtures/acotar-catalog.json'));
@@ -149,3 +149,19 @@ test('supplements and sets remain searchable when explicitly requested',async()=
  expect(first.map(b=>b.id)).toEqual(second.map(b=>b.id));
  expect(first.some(b=>b.id==='a')).toBe(true);
  });
+
+
+test('relevant novels rank by readership while journals remain below them',async()=>{
+ const items=[book('journal','Publisher','Hunger Games Companion Journal'),book('less-read','Suzanne Collins','Hunger Games Catching Fire'),book('popular','Suzanne Collins','The Hunger Games')];
+ const api=load(items,{}, {'journal':{usersCount:999999,rating:5},'less-read':{usersCount:100,rating:4},'popular':{usersCount:50000,rating:4}});
+ const rows=await api.searchNovoriBooks('hunger games');
+ expect(rows.map(row=>row.id)).toEqual(['popular','less-read','journal']);
+ expect(api.popularityCalls[0].books.map(row=>row.googleBookId)).not.toContain('journal');
+ await api.searchNovoriBooks('hunger games');
+ expect(api.popularityCalls).toHaveLength(1);
+});
+
+test('popularity drives relevant broad title results ahead of lexical closeness',async()=>{
+ const api=load([book('exact','Writer','Court'),book('popular','Writer','Court of Dreams')],{}, {exact:{usersCount:10,rating:4},popular:{usersCount:10000,rating:4}});
+ expect((await api.searchNovoriBooks('court')).map(row=>row.id)).toEqual(['popular','exact']);
+});

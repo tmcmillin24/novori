@@ -7,6 +7,7 @@ const crypto = require('crypto').webcrypto;
 function harness() {
   const rows = new Map(), locks = new Map(), discover = new Map(), identities = new Map(), legacy = [];
   const errors = { read: false, lock: false, write: false, usage: false };
+  const catalogWrites = [];
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
   let claims = 0, hardcoverRequests = 0, catalog = [], isbnRequests = 0;
@@ -37,6 +38,7 @@ function harness() {
         },
         single: async () => ({data: identities.get(filters.isbn13) ?? null}),
         upsert: async data => {
+          if (table === 'book_cover_candidates' || table === 'book_cover_selections') catalogWrites.push({ table, data });
           if (errors.write) return { error: { message: 'offline' } };
           if (table === 'novori_book_provider_ids') for (const row of Array.isArray(data) ? data : [data]) { if (!identities.has(row.isbn13)) identities.set(row.isbn13, {...row}); }
           if (table === 'book_api_cache') rows.set(data.provider + ':' + data.request_key, { ...data });
@@ -82,7 +84,7 @@ function harness() {
     return exports;
   }
   const api = load('supabase/functions/_shared/provider-cache.ts');
-  return { rows, locks, discover, identities, legacy, errors, calls, env, admin, api, load,
+  return { rows, locks, discover, identities, legacy, errors, calls, catalogWrites, env, admin, api, load,
     get isbnRequests() { return isbnRequests; },
     setCatalog: rows => { catalog = rows; },
     setUpstream: callback => { upstream = callback; }, get claims() { return claims; }, get hardcoverRequests() { return hardcoverRequests; },
@@ -504,6 +506,7 @@ test('series lookup tries a second verified duplicate and rejects another author
  const body = { title: 'Catching Fire', authors: ['Suzanne Collins'], isbn: '9780439023498' };
  const result = await h.request('hardcover-series', body);
  expect(result.series).toMatchObject({ id: 50, currentPosition: 2 });
+ expect(h.catalogWrites).toEqual([]);
  expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverEdition: { language: 'en', url: 'https://art/catching-fire.jpg' } });
  expect(h.calls.filter(call => call.body.query.includes('HardcoverBookById')).map(call => call.body.variables.id)).toEqual([1, 2]);
  const count = h.calls.length;

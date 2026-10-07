@@ -1,5 +1,5 @@
 import { cleanCatalogBookTitle, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
-import { promoteVerifiedSeriesCovers, verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
+import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
@@ -3017,13 +3017,6 @@ Deno.serve(async (req) => {
       },
     });
     const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
-    {
-      try {
-        await promoteVerifiedSeriesCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({
-          ...row, coverBookId: verifiedPayload.books?.find((verified: any) => verified.id === row.id)?.coverBookId,
-        })) }, requestedAuthors);
-      } catch (error) { console.warn('Could not restore verified series artwork:', error); }
-    }
     await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
     return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },

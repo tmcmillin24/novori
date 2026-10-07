@@ -1519,6 +1519,11 @@ function getAuthorSearchRelevance(
   return best;
 }
 
+// Product tier precedes popularity, so companion products cannot displace books.
+function searchProductTier(book: GoogleBookSearchItem) {
+  return Number(isLikelyDerivativeTitle(book) || isCatalogCollection(book));
+}
+
 function sortTitleSearchResults(
   books:
     GoogleBookSearchItem[],
@@ -1543,6 +1548,10 @@ function sortTitleSearchResults(
       a,
       b
     ) => {
+      const tierDifference = searchProductTier(a) - searchProductTier(b);
+      if (tierDifference) return tierDifference;
+      const popularityDifference = compareBookPopularity(a, b, hardcoverPopularity);
+      if (popularityDifference) return popularityDifference;
       const relevanceDifference =
         getTitleSearchRelevance(
           b,
@@ -1602,6 +1611,10 @@ function sortAuthorSearchResults(
         a,
         b
       ) => {
+        const tierDifference = searchProductTier(a) - searchProductTier(b);
+        if (tierDifference) return tierDifference;
+        const popularityDifference = compareBookPopularity(a, b, hardcoverPopularity);
+        if (popularityDifference) return popularityDifference;
         const relevanceDifference =
           getAuthorSearchRelevance(
             b,
@@ -2586,7 +2599,7 @@ function collapseDuplicateEditions(
     }
 
     const identity =
-      `${canonicalTitle}::${primaryAuthor}`;
+      `${searchProductTier(book)}::${canonicalTitle}::${primaryAuthor}`;
 
     const existing =
       groups.get(
@@ -2694,9 +2707,6 @@ function collapseDuplicateEditions(
               const dateDifference = Number(Boolean(validPublicationDate(b.volumeInfo.publishedDate))) -
                 Number(Boolean(validPublicationDate(a.volumeInfo.publishedDate)));
               if (dateDifference !== 0) return dateDifference;
-              const aDate = validPublicationDate(a.volumeInfo.publishedDate);
-              const bDate = validPublicationDate(b.volumeInfo.publishedDate);
-              if (aDate && bDate && aDate.slice(0, 4) !== bDate.slice(0, 4)) return aDate.localeCompare(bDate);
 
               const aHardcover =
                 hardcoverPopularity[
@@ -2794,7 +2804,7 @@ function collapseDuplicateEditions(
 
         representative.novoriWork = {
           key:
-            `${canonicalTitle}::${primaryAuthor}`,
+            `${canonicalTitle}::${primaryAuthor}${searchProductTier(representative) ? "::supplement" : ""}`,
           canonicalTitle,
           primaryAuthor,
           googleBookIds:
@@ -3192,15 +3202,19 @@ async function loadNovoriBooks(searchTerm: string) {
           normalizedQuery
         );
 
+  // Preserve relevant English companion products below the ordinary books.
+  const supplements = looksLikeIsbnSearch ? [] : filterLocaleNoise(relevantResults, searchTerm)
+    .filter(book => searchProductTier(book) > 0 && !qualityFilteredResults.some(row => row.id === book.id));
+  const rankedResults = [...qualityFilteredResults, ...supplements];
   const sorted =
     looksLikeAuthorSearch
       ? sortAuthorSearchResults(
-          qualityFilteredResults,
+          rankedResults,
           searchTerm,
           {}
         )
       : sortTitleSearchResults(
-          qualityFilteredResults,
+          rankedResults,
           searchTerm,
           {}
         );
@@ -3212,8 +3226,12 @@ async function loadNovoriBooks(searchTerm: string) {
       {}
     );
 
-  // Resolve only same-title author conflicts. Keep edition/cover selection untouched.
-  const ambiguityPopularity = getHardcoverPopularity(getAmbiguousTitleBooks(collapsed), true);
+  // Reuse the existing cached, quota-controlled popularity endpoint. A single
+  // result needs no ranking request. Provider failures keep usable catalog results.
+  const primaryBooks = collapsed.filter(book => searchProductTier(book) === 0);
+  const ambiguityPopularity = primaryBooks.length > 1
+    ? getHardcoverPopularity(primaryBooks, true)
+    : Promise.resolve({});
 
   await Promise.all(
     collapsed.map(

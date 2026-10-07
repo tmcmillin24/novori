@@ -19,3 +19,11 @@ test('trending rejects an unrelated ISBN edition and uses the verified English w
  expect(payload.books[0].coverUrl).toBe('https://covers/cartoon.jpg');
  expect(calls).toContain('book_editions.provider_book_id');
 });
+
+
+test('an unresolved discovery listing cannot retain an unverified photographed cover', async () => {
+ const admin: any = { from() { const q: any = { select: () => q, eq: () => q, in: () => q,
+  then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve) }; return q; } };
+ const result = await attachDiscoveryCatalogCovers(admin, { books: [{ title: 'Unknown Book', authors: ['Writer'], isbns: [], coverUrl: 'https://photos/angled.jpg' }] });
+ expect(result.books[0].coverUrl).toBeNull();
+});
