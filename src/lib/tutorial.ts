@@ -26,3 +26,9 @@ export async function finishTutorial() {
  if(saveError)throw saveError;
  if(data.user?.id!==user.id)throw new Error('Please sign in again and retry.');
 }
+
+/** Preserve visible cards; reveal only the portion outside the usable viewport. */
+export function tutorialRevealOffset(y:number,height:number,offset:number,top:number,bottom:number){
+ const delta=y<top?y-top:y+height>bottom?y+height-bottom:0;
+ return Math.max(0,offset+delta);
+}

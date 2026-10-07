@@ -4,7 +4,7 @@ import TutorialOverlay,{spotlightLayout} from '../src/components/TutorialOverlay
 import TutorialLauncher from '../src/app/tutorial';
 import TutorialGate from '../src/components/TutorialGate';
 import {TutorialProvider,useTutorial} from '../src/context/tutorial-context';
-import {needsTutorial,TUTORIAL_STEPS} from '../src/lib/tutorial';
+import {needsTutorial,TUTORIAL_STEPS,tutorialRevealOffset} from '../src/lib/tutorial';
 import {legalAcceptanceMetadata} from '../src/lib/legal-documents';
 import {supabase} from '../src/lib/supabase';
 let mockPath='/',mockParams={},mockDimensions={width:390,height:844},mockNavigation={index:0,routes:[{name:'(tabs)'}]},mockAuthCallback,mockTour;
@@ -117,6 +117,7 @@ test('prompt is absent until the corresponding highlight is measured',async()=>{
  expect(mockTour.bounds).toBeNull();
  expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(0);
  expect(view.root.findAllByProps({testID:'tutorial-rounded-mask'})).toHaveLength(0);
+ expect(view.root.findByProps({testID:'tutorial-preparing-screen'}).props.style.backgroundColor).toBe(require('../src/constants/novori-theme').LIGHT_COLORS.background);
 });
 test('creation-card prompts clear the complete target on phone and tablet',()=>{
  for(const [width,height] of [[390,844],[834,1194],[1194,834],[744,1133]]){
@@ -137,4 +138,11 @@ test('premeasured controls on the same screen switch prompt and highlight immedi
  expect(mockTour.bounds).not.toBeNull();
  expect(view.root.findAllByProps({testID:'tutorial-description-panel'})).toHaveLength(1);
  expect(view.root.findAllByProps({testID:'tutorial-rounded-mask'})).toHaveLength(1);
+});
+
+test('creation tour preserves visible cards and reveals clipped cards with minimal scrolling',()=>{
+ expect(tutorialRevealOffset(200,230,0,80,740)).toBe(0);
+ expect(tutorialRevealOffset(630,184,0,80,740)).toBe(74);
+ expect(tutorialRevealOffset(50,120,200,80,740)).toBe(170);
+ expect(tutorialRevealOffset(500,184,74,80,740)).toBe(74);
 });

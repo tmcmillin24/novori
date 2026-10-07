@@ -4,9 +4,10 @@ import { Tabs } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useNovoriTheme } from '../../context/theme-context';
-import {useTutorialTarget} from '../../context/tutorial-context';
+import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 
 export default function TabLayout() {
+  const tutorial=useTutorial();
   const createTarget=useTutorialTarget('tab-create',27);
   const {
     colors,
@@ -19,7 +20,7 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'none',
-        freezeOnBlur: true,
+        freezeOnBlur: !tutorial?.active,
 
         sceneStyle: {
           backgroundColor: colors.background,

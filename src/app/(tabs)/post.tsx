@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {useEffect,useRef,useState} from 'react';
+import {tutorialRevealOffset} from '../../lib/tutorial';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 import { useRouter } from 'expo-router';
 import {
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import {
   SafeAreaView,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import {
@@ -23,18 +25,23 @@ import {
 
 export default function PostScreen() {
   const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post',22),readingTarget=useTutorialTarget('create-reading-update',18),askTarget=useTutorialTarget('create-ask-readers',18),stackTarget=useTutorialTarget('create-book-stack',18),scroll=useRef<ScrollView>(null);
-  const lastTourScroll=useRef('');
+  const insets=useSafeAreaInsets();
+  const {height:screenHeight}=useWindowDimensions(),scrollOffset=useRef(0);
   const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
   const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
   useEffect(()=>{
-    if(!tutorial?.active){lastTourScroll.current='';return;}
-    if(tutorial.step.path==='/post'){
-      const anchor=tutorial.step.anchor,y=anchor==='tab-create'?0:positions[anchor];
-      if(y===undefined)return;
-      const offset=anchor==='tab-create'?0:Math.max(0,y+(anchor==='create-ask-readers'||anchor==='create-book-stack'?gridY:0)-20),key=anchor+':'+offset;
-      if(lastTourScroll.current!==key){lastTourScroll.current=key;scroll.current?.scrollTo({y:offset,animated:false});}
-    }
-  },[tutorial?.active,tutorial?.step.anchor,positions,gridY]);
+    if(!tutorial?.active||tutorial.step.path!=='/post'||tutorial.step.anchor==='tab-create')return;
+    const anchor=tutorial.step.anchor,target=anchor==='create-post'?postTarget:anchor==='create-reading-update'?readingTarget:anchor==='create-ask-readers'?askTarget:stackTarget;
+    if(positions[anchor]===undefined)return;
+    // Keep already visible cards where they are. Scroll only enough to reveal a clipped card.
+    let cancelled=false;
+    target.ref.current?.measureInWindow((_x,y,_w,h)=>{
+      if(cancelled)return;
+      const offset=tutorialRevealOffset(y,h,scrollOffset.current,insets.top+20,screenHeight-insets.bottom-94);
+      if(Math.abs(offset-scrollOffset.current)>1)scroll.current?.scrollTo({y:offset,animated:false});
+    });
+    return()=>{cancelled=true;};
+  },[tutorial?.active,tutorial?.step.anchor,positions,gridY,screenHeight,insets.top,insets.bottom]);
   const router =
     useRouter();
 
@@ -59,6 +66,10 @@ export default function PostScreen() {
     >
       <ScrollView
         ref={scroll}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        onScroll={event=>{scrollOffset.current=event.nativeEvent.contentOffset.y;}}
+        scrollEventThrottle={16}
         scrollEnabled={!tutorial?.active}
         bounces={!tutorial?.active}
         style={
