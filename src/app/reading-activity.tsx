@@ -1,3 +1,4 @@
+import { getReadingOrbitLayout } from '../lib/reading-orbit-layout';
 import BookCoverImage from '../components/BookCoverImage';
 import {
   Ionicons,
@@ -51,21 +52,6 @@ import {
   ReadingMonthPersonalization,
   saveReadingMonthPersonalization,
 } from '../lib/reading-month-personalization';
-
-const ORBIT_EDGE_GUTTER =
-  14;
-
-const MAX_ORBIT_SIZE =
-  460;
-
-const MAX_ORBIT_DECOR_VERTICAL_PADDING =
-  88;
-
-const MIN_ORBIT_DECOR_VERTICAL_PADDING =
-  58;
-
-const MIN_ORBIT_SIZE =
-  240;
 
 const CHARM_ROTATIONS = [
   '-8deg',
@@ -273,86 +259,35 @@ export default function ReadingActivityScreen() {
       null
     );
 
-  const widthOrbitSize =
-    Math.min(
-      Math.max(
-        windowWidth -
-          ORBIT_EDGE_GUTTER *
-            2,
-        260
-      ),
-      MAX_ORBIT_SIZE
-    );
-
-  const usableHeight =
-    Math.max(
-      480,
-      windowHeight -
-        insets.top
-    );
-
-  const compactHeight =
-    usableHeight <
-    700;
-
-  const topChromeBudget =
-    compactHeight
-      ? 126
-      : 164;
-
-  const heroHeightBudget =
-    Math.max(
-      360,
-      usableHeight -
-        topChromeBudget
-    );
-
-  const orbitDecorVerticalPadding =
-    Math.min(
-      MAX_ORBIT_DECOR_VERTICAL_PADDING,
-      Math.max(
-        MIN_ORBIT_DECOR_VERTICAL_PADDING,
-        (
-          heroHeightBudget -
-          widthOrbitSize
-        ) /
-          2
-      )
-    );
-
-  const heightOrbitBudget =
-    Math.max(
-      MIN_ORBIT_SIZE,
-      heroHeightBudget -
-        orbitDecorVerticalPadding *
-          2
-    );
-
-  const activeOrbitSize =
-    Math.min(
-      widthOrbitSize,
-      heightOrbitBudget
-    );
-
-  const charmScale =
-    Math.min(
-      1,
-      Math.max(
-        0.82,
-        orbitDecorVerticalPadding /
-          74
-      )
-    );
+  const [viewport, setViewport] = useState({
+    width: windowWidth,
+    height: windowHeight - insets.top,
+  });
+  const [chromeBottom, setChromeBottom] = useState(164);
+  const tablet = Math.min(windowWidth, windowHeight) >= 600;
+  const {
+    size: activeOrbitSize,
+    decorPadding: orbitDecorVerticalPadding,
+    scale: orbitScale,
+    compactHeight,
+  } = getReadingOrbitLayout({
+    width: Math.min(viewport.width, windowWidth - insets.left - insets.right),
+    height: Math.min(viewport.height, windowHeight - insets.top),
+    chromeBottom,
+    bottomInset: insets.bottom,
+    tablet,
+  });
+  const charmScale = tablet ? orbitScale : Math.min(1, Math.max(0.82, orbitDecorVerticalPadding / 74));
 
   const orbitCenter =
     activeOrbitSize /
     2;
 
   const dayMarkerSize =
-    24;
+    24 * orbitScale;
 
   const dayTouchSize =
-    32;
+    Math.max(tablet ? 44 : 32, 32 * orbitScale);
 
   const orbitRadius =
     activeOrbitSize /
@@ -380,9 +315,9 @@ export default function ReadingActivityScreen() {
 
   const centerCoverWidth =
     Math.min(
-      44,
+      44 * orbitScale,
       Math.max(
-        36,
+        36 * orbitScale,
         activeOrbitSize *
           0.12
       )
@@ -988,9 +923,14 @@ export default function ReadingActivityScreen() {
       }
       edges={[
         'top',
+        'left',
+        'right',
       ]}
     >
       <ScrollView
+        onLayout={({ nativeEvent: { layout } }) => {
+          setViewport({ width: layout.width, height: layout.height });
+        }}
         showsVerticalScrollIndicator={
           false
         }
@@ -1085,6 +1025,9 @@ export default function ReadingActivityScreen() {
         </View>
 
         <View
+          onLayout={({ nativeEvent: { layout } }) => {
+            setChromeBottom(layout.y + layout.height + (compactHeight ? 0 : 2));
+          }}
           style={[
             styles.monthToolbar,
             compactHeight &&
@@ -1559,6 +1502,7 @@ export default function ReadingActivityScreen() {
                             <Text
                               style={[
                                 styles.orbitDayNumber,
+                                { fontSize: 8.5 * orbitScale, lineHeight: 11 * orbitScale },
                                 dot.checked &&
                                   styles.orbitDayNumberRead,
                                 selected &&
