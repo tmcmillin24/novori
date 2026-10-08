@@ -531,3 +531,21 @@ test.each(['hardcover-trending', 'hardcover-recent-releases'])('%s uses English 
  await h.request(endpoint, { forceRefresh: true });
  expect(h.calls.length).toBe(count);
 });
+
+test('popularity chooses library adds ahead of ratings and refuses title-prefix adaptations',async()=>{
+ const h=harness();
+ const original={...hcBook('9781111111111',1,'Fourth Wing'),users_count:50000,ratings_count:100};
+ const reviewed={...hcBook('9781111111111',2,'Fourth Wing'),users_count:100,ratings_count:99999};
+ const adaptation={...hcBook('9781111111111',3,'Fourth Wing, the Graphic Novel: Volume One'),users_count:999999,ratings_count:999999};
+ h.setUpstream(async()=>({data:{books:[adaptation,reviewed,original]}}));
+ const result=await h.request('hardcover-search-popularity',{books:[book('novel','9781111111111','Fourth Wing')]});
+ expect(result.popularity.novel.usersCount).toBe(50000);
+ expect(result.popularity.novel.hardcoverBookId).toBe(1);
+});
+test('graphic adaptation cannot borrow the original novel library count on a title fallback',async()=>{
+ const h=harness();
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('search(')?{data:{book0:{results:{hits:[{document:{id:1,title:'Fourth Wing',author_names:['Author'],users_count:50000,ratings_count:100}}]}}}}:{data:{books:[]}});
+ const result=await h.request('hardcover-search-popularity',{books:[book('graphic','9781111111111','Fourth Wing, the Graphic Novel: Volume One')],allowTitleFallback:true});
+ expect(result.popularity.graphic).toBeUndefined();
+ expect(h.calls.at(-1).body.query).toContain('_text_match:desc,users_count:desc');
+});

@@ -165,3 +165,22 @@ test('popularity drives relevant broad title results ahead of lexical closeness'
  const api=load([book('exact','Writer','Court'),book('popular','Writer','Court of Dreams')],{}, {exact:{usersCount:10,rating:4},popular:{usersCount:10000,rating:4}});
  expect((await api.searchNovoriBooks('court')).map(row=>row.id)).toEqual(['popular','exact']);
 });
+
+test('original Fourth Wing precedes its distinct graphic adaptation even when the adaptation is popular',async()=>{
+ const novel=book('novel','Rebecca Yarros','Fourth Wing');
+ novel.volumeInfo.publishedDate='2023-05-02';
+ novel.volumeInfo.industryIdentifiers=[{type:'ISBN_13',identifier:'9781649374042'}];
+ const graphic=book('graphic','Rebecca Yarros','Fourth Wing, the Graphic Novel: Volume One');
+ graphic.volumeInfo.publishedDate='2026-05-05';
+ graphic.volumeInfo.industryIdentifiers=[{type:'ISBN_13',identifier:'9781649379993'}];
+ const api=load([graphic,novel],{}, {novel:{usersCount:50000,rating:4},graphic:{usersCount:90000,rating:5}});
+ const rows=await api.searchNovoriBooks('fourth wing');
+ expect(rows.map(row=>row.id)).toEqual(['novel','graphic']);
+ expect(rows[0].novoriWork.key).not.toBe(rows[1].novoriWork.key);
+ expect(rows[0].novoriWork.isbns).not.toEqual(rows[1].novoriWork.isbns);
+});
+test('explicit graphic novel searches preserve the adaptation identity',async()=>{
+ const graphic=book('graphic','Rebecca Yarros','Fourth Wing, the Graphic Novel: Volume One');
+ const rows=await load([graphic]).searchNovoriBooks('fourth wing graphic novel');
+ expect(rows[0].volumeInfo.title).toContain('Graphic Novel');
+});

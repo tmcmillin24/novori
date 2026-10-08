@@ -245,20 +245,7 @@ function titlesMatch(
       candidateTitle
     );
 
-  return Boolean(
-    expected &&
-    candidate &&
-    (
-      expected ===
-        candidate ||
-      expected.startsWith(
-        `${candidate} `
-      ) ||
-      candidate.startsWith(
-        `${expected} `
-      )
-    )
-  );
+  return Boolean(expected && candidate && expected === candidate);
 }
 
 function resolveCanonicalBook(
@@ -326,11 +313,11 @@ function chooseBestBook(
     if (
       !existing ||
       (
-        resolved.ratings_count ??
+        resolved.users_count ??
         0
       ) >
         (
-          existing.ratings_count ??
+          existing.users_count ??
           0
         )
     ) {
@@ -349,19 +336,19 @@ function chooseBestBook(
       b
     ) =>
       (
-        b.ratings_count ??
-        0
-      ) -
-        (
-          a.ratings_count ??
-          0
-        ) ||
-      (
         b.users_count ??
         0
       ) -
         (
           a.users_count ??
+          0
+        ) ||
+      (
+        b.ratings_count ??
+        0
+      ) -
+        (
+          a.ratings_count ??
           0
         ) ||
       (
@@ -469,10 +456,10 @@ Deno.serve(async request => {
     // ISBNdb response caches and all TTLs remain unchanged.
     const prepared = await Promise.all(books.map(async (book: InputBook) => {
       const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
-      return { book, key: 'book:v2:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
-        workKey: identity.title && identity.authors.length ? 'work:v2:' + await cacheDigest(identity) : null };
+      return { book, key: 'book:v3:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? 'work:v3:' + await cacheDigest(identity) : null };
     }));
-    const batchKey = 'popularity:v3:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
+    const batchKey = 'popularity:v4:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
     const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];
@@ -517,7 +504,7 @@ Deno.serve(async request => {
           definitions.push('$' + variable + ': String!');
           fields.push(`book${index}: search(query: $${variable}, query_type: "Book", per_page: 50, page: 1,
             fields: "title,author_names,isbns,alternative_titles", weights: "5,4,5,1", typos: "2,2,0,2",
-            sort: "_text_match:desc,ratings_count:desc") { results }`);
+            sort: "_text_match:desc,users_count:desc") { results }`);
         });
         const response = await hardcoverRequest(admin, token, `query HardcoverSearchBatch(${definitions.join(',')}) { ${fields.join('\n')} }`, variables, noteSource);
         titleMisses.forEach((item, index) => {

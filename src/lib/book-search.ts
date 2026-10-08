@@ -1519,6 +1519,13 @@ function getAuthorSearchRelevance(
   return best;
 }
 
+// Adaptations are distinct works, not editions of the prose novel.
+function isGraphicAdaptation(book: GoogleBookSearchItem) {
+  return /\b(?:graphic novel|graphic adaptation|comic adaptation|manga adaptation)\b/i.test(
+    [book.volumeInfo.title, book.volumeInfo.subtitle].filter(Boolean).join(' ')
+  );
+}
+
 // Product tier precedes popularity, so companion products cannot displace books.
 function searchProductTier(book: GoogleBookSearchItem) {
   return Number(isLikelyDerivativeTitle(book) || isCatalogCollection(book));
@@ -1550,6 +1557,10 @@ function sortTitleSearchResults(
     ) => {
       const tierDifference = searchProductTier(a) - searchProductTier(b);
       if (tierDifference) return tierDifference;
+      if (!/\b(?:graphic|comic|manga)\b/i.test(searchTerm)) {
+        const adaptationDifference = Number(isGraphicAdaptation(a)) - Number(isGraphicAdaptation(b));
+        if (adaptationDifference) return adaptationDifference;
+      }
       const popularityDifference = compareBookPopularity(a, b, hardcoverPopularity);
       if (popularityDifference) return popularityDifference;
       const relevanceDifference =
@@ -1658,6 +1669,8 @@ function getCanonicalWorkTitle(
         ''
       )
       .trim();
+
+  if (/\b(?:graphic novel|graphic adaptation|comic adaptation|manga adaptation)\b/i.test(raw)) return normalizeTitle(raw);
 
   // Remove bracketed/parenthetical edition and series labels.
   raw =
@@ -2587,6 +2600,7 @@ function collapseDuplicateEditions(
       );
 
     if (
+      !isGraphicAdaptation(book) &&
       titleStem &&
       titleStem !==
         canonicalTitle &&
