@@ -1,3 +1,4 @@
+import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
@@ -1002,6 +1003,8 @@ export default function AskReadersScreen() {
                       {item.volumeInfo.authors?.join(', ') ||
                         'Unknown author'}
                     </Text>
+
+                    <BookSearchRatings book={item} />
 
                     {item.volumeInfo.publishedDate ? (
                       <Text

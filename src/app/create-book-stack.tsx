@@ -1,3 +1,4 @@
+import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import {resolveStackDragTarget} from '../lib/stack-drag-target';
@@ -1462,48 +1463,7 @@ export default function CreateBookStackScreen() {
                           'Unknown author'}
                       </Text>
 
-                      {typeof book.novoriWork
-                        ?.hardcoverRating ===
-                      'number' ? (
-                        <View
-                          style={
-                            styles.resultRatingStars
-                          }
-                        >
-                          {[1,2,3,4,5].map(
-                            (
-                              star
-                            ) => {
-                              const rating =
-                                book.novoriWork
-                                  ?.hardcoverRating ??
-                                0;
-
-                              return (
-                                <Ionicons
-                                  key={
-                                    star
-                                  }
-                                  name={
-                                    rating >=
-                                    star
-                                      ? 'star'
-                                      : rating >=
-                                        star -
-                                          0.5
-                                        ? 'star-half'
-                                        : 'star-outline'
-                                  }
-                                  size={14}
-                                  color={
-                                    colors.gold
-                                  }
-                                />
-                              );
-                            }
-                          )}
-                        </View>
-                      ) : null}
+                      <BookSearchRatings book={book} />
 
                       {info.publishedDate ? (
                         <Text
@@ -1898,16 +1858,6 @@ function createStyles(
         'Inter_500Medium',
       fontSize: 13,
       marginBottom: 7,
-    },
-
-    resultRatingStars: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 2,
-      marginTop: 7,
-      marginBottom: 1,
     },
 
     resultMeta: {

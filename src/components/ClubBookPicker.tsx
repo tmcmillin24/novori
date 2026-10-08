@@ -1,3 +1,4 @@
+import BookSearchRatings from './BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect,useState } from 'react';
@@ -25,7 +26,7 @@ export default function ClubBookPicker({visible,onDismiss,onChoose}:{visible:boo
     {busy?<ActivityIndicator color={colors.gold} style={{margin:16}}/>:error||query.trim()&&!results.length?<Text style={{...copy,color:colors.mutedText,margin:18}}>{error||'No books found. Try another title or author.'}</Text>:null}
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:18}}>{results.map(book=><Pressable key={book.id} accessibilityRole="button" accessibilityLabel={`Choose club book: ${book.volumeInfo.title}`} onPress={()=>onChoose(book)} style={{flexDirection:'row',alignItems:'center',gap:13,paddingVertical:12,borderBottomWidth:1,borderBottomColor:colors.border}}>
       <BookCoverImage googleBookId={book.id} isbn={getNovoriSearchBookIsbn(book)} existingCoverUrl={getNovoriSearchBookCover(book)} style={{width:49,height:74,borderRadius:5}}/>
-      <View style={{flex:1}}><Text style={copy}>{displayBookTitle(book.volumeInfo.title ?? '')}</Text><Text style={{...copy,fontFamily:'Inter_400Regular',fontSize:11,color:colors.mutedText,marginTop:5}}>{book.volumeInfo.authors?.join(', ')}</Text></View>
+      <View style={{flex:1}}><Text style={copy}>{displayBookTitle(book.volumeInfo.title ?? '')}</Text><Text style={{...copy,fontFamily:'Inter_400Regular',fontSize:11,color:colors.mutedText,marginTop:5}}>{book.volumeInfo.authors?.join(', ')}</Text><BookSearchRatings book={book}/></View>
     </Pressable>)}</ScrollView>
   </SafeAreaView></Modal>;
 }

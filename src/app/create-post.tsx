@@ -1,3 +1,4 @@
+import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import SpoilerToggle from '../components/SpoilerToggle';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
@@ -2728,6 +2729,7 @@ export default function CreatePostScreen() {
                             ) ??
                             'Unknown author'}
                         </Text>
+                        <BookSearchRatings book={item} />
                       </View>
 
                       <Ionicons

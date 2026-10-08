@@ -1,3 +1,4 @@
+import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
@@ -83,7 +84,7 @@ export default function CreateClubEventScreen() {
     <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" onRequestClose={()=>setPicker(false)}><SafeAreaView style={styles.picker}><View style={styles.header}><Text style={styles.heading}>Choose a book</Text><Pressable accessibilityRole="button" accessibilityLabel="Close event book search" onPress={()=>setPicker(false)}><Ionicons name="close" size={25} color={colors.text}/></Pressable></View>
       <TextInput accessibilityLabel="Event book search" value={query} onChangeText={setQuery} placeholder="Search title or author" placeholderTextColor={colors.mutedText} autoFocus style={[styles.input,{marginHorizontal:18}]}/>
       {searching?<ActivityIndicator color={colors.gold}/>:null}{searchError?<Text style={[styles.help,{margin:18}]}>{searchError}</Text>:!searching&&query.trim()&&!results.length?<Text style={[styles.help,{margin:18}]}>No books found. Try another title or author.</Text>:null}
-      <ScrollView keyboardShouldPersistTaps="handled">{results.map(item=><Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Choose book: ${item.volumeInfo.title}`} onPress={()=>void chooseBook(item)} style={styles.result}><BookCoverImage googleBookId={item.id} isbn={getNovoriSearchBookIsbn(item)} existingCoverUrl={getNovoriSearchBookCover(item)} style={styles.cover}/><View style={{flex:1}}><Text style={styles.bookTitle}>{displayBookTitle(item.volumeInfo.title ?? '')}</Text><Text style={styles.bookAuthor}>{item.volumeInfo.authors?.join(', ')}</Text></View></Pressable>)}</ScrollView>
+      <ScrollView keyboardShouldPersistTaps="handled">{results.map(item=><Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Choose book: ${item.volumeInfo.title}`} onPress={()=>void chooseBook(item)} style={styles.result}><BookCoverImage googleBookId={item.id} isbn={getNovoriSearchBookIsbn(item)} existingCoverUrl={getNovoriSearchBookCover(item)} style={styles.cover}/><View style={{flex:1}}><Text style={styles.bookTitle}>{displayBookTitle(item.volumeInfo.title ?? '')}</Text><Text style={styles.bookAuthor}>{item.volumeInfo.authors?.join(', ')}</Text><BookSearchRatings book={item}/></View></Pressable>)}</ScrollView>
     </SafeAreaView></Modal>
     <ValidationWarningSheet visible={Boolean(warning)} title="Check your event" message={warning} onDismiss={()=>setWarning('')}/>
   </SafeAreaView>;
