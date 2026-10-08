@@ -147,14 +147,14 @@ export async function resolveNovoriSearchBookCover(
 }
 
 async function fetchSharedGoogleBooksSearch(
-  searchTerm: string
+  searchTerm: string, startIndex = 0
 ) {
   return fetchGoogleBooksJson<
     GoogleBooksResponse
   >(
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
       searchTerm
-    )}&maxResults=40&printType=books&projection=full`
+    )}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full`
   );
 }
 
@@ -3039,17 +3039,23 @@ function getAmbiguousTitleBooks(books: GoogleBookSearchItem[]) {
   ).flat();
 }
 
-const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
-
-export function searchNovoriBooks(searchTerm: string) {
-  const key = searchTerm.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
-  return readCompletedSearch(key, () => loadNovoriBooks(searchTerm));
+const searchQueryKey = (term: string) => term.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+const searchPageTotals = new Map<string, number>();
+export function hasMoreBookSearchResults(term: string, startIndex: number) {
+ return startIndex < Math.min(searchPageTotals.get(searchQueryKey(term)) ?? 0, 1000);
 }
 
-async function loadNovoriBooks(searchTerm: string) {
+const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
+
+export function searchNovoriBooks(searchTerm: string, startIndex = 0) {
+  const key = searchQueryKey(searchTerm);
+  return readCompletedSearch(`${key}:${startIndex}`, () => loadNovoriBooks(searchTerm, startIndex));
+}
+
+async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   const response =
     await fetchSharedGoogleBooksSearch(
-      searchTerm
+      searchTerm, startIndex
     );
 
   if (
@@ -3061,6 +3067,8 @@ async function loadNovoriBooks(searchTerm: string) {
     );
   }
 
+  searchPageTotals.set(searchQueryKey(searchTerm), response.data.totalItems ?? (startIndex + (response.data.items?.length ?? 0)));
+  while (searchPageTotals.size > 150) searchPageTotals.delete(searchPageTotals.keys().next().value!);
   let initialResults: GoogleBookSearchItem[] =
     (response.data.items ?? []).map(normalizeIsbnDbEdition).map(book => ({ ...book, volumeInfo: { ...book.volumeInfo, title: book.volumeInfo.title ? displayBookTitle(book.volumeInfo.title) : undefined } }));
 
@@ -3075,7 +3083,7 @@ async function loadNovoriBooks(searchTerm: string) {
   const incompleteMatches = initialResults.filter(book =>
     normalizeTitle(book.volumeInfo.title) === normalizedQuery &&
     !validPublicationDate(book.volumeInfo.publishedDate));
-  if (normalizedQuery.split(' ').length >= 3 &&
+  if (startIndex === 0 && normalizedQuery.split(' ').length >= 3 &&
       stripLeadingTitleArticle(normalizedQuery) === normalizedQuery &&
       incompleteMatches.length > 0 &&
       !hasDerivativeSearchIntent(normalizedQuery) &&
@@ -3094,7 +3102,7 @@ async function loadNovoriBooks(searchTerm: string) {
   }
 
   let authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
-  if (authorQualifiedResults.length === 0) {
+  if (startIndex === 0 && authorQualifiedResults.length === 0) {
     const refinement = getTitleAuthorRefinementQuery(initialResults, normalizedQuery);
     if (refinement) {
       // One bounded, shared-cache-backed fallback; never discard usable results on failure.
@@ -3265,7 +3273,7 @@ async function loadNovoriBooks(searchTerm: string) {
 
         const canonicalGoogleCover =
           getBestEligibleGoogleWorkCover(
-            [representative, ...siblingEditions.filter(book => book.id !== representative.id)]
+            [representative]
           );
 
         representative.novoriWork = {

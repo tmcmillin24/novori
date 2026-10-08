@@ -14,7 +14,7 @@ export function sameBookWork(a: GoogleBookSearchItem, b: GoogleBookSearchItem) {
 export function applyBookWorkDetails<T extends GoogleBookSearchItem>(edition: T, representative: GoogleBookSearchItem): T {
   if (!sameBookWork(edition, representative)) return edition;
   return { ...edition, novoriDetails: { bookId: representative.id, isbns: (representative.volumeInfo.industryIdentifiers ?? []).map(identifier => identifier.identifier) }, novoriPublication: representative.novoriPublication ?? edition.novoriPublication,
-    volumeInfo: { ...representative.volumeInfo,
+    volumeInfo: { ...edition.volumeInfo,
       title: displayBookTitle(representative.volumeInfo.title ?? edition.volumeInfo.title ?? ''),
       publishedDate: edition.volumeInfo.publishedDate,
       imageLinks: edition.volumeInfo.imageLinks,

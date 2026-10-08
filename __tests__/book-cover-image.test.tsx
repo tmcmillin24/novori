@@ -27,7 +27,7 @@ test('detail and thumbnail render the identical original file and update togethe
 });
 
 test('a failed image never switches a thumbnail to different provider artwork', async () => {
-  publishCatalogCovers({ failed: 'https://locked/manual-cover.jpg' });
+  publishCatalogCovers({ failed: 'https://locked/manual-cover.jpg' }, { failed: { locked: true } });
   const onError = jest.fn();
   let view: renderer.ReactTestRenderer;
   await act(async () => {
@@ -54,4 +54,13 @@ test('cache churn cannot blank a mounted cover or alter its original URL and ima
   expect(image.props.cachePolicy).toBe('memory-disk');
   expect(image.props.transition).toBe(0);
   await act(async () => { view!.unmount(); });
+});
+
+test('a failed edition cover advances both detail and thumbnail to the same verified alternative', async () => {
+ publishCatalogCovers({ recovery: 'https://art/broken.jpg' }, { recovery: { workId:'edition:recovery', alternatives:['https://art/broken.jpg','https://art/verified.jpg'] } });
+ let view: renderer.ReactTestRenderer;
+ await act(async () => { view=renderer.create(<><BookCoverImage googleBookId="recovery"/><BookCoverImage googleBookId="recovery"/></>); });
+ await act(async () => { view!.root.findAllByType('ExpoImage' as any)[0].props.onError({error:'404'}); });
+ expect(view!.root.findAllByType('ExpoImage' as any).map(image=>image.props.source.uri)).toEqual(['https://art/verified.jpg','https://art/verified.jpg']);
+ await act(async () => { view!.unmount(); });
 });

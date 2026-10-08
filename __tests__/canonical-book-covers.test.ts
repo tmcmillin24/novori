@@ -102,7 +102,7 @@ describe('one catalog artwork across book surfaces', () => {
 });
 
 describe('bounded confirmed selections across restart and refresh races', () => {
-  const storageKey = 'novori:canonical-book-covers:v1';
+  const storageKey = 'novori:canonical-book-covers:v2';
   let device: Map<string, string>;
   let covers: typeof import('../src/lib/canonical-book-covers');
   let invoke: Mock<(...args: any[]) => Promise<any>>;

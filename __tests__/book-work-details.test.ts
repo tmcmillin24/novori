@@ -9,8 +9,8 @@ test('trending, search, series and saved editions share work details while retai
  const editions = ['trending', 'search', 'series', 'library'].map(id => book(id, 600));
  const results = await Promise.all(editions.map(edition => reader.resolve(edition)));
  for (let i = 0; i < results.length; i++) {
-  expect(results[i].volumeInfo.pageCount).toBe(412);
-  expect(results[i].volumeInfo.description).toBe('Description search');
+  expect(results[i].volumeInfo.pageCount).toBe(600);
+  expect(results[i].volumeInfo.description).toBe(editions[i].volumeInfo.description);
   expect(results[i].novoriDetails).toEqual({ bookId: 'search', isbns: ['search'] });
   expect(results[i].id).toBe(editions[i].id);
   expect(results[i].volumeInfo.imageLinks).toEqual(editions[i].volumeInfo.imageLinks);
@@ -25,14 +25,14 @@ test('completed title search primes details without another search', async () =>
  const search = jest.fn(async () => []);
  const reader = createBookWorkDetails(search);
  reader.remember('DUNE', [book('correct', 412)]);
- expect((await reader.resolve(book('trending', 600))).volumeInfo.pageCount).toBe(412);
+ expect((await reader.resolve(book('trending', 600))).volumeInfo.pageCount).toBe(600);
  expect(search).not.toHaveBeenCalled();
 });
 test('search updates replace cached work details without touching edition caches', async () => {
  const reader = createBookWorkDetails(async () => []);
  reader.remember('Dune', [book('correct', 412)]);
  reader.remember('Dune', [book('updated', 420)]);
- expect((await reader.resolve(book('trending', 600))).volumeInfo.pageCount).toBe(420);
+ expect((await reader.resolve(book('trending', 600))).volumeInfo.pageCount).toBe(600);
 });
 test.each(['Other Author', 'Frank Herbert'])('wrong author, language, collection and missing matches cannot overwrite details: %s', async author => {
  const edition = book('original', 412);
@@ -47,5 +47,5 @@ test('provider failures retain cached detail metadata and can retry', async () =
  const search = jest.fn<() => Promise<GoogleBookSearchItem[]>>().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([book('good', 412)]);
  const reader = createBookWorkDetails(search);
  expect((await reader.resolve(book('original', 600))).volumeInfo.pageCount).toBe(600);
- expect((await reader.resolve(book('original', 600))).volumeInfo.pageCount).toBe(412);
+ expect((await reader.resolve(book('original', 600))).volumeInfo.pageCount).toBe(600);
 });

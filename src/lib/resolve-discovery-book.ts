@@ -25,6 +25,7 @@ async function limited<T>(run: () => Promise<T>): Promise<T> {
 }
 export function loadDiscoveryCover(book: DiscoveryBook) {
  return previewRead(JSON.stringify([book.id, book.title, book.authors]), () => limited(async () => {
+  if (book.coverPolicyVersion === 7 && book.coverBookId && book.coverUrl) return true;
   const preferred = preferredCoverIsbn(book);
   if (book.coverUrl && !preferred) return true;
   if (preferred) {

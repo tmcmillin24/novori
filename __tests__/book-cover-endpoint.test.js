@@ -18,6 +18,7 @@ function endpoint(locked = false, customize = () => {}) {
   };
   rows.book_works = [];
   rows.book_api_cache = [];
+  rows.book_editions.forEach(row => { row.metadata = { volumeInfo: { title: 'Example Novel', authors: ['Writer'], language: 'en', imageLinks: { medium: 'https://art/original.jpg' } } }; });
   customize(rows);
   const client = {
     auth: { getUser: async token => token === 'session' ? { data: { user: { id: 'reader' } } } : { error: 'unauthorized' } },
@@ -50,6 +51,7 @@ function endpoint(locked = false, customize = () => {}) {
     Deno: { env: { get: name => name === 'NOVORI_SERVER_KEY' ? 'sb_secret_test' : name === 'SUPABASE_URL' ? 'https://test.supabase.co' : undefined }, serve: callback => { handler = callback; } },
     require: name => name.startsWith('https:') ? { createClient: () => client }
       : name.includes('supabase-keys') ? { getServerKey: read => read('NOVORI_SERVER_KEY') }
+      : name.includes('edition-cover-catalog') ? require('../supabase/functions/_shared/edition-cover-catalog')
       : name.includes('catalog-cover-preferences') ? require('../supabase/functions/_shared/catalog-cover-preferences')
       : name.includes('series-book-catalog') ? require('../supabase/functions/_shared/series-book-catalog')
       : name.includes('catalog-metadata-covers') ? require('../supabase/functions/_shared/catalog-metadata-covers')
@@ -67,7 +69,7 @@ test('batch endpoint returns one persisted cover for both volume IDs and ISBN ke
   const result = await endpoint()({ volumeIds: ['volumeA', 'volumeB'], isbns: ['9781234567897', '123456789X'] });
   expect(result.ok).toBe(true);
   expect(Object.values(result.data.covers)).toEqual(Array(4).fill('https://art/original.jpg'));
-  expect(Object.values(result.data.details).every(detail => detail.workId === 'work' && detail.authoritative)).toBe(true);
+  expect(Object.values(result.data.details).every(detail => detail.workId.startsWith('edition:') && detail.authoritative)).toBe(true);
 });
 
 test('single volume, ISBN-only, and locked/manual selections remain supported', async () => {
@@ -87,7 +89,7 @@ test('endpoint rejects invalid IDs, ISBNs, oversized requests, and missing sessi
 
 test('different Catching Fire queries and saved IDs share a verified cached cover without merging IDs', async () => {
  const result = await endpoint(false, rows => {
-  const info = { title: 'Catching Fire', authors: ['Suzanne Collins'], language: 'en' };
+  const info = { title: 'Catching Fire', authors: ['Suzanne Collins'], language: 'en', imageLinks: { medium: 'https://art/original.jpg' } };
   rows.book_editions[0].metadata = { volumeInfo: info };
   rows.book_editions[1].work_id = 'legacy-work';
   rows.book_editions[1].metadata = { volumeInfo: { ...info, title: 'Catching Fire (The Hunger Games, 2)', authors: ['Collins, Suzanne'] } };
@@ -95,7 +97,7 @@ test('different Catching Fire queries and saved IDs share a verified cached cove
  })({ volumeIds: ['volumeB', 'volumeA'] });
  expect(result.ok).toBe(true);
  expect(result.data.covers).toEqual({ volumeA: 'https://art/original.jpg', volumeB: 'https://art/original.jpg' });
- expect(result.data.details.volumeA.workId).toBe(result.data.details.volumeB.workId);
+ expect(result.data.details.volumeA.workId).not.toBe(result.data.details.volumeB.workId);
 });
 test('a same-title different-author work cannot lend its artwork to an empty edition', async () => {
  const result = await endpoint(false, rows => {
@@ -111,8 +113,8 @@ test('rejected raw Hardcover art is reported so every client surface can retire 
   rows.book_cover_candidates = [{ id: 'unsafe', work_id: 'work', edition_id: 'a', provider: 'hardcover', source_variant: 'series_verified', scope: 'edition', url: 'https://art/spanish.jpg' }];
   rows.book_cover_selections = [{ work_id: 'work', candidate_id: 'unsafe', locked: false, status: 'selected', selector_version: 3 }];
  })({ volumeIds: ['volumeA'] });
- expect(result.data.covers.volumeA).toBeNull();
- expect(result.data.details.volumeA.rejectedUrls).toEqual(['https://art/spanish.jpg']);
+ expect(result.data.covers.volumeA).toBe('https://art/original.jpg');
+ expect(result.data.details.volumeA.provider).toBe('google_books');
 });
 
 

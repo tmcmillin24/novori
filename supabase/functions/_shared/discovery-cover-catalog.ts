@@ -1,40 +1,21 @@
-import { cachedWorkCovers } from './catalog-metadata-covers.ts';
-import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { selectCanonicalGoogleCoversForWorkIds } from './book-cover-selector.ts';
 import { attachSeriesCatalogIdentities } from './series-book-catalog.ts';
+import { readEditionCovers } from './edition-cover-catalog.ts';
 
-/** Catalog-only artwork overlay, with the same title/author checks as series. */
-export async function attachDiscoveryCatalogCovers(admin: SupabaseClient, payload: any) {
+/** Discovery and every book screen use the same edition cover reader. */
+export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
   const verified = await attachSeriesCatalogIdentities(admin, payload);
-  const ids = [...new Set<string>((verified.books ?? []).map((book: any) => book.coverBookId).filter(Boolean))];
-  if (!ids.length) return { ...verified, books: verified.books.map((book: any) => ({ ...book, coverUrl: null })) };
+  const ids = [...new Set((verified.books ?? []).map((book: any) => book.coverBookId).filter(Boolean))];
+  if (!ids.length) return { ...verified, books: verified.books.map((book: any) => ({ ...book, coverUrl: null, coverPolicyVersion: 7 })) };
   const { data: editions, error } = await admin.from('book_editions')
-    .select('id,provider,provider_book_id,work_id,isbn_13,language,metadata').in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
+    .select('id,provider,provider_book_id,work_id,isbn_10,isbn_13,language,metadata')
+    .in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
   if (error) throw error;
-  const works = [...new Set<string>((editions ?? []).map((row: any) => row.work_id).filter(Boolean))];
-  await selectCanonicalGoogleCoversForWorkIds(admin, works);
-  const { data: selections, error: selectionError } = await admin.from('book_cover_selections')
-    .select('work_id,candidate_id,locked').eq('status', 'selected').in('work_id', works);
-  if (selectionError) throw selectionError;
-  const candidateIds = [...new Set<string>((selections ?? []).map((row: any) => row.candidate_id).filter(Boolean))];
-  let candidates: any[] = [];
-  if (candidateIds.length) {
-    const result = await admin.from('book_cover_candidates').select('id,url,provider').in('id', candidateIds);
-    if (result.error) throw result.error;
-    candidates = result.data ?? [];
-  }
-  const urls = new Map(candidates.map(row => [row.id, row]));
-  const selected = new Map((selections ?? []).map((row: any) => {
-    const candidate: any = urls.get(row.candidate_id);
-    return [row.work_id, candidate && (row.locked || candidate.provider !== 'hardcover') ? candidate.url : null];
-  }));
-  const fallbackCovers = cachedWorkCovers(editions ?? []);
-  const byId = new Map((editions ?? []).map((row: any) => [row.provider_book_id, row]));
-  return { ...verified, books: verified.books.map((book: any) => {
-    const edition: any = byId.get(book.coverBookId);
-    const fallback = fallbackCovers.get(edition?.work_id);
-    const selection = (selections ?? []).find((row: any) => row.work_id === edition?.work_id);
-    const coverUrl = fallback?.preferred && !selection?.locked ? fallback.url : selected.get(edition?.work_id) ?? fallback?.url;
-    return { ...book, coverUrl: coverUrl ? String(coverUrl).replace(/^http:\/\//i, 'https://') : null };
+  const choices = await readEditionCovers(admin, editions ?? []);
+  return { ...verified, books: verified.books.flatMap((book: any) => {
+    const candidates = choices.get(book.coverBookId) ?? [];
+    const cover = candidates[0];
+    if (!cover) return [{ ...book, coverUrl: null, coverPolicyVersion: 7 }];
+    return [{ ...book, coverBookId: cover.bookId, coverUrl: cover.url,
+      coverAlternatives: candidates, coverPolicyVersion: 7 }];
   }) };
 }

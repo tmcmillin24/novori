@@ -1,3 +1,5 @@
+import { prepareDiscovery, readValidatedDiscovery } from '../../lib/validated-discovery';
+import { hasMoreBookSearchResults } from '../../lib/book-search';
 import DiscoveryCoverImage from '../../components/DiscoveryCoverImage';
 import { displayBookTitle } from '../../lib/book-title';
 import { discoveryCoverInput, getDiscoveryBookId, getDiscoveryBookVersion, subscribeDiscoveryBooks } from '../../lib/discovery-books';
@@ -2303,6 +2305,11 @@ export default function DiscoverScreen() {
   }
 
   const [books, setBooks] = useState<GoogleBookItem[]>([]);
+  const [visibleBookCount, setVisibleBookCount] = useState(10);
+  const [loadingMoreBooks, setLoadingMoreBooks] = useState(false);
+  const nextBookPage = useRef(40);
+  const loadingBookPage = useRef(false);
+  const activeBookSearch = useRef('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2734,6 +2741,8 @@ export default function DiscoverScreen() {
       if (!silent) {
         setTrendingLoading(true);
         setTrendingError('');
+        const saved = await readValidatedDiscovery<TrendingBook>('trending');
+        if (saved.length) { setTrendingBooks(saved); setTrendingLoading(false); }
       }
 
       const {
@@ -2763,8 +2772,7 @@ export default function DiscoverScreen() {
         );
       }
 
-      const nextTrendingBooks =
-        response?.books ?? [];
+      const nextTrendingBooks = await prepareDiscovery('trending', response?.books ?? []);
 
       setTrendingBooks(
         nextTrendingBooks
@@ -2784,7 +2792,8 @@ export default function DiscoverScreen() {
       );
 
       if (!silent) {
-        setTrendingBooks([]);
+        const saved = await readValidatedDiscovery<TrendingBook>('trending');
+        if (saved.length) setTrendingBooks(saved);
         setTrendingError(
           'Trending books are unavailable right now.'
         );
@@ -2804,6 +2813,8 @@ export default function DiscoverScreen() {
       if (!silent) {
         setRecentReleasesLoading(true);
         setRecentReleasesError('');
+        const saved = await readValidatedDiscovery<TrendingBook>('recent');
+        if (saved.length) { setRecentReleasePool(saved); setRecentReleasesLoading(false); }
       }
 
       const {
@@ -2833,8 +2844,7 @@ export default function DiscoverScreen() {
         );
       }
 
-      const nextRecentReleases =
-        response?.books ?? [];
+      const nextRecentReleases = await prepareDiscovery('recent', response?.books ?? []);
 
       setRecentReleasePool(
         nextRecentReleases
@@ -2854,7 +2864,8 @@ export default function DiscoverScreen() {
       );
 
       if (!silent) {
-        setRecentReleasePool([]);
+        const saved = await readValidatedDiscovery<TrendingBook>('recent');
+        if (saved.length) setRecentReleasePool(saved);
         setRecentReleasesError(
           'Recent releases are unavailable right now.'
         );
@@ -3070,9 +3081,10 @@ export default function DiscoverScreen() {
         return;
       }
 
-      setBooks(
-        rankedResults
-      );
+      activeBookSearch.current = searchTerm;
+      nextBookPage.current = 40;
+      setVisibleBookCount(10);
+      setBooks(rankedResults);
     } catch (err) {
       if (
         requestId !==
@@ -3099,6 +3111,34 @@ export default function DiscoverScreen() {
         setLoading(false);
       }
     }
+  }
+
+  async function loadMoreBooks() {
+    if (loading || loadingBookPage.current) return;
+    if (visibleBookCount < books.length) {
+      setVisibleBookCount(count => Math.min(count + 10, books.length));
+      return;
+    }
+    const term = activeBookSearch.current;
+    if (!term || !hasMoreBookSearchResults(term, nextBookPage.current)) return;
+    const requestId = latestRequestRef.current;
+    loadingBookPage.current = true;
+    setLoadingMoreBooks(true);
+    try {
+      const more = await searchNovoriBooks(term, nextBookPage.current);
+      if (requestId !== latestRequestRef.current) return;
+      nextBookPage.current += 40;
+      setBooks(previous => {
+        const keys = new Set(previous.map(book => book.novoriWork?.key ?? book.id));
+        return [...previous, ...more.filter(book => {
+          const key = book.novoriWork?.key ?? book.id;
+          if (keys.has(key)) return false;
+          keys.add(key); return true;
+        })];
+      });
+      setVisibleBookCount(count => count + 10);
+    } catch { /* Keep visible results; another scroll can retry the cached route. */ }
+    finally { loadingBookPage.current = false; setLoadingMoreBooks(false); }
   }
 
   function searchImmediately() {
@@ -4991,7 +5031,11 @@ export default function DiscoverScreen() {
               style={
                 styles.list
               }
-              data={books}
+              data={books.slice(0, visibleBookCount)}
+              initialNumToRender={10}
+              onEndReached={loadMoreBooks}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={loadingMoreBooks ? <ActivityIndicator style={{ padding: 16 }} color={colors.gold} /> : null}
               keyExtractor={(
                 item
               ) => item.id}

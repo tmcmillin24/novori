@@ -182,15 +182,22 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
 
 async function detail(admin: SupabaseClient, userId: string, id: string) {
   if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/.test(id)) throw new Error('Invalid book identifier.');
-  let isbn = validIsbn13(id.replace(/^nv_/, ''));
-  if (!isbn) {
-    const { data, error } = await admin.from('book_editions').select('isbn_13,isbn_10').eq('provider_book_id', id).limit(20);
-    if (error) throw new Error('Could not read existing book mapping.');
-    isbn = (data ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean) ?? null;
+  const { data: rows, error } = await admin.from('book_editions')
+    .select('isbn_13,isbn_10,metadata,detail_complete').eq('provider_book_id', id).limit(20);
+  if (error) throw new Error('Could not read existing book mapping.');
+  const cached = (rows ?? []).find((row: any) => row.metadata?.volumeInfo?.title);
+  // Cached catalog books remain openable even when ISBNdb lacks a legacy ISBN.
+  if (cached?.detail_complete) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+  const isbn = validIsbn13(id.replace(/^nv_/, '')) ??
+    (rows ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean);
+  if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+  try {
+    const book = await lookup(admin, userId, isbn);
+    return book ? { ...book, id } : cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+  } catch (error) {
+    if (cached) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    throw error;
   }
-  if (!isbn) return null;
-  const book = await lookup(admin, userId, isbn);
-  return book ? { ...book, id } : null;
 }
 
 export async function handleIsbnDbRequest(request: Request, kind: 'search' | 'detail' | 'resolve') {

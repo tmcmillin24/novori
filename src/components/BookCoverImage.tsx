@@ -5,6 +5,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { CanonicalCoverInput } from '../lib/canonical-book-covers';
 import {
   getCanonicalBookCover,
+  reportBookCoverFailure,
   canonicalCoverKey,
   resolveCanonicalBookCover,
   subscribeCanonicalBookCovers,
@@ -40,6 +41,6 @@ export default function BookCoverImage({
     contentFit={contentFit}
     transition={0}
     recyclingKey={`${googleBookId ?? isbn ?? isbnKey}:${url ?? 'pending'}`}
-    onError={event => onError?.(event as any)}
+    onError={event => { reportBookCoverFailure(input, url); onError?.(event as any); }}
   />;
 }

@@ -8,6 +8,7 @@ export type DiscoveryBook = {
   isbns: string[];
   coverUrl: string | null;
   coverBookId?: string | null;
+  coverPolicyVersion?: number;
   releaseDate?: string | null;
   releaseYear?: number | null;
   rating?: number | null;
@@ -20,8 +21,8 @@ let version = 0;
 const text = (value: string) => value.normalize('NFKC').toLowerCase().trim();
 const identityKey = (book: Identity) => JSON.stringify([book.id, text(book.title), book.authors.map(text).sort()]);
 
-export function getDiscoveryBookId(book: Identity & { coverBookId?: string | null }) {
-  return known.get(identityKey(book)) ?? book.coverBookId ?? null;
+export function getDiscoveryBookId(book: Identity & { coverBookId?: string | null; coverPolicyVersion?: number }) {
+  return book.coverPolicyVersion === 7 ? book.coverBookId ?? known.get(identityKey(book)) ?? null : known.get(identityKey(book)) ?? book.coverBookId ?? null;
 }
 export function rememberDiscoveryBookId(book: Identity, bookId: string) {
   if (!Number.isSafeInteger(book.id) || book.id <= 0 || !/^[A-Za-z0-9_-]{1,200}$/.test(bookId)) return;
