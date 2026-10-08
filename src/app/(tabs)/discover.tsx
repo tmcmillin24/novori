@@ -1594,6 +1594,8 @@ const DiscoverBookCard = memo(
           pressed &&
             styles.bookCardPressed,
         ]}
+        accessibilityRole="button"
+        accessibilityHint="Opens book details"
         onPress={() =>
           onOpenBook(
             item.id,
@@ -1731,14 +1733,14 @@ const DiscoverBookCard = memo(
             </Text>
           ) : null}
 
-          <Text
-            style={
-              styles.viewDetails
-            }
-          >
-            View details →
-          </Text>
         </View>
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={goldColor}
+          style={styles.bookDetailsChevron}
+          accessible={false}
+        />
       </Pressable>
     );
   }
@@ -6118,13 +6120,10 @@ function createStyles(
       marginBottom: 2,
     },
 
-    viewDetails: {
-      color:
-        colors.softGold,
-      fontSize: 12,
-      fontFamily:
-        'Inter_600SemiBold',
-      marginTop: 7,
+    bookDetailsChevron: {
+      alignSelf: 'center',
+      marginLeft: 6,
+      flexShrink: 0,
     },
 
     emptyState: {
