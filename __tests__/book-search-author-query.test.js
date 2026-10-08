@@ -10,7 +10,7 @@ function load(items,responses={},popularity={}){
  if(name.includes('book-genres'))return require('../supabase/functions/_shared/book-genres');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
  if(name.includes('canonical-book-covers'))return{getCanonicalBookCoverRevision:()=>0,getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
- if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};
+ if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity:typeof popularity==='function'?await popularity():popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};
  if(name==='./google-books')return{fetchGoogleBooksJson:async url=>{const query=new URL(url).searchParams.get('q');calls.push(query);if(responses[query] instanceof Error)throw responses[query];return{ok:true,status:200,data:{items:JSON.parse(JSON.stringify(responses[query]??items))}}}};
  if(name==='./book-covers')return{getBookCoverPlan:({imageLinks,existingCoverUrl})=>({primaryUrl:existingCoverUrl??imageLinks?.medium??imageLinks?.thumbnail??null})};
  throw Error(name);
@@ -266,4 +266,24 @@ test('failed rating enrichment does not cache an incomplete completed search', a
  expect((await api.searchNovoriBooks('Available Book'))).toHaveLength(1);
  expect((await api.searchNovoriBooks('Available Book'))).toHaveLength(1);
  expect(api.popularityCalls).toHaveLength(2);
+});
+
+test('cover-ready results arrive before deferred ratings, coalesce, and cache only final enrichment',async()=>{
+ let finish;const stats=new Promise(resolve=>{finish=resolve;});
+ const api=load([book('original','Jane Writer','The Book')],{},()=>stats);
+ const progress=jest.fn(),late=jest.fn();
+ let complete=false;
+ const a=api.searchNovoriBooks('The Book',0,{onProgress:progress}).then(rows=>{complete=true;return rows;});
+ for(let i=0;i<100&&!progress.mock.calls.length;i++)await Promise.resolve();
+ expect(progress).toHaveBeenCalledTimes(1);expect(complete).toBe(false);
+ const cover=api.getNovoriSearchBookCover(progress.mock.calls[0][0][0]);
+ const b=api.searchNovoriBooks('The Book',0,{onProgress:late});
+ expect(late).toHaveBeenCalledTimes(1);
+ finish({original:{usersCount:200,rating:4.5,ratingsCount:100,reviewsCount:20}});
+ const [rows,other]=await Promise.all([a,b]);
+ expect(rows[0].novoriWork.hardcoverRatingsCount).toBe(100);
+ expect(other).toEqual(rows);expect(api.getNovoriSearchBookCover(rows[0])).toBe(cover);
+ expect(api.popularityCalls).toHaveLength(1);
+ expect((await api.searchNovoriBooks('The Book'))[0].novoriWork.hardcoverRatingsCount).toBe(100);
+ expect(api.popularityCalls).toHaveLength(1);
 });

@@ -3000,14 +3000,16 @@ export function hasMoreBookSearchResults(term: string, startIndex: number) {
 
 const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
 
-export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {mode?: 'author'} = {}) {
+export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {mode?: 'author'; onProgress?: (books: GoogleBookSearchItem[]) => void} = {}) {
   const isbn = !options.mode && /^(?:isbn[:\s]*)?[\dXx -]+$/i.test(searchTerm.trim()) ? normalizeSearchIsbn(searchTerm) : null;
   const term = isbn ?? searchTerm;
   const key = searchQueryKey(term);
-  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, () => loadNovoriBooks(term, startIndex, options.mode), rows => !incompleteSearchResults.has(rows));
+  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
 }
 
-async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author') {
+async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author', onProgress?: (books: GoogleBookSearchItem[]) => void) {
+  const startedAt = Date.now();
+  const timing = (stage: string) => { if (typeof __DEV__ !== 'undefined' && __DEV__) console.info('[Novori book search timing]', { stage, elapsedMs: Date.now() - startedAt, startIndex }); };
   const response =
     await fetchSharedGoogleBooksSearch(
       mode === 'author' ? `inauthor:"${searchTerm.trim()}"` : searchTerm, startIndex
@@ -3022,6 +3024,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
     );
   }
 
+  timing('provider-results');
   searchPageTotals.set(searchQueryKey(searchTerm), response.data.totalItems ?? (startIndex + (response.data.items?.length ?? 0)));
   while (searchPageTotals.size > 150) searchPageTotals.delete(searchPageTotals.keys().next().value!);
   let initialResults: GoogleBookSearchItem[] =
@@ -3245,6 +3248,9 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
     collapsed
   );
 
+  timing('catalog-covers-ready');
+  if (collapsed.length) onProgress?.(collapsed);
+
   const popularity: NonNullable<HardcoverSearchPopularityResponse['popularity']> = await ratingMetadata;
   for (const book of collapsed) {
     const counts = popularity[book.id];
@@ -3260,6 +3266,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
   const results = looksLikeAuthorSearch
     ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
     : sortTitleSearchResults(collapsed, searchTerm, popularity);
+  timing('ratings-ready');
   if (failedPopularityReads.has(popularity)) incompleteSearchResults.add(results);
   return results;
 }

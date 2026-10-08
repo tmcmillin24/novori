@@ -2152,6 +2152,7 @@ export default function DiscoverScreen() {
   const nextBookPage = useRef(40);
   const loadingBookPage = useRef(false);
   const activeBookSearch = useRef('');
+  const initialBookSearchPending = useRef<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2308,6 +2309,20 @@ export default function DiscoverScreen() {
       () => {
         discoverFocusedRef.current =
           true;
+        // Returning from details or another tab restores the loaded discovery feed.
+        latestRequestRef.current += 1;
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        initialBookSearchPending.current = null;
+        activeBookSearch.current = '';
+        nextBookPage.current = 40;
+        setQuery('');
+        setBooks([]);
+        setError('');
+        setLoading(false);
+        setVisibleBookCount(10);
+        discoverSearchInputRef.current?.blur();
+        Keyboard.dismiss();
+        setDiscoverSearchFocused(false);
         let active =
           true;
 
@@ -2378,6 +2393,8 @@ export default function DiscoverScreen() {
             false;
           discoverFocusedRef.current =
             false;
+          latestRequestRef.current += 1;
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         };
       },
       []
@@ -2942,10 +2959,20 @@ export default function DiscoverScreen() {
     try {
       setLoading(true);
       setError('');
+      initialBookSearchPending.current = requestId;
+      activeBookSearch.current = searchTerm;
+      nextBookPage.current = 40;
+      setVisibleBookCount(10);
 
       const rankedResults =
         await searchNovoriBooks(
-          searchTerm
+          searchTerm, 0, {
+            onProgress: results => {
+              if (requestId !== latestRequestRef.current) return;
+              setBooks(results);
+              setLoading(false);
+            },
+          }
         );
 
       if (
@@ -2955,9 +2982,6 @@ export default function DiscoverScreen() {
         return;
       }
 
-      activeBookSearch.current = searchTerm;
-      nextBookPage.current = 40;
-      setVisibleBookCount(10);
       setBooks(rankedResults);
     } catch (err) {
       if (
@@ -2983,6 +3007,7 @@ export default function DiscoverScreen() {
         latestRequestRef.current
       ) {
         setLoading(false);
+        initialBookSearchPending.current = null;
       }
     }
   }
@@ -2993,6 +3018,7 @@ export default function DiscoverScreen() {
       setVisibleBookCount(count => Math.min(count + 10, books.length));
       return;
     }
+    if (initialBookSearchPending.current === latestRequestRef.current) return;
     const term = activeBookSearch.current;
     if (!term || !hasMoreBookSearchResults(term, nextBookPage.current)) return;
     const requestId = latestRequestRef.current;
