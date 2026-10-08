@@ -7,6 +7,7 @@ function load(items,responses={},popularity={}){
  if(name.includes('book-work-details'))return require('../src/lib/book-work-details');
  if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
  if(name.includes('book-publication'))return require('../src/lib/book-publication');
+ if(name.includes('book-genres'))return require('../supabase/functions/_shared/book-genres');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');
  if(name.includes('canonical-book-covers'))return{getCanonicalBookCoverRevision:()=>0,getCanonicalBookCover:()=>null,publishCatalogCovers:()=>{},resolveCanonicalBookCover:async()=>null};
  if(name==='./supabase')return{supabase:{functions:{invoke:async(name,{body})=>{if(name==='hardcover-search-popularity'){exports.popularityCalls.push(body);if(popularity instanceof Error)throw popularity;return{data:{popularity}};}return{data:{ok:true,data:{covers:{}}}};}}}};
@@ -71,12 +72,12 @@ test('ISBNdb surname-first print edition replaces the MP3 CD representative with
  expect(rows).toHaveLength(1);expect(rows[0].id).toBe('print');
  expect(rows[0].volumeInfo.authors).toEqual(['Freida McFadden']);expect(rows[0].volumeInfo.pageCount).toBe(308);
  expect(rows[0].novoriWork.canonicalCoverUrl).toBe('https://covers.test/print');
- expect(rows[0].novoriWork.googleBookIds.sort()).toEqual(['audio','print']);
+ expect(rows[0].novoriWork.googleBookIds.sort()).toEqual(['print']);
 });
-test('ISBNdb audio-only results remain searchable and never show audio disc counts as pages',async()=>{
+test('ISBNdb audio-only results are excluded from Discover search',async()=>{
  const audio={...book('audio','Freida McFadden'),source:{provider:'isbndb'},novoriEdition:{binding:'MP3 CD'},volumeInfo:{...book('audio','Freida McFadden').volumeInfo,pageCount:1}};
  const rows=await load([audio]).searchNovoriBooks('The Perfect Son Freida');
- expect(rows).toHaveLength(1);expect(rows[0].id).toBe('audio');expect(rows[0].volumeInfo.pageCount).toBeUndefined();
+ expect(rows).toEqual([]);
 });
 
 test('Discover and book pickers reuse completed normalized search results without sharing mutable selections',async()=>{
@@ -199,4 +200,9 @@ test('author popularity uses the same save/review ordering and stable IDs',()=>{
  const api=load([]);
  const rows=[{book:book('ratings','Writer'),usersCount:10,reviewsCount:999,ratingsCount:999999,rating:5},{book:book('reviews','Writer'),usersCount:100,reviewsCount:50,ratingsCount:1,rating:3},{book:book('saves','Writer'),usersCount:200,reviewsCount:1,ratingsCount:1,rating:2}];
  expect(rows.sort(api.compareAuthorBookPopularity).map(row=>row.book.id)).toEqual(['saves','reviews','ratings']);
+});
+test('Hardcover review counts are attached to search results without treating rating counts as reviews',async()=>{
+ const rows=await load([book('a','Writer','Court'),book('b','Writer','Court of Stars')],{}, {a:{usersCount:100,reviewsCount:1234,ratingsCount:99999,rating:4},b:{usersCount:10,reviewsCount:0,rating:3}}).searchNovoriBooks('court');
+ expect(rows[0].novoriWork.hardcoverReviewsCount).toBe(1234);
+ expect(rows[1].novoriWork.hardcoverReviewsCount).toBe(0);
 });

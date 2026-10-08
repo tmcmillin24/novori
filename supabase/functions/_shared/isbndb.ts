@@ -1,3 +1,4 @@
+import { normalizeBookGenres } from './book-genres.ts';
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -60,7 +61,7 @@ export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
       description: typeof raw.synopsis === 'string' ? raw.synopsis : undefined,
       pageCount: Number.isInteger(raw.pages) && raw.pages > 0 ? raw.pages : undefined,
       language: ({ eng: 'en', fra: 'fr', spa: 'es', deu: 'de' } as Record<string, string>)[raw.language] ?? raw.language,
-      categories: Array.isArray(raw.subjects) ? raw.subjects : [],
+      categories: normalizeBookGenres(raw.subjects),
       industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }, ...(typeof raw.isbn10 === 'string' && isbn13From10(raw.isbn10) === isbn ? [{ type: 'ISBN_10', identifier: raw.isbn10 }] : [])],
       // These are compatibility rendition slots, not a claim of original resolution.
       imageLinks: image ? { thumbnail: image, small: image, medium: image } : undefined,

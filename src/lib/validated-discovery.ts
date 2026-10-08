@@ -3,19 +3,19 @@ import { normalizeCatalogAuthor } from '../../supabase/functions/_shared/book-ed
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveDiscoveryBook } from './resolve-discovery-book';
 import type { DiscoveryBook } from './discovery-books';
-import { resolveCanonicalBookCover, publishCatalogCovers } from './canonical-book-covers';
+import { resolveCanonicalBookCover, publishCatalogCovers, getCanonicalBookCoverMetadata } from './canonical-book-covers';
 
-type Card = { id?: number; title?: string; authors?: string[]; coverBookId?: string | null; coverUrl: string | null; coverPolicyVersion?: number;
+type Card = { coverAliases?: string[]; coverProvider?: string; coverWorkId?: string; genres?: string[]; id?: number; title?: string; authors?: string[]; coverBookId?: string | null; coverUrl: string | null; coverPolicyVersion?: number;
  rejectedCoverUrls?: string[];
  coverAlternatives?: { url: string; bookId: string; locked?: boolean }[] };
 const DAY = 86400000;
-const storageKey = (kind: string) => `novori:validated-discovery:v7:${kind}`;
+const storageKey = (kind: string) => `novori:validated-discovery:v8:${kind}`;
 
 function publish(cards: Card[]) {
  const covers: Record<string, string> = {}, details: Record<string, any> = {};
  for (const card of cards) if (card.coverBookId && card.coverUrl) {
   covers[card.coverBookId] = card.coverUrl;
-  details[card.coverBookId] = { workId: `edition:${card.coverBookId}`, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
+  details[card.coverBookId] = { workId: card.coverWorkId ?? `edition:${card.coverBookId}`, provider: card.coverProvider, aliases: card.coverAliases, genres: card.genres, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
  }
  publishCatalogCovers(covers, details);
 }
@@ -43,6 +43,8 @@ type FillOptions<T> = {
 };
 
 export async function prepareDiscovery<T extends Card>(kind: string, books: T[], options: FillOptions<T> = {}): Promise<T[]> {
+ const target = kind === 'trending' ? 50 : 20;
+ const lookupBudget = kind === 'trending' ? 100 : 40;
  const current = () => options.isCurrent?.() ?? true;
  const saved = await readValidatedDiscovery<T>(kind);
  if (!current()) return [];
@@ -57,7 +59,7 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
  const ready = () => [...prepared.entries()].sort((a,b) => a[0]-b[0]).map(([,book]) => book).slice(0, 100);
  const eligible = (book: T) => options.isEligible?.(book) ?? true;
  const authors = () => new Set(ready().filter(eligible).map(discoveryAuthorKey).filter(Boolean));
- const enough = () => authors().size >= 20;
+ const enough = () => authors().size >= target;
  const emit = async (cards: T[]) => {
   if (!current() || !cards.length) return;
   publish(cards);
@@ -68,13 +70,14 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
  await emit(ready().length ? ready() : saved);
  let lookups = 0;
  let offset = 0;
- // At most two missing-book resolutions at once and forty per refresh.
+ // At most two missing-book resolutions at once; budgets are 100 for the
+ // fifty-author Trending pool and forty for twenty Recent Releases picks.
  // Skip library/excluded candidates and authors that already have a ready book.
- while (current() && !enough() && offset < pool.length && lookups < 40) {
+ while (current() && !enough() && offset < pool.length && lookups < lookupBudget) {
   const batch: {index: number; book: T}[] = [];
   const selectedAuthors = authors();
-  const batchLimit = Math.min(2, 20 - selectedAuthors.size);
-  while (offset < pool.length && batch.length < batchLimit && lookups < 40) {
+  const batchLimit = Math.min(2, target - selectedAuthors.size);
+  while (offset < pool.length && batch.length < batchLimit && lookups < lookupBudget) {
    const index = offset++, book = pool[index], author = discoveryAuthorKey(book);
    if (!author || prepared.has(index) || !eligible(book) || (author && selectedAuthors.has(author))) continue;
    if (author) selectedAuthors.add(author);
@@ -85,7 +88,10 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
     const resolved = await fillRead(identity(book), async () => {
      const id = book.coverBookId ?? await resolveDiscoveryBook(book as unknown as DiscoveryBook);
      const url = id ? await resolveCanonicalBookCover({ googleBookId: id }, true) : null;
-     return id && url ? { ...book, coverBookId: id, coverUrl: url } : null;
+     const metadata = id ? getCanonicalBookCoverMetadata({googleBookId:id}) : null;
+     return id && url ? { ...book, coverBookId: id, coverUrl: url,
+      coverProvider: metadata?.provider, coverWorkId: metadata?.workId,
+      genres: metadata?.genres.length ? metadata.genres : book.genres } : null;
     });
     if (current() && resolved) prepared.set(index, { ...book, ...resolved } as T);
    } catch { /* Preserve good cards; provider quota/backoff still governs misses. */ }

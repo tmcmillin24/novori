@@ -364,3 +364,14 @@ describe('bounded confirmed selections across restart and refresh races', () => 
   });
 
 });
+
+test('verified Hardcover cover and genres propagate to saved edition IDs and survive an ISBNdb downgrade attempt',()=>{
+ const covers=require('../src/lib/canonical-book-covers');
+ covers.publishCatalogCovers({hc_entry:'https://assets.hardcover.app/good.jpg'},{hc_entry:{provider:'hardcover',workId:'hardcover:900',aliases:['library_edition','post_edition'],genres:['Fantasy','Fängelser']}});
+ covers.publishCatalogCovers({library_edition:'https://images.isbndb.com/old.jpg'},{library_edition:{provider:'isbndb',workId:'edition:library_edition'}});
+ expect(covers.getCanonicalBookCover({googleBookId:'library_edition'})).toBe('https://assets.hardcover.app/good.jpg');
+ expect(covers.getCanonicalBookCover({googleBookId:'post_edition'})).toBe('https://assets.hardcover.app/good.jpg');
+ expect(covers.getCanonicalBookCoverMetadata({googleBookId:'library_edition'})?.genres).toEqual(['Fantasy']);
+ covers.publishCatalogCovers({library_edition:'https://art/manual.jpg'},{library_edition:{provider:'manual',locked:true,workId:'hardcover:900'}});
+ expect(covers.getCanonicalBookCover({googleBookId:'library_edition'})).toBe('https://art/manual.jpg');
+});

@@ -278,9 +278,10 @@ Deno.serve(
         const first = choices[0];
         covers[key] = first?.url ?? null;
         details[key] = {
-          workId: seed ? `edition:${seed.provider_book_id}` : null,
+          workId: first?.workId ?? (seed ? `edition:${seed.provider_book_id}` : null),
           catalogWorkId: seed?.work_id ?? null,
-          scope: 'edition', selectorVersion: 7,
+          scope: first?.provider === 'hardcover' ? 'work' : 'edition', selectorVersion: 8,
+          genres: first?.genres ?? [], reviewsCount: first?.reviewsCount ?? null, aliases: first?.aliases ?? [],
           url: first?.url ?? null, provider: first?.provider ?? null,
           locked: first?.locked ?? false, authoritative: Boolean(first),
           selectionStatus: first ? 'selected' : 'unavailable',

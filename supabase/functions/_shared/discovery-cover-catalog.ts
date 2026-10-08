@@ -16,6 +16,8 @@ export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
     const cover = candidates[0];
     if (!cover) return [{ ...book, coverUrl: null, coverPolicyVersion: 7 }];
     return [{ ...book, coverBookId: cover.bookId, coverUrl: cover.url,
-      coverAlternatives: candidates, coverPolicyVersion: 7 }];
+      coverAlternatives: candidates, coverPolicyVersion: 7,
+      coverProvider: cover.provider, coverAliases: cover.aliases, coverWorkId: cover.workId ?? `edition:${cover.bookId}`,
+      genres: cover.genres?.length ? cover.genres : book.genres }];
   }) };
 }

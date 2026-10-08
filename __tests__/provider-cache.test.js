@@ -215,7 +215,7 @@ test('a confirmed no-series result is cached and skips Google language lookup',a
 });
 
 test.each(['hardcover-trending','hardcover-recent-releases'])('fresh %s data survives pull-to-refresh with no provider request',async endpoint=>{
-  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v6:90:100':'hardcover-recent-releases:v3:18:150';
+  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v7:90:100':'hardcover-recent-releases:v4:18:150';
   h.discover.set(key,{cache_key:key,payload:{books:[{id:1}]},refreshed_at:new Date(Date.now()-20*60000).toISOString()});
   expect((await h.request(endpoint,{forceRefresh:true})).books).toEqual([{id:1}]);
   expect(h.calls.length).toBe(0);
@@ -555,4 +555,15 @@ test('equal library adds prefer review count ahead of rating count',async()=>{
  h.setUpstream(async()=>({data:{books:[{...hcBook('9781111111111',1),users_count:100,reviews_count:10,ratings_count:99999},{...hcBook('9781111111111',2),users_count:100,reviews_count:50,ratings_count:100}]}}));
  const result=await h.request('hardcover-search-popularity',{books:[book('novel','9781111111111')]});
  expect(result.popularity.novel.hardcoverBookId).toBe(2);
+});
+test.each(['hardcover-trending','hardcover-recent-releases'])('%s excludes audiobook originals and retains verified primary Hardcover art',async endpoint=>{
+ const h=harness();
+ const text={id:20,title:'A Novel',isbn_13:'9781111111111',language:{code2:'en'},reading_format:{format:'Physical Book'},image:{url:'https://assets.hardcover.app/primary.jpg'},release_date:'2023-01-01'};
+ const novel={id:2,title:'A Novel',users_count:100,reviews_count:50,default_cover_edition:text,contributions:[{contribution:'Author',author:{name:'Writer'}}],editions:[{...text,id:21,image:{url:'https://art/old.jpg'},release_date:'1998-01-01'},text],cached_tags:{Genre:['Fantasy','Fängelser']}};
+ const audio={...novel,id:3,title:'The Infinite Extent',default_cover_edition:null,editions:[{...text,title:'The Infinite Extent',reading_format:{format:'Audiobook'},audio_seconds:1234}]};
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('GetTrendingBooks')?{data:{page0:{ids:[2,3]}}}:{data:{books:[novel,audio]}});
+ const result=await h.request(endpoint,{});
+ expect(result.books).toHaveLength(1);
+ expect(result.books[0]).toMatchObject({id:2,coverUrl:text.image.url,coverEdition:{editionId:20,nonAudio:true},reviewsCount:50,genres:['Fantasy']});
+ expect(h.calls.at(-1).body.query).toContain('default_cover_edition');
 });

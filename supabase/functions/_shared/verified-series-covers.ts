@@ -1,3 +1,4 @@
+import { hardcoverTextEdition } from './hardcover-discovery-policy.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
 import { cleanCatalogBookTitle, normalizeCatalogAuthor } from './book-edition-metadata.ts';
@@ -9,25 +10,29 @@ const authorKey = (name: string) => normalizeCatalogAuthor(name).toLowerCase().r
 /** Choose artwork from the same edition that supplies the language and title.
  * A work's cached_image is NOT evidence of English artwork.
  */
-export function verifiedEnglishSeriesArt(book: any) {
- const choices = (book?.editions ?? []).filter((edition: any) =>
+export function verifiedEnglishSeriesArt(book: any, releasedOnly = false) {
+ const choices = [book?.default_cover_edition, ...(book?.editions ?? [])].filter(Boolean).filter((edition: any) =>
   Number.isSafeInteger(edition.id) && edition.id > 0 &&
   [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage) &&
   typeof edition.title === 'string' && titleKey(edition.title) === titleKey(book.title ?? '') &&
   !edition.compilation && !/audio/i.test(edition.reading_format?.format ?? '') &&
+  (!releasedOnly || hardcoverTextEdition(edition,book.title ?? '')) &&
   [edition.isbn_13, edition.isbn_10].some(value => typeof value === 'string' && /^(?:\d{13}|\d{9}[\dX])$/.test(value)) &&
   typeof edition.image?.url === 'string'
  ).sort((a: any, b: any) => {
+  const primary = (e: any) => e.id === book.default_cover_edition?.id || e.image?.url === book.image?.url ? 0 : 1;
   const print = (e: any) => /physical|print|paperback|hardcover/i.test(e.reading_format?.format ?? '') ? 0 : 1;
   const date = (e: any) => /^\d{4}(?:-\d{2})?(?:-\d{2})?$/.test(e.release_date ?? '') ? e.release_date : '9999';
-  return print(a) - print(b) || date(a).localeCompare(date(b)) || a.id - b.id;
+  return primary(a) - primary(b) || print(a) - print(b) || date(a).localeCompare(date(b)) || a.id - b.id;
  });
  for (const edition of choices) {
   try {
    const url = new URL(edition.image.url);
    if (url.protocol !== 'https:' || url.username || url.password || /placeholder|no[-_]?image|no[-_]?cover/i.test(url.pathname) || url.searchParams.has('Expires') || url.searchParams.has('X-Amz-Signature')) continue;
    return { version: 1, editionId: edition.id, title: edition.title, language: 'en',
-    isbn: edition.isbn_13 || edition.isbn_10, url: url.toString() };
+    isbn: edition.isbn_13 || edition.isbn_10, url: url.toString(),
+    format: edition.reading_format?.format ?? edition.physical_format ?? null,
+    nonAudio: hardcoverTextEdition(edition, book.title ?? '') };
   } catch { /* An invalid edition image does not justify using the work image. */ }
  }
  return null;

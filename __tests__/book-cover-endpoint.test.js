@@ -16,6 +16,7 @@ function endpoint(locked = false, customize = () => {}) {
     ],
     book_cover_selections: locked ? [{ work_id: 'work', candidate_id: 'manual', locked: true, status: 'selected' }] : [],
   };
+  rows.novori_discover_cache = [];
   rows.book_works = [];
   rows.book_api_cache = [];
   rows.book_editions.forEach(row => { row.metadata = { volumeInfo: { title: 'Example Novel', authors: ['Writer'], language: 'en', imageLinks: { medium: 'https://art/original.jpg' } } }; });
@@ -135,4 +136,12 @@ test('owner preferred ISBN metadata supplies artwork even before its candidate r
  });
  const result=await run({volumeIds:['volumeA','volumeB']});
  expect(Object.values(result.data.covers)).toEqual(['https://publisher/preferred.jpg','https://publisher/preferred.jpg']);
+});
+test('the actual shared cover endpoint serves persisted Hardcover art across edition IDs and ISBNs',async()=>{
+ const url='https://assets.hardcover.app/preferred.jpg';
+ const proof={version:1,editionId:90,title:'Example Novel',language:'en',isbn:'9781234567897',url,nonAudio:true,format:'Physical Book'};
+ const run=endpoint(false,rows=>rows.book_cover_candidates.push({id:'hardcover',work_id:'work',provider:'hardcover',source_variant:'discovery_verified_v1',url,source_metadata:{hardcoverBookId:30,title:'Example Novel',authors:['Writer'],coverEdition:proof,genres:['Fantasy'],reviewsCount:123}}));
+ const result=await run({volumeIds:['volumeA','volumeB'],isbns:['9781234567897','123456789X']});
+ expect(Object.values(result.data.covers).every(value=>value===url)).toBe(true);
+ expect(result.data.details.volumeA).toMatchObject({provider:'hardcover',workId:'hardcover:30',scope:'work',genres:['Fantasy'],reviewsCount:123,aliases:['volumeA','volumeB']});
 });

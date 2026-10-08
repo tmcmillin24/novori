@@ -9,6 +9,10 @@ export type DiscoveryBook = {
   coverUrl: string | null;
   coverBookId?: string | null;
   coverPolicyVersion?: number;
+  coverProvider?: string;
+  coverAliases?: string[];
+  coverWorkId?: string;
+  genres?: string[];
   releaseDate?: string | null;
   releaseYear?: number | null;
   rating?: number | null;

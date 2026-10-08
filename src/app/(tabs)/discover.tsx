@@ -80,6 +80,7 @@ type GoogleBookItem = {
     isbns: string[];
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
+    hardcoverReviewsCount?: number | null;
     canonicalCoverUrl?: string | null;
   };
 
@@ -698,8 +699,10 @@ const GENRE_TREE: GenreNode[] = [
   {
     key: 'fantasy',
     label: 'Fantasy',
-    terms: ['fantasy'],
+    terms: ['fantasy', 'litrpg', 'lit rpg'],
     children: [
+      { key: 'litrpg', label: 'LitRPG', shortLabel: 'LitRPG', terms: ['litrpg', 'lit rpg'] },
+      { key: 'progression-fantasy', label: 'Progression Fantasy', shortLabel: 'Progression', terms: ['progression fantasy'] },
       {
         key: 'epic-fantasy',
         label: 'Epic Fantasy',
@@ -1835,6 +1838,12 @@ const DiscoverBookCard = memo(
                 }
               )}
             </View>
+          ) : null}
+
+          {typeof item.novoriWork?.hardcoverReviewsCount === 'number' ? (
+            <Text style={styles.meta}>
+              {item.novoriWork.hardcoverReviewsCount.toLocaleString()} {item.novoriWork.hardcoverReviewsCount === 1 ? 'review' : 'reviews'}
+            </Text>
           ) : null}
 
           {publication.date ? (

@@ -1,3 +1,5 @@
+import { hardcoverDiscoveryEligible } from '../_shared/hardcover-discovery-policy.ts';
+import { normalizeBookGenres } from '../_shared/book-genres.ts';
 import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
@@ -258,9 +260,7 @@ function extractGenres(
       )
       .filter(Boolean);
 
-  return Array.from(
-    new Set(genreNames)
-  );
+  return normalizeBookGenres(genreNames);
 }
 
 
@@ -349,7 +349,7 @@ if (
     }
 
     const cacheKey =
-      `hardcover-trending:v6:${days}:${poolSize}`;
+      `hardcover-trending:v7:${days}:${poolSize}`;
 
     cachedRow =
       await readCache(
@@ -604,6 +604,7 @@ if (
           release_year
           rating
           users_count
+          reviews_count
           cached_tags
 
           image {
@@ -619,12 +620,28 @@ if (
             }
           }
 
+          default_cover_edition {
+            id title isbn_10 isbn_13 release_date compilation audio_seconds reading_format_id physical_format
+            language { code2 code3 language }
+            image { url width height }
+            reading_format { format }
+          }
+          default_physical_edition {
+            id title release_date compilation audio_seconds reading_format_id physical_format
+            language { code2 code3 language }
+            reading_format { format }
+          }
+          default_ebook_edition {
+            id title release_date compilation audio_seconds reading_format_id physical_format
+            language { code2 code3 language }
+            reading_format { format }
+          }
           editions(
             limit: 100
             where: { language: { code2: { _eq: "en" } } }
             order_by: [{ release_date: asc_nulls_last }, { id: asc }]
           ) {
-            id title isbn_10 isbn_13 release_date compilation
+            id title isbn_10 isbn_13 release_date compilation audio_seconds reading_format_id physical_format
             language { code2 code3 language }
             image { url width height }
             reading_format { format }
@@ -694,6 +711,7 @@ if (
             booksById.get(id)
         )
         .filter(Boolean)
+        .filter(hardcoverDiscoveryEligible)
         .map(
           (
             book: any,
@@ -758,7 +776,10 @@ if (
               usersCount:
                 book.users_count ??
                 null,
-              coverUrl: verifiedEnglishSeriesArt(book)?.url ?? null,
+              coverUrl: verifiedEnglishSeriesArt(book, true)?.url ?? null,
+              coverEdition: verifiedEnglishSeriesArt(book, true),
+              reviewsCount: book.reviews_count ?? null,
+              formatPolicyVersion: 1,
               authors,
               isbns:
                 Array.from(

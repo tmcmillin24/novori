@@ -1,3 +1,4 @@
+import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genres';
 import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
@@ -10,6 +11,7 @@ import {
 } from './book-covers';
 
 export type GoogleBookSearchItem = {
+  novoriCatalog?: { reviewsCount?: number | null };
   novoriDetails?: { bookId: string; isbns: string[] };
   novoriPublication?: { title: string; authors?: string[]; releaseDate?: string | null };
   id: string;
@@ -23,6 +25,7 @@ export type GoogleBookSearchItem = {
     isbns: string[];
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
+    hardcoverReviewsCount?: number | null;
     canonicalCoverUrl?: string | null;
   };
   volumeInfo: {
@@ -224,6 +227,12 @@ async function attachCatalogSearchCovers(
     const publications = (data as any)?.data?.publications ?? {};
     rememberBookPublications(Object.values(publications));
     for (const book of books) {
+      const detail = (data as any)?.data?.details?.[book.id];
+      book.volumeInfo.categories = normalizeBookGenres(detail?.genres?.length ? detail.genres : book.volumeInfo.categories);
+      if (Number.isSafeInteger(detail?.reviewsCount) && detail.reviewsCount >= 0) {
+        book.novoriCatalog = {reviewsCount: detail.reviewsCount};
+        if (book.novoriWork) book.novoriWork.hardcoverReviewsCount = detail.reviewsCount;
+      }
       if (publications[book.id]) book.novoriPublication = publications[book.id];
     }
     publishCatalogCovers(covers, (data as any)?.data?.details ?? {}, readRevision);
@@ -2737,6 +2746,7 @@ function collapseDuplicateEditions(
             `${canonicalTitle}::${primaryAuthor}${searchProductTier(representative) ? "::supplement" : ""}`,
           canonicalTitle,
           primaryAuthor,
+          hardcoverReviewsCount: representative.novoriCatalog?.reviewsCount ?? null,
           googleBookIds:
             group.map(
               (
@@ -2784,6 +2794,7 @@ async function attachCanonicalHardcoverRatings(
       ) {
         book.novoriWork = {
           ...book.novoriWork,
+          hardcoverReviewsCount: resolved?.reviewsCount ?? book.novoriWork.hardcoverReviewsCount ?? null,
           hardcoverRating:
             resolved?.rating ??
             null,
@@ -3098,7 +3109,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   const relevantResults =
     looksLikeAuthorSearch ||
     looksLikeIsbnSearch
-      ? initialResults
+      ? initialResults.filter(book => !audioEditionPenalty(book))
       : initialResults.filter(
           (
             book
@@ -3143,7 +3154,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   // Preserve relevant English companion products below the ordinary books.
   const supplements = looksLikeIsbnSearch ? [] : filterLocaleNoise(relevantResults, searchTerm)
     .filter(book => searchProductTier(book) > 0 && !qualityFilteredResults.some(row => row.id === book.id));
-  const rankedResults = [...qualityFilteredResults, ...supplements];
+  const rankedResults = [...qualityFilteredResults, ...supplements].filter(book => !audioEditionPenalty(book));
   const sorted =
     looksLikeAuthorSearch
       ? sortAuthorSearchResults(
@@ -3219,7 +3230,16 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
     collapsed
   );
 
-  const popularity = await ambiguityPopularity;
+  const popularity: NonNullable<HardcoverSearchPopularityResponse['popularity']> = await ambiguityPopularity;
+  for (const book of collapsed) {
+    const counts = popularity[book.id];
+    if (!book.novoriWork) continue;
+    book.novoriWork = {...book.novoriWork,
+      hardcoverRating: counts?.rating ?? book.novoriWork.hardcoverRating ?? null,
+      hardcoverRatingsCount: counts?.ratingsCount ?? book.novoriWork.hardcoverRatingsCount ?? null,
+      hardcoverReviewsCount: counts?.reviewsCount ?? book.novoriWork.hardcoverReviewsCount ?? null,
+    };
+  }
   bookWorkDetails.remember(searchTerm, collapsed);
   return looksLikeAuthorSearch
     ? sortAuthorSearchResults(collapsed, searchTerm, popularity)

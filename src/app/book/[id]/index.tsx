@@ -1,3 +1,4 @@
+import { normalizeBookGenres } from '../../../../supabase/functions/_shared/book-genres';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
 import { matchesSeriesCatalogEdition } from '../../../../supabase/functions/_shared/series-book-catalog';
 import { rememberDiscoveryBookId } from '../../../lib/discovery-books';
@@ -6,7 +7,7 @@ import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../..
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
-import { getCanonicalBookCover, resolveCanonicalBookCover } from '../../../lib/canonical-book-covers';
+import { getCanonicalBookCover, resolveCanonicalBookCover, getCanonicalBookCoverMetadata, subscribeCanonicalBookCovers } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
 import { getBookPublication, rememberBookPublications } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import {
   ActivityIndicator,
@@ -1061,6 +1063,9 @@ export default function BookDetailsScreen() {
     })();
 
   const [book, setBook] = useState<GoogleBook | null>(null);
+  useSyncExternalStore(subscribeCanonicalBookCovers,
+    () => getCanonicalBookCoverMetadata({googleBookId: book?.id})?.genres.join('|') ?? '',
+    () => '');
   const [
     selectedWorkCoverUrl,
     setSelectedWorkCoverUrl,
@@ -3140,10 +3145,8 @@ export default function BookDetailsScreen() {
     coverPlan.primaryUrl ??
     coverPlan.fallbackUrl;
 
-  const categories =
-    info.categories
-      ?.slice(0, 2)
-      .join(' • ');
+  const coverGenres = getCanonicalBookCoverMetadata({googleBookId: book.id})?.genres;
+  const categories = normalizeBookGenres(coverGenres?.length ? coverGenres : info.categories).slice(0,2).join(' • ');
 
   const publication = getBookPublication(book, seriesBooks, series?.currentPosition);
   const publishedDate =

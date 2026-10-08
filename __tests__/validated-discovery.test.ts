@@ -1,7 +1,7 @@
 jest.mock('../src/lib/resolve-discovery-book', () => ({ resolveDiscoveryBook: jest.fn(async () => null) }));
 jest.mock('react-native', () => ({ Image: { getSize: jest.fn() } }));
 jest.mock('expo-image', () => ({ Image: { prefetch: jest.fn() } }));
-jest.mock('../src/lib/canonical-book-covers', () => ({ publishCatalogCovers: jest.fn(), resolveCanonicalBookCover: jest.fn(async () => null) }));
+jest.mock('../src/lib/canonical-book-covers', () => ({ getCanonicalBookCoverMetadata: jest.fn(()=>null), publishCatalogCovers: jest.fn(), resolveCanonicalBookCover: jest.fn(async () => null) }));
 import { Image } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { resolveDiscoveryBook } from '../src/lib/resolve-discovery-book';
@@ -14,16 +14,17 @@ beforeEach(() => {
  (resolveCanonicalBookCover as jest.Mock).mockReset().mockImplementation(async ({googleBookId})=>`https://art/${googleBookId}.jpg`);
 });
 test.each([['trending',2,100],['recent',5,200]] as const)('%s publishes its short cached row immediately, then fills twenty distinct authors',async(kind,count,base)=>{
- const books=Array.from({length:35},(_,i)=>card(base+i,i<count));
+ const target=kind==='trending'?50:20;
+ const books=Array.from({length:70},(_,i)=>card(base+i,i<count));
  const updates: typeof books[]=[];
  const result=await prepareDiscovery(kind,books,{onProgress:cards=>updates.push(cards)});
  expect(updates[0]).toEqual(books.slice(0,count));
- expect(result).toHaveLength(20);
- expect(new Set(result.map(discoveryAuthorKey)).size).toBe(20);
- expect(resolveDiscoveryBook).toHaveBeenCalledTimes(20-count);
+ expect(result).toHaveLength(target);
+ expect(new Set(result.map(discoveryAuthorKey)).size).toBe(target);
+ expect(resolveDiscoveryBook).toHaveBeenCalledTimes(target-count);
  expect(Image.getSize).not.toHaveBeenCalled(); expect(ExpoImage.prefetch).not.toHaveBeenCalled();
  jest.clearAllMocks();
- expect(await prepareDiscovery(kind,books)).toHaveLength(20);
+ expect(await prepareDiscovery(kind,books)).toHaveLength(target);
  expect(resolveDiscoveryBook).not.toHaveBeenCalled(); expect(resolveCanonicalBookCover).not.toHaveBeenCalled();
 });
 test('skips excluded books and repeated authors and limits resolution concurrency to two',async()=>{
