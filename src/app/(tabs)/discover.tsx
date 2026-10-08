@@ -1946,7 +1946,7 @@ const DiscoverReaderCard = memo(
 export default function DiscoverScreen() {
   useSyncExternalStore(subscribeDiscoveryBooks, getDiscoveryBookVersion, getDiscoveryBookVersion);
   const tutorial=useTutorial(),booksTarget=useTutorialTarget('discover-books',10),readersTarget=useTutorialTarget('discover-readers',10);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
   const {
     colors,
   } =
@@ -1956,10 +1956,10 @@ export default function DiscoverScreen() {
     useMemo(
       () =>
         createStyles(
-          colors, windowWidth
+          colors, windowWidth, fontScale
         ),
       [
-        colors, windowWidth,
+        colors, windowWidth, fontScale,
       ]
     );
 
@@ -5002,7 +5002,7 @@ export default function DiscoverScreen() {
 }
 
 function createStyles(
-  colors: NovoriColors, windowWidth = 390
+  colors: NovoriColors, windowWidth = 390, fontScale = 1
 ) {
   const { searchCoverWidth, trendingCoverWidth, releaseCoverWidth } = getBookLayout(windowWidth);
   return StyleSheet.create({
@@ -5598,7 +5598,8 @@ function createStyles(
       lineHeight: 18,
       fontFamily:
         'PlayfairDisplay_600SemiBold',
-      minHeight: 36,
+      height: Math.ceil(36 * fontScale),
+      includeFontPadding: false,
     },
 
     trendingAuthor: {
@@ -5608,6 +5609,9 @@ function createStyles(
       fontFamily:
         'Inter_400Regular',
       marginTop: 3,
+      lineHeight: 15,
+      height: Math.ceil(15 * fontScale),
+      includeFontPadding: false,
     },
 
     trendingRating: {
@@ -5617,6 +5621,9 @@ function createStyles(
       fontFamily:
         'Inter_600SemiBold',
       marginTop: 5,
+      lineHeight: 15,
+      height: Math.ceil(15 * fontScale),
+      includeFontPadding: false,
     },
 
     trendingLoading: {
@@ -5746,7 +5753,8 @@ function createStyles(
       fontSize: 13,
       lineHeight: 17,
       fontFamily: 'PlayfairDisplay_600SemiBold',
-      minHeight: 34,
+      height: Math.ceil(34 * fontScale),
+      includeFontPadding: false,
     },
 
     newReleaseAuthor: {
@@ -5754,6 +5762,9 @@ function createStyles(
       fontSize: 10,
       fontFamily: 'Inter_400Regular',
       marginTop: 2,
+      lineHeight: 14,
+      height: Math.ceil(14 * fontScale),
+      includeFontPadding: false,
     },
 
     newReleaseDate: {
@@ -5761,6 +5772,9 @@ function createStyles(
       fontSize: 10,
       fontFamily: 'Inter_500Medium',
       marginTop: 4,
+      lineHeight: 14,
+      height: Math.ceil(14 * fontScale),
+      includeFontPadding: false,
     },
 
     newReleasesLoading: {
