@@ -2331,71 +2331,9 @@ export default function BookDetailsScreen() {
       // Keep the verified-English identity/ISBN fallback available when search fails.
     }
 
-    try {
-      const identity =
-        await resolveGoogleBooksIdentity({
-          title:
-            seriesBook.title,
-          author,
-          isbn:
-            wantedIsbns[0],
-        });
-
-      if (
-        identity.ok &&
-        identity.googleBookId
-      ) {
-        const detail =
-          await fetchGoogleBooksJson<
-            GoogleBook
-          >(
-            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(
-              identity.googleBookId
-            )}`
-          );
-
-        if (
-          detail.ok &&
-          detail.data
-        ) {
-          const [
-            identityCandidate,
-          ] =
-            rankResults([
-              detail.data,
-            ]);
-
-          if (
-            identityCandidate &&
-            (
-              identityCandidate
-                .isbnMatches ||
-              (
-                identityCandidate
-                  .exactTitle &&
-                identityCandidate
-                  .authorMatches
-              )
-            )
-          ) {
-            return detail.data;
-          }
-        }
-      }
-
-      if (
-        identity.status ===
-          429
-      ) {
-        return null;
-      }
-    } catch {
-      // Fall through to the progressive series searches.
-    }
-
     const queries =
       [
-        ...wantedIsbns.map(
+        ...wantedIsbns.slice(0,6).map(
           (
             isbn
           ) => ({
@@ -2411,7 +2349,7 @@ export default function BookDetailsScreen() {
                 kind:
                   'titleAuthor' as const,
                 query:
-                  `intitle:"${seriesBook.title}" inauthor:"${author}"`,
+                  `${seriesBook.title} ${author}`,
               },
             ]
           : []),
@@ -2419,7 +2357,7 @@ export default function BookDetailsScreen() {
           kind:
             'title' as const,
           query:
-            `intitle:"${seriesBook.title}"`,
+            seriesBook.title,
         },
         {
           kind:
@@ -2453,27 +2391,8 @@ export default function BookDetailsScreen() {
       } of queries
     ) {
       try {
-        const response =
-          await fetchGoogleBooksJson<
-            GoogleSearchResponse
-          >(
-            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-              query
-            )}&maxResults=40&printType=books&projection=full`
-          );
-
-        if (
-          !response.ok ||
-          !response.data
-        ) {
-          continue;
-        }
-
-        const candidates =
-          rankResults(
-            response.data.items ??
-              []
-          );
+        const results = await searchNovoriBooks(query);
+        const candidates = rankResults(results);
 
         const best =
           candidates[0];

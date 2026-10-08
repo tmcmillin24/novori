@@ -157,7 +157,7 @@ test('relevant novels rank by readership while journals remain below them',async
  const api=load(items,{}, {'journal':{usersCount:999999,rating:5},'less-read':{usersCount:100,rating:4},'popular':{usersCount:50000,rating:4}});
  const rows=await api.searchNovoriBooks('hunger games');
  expect(rows.map(row=>row.id)).toEqual(['popular','less-read','journal']);
- expect(api.popularityCalls[0].books.map(row=>row.googleBookId)).not.toContain('journal');
+ expect(api.popularityCalls[0].books.map(row=>row.googleBookId)).toContain('journal');
  await api.searchNovoriBooks('hunger games');
  expect(api.popularityCalls).toHaveLength(1);
 });
@@ -227,4 +227,36 @@ test('usable-cover tie breaking never outranks a more popular matched work',asyn
  const pictured=book('z_pictured','Author Two','A Novel');
  const rows=await load([popular,pictured],{}, {a_popular:{usersCount:1000,reviewsCount:20,rating:4},z_pictured:{usersCount:2,reviewsCount:1,rating:5}}).searchNovoriBooks('a novel');
  expect(rows[0].id).toBe('a_popular');
+});
+
+test('author catalogs share normalized search results, Hardcover stats and work covers without a second popularity call',async()=>{
+ const print={...book('author_book','Writer, Jane','A Novel'),source:{provider:'isbndb'},novoriEdition:{binding:'Paperback'}};
+ const audio={...book('audio_book','Jane Writer','A Novel'),source:{provider:'isbndb'},novoriEdition:{binding:'Audio CD'}};
+ const foreign={...book('wrong_author','Other Writer','A Novel')};
+ const api=load([print,audio,foreign],{}, {author_book:{usersCount:1000,rating:4.2,ratingsCount:7000,reviewsCount:200}});
+ const rows=await api.searchAuthorBooks('Jane Writer');
+ expect(rows.map(row=>row.book.id)).toEqual(['author_book']);
+ expect(rows[0]).toMatchObject({usersCount:1000,rating:4.2,ratingsCount:7000});
+ expect(rows[0].book.novoriWork).toMatchObject({hardcoverRating:4.2,hardcoverRatingsCount:7000,hardcoverUsersCount:1000});
+ expect(api.searchCalls).toEqual(['inauthor:"Jane Writer"']);expect(api.popularityCalls).toHaveLength(1);
+ await api.searchAuthorBooks('Jane Writer');expect(api.searchCalls).toHaveLength(1);expect(api.popularityCalls).toHaveLength(1);
+});
+test('barcode and typed ISBN searches share the same enriched exact edition and reject unrelated hits',async()=>{
+ const exact=book('exact','Jane Writer','A Novel');exact.volumeInfo.industryIdentifiers=[{type:'ISBN_13',identifier:'9780439023481'}];
+ const wrong=book('wrong','Jane Writer','A Novel');wrong.volumeInfo.industryIdentifiers=[{type:'ISBN_13',identifier:'9780439023498'}];
+ const api=load([wrong,exact],{}, {exact:{usersCount:1000,rating:4.1,ratingsCount:5000,reviewsCount:50}});
+ const scan=await api.searchNovoriBookByIsbn('9780439023481');
+ expect(scan.id).toBe('exact');expect(scan.novoriWork.hardcoverRatingsCount).toBe(5000);
+ const typed=await api.searchNovoriBooks('9780439023481');expect(typed.map(row=>row.id)).toEqual(['exact']);
+ expect(api.searchCalls).toHaveLength(1);expect(api.popularityCalls).toHaveLength(1);
+ expect((await api.searchNovoriBookByIsbn('0439023483')).id).toBe('exact');
+ expect(api.searchCalls).toHaveLength(1);
+ expect(await api.searchNovoriBookByIsbn('invalid')).toBeNull();
+});
+test('available ratings are requested for every retained result rather than only the ordinary-product tier',async()=>{
+ const journal=book('journal','Jane Writer','A Novel Companion Journal');
+ const api=load([journal],{}, {journal:{usersCount:5,rating:3.5,ratingsCount:12,reviewsCount:1}});
+ const rows=await api.searchNovoriBooks('a novel companion journal');
+ expect(rows[0].novoriWork.hardcoverRatingsCount).toBe(12);
+ expect(api.popularityCalls[0].books[0].googleBookId).toBe('journal');
 });

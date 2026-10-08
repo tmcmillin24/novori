@@ -51,6 +51,7 @@ import BookCoverImage from '../../components/BookCoverImage';
 import {
   getNovoriSearchBookCover,
   searchNovoriBooks,
+  searchNovoriBookByIsbn,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
 import { fetchGoogleBooksJson } from '../../lib/google-books';
@@ -418,139 +419,8 @@ function bookMatchesAnyIsbn(
   );
 }
 
-async function findGoogleBookForScannedIsbn(
-  scannedIsbn: string
-) {
-  const isbn13 =
-    normalizeIsbn(
-      scannedIsbn
-    );
-
-  const sharedResolver =
-    await invokeSharedGoogleBooksResolver({
-      mode:
-        'isbn',
-      isbn:
-        isbn13,
-    });
-
-  if (
-    sharedResolver
-  ) {
-    if (
-      sharedResolver.ok ===
-        true
-    ) {
-      return (
-        sharedResolver.data
-          ?.book ??
-        null
-      );
-    }
-
-    if (
-      sharedResolver.status ===
-        429
-    ) {
-      throw new Error(
-        'Google Books rate limit reached.'
-      );
-    }
-
-    return null;
-  }
-
-  const isbn10 =
-    isbn13ToIsbn10(
-      isbn13
-    );
-
-  const isbnCandidates =
-    Array.from(
-      new Set(
-        [
-          isbn13,
-          isbn10,
-        ].filter(
-          (
-            value
-          ): value is string =>
-            Boolean(
-              value
-            )
-        )
-      )
-    );
-
-  const queries =
-    [
-      ...isbnCandidates.map(
-        (
-          isbn
-        ) =>
-          `isbn:${isbn}`
-      ),
-      ...isbnCandidates,
-    ];
-
-  for (
-    const query of
-      queries
-  ) {
-    const response =
-      await fetchGoogleBooksJson<
-        GoogleBooksResponse
-      >(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-          query
-        )}&maxResults=10&printType=books&projection=full`
-      );
-
-    if (
-      !response.ok ||
-      !response.data
-    ) {
-      if (
-        response.status ===
-          429
-      ) {
-        throw new Error(
-          'Google Books rate limit reached.'
-        );
-      }
-
-      continue;
-    }
-
-    const matches =
-      response.data.items ??
-      [];
-
-    const exactMatch =
-      matches.find(
-        (
-          candidate
-        ) =>
-          bookMatchesAnyIsbn(
-            candidate,
-            isbnCandidates
-          )
-      );
-
-    if (
-      exactMatch
-    ) {
-      return exactMatch;
-    }
-
-    if (
-      matches[0]
-    ) {
-      return matches[0];
-    }
-  }
-
-  return null;
+async function findGoogleBookForScannedIsbn(scannedIsbn: string) {
+  return searchNovoriBookByIsbn(scannedIsbn);
 }
 
 function isDiscoverBookInLibrary(
@@ -2232,7 +2102,7 @@ export default function DiscoverScreen() {
       ) {
         Alert.alert(
           'Book not found',
-          'Google Books could not find that ISBN. Try searching the title manually.'
+          'Novori could not find that ISBN. Try searching the title manually.'
         );
         return;
       }
@@ -2241,12 +2111,7 @@ export default function DiscoverScreen() {
         exactMatch.volumeInfo
           .imageLinks;
 
-      const coverUrl =
-        imageLinks?.extraLarge ??
-        imageLinks?.large ??
-        imageLinks?.medium ??
-        imageLinks?.thumbnail ??
-        imageLinks?.smallThumbnail;
+      const coverUrl = getNovoriSearchBookCover(exactMatch) ?? undefined;
 
       openBook(
         exactMatch.id,

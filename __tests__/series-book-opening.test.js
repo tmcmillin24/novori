@@ -29,3 +29,11 @@ test('series opening keeps the verified novel ahead of wrong prefix candidates w
  expect((await h.resolve(row)).id).toBe('novel');
  expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
 });
+
+test('series ISBN fallback remains on shared search and never opens raw provider identity/detail results',async()=>{
+ const h=harness([]);
+ h.deps.searchNovoriBooks.mockImplementation(async query=>query==='isbn:'+row.isbns[0]?[novel]:[]);
+ expect((await h.resolve(row)).id).toBe('novel');
+ expect(h.deps.searchNovoriBooks.mock.calls.map(call=>call[0])).toEqual([row.title,'isbn:'+row.isbns[0]]);
+ expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
+});

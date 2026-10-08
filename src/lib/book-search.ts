@@ -25,6 +25,7 @@ export type GoogleBookSearchItem = {
     isbns: string[];
     hardcoverRating?: number | null;
     hardcoverRatingsCount?: number | null;
+    hardcoverUsersCount?: number | null;
     hardcoverReviewsCount?: number | null;
     canonicalCoverUrl?: string | null;
   };
@@ -2994,15 +2995,17 @@ export function hasMoreBookSearchResults(term: string, startIndex: number) {
 
 const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
 
-export function searchNovoriBooks(searchTerm: string, startIndex = 0) {
-  const key = searchQueryKey(searchTerm);
-  return readCompletedSearch(`${key}:${startIndex}`, () => loadNovoriBooks(searchTerm, startIndex));
+export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {mode?: 'author'} = {}) {
+  const isbn = !options.mode && /^(?:isbn[:\s]*)?[\dXx -]+$/i.test(searchTerm.trim()) ? normalizeSearchIsbn(searchTerm) : null;
+  const term = isbn ?? searchTerm;
+  const key = searchQueryKey(term);
+  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, () => loadNovoriBooks(term, startIndex, options.mode));
 }
 
-async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
+async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author') {
   const response =
     await fetchSharedGoogleBooksSearch(
-      searchTerm, startIndex
+      mode === 'author' ? `inauthor:"${searchTerm.trim()}"` : searchTerm, startIndex
     );
 
   if (
@@ -3010,7 +3013,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
     !response.data
   ) {
     throw new Error(
-      `Google Books request failed: ${response.status}`
+      `Book search failed: ${response.status}`
     );
   }
 
@@ -3030,7 +3033,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   const incompleteMatches = initialResults.filter(book =>
     normalizeTitle(book.volumeInfo.title) === normalizedQuery &&
     !validPublicationDate(book.volumeInfo.publishedDate));
-  if (startIndex === 0 && normalizedQuery.split(' ').length >= 3 &&
+  if (mode !== 'author' && startIndex === 0 && normalizedQuery.split(' ').length >= 3 &&
       stripLeadingTitleArticle(normalizedQuery) === normalizedQuery &&
       incompleteMatches.length > 0 &&
       !hasDerivativeSearchIntent(normalizedQuery) &&
@@ -3049,7 +3052,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   }
 
   let authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
-  if (startIndex === 0 && authorQualifiedResults.length === 0) {
+  if (mode !== 'author' && startIndex === 0 && authorQualifiedResults.length === 0) {
     const refinement = getTitleAuthorRefinementQuery(initialResults, normalizedQuery);
     if (refinement) {
       // One bounded, shared-cache-backed fallback; never discard usable results on failure.
@@ -3072,6 +3075,11 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
     /^(?:[0-9]{9}[0-9X]|[0-9]{13})$/.test(
       normalizedSearchIsbn
     );
+
+  if (looksLikeIsbnSearch) {
+    const isbn = normalizeSearchIsbn(normalizedSearchIsbn);
+    initialResults = initialResults.filter(book => getBookIsbns(book).some(value => normalizeSearchIsbn(value) === isbn));
+  }
 
   let strongestTitleMatch =
     Math.max(
@@ -3101,9 +3109,8 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
       )
     );
 
-  let looksLikeAuthorSearch =
-    strongestAuthorMatch >
-    strongestTitleMatch;
+  let looksLikeAuthorSearch = mode === 'author' ||
+    strongestAuthorMatch > strongestTitleMatch;
 
   if (
     initialResults.length ===
@@ -3183,10 +3190,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
 
   // Reuse the existing cached, quota-controlled popularity endpoint. A single
   // result still needs rating metadata. Provider failures keep usable catalog results.
-  const primaryBooks = collapsed.filter(book => searchProductTier(book) === 0);
-  const ambiguityPopularity = primaryBooks.length > 0
-    ? getHardcoverPopularity(primaryBooks, true)
-    : Promise.resolve({});
+  const ratingMetadata = getHardcoverPopularity(collapsed, true);
 
   await Promise.all(
     collapsed.map(
@@ -3236,11 +3240,12 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
     collapsed
   );
 
-  const popularity: NonNullable<HardcoverSearchPopularityResponse['popularity']> = await ambiguityPopularity;
+  const popularity: NonNullable<HardcoverSearchPopularityResponse['popularity']> = await ratingMetadata;
   for (const book of collapsed) {
     const counts = popularity[book.id];
     if (!book.novoriWork) continue;
     book.novoriWork = {...book.novoriWork,
+      hardcoverUsersCount: counts?.usersCount ?? book.novoriWork.hardcoverUsersCount ?? null,
       hardcoverRating: counts?.rating ?? book.novoriWork.hardcoverRating ?? null,
       hardcoverRatingsCount: counts?.ratingsCount ?? book.novoriWork.hardcoverRatingsCount ?? null,
       hardcoverReviewsCount: counts?.reviewsCount ?? book.novoriWork.hardcoverReviewsCount ?? null,
@@ -3250,6 +3255,26 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
   return looksLikeAuthorSearch
     ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
     : sortTitleSearchResults(collapsed, searchTerm, popularity);
+}
+
+function normalizeSearchIsbn(input: string) {
+  const isbn = input.replace(/[^0-9Xx]/g,'').toUpperCase();
+  if (/^\d{9}[\dX]$/.test(isbn)) {
+   const base = '978'+isbn.slice(0,9);
+   const sum = [...base].reduce((total,digit,index)=>total+Number(digit)*(index%2?3:1),0);
+   return base+((10-sum%10)%10);
+  }
+  return /^\d{13}$/.test(isbn) ? isbn : null;
+}
+
+
+/** Exact ISBN selection uses the common search result path, never the first
+ * unrelated provider hit. ISBN-10 and its 978 ISBN-13 form are equivalent. */
+export async function searchNovoriBookByIsbn(value: string) {
+ const isbn = normalizeSearchIsbn(value);
+ if (!isbn) return null;
+ const rows = await searchNovoriBooks(isbn);
+ return rows.find(book => getBookIsbns(book).some(candidate => normalizeSearchIsbn(candidate) === isbn)) ?? null;
 }
 
 export type AuthorBookResult = {
@@ -3283,107 +3308,7 @@ export async function searchAuthorBooks(
     return [];
   }
 
-  const query =
-    encodeURIComponent(
-      `inauthor:"${cleanAuthor}"`
-    );
-
-  const pageIndexes =
-    [0];
-
-  const responses =
-    await Promise.all(
-      pageIndexes.map(
-        async (
-          startIndex
-        ) => {
-          const response =
-            await fetchGoogleBooksJson<
-              GoogleBooksResponse
-            >(
-              `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=40&printType=books&projection=full`
-            );
-
-          if (
-            !response.ok ||
-            !response.data
-          ) {
-            return [] as GoogleBookSearchItem[];
-          }
-
-          return (
-            response.data.items ??
-            []
-          );
-        }
-      )
-    );
-
-  const merged =
-    mergeGoogleBookResults(
-      ...responses
-    );
-
-  const normalizedAuthor =
-    normalizeTitle(
-      cleanAuthor
-    );
-
-  const exactAuthorBooks =
-    merged.filter(
-      (
-        book
-      ) =>
-        (
-          book.volumeInfo
-            .authors ??
-          []
-        ).some(
-          (
-            author
-          ) =>
-            normalizeTitle(
-              author
-            ) ===
-            normalizedAuthor
-        )
-    );
-
-  const candidates =
-    exactAuthorBooks.length >
-    0
-      ? exactAuthorBooks
-      : merged.filter(
-          (
-            book
-          ) =>
-            getAuthorSearchRelevance(
-              book,
-              normalizedAuthor
-            ) >
-            0
-        );
-
-  const popularity:
-    Record<
-      string,
-      {
-        usersCount: number;
-        rating: number | null;
-      }
-    > =
-    {};
-
-  const collapsed =
-    collapseDuplicateEditions(
-      sortAuthorSearchResults(
-        candidates,
-        cleanAuthor,
-        popularity
-      ),
-      cleanAuthor,
-      popularity
-    );
+  const collapsed = await searchNovoriBooks(cleanAuthor, 0, {mode:'author'});
 
   const excludedWorkTitle =
     getCanonicalWorkTitle(
@@ -3423,22 +3348,18 @@ export async function searchAuthorBooks(
       }
     );
 
-  const fastPopularity =
-    await getHardcoverPopularity(
-      filtered,
-      false
-    );
-
   const initialBooks:
     AuthorBookResult[] =
     filtered.map(
       (
         book
       ) => {
-        const fastResolved =
-          fastPopularity[
-            book.id
-          ];
+        const fastResolved = book.novoriWork ? {
+          usersCount:book.novoriWork.hardcoverUsersCount,
+          ratingsCount:book.novoriWork.hardcoverRatingsCount,
+          reviewsCount:book.novoriWork.hardcoverReviewsCount,
+          rating:book.novoriWork.hardcoverRating,
+        } : undefined;
 
         return {
           book,
