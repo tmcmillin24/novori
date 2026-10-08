@@ -1,4 +1,4 @@
-import { prepareDiscovery, readValidatedDiscovery } from '../../lib/validated-discovery';
+import { prepareDiscovery, readValidatedDiscovery, discoveryAuthorKey } from '../../lib/validated-discovery';
 import { hasMoreBookSearchResults } from '../../lib/book-search';
 import DiscoveryCoverImage from '../../components/DiscoveryCoverImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -1045,55 +1045,18 @@ function bookMatchesGenreNode(
   );
 }
 
-function diversifyByAuthor(
-  books: TrendingBook[],
-  limit = 12
-) {
+function diversifyByAuthor(books: TrendingBook[], limit = 20) {
   const result: TrendingBook[] = [];
   const addedIds = new Set<number>();
-  const authorCounts =
-    new Map<string, number>();
-
-  // First pass: one book per primary author.
-  // Second pass: allow one additional book per
-  // author if the genre still needs more titles.
-  for (const maxPerAuthor of [1, 2]) {
-    for (const book of books) {
-      if (result.length >= limit) {
-        return result;
-      }
-
-      if (addedIds.has(book.id)) {
-        continue;
-      }
-
-      const primaryAuthor =
-        book.authors?.[0]
-          ?.trim()
-          .toLowerCase() ||
-        `unknown-${book.id}`;
-
-      const currentCount =
-        authorCounts.get(
-          primaryAuthor
-        ) ?? 0;
-
-      if (
-        currentCount >=
-        maxPerAuthor
-      ) {
-        continue;
-      }
-
-      result.push(book);
-      addedIds.add(book.id);
-      authorCounts.set(
-        primaryAuthor,
-        currentCount + 1
-      );
-    }
+  const authors = new Set<string>();
+  for (const book of books) {
+    const author = discoveryAuthorKey(book) || `unknown-${book.id}`;
+    if (addedIds.has(book.id) || authors.has(author)) continue;
+    result.push(book);
+    addedIds.add(book.id);
+    authors.add(author);
+    if (result.length >= limit) break;
   }
-
   return result;
 }
 
@@ -2733,16 +2696,22 @@ export default function DiscoverScreen() {
   performReaderSearchRef.current =
     performReaderSearch;
 
+  const trendingFeedRequest = useRef(0);
+  const recentFeedRequest = useRef(0);
+  useEffect(() => () => { trendingFeedRequest.current++; recentFeedRequest.current++; }, []);
+
   async function loadTrendingBooks(
     silent = false,
     forceRefresh = false
   ) {
+    const requestId = ++trendingFeedRequest.current;
+    const isCurrent = () => requestId === trendingFeedRequest.current;
     try {
-      if (!silent) {
+      if (!silent && isCurrent()) {
         setTrendingLoading(true);
         setTrendingError('');
         const saved = await readValidatedDiscovery<TrendingBook>('trending');
-        if (saved.length) { setTrendingBooks(saved); setTrendingLoading(false); }
+        if (isCurrent() && saved.length) { setTrendingBooks(saved); setTrendingLoading(false); }
       }
 
       const {
@@ -2772,7 +2741,18 @@ export default function DiscoverScreen() {
         );
       }
 
-      const nextTrendingBooks = await prepareDiscovery('trending', response?.books ?? []);
+      const nextTrendingBooks = await prepareDiscovery('trending', response?.books ?? [], {
+        isCurrent,
+        isEligible: book => !isDiscoverBookInLibrary(book, discoverSessionCache.libraryBooks),
+        onProgress: cards => {
+          if (!isCurrent()) return;
+          setTrendingBooks(cards);
+          setTrendingLoading(false);
+          discoverSessionCache = { ...discoverSessionCache, trendingBooks: cards };
+        },
+      });
+
+      if (!isCurrent()) return;
 
       setTrendingBooks(
         nextTrendingBooks
@@ -2786,6 +2766,7 @@ export default function DiscoverScreen() {
 
       setTrendingError('');
     } catch (err) {
+      if (!isCurrent()) return;
       console.error(
         'Could not load trending books:',
         err
@@ -2793,13 +2774,13 @@ export default function DiscoverScreen() {
 
       if (!silent) {
         const saved = await readValidatedDiscovery<TrendingBook>('trending');
-        if (saved.length) setTrendingBooks(saved);
+        if (isCurrent() && saved.length) setTrendingBooks(saved);
         setTrendingError(
           'Trending books are unavailable right now.'
         );
       }
     } finally {
-      if (!silent) {
+      if (!silent && isCurrent()) {
         setTrendingLoading(false);
       }
     }
@@ -2807,14 +2788,17 @@ export default function DiscoverScreen() {
 
   async function loadRecentReleases(
     silent = false,
-    forceRefresh = false
+    forceRefresh = false,
+    waitForTrending?: Promise<void>
   ) {
+    const requestId = ++recentFeedRequest.current;
+    const isCurrent = () => requestId === recentFeedRequest.current;
     try {
-      if (!silent) {
+      if (!silent && isCurrent()) {
         setRecentReleasesLoading(true);
         setRecentReleasesError('');
         const saved = await readValidatedDiscovery<TrendingBook>('recent');
-        if (saved.length) { setRecentReleasePool(saved); setRecentReleasesLoading(false); }
+        if (isCurrent() && saved.length) { setRecentReleasePool(saved); setRecentReleasesLoading(false); }
       }
 
       const {
@@ -2844,7 +2828,20 @@ export default function DiscoverScreen() {
         );
       }
 
-      const nextRecentReleases = await prepareDiscovery('recent', response?.books ?? []);
+      if (waitForTrending) await waitForTrending;
+      if (!isCurrent()) return;
+      const nextRecentReleases = await prepareDiscovery('recent', response?.books ?? [], {
+        isCurrent,
+        isEligible: book => !isDiscoverBookInLibrary(book, discoverSessionCache.libraryBooks) && !diversifyByAuthor(discoverSessionCache.trendingBooks.filter(row => !isDiscoverBookInLibrary(row, discoverSessionCache.libraryBooks)).sort((a,b) => a.rank-b.rank), 20).some(row => row.id === book.id),
+        onProgress: cards => {
+          if (!isCurrent()) return;
+          setRecentReleasePool(cards);
+          setRecentReleasesLoading(false);
+          discoverSessionCache = { ...discoverSessionCache, recentReleasePool: cards };
+        },
+      });
+
+      if (!isCurrent()) return;
 
       setRecentReleasePool(
         nextRecentReleases
@@ -2858,6 +2855,7 @@ export default function DiscoverScreen() {
 
       setRecentReleasesError('');
     } catch (err) {
+      if (!isCurrent()) return;
       console.error(
         'Could not load recent releases:',
         err
@@ -2865,13 +2863,13 @@ export default function DiscoverScreen() {
 
       if (!silent) {
         const saved = await readValidatedDiscovery<TrendingBook>('recent');
-        if (saved.length) setRecentReleasePool(saved);
+        if (isCurrent() && saved.length) setRecentReleasePool(saved);
         setRecentReleasesError(
           'Recent releases are unavailable right now.'
         );
       }
     } finally {
-      if (!silent) {
+      if (!silent && isCurrent()) {
         setRecentReleasesLoading(false);
       }
     }
@@ -2896,15 +2894,10 @@ export default function DiscoverScreen() {
     }
 
     try {
+      const trendingLoad = loadTrendingBooks(silent, forceRefresh);
       await Promise.all([
-        loadTrendingBooks(
-          silent,
-          forceRefresh
-        ),
-        loadRecentReleases(
-          silent,
-          forceRefresh
-        ),
+        trendingLoad,
+        loadRecentReleases(silent, forceRefresh, trendingLoad),
       ]);
 
       const refreshedAt =
@@ -3727,18 +3720,8 @@ export default function DiscoverScreen() {
     activeBroadGenreNode?.children ?? [];
 
   // Keep the overall Trending row strict, but allow genre and
-  // subgenre views to search the full Hardcover trending pool.
-  //
-  // All Genres:
-  //   top 40 only -> strongest overall trends
-  //
-  // Genre / Subgenre:
-  //   full top 100 -> filter first, preserve Hardcover rank,
-  //   then diversify authors
-  //
-  // This prevents narrow categories such as Romantic Fantasy from
-  // appearing empty simply because their first qualifying book sits
-  // below the global top 40.
+  // Preserve provider rank, then choose one title per author from the full
+  // prepared pool so lower-ranked eligible books can fill twenty slots.
   const globallyRankedTrendingBooks =
     trendingBooks
       .filter(
@@ -3754,10 +3737,7 @@ export default function DiscoverScreen() {
       );
 
   const coreTrendingPool =
-    globallyRankedTrendingBooks.slice(
-      0,
-      40
-    );
+    diversifyByAuthor(globallyRankedTrendingBooks, 20);
 
   const trendingCandidatePool =
     activeTrendingGenreNode
@@ -3776,13 +3756,12 @@ export default function DiscoverScreen() {
   const visibleTrendingBooks =
     diversifyByAuthor(
       genreTrendingBooks,
-      12
+      20
     );
 
   // Recent Releases comes from its own release-date query and does
   // not depend on the genre/subgenre currently selected in Trending.
-  // Keep the fixed global top 40 out of this row so the two sections
-  // do not repeat the same covers.
+  // Exclude the twenty global Trending picks so rows do not repeat covers.
   const fixedTrendingIds =
     new Set(
       coreTrendingPool.map(
@@ -3845,13 +3824,12 @@ export default function DiscoverScreen() {
   // First pass: one fresh title for each broad Novori genre when
   // Hardcover has a qualifying match.
   for (const genre of GENRE_TREE) {
+    if (recentReleaseBooks.length >= 20) break;
     const genrePick =
       recentReleaseCandidates.find(
         (book) => {
           const primaryAuthor =
-            book.authors[0]
-              .trim()
-              .toLowerCase();
+            discoveryAuthorKey(book);
 
           const normalizedBookTitle =
             normalizeTitle(
@@ -3878,9 +3856,7 @@ export default function DiscoverScreen() {
     }
 
     recentReleaseAuthors.add(
-      genrePick.authors[0]
-        .trim()
-        .toLowerCase()
+      discoveryAuthorKey(genrePick)
     );
 
     recentReleaseTitles.add(
@@ -3901,15 +3877,13 @@ export default function DiscoverScreen() {
     recentReleaseCandidates
   ) {
     if (
-      recentReleaseBooks.length >= 10
+      recentReleaseBooks.length >= 20
     ) {
       break;
     }
 
     const primaryAuthor =
-      book.authors[0]
-        .trim()
-        .toLowerCase();
+      discoveryAuthorKey(book);
 
     const normalizedBookTitle =
       normalizeTitle(

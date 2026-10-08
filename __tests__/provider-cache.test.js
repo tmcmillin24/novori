@@ -549,3 +549,10 @@ test('graphic adaptation cannot borrow the original novel library count on a tit
  expect(result.popularity.graphic).toBeUndefined();
  expect(h.calls.at(-1).body.query).toContain('_text_match:desc,users_count:desc');
 });
+
+test('equal library adds prefer review count ahead of rating count',async()=>{
+ const h=harness();
+ h.setUpstream(async()=>({data:{books:[{...hcBook('9781111111111',1),users_count:100,reviews_count:10,ratings_count:99999},{...hcBook('9781111111111',2),users_count:100,reviews_count:50,ratings_count:100}]}}));
+ const result=await h.request('hardcover-search-popularity',{books:[book('novel','9781111111111')]});
+ expect(result.popularity.novel.hardcoverBookId).toBe(2);
+});

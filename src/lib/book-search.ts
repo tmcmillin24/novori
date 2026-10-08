@@ -1177,91 +1177,11 @@ async function getHardcoverPopularity(
 function compareBookPopularity(
   a: GoogleBookSearchItem,
   b: GoogleBookSearchItem,
-  hardcoverPopularity: Record<
-    string,
-    {
-      usersCount: number;
-      rating: number | null;
-    }
-  >
+  hardcoverPopularity: Record<string, { usersCount: number; rating: number | null; reviewsCount?: number | null }>
 ) {
-  const aHardcover =
-    hardcoverPopularity[
-      a.id
-    ];
-
-  const bHardcover =
-    hardcoverPopularity[
-      b.id
-    ];
-
-  const aUsersCount =
-    aHardcover?.usersCount ??
-    0;
-
-  const bUsersCount =
-    bHardcover?.usersCount ??
-    0;
-
-  if (
-    bUsersCount !==
-    aUsersCount
-  ) {
-    return (
-      bUsersCount -
-      aUsersCount
-    );
-  }
-
-  const aGoogle =
-    getGoogleBookPopularity(
-      a
-    );
-
-  const bGoogle =
-    getGoogleBookPopularity(
-      b
-    );
-
-  if (
-    bGoogle.ratingsCount !==
-    aGoogle.ratingsCount
-  ) {
-    return (
-      bGoogle.ratingsCount -
-      aGoogle.ratingsCount
-    );
-  }
-
-  const aHardcoverRating =
-    aHardcover?.rating ??
-    0;
-
-  const bHardcoverRating =
-    bHardcover?.rating ??
-    0;
-
-  if (
-    bHardcoverRating !==
-    aHardcoverRating
-  ) {
-    return (
-      bHardcoverRating -
-      aHardcoverRating
-    );
-  }
-
-  if (
-    bGoogle.averageRating !==
-    aGoogle.averageRating
-  ) {
-    return (
-      bGoogle.averageRating -
-      aGoogle.averageRating
-    );
-  }
-
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  const left = hardcoverPopularity[a.id], right = hardcoverPopularity[b.id];
+  return (right?.usersCount ?? 0) - (left?.usersCount ?? 0)
+    || (right?.reviewsCount ?? 0) - (left?.reviewsCount ?? 0);
 }
 
 function matchesTitleAndAuthorQuery(book: GoogleBookSearchItem, normalizedQuery: string) {
@@ -1580,11 +1500,7 @@ function sortTitleSearchResults(
         return relevanceDifference;
       }
 
-      return compareBookPopularity(
-        a,
-        b,
-        hardcoverPopularity
-      );
+      return a.id.localeCompare(b.id);
     }
   );
 }
@@ -3318,6 +3234,11 @@ export type AuthorBookResult = {
   rating: number | null;
 };
 
+export function compareAuthorBookPopularity(a: AuthorBookResult, b: AuthorBookResult) {
+  return b.usersCount - a.usersCount || b.reviewsCount - a.reviewsCount
+    || a.book.id.localeCompare(b.book.id);
+}
+
 export async function searchAuthorBooks(
   authorName: string,
   options?: {
@@ -3530,91 +3451,7 @@ export async function searchAuthorBooks(
   const resolvedBooks =
     initialBooks;
 
-  return resolvedBooks
-    .sort(
-      (
-        a,
-        b
-      ) => {
-        if (
-          b.ratingsCount !==
-          a.ratingsCount
-        ) {
-          return (
-            b.ratingsCount -
-            a.ratingsCount
-          );
-        }
-
-        if (
-          b.reviewsCount !==
-          a.reviewsCount
-        ) {
-          return (
-            b.reviewsCount -
-            a.reviewsCount
-          );
-        }
-
-        if (
-          b.usersCount !==
-          a.usersCount
-        ) {
-          return (
-            b.usersCount -
-            a.usersCount
-          );
-        }
-
-        const ratingDifference =
-          (
-            b.rating ??
-            0
-          ) -
-          (
-            a.rating ??
-            0
-          );
-
-        if (
-          ratingDifference !==
-          0
-        ) {
-          return ratingDifference;
-        }
-
-        const bYear =
-          Number(
-            (
-              b.book.volumeInfo
-                .publishedDate ??
-              ''
-            ).slice(
-              0,
-              4
-            )
-          ) ||
-          0;
-
-        const aYear =
-          Number(
-            (
-              a.book.volumeInfo
-                .publishedDate ??
-              ''
-            ).slice(
-              0,
-              4
-            )
-          ) ||
-          0;
-
-        return (
-          bYear -
-          aYear
-        );
-      }
-    );
+  return resolvedBooks.sort(compareAuthorBookPopularity);
 }
 
 

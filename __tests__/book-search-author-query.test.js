@@ -184,3 +184,19 @@ test('explicit graphic novel searches preserve the adaptation identity',async()=
  const rows=await load([graphic]).searchNovoriBooks('fourth wing graphic novel');
  expect(rows[0].volumeInfo.title).toContain('Graphic Novel');
 });
+
+test('equal saves rank by reviews before star rating or provider rating counts',async()=>{
+ const low=book('low','Writer','Court of Dreams'),high=book('high','Writer','Court of Stars');
+ low.volumeInfo.ratingsCount=999999; low.volumeInfo.averageRating=5;
+ const rows=await load([low,high],{}, {low:{usersCount:1000,reviewsCount:10,rating:5},high:{usersCount:1000,reviewsCount:50,rating:3}}).searchNovoriBooks('court');
+ expect(rows.map(row=>row.id)).toEqual(['high','low']);
+});
+test('equal saves and reviews use query relevance before stable identifier order',async()=>{
+ const rows=await load([book('a','Writer','Court of Stars'),book('z','Writer','Court')],{}, {a:{usersCount:1000,reviewsCount:50,rating:5},z:{usersCount:1000,reviewsCount:50,rating:3}}).searchNovoriBooks('court');
+ expect(rows.map(row=>row.id)).toEqual(['z','a']);
+});
+test('author popularity uses the same save/review ordering and stable IDs',()=>{
+ const api=load([]);
+ const rows=[{book:book('ratings','Writer'),usersCount:10,reviewsCount:999,ratingsCount:999999,rating:5},{book:book('reviews','Writer'),usersCount:100,reviewsCount:50,ratingsCount:1,rating:3},{book:book('saves','Writer'),usersCount:200,reviewsCount:1,ratingsCount:1,rating:2}];
+ expect(rows.sort(api.compareAuthorBookPopularity).map(row=>row.book.id)).toEqual(['saves','reviews','ratings']);
+});

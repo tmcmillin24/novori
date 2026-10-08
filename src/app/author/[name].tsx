@@ -18,6 +18,7 @@ import { useNovoriTheme } from '../../context/theme-context';
 import {
   AuthorBookResult,
   searchAuthorBooks,
+  compareAuthorBookPopularity,
 } from '../../lib/book-search';
 
 function getCoverUrl(
@@ -143,80 +144,7 @@ export default function AuthorScreen() {
           sortMode ===
           'popularity'
         ) {
-          return sorted.sort(
-            (
-              a,
-              b
-            ) => {
-              if (
-                b.ratingsCount !==
-                a.ratingsCount
-              ) {
-                return (
-                  b.ratingsCount -
-                  a.ratingsCount
-                );
-              }
-
-              if (
-                b.reviewsCount !==
-                a.reviewsCount
-              ) {
-                return (
-                  b.reviewsCount -
-                  a.reviewsCount
-                );
-              }
-
-              if (
-                b.usersCount !==
-                a.usersCount
-              ) {
-                return (
-                  b.usersCount -
-                  a.usersCount
-                );
-              }
-
-              const ratingDifference =
-                (
-                  b.rating ??
-                  0
-                ) -
-                (
-                  a.rating ??
-                  0
-                );
-
-              if (
-                ratingDifference !==
-                0
-              ) {
-                return ratingDifference;
-              }
-
-              const bDate =
-                new Date(
-                  b.book
-                    .volumeInfo
-                    .publishedDate ??
-                  '0000-01-01'
-                ).getTime();
-
-              const aDate =
-                new Date(
-                  a.book
-                    .volumeInfo
-                    .publishedDate ??
-                  '0000-01-01'
-                ).getTime();
-
-              return (
-                bDate -
-                aDate
-              );
-            }
-          );
+          return sorted.sort(compareAuthorBookPopularity);
         }
 
         return sorted.sort(
@@ -250,30 +178,7 @@ export default function AuthorScreen() {
               );
             }
 
-            if (
-              b.ratingsCount !==
-              a.ratingsCount
-            ) {
-              return (
-                b.ratingsCount -
-                a.ratingsCount
-              );
-            }
-
-            if (
-              b.reviewsCount !==
-              a.reviewsCount
-            ) {
-              return (
-                b.reviewsCount -
-                a.reviewsCount
-              );
-            }
-
-            return (
-              b.usersCount -
-              a.usersCount
-            );
+            return compareAuthorBookPopularity(a, b);
           }
         );
       },

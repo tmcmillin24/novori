@@ -328,37 +328,11 @@ function chooseBestBook(
     }
   }
 
-  return Array.from(
-    byCanonicalId.values()
-  ).sort(
-    (
-      a,
-      b
-    ) =>
-      (
-        b.users_count ??
-        0
-      ) -
-        (
-          a.users_count ??
-          0
-        ) ||
-      (
-        b.ratings_count ??
-        0
-      ) -
-        (
-          a.ratings_count ??
-          0
-        ) ||
-      (
-        b.reviews_count ??
-        0
-      ) -
-        (
-          a.reviews_count ??
-          0
-        )
+  return Array.from(byCanonicalId.values()).sort((a,b) =>
+    (b.users_count ?? 0) - (a.users_count ?? 0)
+    || (b.reviews_count ?? 0) - (a.reviews_count ?? 0)
+    || (b.ratings_count ?? 0) - (a.ratings_count ?? 0)
+    || a.id - b.id
   )[0];
 }
 
@@ -456,10 +430,10 @@ Deno.serve(async request => {
     // ISBNdb response caches and all TTLs remain unchanged.
     const prepared = await Promise.all(books.map(async (book: InputBook) => {
       const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
-      return { book, key: 'book:v3:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
-        workKey: identity.title && identity.authors.length ? 'work:v3:' + await cacheDigest(identity) : null };
+      return { book, key: 'book:v4:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? 'work:v4:' + await cacheDigest(identity) : null };
     }));
-    const batchKey = 'popularity:v4:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
+    const batchKey = 'popularity:v5:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
     const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];
