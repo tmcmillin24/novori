@@ -260,3 +260,10 @@ test('available ratings are requested for every retained result rather than only
  expect(rows[0].novoriWork.hardcoverRatingsCount).toBe(12);
  expect(api.popularityCalls[0].books[0].googleBookId).toBe('journal');
 });
+
+test('failed rating enrichment does not cache an incomplete completed search', async()=>{
+ const api=load([book('available','Jane Writer','Available Book')],{},new Error('offline'));
+ expect((await api.searchNovoriBooks('Available Book'))).toHaveLength(1);
+ expect((await api.searchNovoriBooks('Available Book'))).toHaveLength(1);
+ expect(api.popularityCalls).toHaveLength(2);
+});

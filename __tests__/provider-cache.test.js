@@ -34,7 +34,7 @@ function harness() {
         in: (k,v) => { filters[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
-          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : null };
+          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
         },
         single: async () => ({data: identities.get(filters.isbn13) ?? null}),
         upsert: async data => {
@@ -607,4 +607,39 @@ test('an unrated ISBN-linked duplicate cannot hide a more popular same-title sam
  expect(result.popularity.carl).toMatchObject({hardcoverBookId:2,rating:4.5,ratingsCount:8000,usersCount:12000});
  expect(h.calls).toHaveLength(3);
  await h.request('hardcover-search-popularity',input);expect(h.calls).toHaveLength(3);
+});
+
+test('negative ISBN details expire after six hours while positive details keep thirty days', async () => {
+  const h = isbnHarness(); h.setUpstream(async () => null);
+  await h.request('google-books-detail', {volumeId:'nv_9780134093413'});
+  const row = h.rows.get('isbndb:book:v2:9780134093413');
+  expect(Date.parse(row.expires_at)-Date.parse(row.fetched_at)).toBeLessThan(7*3600000);
+  row.fetched_at = new Date(Date.now()-7*3600000).toISOString();
+  row.expires_at = row.stale_until = new Date(Date.now()+30*86400000).toISOString();
+  h.locks.clear(); h.setUpstream(async () => ({book:isbnBook()}));
+  expect((await h.request('google-books-detail',{volumeId:'nv_9780134093413'})).data.volumeInfo.title).toBe('Campbell Biology');
+  expect(h.calls).toHaveLength(2);
+  expect(Date.parse(h.rows.get('isbndb:book:v2:9780134093413').expires_at)-Date.now()).toBeGreaterThan(29*86400000);
+});
+test('stale complete details refresh metadata while retaining original edition artwork', async () => {
+  const h=isbnHarness(), id='nv_9780134093413';
+  const old={id,volumeInfo:{title:'Campbell Biology',authors:['Jane B. Reece'],pageCount:100,imageLinks:{thumbnail:'https://images.isbndb.com/original.jpg'}}};
+  h.legacy.push({provider_book_id:id,isbn_13:'9780134093413',metadata:old,detail_complete:true});
+  h.setCatalog([{google_book_id:id,metadata:old,detail_complete:true,fetched_at:new Date(Date.now()-31*86400000).toISOString()}]);
+  const result=await h.request('google-books-detail',{volumeId:id});
+  expect(result.data.volumeInfo.pageCount).toBe(1488);
+  expect(result.data.volumeInfo.imageLinks).toEqual(old.volumeInfo.imageLinks);
+  expect(h.calls).toHaveLength(1);
+  const stored=h.rows.get('isbndb:book:v2:9780134093413');
+  expect(stored.response_json.volumeInfo.imageLinks).toEqual(old.volumeInfo.imageLinks);
+});
+test('fresh complete catalog detail stays a zero-provider read and expired detail survives an outage', async () => {
+  const h=isbnHarness(),id='nv_9780134093413',metadata={id,volumeInfo:{title:'Campbell Biology',authors:['Jane B. Reece'],imageLinks:{thumbnail:'https://images.isbndb.com/original.jpg'}}};
+  h.legacy.push({provider_book_id:id,isbn_13:'9780134093413',metadata,detail_complete:true});
+  h.setCatalog([{google_book_id:id,metadata,detail_complete:true,fetched_at:new Date().toISOString()}]);
+  expect((await h.request('google-books-detail',{volumeId:id})).data.volumeInfo.imageLinks).toEqual(metadata.volumeInfo.imageLinks);
+  expect(h.calls).toHaveLength(0);
+  h.setCatalog([{google_book_id:id,metadata,detail_complete:true,fetched_at:new Date(Date.now()-31*86400000).toISOString()}]);
+  h.setUpstream(async()=>{throw new Error('offline');});
+  expect((await h.request('google-books-detail',{volumeId:id})).data.volumeInfo.imageLinks).toEqual(metadata.volumeInfo.imageLinks);
 });

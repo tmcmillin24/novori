@@ -77,3 +77,17 @@ test('server-selected Hardcover cards are displayed and cached without requiring
  expect(publishCatalogCovers).toHaveBeenCalledWith(expect.objectContaining({hc_art_5000:books[0].coverUrl}),expect.objectContaining({hc_art_5000:expect.objectContaining({provider:'hardcover',workId:'hardcover:5000'})}));
  expect(await readValidatedDiscovery('trending')).toEqual(books);
 });
+
+test('fallback publication does not renew a saved pool and source age survives repeated preparation', async()=>{
+ const sourceSavedAt=Date.now()-6*86400000;
+ const books=[card(98765)];
+ await prepareDiscovery('source-age',books,{sourceSavedAt});
+ jest.useFakeTimers(); jest.setSystemTime(Date.now()+2*86400000);
+ expect(await readValidatedDiscovery('source-age')).toEqual([]);
+ jest.useRealTimers();
+ await prepareDiscovery('fallback-age',books,{sourceSavedAt});
+ await prepareDiscovery('fallback-age',[]);
+ jest.useFakeTimers(); jest.setSystemTime(Date.now()+2*86400000);
+ expect(await readValidatedDiscovery('fallback-age')).toEqual([]);
+ jest.useRealTimers();
+});

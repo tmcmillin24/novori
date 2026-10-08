@@ -139,9 +139,20 @@ async function catalog(admin: SupabaseClient, books: Book[], complete = true) {
 
 async function lookup(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
   const book = await cachedProviderValue<Book | null>({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: 30 * DAY, staleMs: 60 * DAY,
+    valueLifetime: value => value === null ? { freshMs: 6 * 3600000, staleMs: 6 * 3600000 } : { freshMs: 30 * DAY, staleMs: 60 * DAY },
     load: async () => {
       const raw = await upstream(admin, userId, '/book/' + isbn);
-      const book = raw?.book ? await ingest(admin, raw.book) : null;
+      let book = raw?.book ? await ingest(admin, raw.book) : null;
+      if (book) {
+        const { data: prior, error } = await admin.from('google_books_catalog')
+          .select('metadata,detail_complete').eq('google_book_id', book.id).maybeSingle();
+        if (error) throw new Error('Could not read existing edition metadata.');
+        // Automatic metadata revalidation retains established edition artwork.
+        // Canonical Hardcover/manual selections remain owned by the cover reader.
+        const old = prior?.detail_complete ? prior.metadata?.volumeInfo : null;
+        if (old?.imageLinks && identityMatches(book, old.title ?? '', old.authors?.[0] ?? ''))
+          book = { ...book, volumeInfo: { ...book.volumeInfo, imageLinks: old.imageLinks } };
+      }
       if (book && book.source.isbn13 !== isbn) throw new Error('ISBNdb returned a different edition.');
       await catalog(admin, book ? [book] : []);
       return book;
@@ -188,7 +199,15 @@ async function detail(admin: SupabaseClient, userId: string, id: string) {
   if (error) throw new Error('Could not read existing book mapping.');
   const cached = (rows ?? []).find((row: any) => row.metadata?.volumeInfo?.title);
   // Cached catalog books remain openable even when ISBNdb lacks a legacy ISBN.
-  if (cached?.detail_complete) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+  if (cached?.detail_complete) {
+    const { data: source, error: sourceError } = await admin.from('google_books_catalog')
+      .select('fetched_at').eq('google_book_id', id).maybeSingle();
+    // A cache outage retains usable details; it must not trigger provider traffic.
+    if (sourceError) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    const fetchedAt = Date.parse(source?.fetched_at ?? '');
+    if (Number.isFinite(fetchedAt) && fetchedAt <= Date.now() && Date.now() - fetchedAt < 30 * DAY)
+      return { ...normalizeIsbnDbEdition(cached.metadata), id };
+  }
   const isbn = validIsbn13(id.replace(/^nv_/, '')) ??
     (rows ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean);
   if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;

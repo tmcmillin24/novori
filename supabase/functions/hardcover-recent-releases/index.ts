@@ -386,9 +386,11 @@ if (
       );
     }
 
+    let sharedRefreshedAt = new Date().toISOString();
     const refreshedPayload = await cachedProviderValue({
       admin: supabaseAdmin, provider: 'hardcover_popularity', key: 'discover:' + cacheKey,
       freshMs: CACHE_TTL_MS, staleMs: 3 * 86400000, leaseSeconds: 60,
+      onCacheRead: row => { sharedRefreshedAt = row.fetched_at; },
       load: async () => {
     const today =
       new Date();
@@ -636,7 +638,7 @@ if (
       },
     });
     const responsePayload = await applyCanonicalDiscoveryCovers(refreshedPayload);
-    return jsonResponse(withCacheMeta(responsePayload, "shared", new Date().toISOString(), CACHE_TTL_MS));
+    return jsonResponse(withCacheMeta(responsePayload, "shared", sharedRefreshedAt, CACHE_TTL_MS));
   } catch (error) {
     console.error(
       "hardcover-recent-releases error:",

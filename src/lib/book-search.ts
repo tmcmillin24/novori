@@ -1063,6 +1063,9 @@ function getBookIsbns(
     );
 }
 
+const failedPopularityReads = new WeakSet<object>();
+const incompleteSearchResults = new WeakSet<object>();
+
 async function getHardcoverPopularity(
   books: GoogleBookSearchItem[],
   allowTitleFallback = false
@@ -1109,6 +1112,7 @@ async function getHardcoverPopularity(
     return {};
   }
 
+  let incomplete = false;
   const mergedPopularity:
     HardcoverSearchPopularityResponse['popularity'] =
     {};
@@ -1155,6 +1159,7 @@ async function getHardcoverPopularity(
       if (
         functionError
       ) {
+        incomplete = true;
         continue;
       }
 
@@ -1163,8 +1168,9 @@ async function getHardcoverPopularity(
           HardcoverSearchPopularityResponse;
 
       if (
-        response?.error
+        response?.error || !response?.popularity
       ) {
+        incomplete = true;
         continue;
       }
 
@@ -1174,14 +1180,13 @@ async function getHardcoverPopularity(
         {}
       );
     } catch {
+      incomplete = true;
       // Preserve any successfully resolved batches.
     }
   }
 
-  return (
-    mergedPopularity ??
-    {}
-  );
+  if (incomplete) failedPopularityReads.add(mergedPopularity);
+  return mergedPopularity;
 }
 
 function compareBookPopularity(
@@ -2999,7 +3004,7 @@ export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {
   const isbn = !options.mode && /^(?:isbn[:\s]*)?[\dXx -]+$/i.test(searchTerm.trim()) ? normalizeSearchIsbn(searchTerm) : null;
   const term = isbn ?? searchTerm;
   const key = searchQueryKey(term);
-  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, () => loadNovoriBooks(term, startIndex, options.mode));
+  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, () => loadNovoriBooks(term, startIndex, options.mode), rows => !incompleteSearchResults.has(rows));
 }
 
 async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author') {
@@ -3252,9 +3257,11 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
     };
   }
   bookWorkDetails.remember(searchTerm, collapsed);
-  return looksLikeAuthorSearch
+  const results = looksLikeAuthorSearch
     ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
     : sortTitleSearchResults(collapsed, searchTerm, popularity);
+  if (failedPopularityReads.has(popularity)) incompleteSearchResults.add(results);
+  return results;
 }
 
 function normalizeSearchIsbn(input: string) {

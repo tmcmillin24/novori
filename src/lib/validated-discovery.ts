@@ -25,7 +25,7 @@ function publish(cards: Card[]) {
 export async function readValidatedDiscovery<T extends Card>(kind: string): Promise<T[]> {
  try {
   const saved = JSON.parse(await AsyncStorage.getItem(storageKey(kind)) ?? 'null');
-  if (!saved || Date.now() - saved.savedAt > 7 * DAY || !Array.isArray(saved.books)) return [];
+  if (!saved || !Number.isFinite(saved.savedAt) || saved.savedAt > Date.now() || Date.now() - saved.savedAt > 7 * DAY || !Array.isArray(saved.books)) return [];
   const cards = saved.books.filter((row: Card) => hasArtwork(row)).slice(0, 100);
   publish(cards);
   return cards;
@@ -43,6 +43,7 @@ type FillOptions<T> = {
  onProgress?: (books: T[]) => void;
  isEligible?: (book: T) => boolean;
  isCurrent?: () => boolean;
+ sourceSavedAt?: number;
 };
 
 export async function prepareDiscovery<T extends Card>(kind: string, books: T[], options: FillOptions<T> = {}): Promise<T[]> {
@@ -63,14 +64,15 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
  const eligible = (book: T) => options.isEligible?.(book) ?? true;
  const authors = () => new Set(ready().filter(eligible).map(discoveryAuthorKey).filter(Boolean));
  const enough = () => authors().size >= target;
- const emit = async (cards: T[]) => {
+ const sourceSavedAt = Number.isFinite(options.sourceSavedAt) && options.sourceSavedAt! <= Date.now() ? options.sourceSavedAt! : Date.now();
+ const emit = async (cards: T[], persist = true) => {
   if (!current() || !cards.length) return;
   publish(cards);
   options.onProgress?.(cards);
-  await AsyncStorage.setItem(storageKey(kind), JSON.stringify({ savedAt: Date.now(), books: cards })).catch(() => {});
+  if (persist) await AsyncStorage.setItem(storageKey(kind), JSON.stringify({ savedAt: sourceSavedAt, books: cards })).catch(() => {});
  };
  // Publish the cached pool first; missing identities never block its display.
- await emit(ready().length ? ready() : saved);
+ await emit(ready().length ? ready() : saved, ready().length > 0);
  let lookups = 0;
  let offset = 0;
  // At most two missing-book resolutions at once; budgets are 100 for the
@@ -99,7 +101,7 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
     if (current() && resolved) prepared.set(index, { ...book, ...resolved } as T);
    } catch { /* Preserve good cards; provider quota/backoff still governs misses. */ }
   }));
-  if (current() && batch.length) await emit(ready());
+  if (current() && batch.length && ready().length) await emit(ready());
  }
  if (!current()) return [];
  return ready().length ? ready() : saved;

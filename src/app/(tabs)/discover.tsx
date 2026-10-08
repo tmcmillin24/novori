@@ -2621,6 +2621,7 @@ export default function DiscoverScreen() {
       }
 
       const nextTrendingBooks = await prepareDiscovery('trending', response?.books ?? [], {
+        sourceSavedAt: Date.parse(response?.cache?.refreshedAt ?? ''),
         isCurrent,
         isEligible: book => !isDiscoverBookInLibrary(book, discoverSessionCache.libraryBooks),
         onProgress: cards => {
@@ -2710,6 +2711,7 @@ export default function DiscoverScreen() {
       if (waitForTrending) await waitForTrending;
       if (!isCurrent()) return;
       const nextRecentReleases = await prepareDiscovery('recent', response?.books ?? [], {
+        sourceSavedAt: Date.parse(response?.cache?.refreshedAt ?? ''),
         isCurrent,
         isEligible: book => !isDiscoverBookInLibrary(book, discoverSessionCache.libraryBooks) && !diversifyByAuthor(discoverSessionCache.trendingBooks.filter(row => !isDiscoverBookInLibrary(row, discoverSessionCache.libraryBooks)).sort((a,b) => a.rank-b.rank), 20).some(row => row.id === book.id),
         onProgress: cards => {

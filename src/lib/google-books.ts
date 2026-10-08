@@ -48,6 +48,15 @@ const volumeMemoryCache =
     }
   >();
 
+
+function storeMemory<T extends { expiresAt: number }>(cache: Map<string, T>, key: string, value: T) {
+  const now = Date.now();
+  for (const [id, entry] of cache) if (entry.expiresAt <= now) cache.delete(id);
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > 300) cache.delete(cache.keys().next().value!);
+}
+
 const inFlight =
   new Map<
     string,
@@ -133,14 +142,13 @@ async function readPersistentDetail<T>(id: string): Promise<{ data: T; expiresAt
 }
 
 let persistenceQueue: Promise<void> = Promise.resolve();
-function persistDetail(id: string, data: unknown) {
+function persistDetail(id: string, data: unknown, savedAt = Date.now()) {
   // Serialize the read/modify/write index so parallel book loads cannot lose entries.
   persistenceQueue = persistenceQueue.then(async () => {
     try {
       const raw = await AsyncStorage.getItem(PERSISTED_INDEX_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
       const index: { id: string; savedAt: number }[] = Array.isArray(parsed) ? parsed : [];
-      const savedAt = Date.now();
       const nextIndex = [{ id, savedAt }, ...index.filter(entry => entry.id !== id)].slice(0, MAX_PERSISTED_BOOKS);
       const removed = index.filter(entry => !nextIndex.some(kept => kept.id === entry.id));
       await AsyncStorage.multiSet([
@@ -155,7 +163,7 @@ function persistDetail(id: string, data: unknown) {
 
 async function readCatalogBook<T>(
   googleBookId: string
-): Promise<T | null> {
+): Promise<{ data: T; savedAt: number } | null> {
   try {
     const {
       data,
@@ -179,12 +187,12 @@ async function readCatalogBook<T>(
       !data?.metadata ||
       data.detail_complete !==
         true ||
-      Date.parse(data.fetched_at ?? '') + 90 * 86400000 <= Date.now() || !Number.isFinite(Date.parse(data.fetched_at ?? ''))
+      Date.parse(data.fetched_at ?? '') + DETAIL_CACHE_MS <= Date.now() || !Number.isFinite(Date.parse(data.fetched_at ?? ''))
     ) {
       return null;
     }
 
-    return normalizeIsbnDbEdition(data.metadata) as T;
+    return { data: normalizeIsbnDbEdition(data.metadata) as T, savedAt: Date.parse(data.fetched_at) };
   } catch {
     return null;
   }
@@ -786,17 +794,17 @@ async function loadGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResul
       if (primed && primed.expiresAt > Date.now()) return { ok: true, status: 200, data: primed.data, fromCache: true };
       const persisted = await readPersistentDetail<unknown>(detailId);
       if (persisted) {
-        volumeMemoryCache.set(detailId, persisted);
-        memoryCache.set(key, { ...persisted, status: 200 });
+        storeMemory(volumeMemoryCache, detailId, persisted);
+        storeMemory(memoryCache, key, { ...persisted, status: 200 });
         return { ok: true, status: 200, data: persisted.data, fromCache: true };
       }
       const catalog = await readCatalogBook<unknown>(detailId);
       if (catalog) {
-        const expiresAt = Date.now() + DETAIL_CACHE_MS;
-        volumeMemoryCache.set(detailId, { data: catalog, expiresAt });
-        memoryCache.set(key, { data: catalog, expiresAt, status: 200 });
-        void persistDetail(detailId, catalog);
-        return { ok: true, status: 200, data: catalog, fromCache: true };
+        const expiresAt = catalog.savedAt + DETAIL_CACHE_MS;
+        storeMemory(volumeMemoryCache, detailId, { data: catalog.data, expiresAt });
+        storeMemory(memoryCache, key, { data: catalog.data, expiresAt, status: 200 });
+        void persistDetail(detailId, catalog.data, catalog.savedAt);
+        return { ok: true, status: 200, data: catalog.data, fromCache: true };
       }
     }
     const result = detailId ? await fetchSharedGoogleBooksDetail(detailId)
@@ -804,16 +812,15 @@ async function loadGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResul
       : { ok: false, status: 400, data: null, fromCache: false };
     if (!result.ok || !result.data) {
       // Short local backoff avoids repeated edge-function calls during provider outages.
-      memoryCache.set(key, { data: null, status: result.status, expiresAt: Date.now() + 30_000 });
+      storeMemory(memoryCache, key, { data: null, status: result.status, expiresAt: Date.now() + 30_000 });
       return result;
     }
     const catalogBooks = catalogBooksFromPayload(result.data, detailId);
     if (catalogBooks.length && !result.fromCache) void upsertCatalogBooks(catalogBooks, Boolean(detailId));
     const expiresAt = Date.now() + (detailId ? DETAIL_CACHE_MS : SEARCH_CACHE_MS);
-    memoryCache.set(key, { data: result.data, status: result.status, expiresAt });
-    if (memoryCache.size > 300) memoryCache.delete(memoryCache.keys().next().value!);
+    storeMemory(memoryCache, key, { data: result.data, status: result.status, expiresAt });
     if (detailId) {
-      volumeMemoryCache.set(detailId, { data: result.data, expiresAt });
+      storeMemory(volumeMemoryCache, detailId, { data: result.data, expiresAt });
       void persistDetail(detailId, result.data);
     }
     return result;

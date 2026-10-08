@@ -73,9 +73,20 @@ export async function cachedProviderValue<T>(options: {
   admin: SupabaseClient; provider: string; key: string; freshMs: number; staleMs: number;
   load: () => Promise<T>; leaseSeconds?: number; allowStale?: boolean;
   onCacheRead?: (row: any) => void; sourceExpiresAt?: () => number;
+  valueLifetime?: (value: T) => { freshMs: number; staleMs: number };
 }): Promise<T> {
   const { admin, provider, key, freshMs, staleMs, load } = options;
-  const cached = await readProviderCache(admin, provider, key);
+  const capLifetime = (row: ProviderCacheRow | null) => {
+    if (!row || !options.valueLifetime) return row;
+    const lifetime = options.valueLifetime(row.response_json as T);
+    const fetchedAt = Date.parse(row.fetched_at);
+    if (!Number.isFinite(fetchedAt)) return null;
+    return { ...row,
+      expires_at: new Date(Math.min(Date.parse(row.expires_at), fetchedAt + lifetime.freshMs)).toISOString(),
+      stale_until: new Date(Math.min(Date.parse(row.stale_until), fetchedAt + lifetime.staleMs)).toISOString(),
+    };
+  };
+  const cached = capLifetime(await readProviderCache(admin, provider, key));
   if (cached && fresh(cached)) {
     options.onCacheRead?.(cached);
     await recordHit(admin, provider, key, false);
@@ -98,7 +109,7 @@ export async function cachedProviderValue<T>(options: {
     // Wait for the owner. A miss never falls through to an unclaimed API request.
     for (let attempt = 0; attempt < 12; attempt++) {
       if (attempt) await new Promise(resolve => setTimeout(resolve, 250));
-      const filled = await readProviderCache(admin, provider, key);
+      const filled = capLifetime(await readProviderCache(admin, provider, key));
       if (filled && (fresh(filled) || (options.allowStale !== false && usable(filled)))) {
         options.onCacheRead?.(filled);
         await recordHit(admin, provider, key, !fresh(filled));
@@ -111,7 +122,8 @@ export async function cachedProviderValue<T>(options: {
   }
   try {
     const result = await load();
-    const row = await writeProviderCache(admin, provider, key, result, freshMs, staleMs, options.sourceExpiresAt?.());
+    const lifetime = options.valueLifetime?.(result) ?? { freshMs, staleMs };
+    const row = await writeProviderCache(admin, provider, key, result, lifetime.freshMs, lifetime.staleMs, options.sourceExpiresAt?.());
     options.onCacheRead?.(row);
     return result;
   } catch (error) {

@@ -431,12 +431,16 @@ Deno.serve(async request => {
         workKey: identity.title && identity.authors.length ? 'work:v5:' + await cacheDigest(identity) : null };
     }));
     const batchKey = 'popularity:v6:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
-    const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
+    const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, valueLifetime: value => Object.keys(value.popularity).length < books.length ? { freshMs: 6 * 3600000, staleMs: 6 * 3600000 } : { freshMs, staleMs }, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];
       for (const item of prepared) {
         const work = item.workKey ? await readProviderCache(admin, provider, item.workKey) : null;
-        const cached = work && Date.parse(work.expires_at) > Date.now() ? work : await readProviderCache(admin, provider, item.key);
+        let cached = work && Date.parse(work.expires_at) > Date.now() ? work : await readProviderCache(admin, provider, item.key);
+        if (cached && !cachedPopularity(cached)) {
+          const fetchedAt = Date.parse(cached.fetched_at ?? '');
+          if (!Number.isFinite(fetchedAt) || Date.now() - fetchedAt >= 6 * 3600000) cached = null;
+        }
         if (cached && Date.parse(cached.expires_at) > Date.now()) {
           noteSource(cached);
           const result = cachedPopularity(cached);
@@ -508,7 +512,7 @@ Deno.serve(async request => {
         const best = matches.get(item.key);
         const result = best ? toPopularity(best) : null;
         // Null is a confirmed no-match and is cached too. Errors never become no-matches.
-        await writeProviderCache(admin, provider, item.key, { kind: 'book_popularity', value: result }, freshMs, staleMs, sourceExpiresAt);
+        await writeProviderCache(admin, provider, item.key, { kind: 'book_popularity', value: result }, result ? freshMs : 6 * 3600000, result ? staleMs : 6 * 3600000, sourceExpiresAt);
         if (result) {
           popularity[item.book.googleBookId] = result;
           if (item.workKey) await writeProviderCache(admin, provider, item.workKey, result, freshMs, staleMs, sourceExpiresAt);

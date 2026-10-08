@@ -17,7 +17,7 @@ function harness(workDetails) {
   function load(){
     const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/lib/google-books.ts'),'utf8');
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(compiled,{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
+    vm.runInNewContext(compiled+";exports.cacheSizes=()=>[memoryCache.size,volumeMemoryCache.size];",{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
     return exports;
   }
   return {storage,calls,load,setCatalog:value=>{catalog=value;}};
@@ -109,4 +109,22 @@ test('cached-first details return while work enrichment is pending, without rewr
  expect(search).toHaveBeenCalledTimes(1);
  expect(h.calls).toHaveLength(0);
  expect(h.storage).toEqual(before);
+});
+
+test('catalog cache carries original source age into device persistence',async()=>{
+ const h=harness(),savedAt=Date.now()-29*86400000;
+ h.setCatalog({detail_complete:true,fetched_at:new Date(savedAt).toISOString(),metadata:{id:'aged',volumeInfo:{title:'Source age',imageLinks:{thumbnail:'https://covers/original'}}}});
+ await h.load().fetchGoogleBooksJson(detail('aged')); await flush();
+ expect(JSON.parse(h.storage.get('novori:google-books:detail:v5:aged')).savedAt).toBe(savedAt);
+ expect(h.calls).toHaveLength(0);
+});
+test('catalog and persistent fast paths cannot grow either raw memory map past capacity',async()=>{
+ const h=harness(),api=h.load();
+ for(let i=0;i<310;i++) {
+  const id='bounded-'+i;
+  h.setCatalog({detail_complete:true,fetched_at:new Date().toISOString(),metadata:{id,volumeInfo:{title:'Book '+i}}});
+  await api.fetchGoogleBooksJson(detail(id));
+ }
+ expect(api.cacheSizes()).toEqual([300,300]);
+ expect(h.calls).toHaveLength(0);
 });
