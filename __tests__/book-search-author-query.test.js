@@ -57,8 +57,8 @@ test('same-title author conflicts rank established matched readership first with
  expect(rows[0].novoriWork.googleBookIds).toEqual(['original']);expect(rows[1].novoriWork.googleBookIds).toEqual(['lookalike']);
  expect(api.popularityCalls).toHaveLength(1);expect(api.popularityCalls[0].allowTitleFallback).toBe(true);expect(api.popularityCalls[0].books).toHaveLength(2);
 });
-test('unambiguous searches do not add a Hardcover popularity lookup',async()=>{
- const api=load([book('original','H. D. Carlton','Hunting Adeline')]);await api.searchNovoriBooks('hunting Adeline');expect(api.popularityCalls).toHaveLength(0);
+test('unambiguous searches request cached Hardcover metadata for their ratings',async()=>{
+ const api=load([book('original','H. D. Carlton','Hunting Adeline')]);await api.searchNovoriBooks('hunting Adeline');expect(api.popularityCalls).toHaveLength(1);
 });
 test('failure to resolve ambiguous author popularity preserves both results',async()=>{
  const api=load([book('a','H.E. Carlton','Hunting Adeline'),book('b','H. D. Carlton','Hunting Adeline')],{},Error('Network unavailable'));
@@ -205,4 +205,26 @@ test('Hardcover review counts are attached to search results without treating ra
  const rows=await load([book('a','Writer','Court'),book('b','Writer','Court of Stars')],{}, {a:{usersCount:100,reviewsCount:1234,ratingsCount:99999,rating:4},b:{usersCount:10,reviewsCount:0,rating:3}}).searchNovoriBooks('court');
  expect(rows[0].novoriWork.hardcoverReviewsCount).toBe(1234);
  expect(rows[1].novoriWork.hardcoverReviewsCount).toBe(0);
+});
+
+test.each(['Dungeon Crawler Carl','The Hunger Games','1984','The Hobbit'])('equally ranked coverless lookalikes follow usable editions: %s',async title=>{
+ const weak=book('a_missing','Wrong Writer',title);weak.volumeInfo.imageLinks=undefined;
+ const good=book('z_correct','Original Writer',title);
+ const rows=await load([weak,good]).searchNovoriBooks(title);
+ expect(rows.map(row=>row.id)).toEqual(['z_correct','a_missing']);
+ expect(rows[0].novoriWork.googleBookIds).toEqual(['z_correct']);
+});
+test('a single Hunger Games result receives the actual stars and rating count and is reused from cache',async()=>{
+ const api=load([book('hg','Suzanne Collins','The Hunger Games')],{}, {hg:{usersCount:10000,ratingsCount:7123,reviewsCount:321,rating:4.2}});
+ const first=await api.searchNovoriBooks('the hunger games');
+ expect(first[0].novoriWork).toMatchObject({hardcoverRating:4.2,hardcoverRatingsCount:7123});
+ const again=await api.searchNovoriBooks('THE HUNGER GAMES');
+ expect(again[0].novoriWork.hardcoverRatingsCount).toBe(7123);
+ expect(api.popularityCalls).toHaveLength(1);
+});
+test('usable-cover tie breaking never outranks a more popular matched work',async()=>{
+ const popular=book('a_popular','Author One','A Novel');popular.volumeInfo.imageLinks=undefined;
+ const pictured=book('z_pictured','Author Two','A Novel');
+ const rows=await load([popular,pictured],{}, {a_popular:{usersCount:1000,reviewsCount:20,rating:4},z_pictured:{usersCount:2,reviewsCount:1,rating:5}}).searchNovoriBooks('a novel');
+ expect(rows[0].id).toBe('a_popular');
 });

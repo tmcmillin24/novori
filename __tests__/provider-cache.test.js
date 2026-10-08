@@ -360,11 +360,11 @@ test('scoped title/author fallback queries share the normal Google cache and quo
 
 test('nearby author initials cannot borrow the established author popularity, and both outcomes are cached',async()=>{
  const h=harness();const hits={hits:[{document:{id:123,title:'Hunting Adeline',author_names:['H. D. Carlton'],users_count:12000,ratings_count:9000,rating:4.3}}]};
- h.setUpstream(async()=>({data:{book0:{results:hits},book1:{results:hits}}}));
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('HardcoverSearchStats')?{data:{books:[{id:123,title:'Hunting Adeline',users_count:12000,ratings_count:9000,reviews_count:100,rating:4.3,contributions:[{author:{name:'H. D. Carlton'}}]}]}}:{data:{book0:{results:hits},book1:{results:hits}}});
  const books=[{googleBookId:'lookalike',title:'Hunting Adeline',authors:['H.E. Carlton'],isbns:[]},{googleBookId:'original',title:'Hunting Adeline',authors:['H. D. Carlton'],isbns:[]}];
  const result=await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});
  expect(result.popularity.original.usersCount).toBe(12000);expect(result.popularity.lookalike).toBeUndefined();
- await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});expect(h.calls).toHaveLength(1);expect(h.hardcoverRequests).toBe(1);
+ await h.request('hardcover-search-popularity',{books,allowTitleFallback:true});expect(h.calls).toHaveLength(2);expect(h.hardcoverRequests).toBe(2);
 });
 
 
@@ -584,4 +584,27 @@ test.each(['hardcover-trending','hardcover-recent-releases'])('%s keeps primary 
  h.setUpstream(async(_url,_init,body)=>body.query.includes('GetTrendingBooks')?{data:{page0:{ids:[2]}}}:{data:{books:[novel]}});
  const result=await h.request(endpoint,{});
  expect(result.books[0]).toMatchObject({coverUrl:novel.image.url,coverEdition:null,coverProof:{version:2,source:'hardcover_work_image',hardcoverBookId:2,url:novel.image.url},isbns:[]});
+});
+
+test('title fallback hydrates authoritative stats once instead of caching missing search-document counts',async()=>{
+ const h=harness(), input={books:[{googleBookId:'hg',title:'The Hunger Games (The Hunger Games, 1)',authors:['Collins, Suzanne'],isbns:[]}],allowTitleFallback:true};
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('HardcoverSearchStats')?{data:{books:[{id:123,title:'The Hunger Games',rating:4.2,ratings_count:7123,reviews_count:321,users_count:10000,contributions:[{author:{name:'Suzanne Collins'}}]}]}}:{data:{book0:{results:{hits:[{document:{id:123,title:'The Hunger Games',author_names:['Suzanne Collins'],users_count:10000}}]}}}});
+ const result=await h.request('hardcover-search-popularity',input);
+ expect(result.popularity.hg).toMatchObject({rating:4.2,ratingsCount:7123,reviewsCount:321,usersCount:10000});
+ expect(h.calls).toHaveLength(2);expect(h.calls[1].body.variables.ids).toEqual([123]);
+ await h.request('hardcover-search-popularity',input);expect(h.calls).toHaveLength(2);
+ const detail=await h.request('hardcover-search-popularity',{...input,books:[{...input.books[0],googleBookId:'different_edition',isbns:['9781111111111']}]});
+ expect(detail.popularity.different_edition.ratingsCount).toBe(7123);expect(h.calls).toHaveLength(2);
+});
+
+test('an unrated ISBN-linked duplicate cannot hide a more popular same-title same-author work',async()=>{
+ const h=harness(),title='Dungeon Crawler Carl';
+ const duplicate={...hcBook('9781111111111',1,title),rating:null,ratings_count:0,users_count:1};
+ const popular={...hcBook('9782222222222',2,title),rating:4.5,ratings_count:8000,users_count:12000};
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('HardcoverSearchStats')?{data:{books:[popular]}}:body.query.includes('HardcoverSearchBatch')?{data:{book0:{results:{hits:[{document:{id:2,title,author_names:['Author'],users_count:12000}}]}}}}:{data:{books:[duplicate]}});
+ const input={books:[book('carl','9781111111111',title)],allowTitleFallback:true};
+ const result=await h.request('hardcover-search-popularity',input);
+ expect(result.popularity.carl).toMatchObject({hardcoverBookId:2,rating:4.5,ratingsCount:8000,usersCount:12000});
+ expect(h.calls).toHaveLength(3);
+ await h.request('hardcover-search-popularity',input);expect(h.calls).toHaveLength(3);
 });

@@ -1,3 +1,4 @@
+import { cleanCatalogBookTitle, catalogWorkTitleKey, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
 import { cacheDigest, cachedHardcoverFetch, cachedProviderValue, createCacheAdmin, readProviderCache, requireReader, writeProviderCache } from '../_shared/provider-cache.ts';
 import { claimApiCacheRefresh, waitForApiCacheFill } from '../_shared/api-cache-guard.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -84,7 +85,7 @@ function canonicalizeTitle(
 ) {
   let title =
     normalizeText(
-      value
+      cleanCatalogBookTitle(value ?? '')
     );
 
   const suffixes = [
@@ -142,7 +143,7 @@ function canonicalizeTitle(
     }
   }
 
-  return title;
+  return catalogWorkTitleKey(title, value ?? undefined);
 }
 
 function getAuthorNames(
@@ -173,9 +174,7 @@ function getAuthorNames(
           value
         )
     )
-    .map(
-      normalizeText
-    )
+    .map(name => normalizeText(normalizeCatalogAuthor(name)))
     .filter(Boolean);
 }
 
@@ -194,9 +193,7 @@ function authorsMatch(
 
   const expected =
     expectedAuthors
-      .map(
-        normalizeText
-      )
+      .map(name => normalizeText(normalizeCatalogAuthor(name)))
       .filter(Boolean);
 
   const actual =
@@ -430,10 +427,10 @@ Deno.serve(async request => {
     // ISBNdb response caches and all TTLs remain unchanged.
     const prepared = await Promise.all(books.map(async (book: InputBook) => {
       const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
-      return { book, key: 'book:v4:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
-        workKey: identity.title && identity.authors.length ? 'work:v4:' + await cacheDigest(identity) : null };
+      return { book, key: 'book:v5:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? 'work:v5:' + await cacheDigest(identity) : null };
     }));
-    const batchKey = 'popularity:v5:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
+    const batchKey = 'popularity:v6:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
     const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];
@@ -467,7 +464,10 @@ Deno.serve(async request => {
         )), item.book.title ?? '', item.book.authors ?? []);
         if (best) matches.set(item.key, best);
       }
-      const titleMisses = pending.filter(item => !matches.has(item.key) && allowTitleFallback && item.book.title);
+      const titleMisses = pending.filter(item => {
+        const matched = matches.get(item.key);
+        return allowTitleFallback && item.book.title && (!matched || matched.rating == null || Number(matched.ratings_count) === 0);
+      });
       if (titleMisses.length) {
         // Up to forty title searches travel in one GraphQL request, rather than forty API pulls.
         const variables: Record<string, string> = {};
@@ -481,10 +481,28 @@ Deno.serve(async request => {
             sort: "_text_match:desc,users_count:desc") { results }`);
         });
         const response = await hardcoverRequest(admin, token, `query HardcoverSearchBatch(${definitions.join(',')}) { ${fields.join('\n')} }`, variables, noteSource);
+        // Search documents establish candidate IDs, not authoritative rating
+        // totals. Hydrate the first five matching works per input in one cached
+        // books query (at most 200 IDs), then rank their actual library counts.
+        const candidates = new Map<string, HardcoverBook[]>();
         titleMisses.forEach((item, index) => {
-          const best = chooseBestBook(parseSearchBooks(response?.data?.['book' + index]?.results), item.book.title ?? '', item.book.authors ?? []);
-          if (best) matches.set(item.key, best);
+          candidates.set(item.key, parseSearchBooks(response?.data?.['book' + index]?.results)
+            .filter(book => chooseBestBook([book], item.book.title ?? '', item.book.authors ?? []))
+            .slice(0,5));
         });
+        const ids = [...new Set([...candidates.values()].flat().map(book => book.id))].sort((a,b)=>a-b);
+        if (ids.length) {
+          const details = await hardcoverRequest(admin, token, `query HardcoverSearchStats($ids: [Int!]!) {
+            books(where: { id: { _in: $ids } }, limit: 200) { ${bookFields} }
+          }`, {ids}, noteSource);
+          const hydrated: HardcoverBook[] = Array.isArray(details?.data?.books) ? details.data.books : [];
+          titleMisses.forEach(item => {
+            const wanted = new Set(candidates.get(item.key)?.map(book => book.id));
+            const prior = matches.get(item.key);
+            const best = chooseBestBook([...(prior ? [prior] : []), ...hydrated.filter(book => wanted.has(book.id))], item.book.title ?? '', item.book.authors ?? []);
+            if (best) matches.set(item.key, best);
+          });
+        }
       }
       for (const item of pending) {
         const best = matches.get(item.key);

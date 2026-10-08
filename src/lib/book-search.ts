@@ -1509,7 +1509,13 @@ function sortTitleSearchResults(
         return relevanceDifference;
       }
 
-      return a.id.localeCompare(b.id);
+      // Only break otherwise equal popularity/relevance ties with usable art;
+      // never let an image beat a more popular verified work.
+      const hasCover = (book: GoogleBookSearchItem) => Boolean(
+        book.novoriWork?.canonicalCoverUrl || getBookCoverPlan({imageLinks:book.volumeInfo.imageLinks}).primaryUrl
+      );
+      const coverDifference = Number(hasCover(b)) - Number(hasCover(a));
+      return coverDifference || a.id.localeCompare(b.id);
     }
   );
 }
@@ -3176,9 +3182,9 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0) {
     );
 
   // Reuse the existing cached, quota-controlled popularity endpoint. A single
-  // result needs no ranking request. Provider failures keep usable catalog results.
+  // result still needs rating metadata. Provider failures keep usable catalog results.
   const primaryBooks = collapsed.filter(book => searchProductTier(book) === 0);
-  const ambiguityPopularity = primaryBooks.length > 1
+  const ambiguityPopularity = primaryBooks.length > 0
     ? getHardcoverPopularity(primaryBooks, true)
     : Promise.resolve({});
 
