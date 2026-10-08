@@ -1,14 +1,14 @@
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { cleanCatalogBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
+import { cleanCatalogBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement, catalogWorkTitleKey, audioEditionPenalty } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 
 const key = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 export function matchesSeriesCatalogEdition(book: any, edition: any): boolean {
  const info = edition.metadata?.volumeInfo;
  if (!info || !isEnglishBookLanguage(info.language ?? edition.language)) return false;
- if (isCatalogCollection(edition.metadata) || isCatalogSupplement(edition.metadata)) return false;
- if (key(cleanCatalogBookTitle(info.title ?? '')) !== key(cleanCatalogBookTitle(book.title ?? ''))) return false;
+ if (audioEditionPenalty(edition.metadata) || isCatalogCollection(edition.metadata) || isCatalogSupplement(edition.metadata)) return false;
+ if (catalogWorkTitleKey(info.title ?? '', edition.metadata?.novoriEdition?.originalTitle) !== catalogWorkTitleKey(book.title ?? '')) return false;
  const authors: string[] = book.authors ?? [];
  return authors.length > 0 && authors.some(author => (info.authors ?? []).some((candidate: string) =>
   key(normalizeCatalogAuthor(candidate)) === key(normalizeCatalogAuthor(author))));

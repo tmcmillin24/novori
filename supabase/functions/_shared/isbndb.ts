@@ -1,6 +1,6 @@
 import { normalizeBookGenres } from './book-genres.ts';
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
-import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
+import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement, catalogWorkTitleKey, audioEditionPenalty } from './book-edition-metadata.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cachedProviderValue, createCacheAdmin, fetchJsonWithTimeout, requireReader } from './provider-cache.ts';
 import { recordGoogleBooksInCatalog } from './book-catalog.ts';
@@ -8,7 +8,7 @@ import { recordGoogleBooksInCatalog } from './book-catalog.ts';
 export const isbnDbEnabled = () => Deno.env.get('NOVORI_BOOK_PROVIDER') === 'isbndb';
 const PROVIDER = 'isbndb';
 const DAY = 86_400_000;
-type Book = { id: string; source: { provider: string; isbn13: string }; volumeInfo: any; novoriEdition?: { binding?: string; format?: string } };
+type Book = { id: string; source: { provider: string; isbn13: string }; volumeInfo: any; novoriEdition?: { binding?: string; format?: string; originalTitle?: string } };
 
 export function validIsbn13(value: unknown): string | null {
   const text = typeof value === 'string' ? value.replace(/[\s-]/g, '') : '';
@@ -34,11 +34,11 @@ export function identityMatches(book: Book, title: string, author = '') {
   const requested = {volumeInfo:{title}};
   if (isCatalogCollection(book) !== isCatalogCollection(requested) ||
       isCatalogSupplement(book) !== isCatalogSupplement(requested)) return false;
-  const actual = normalize(book.volumeInfo.title ?? '').split(/\s+/);
-  const wanted = normalize(title).split(/\s+/).filter(Boolean);
+  const actual = catalogWorkTitleKey(book.volumeInfo.title ?? '', book.novoriEdition?.originalTitle);
+  const wanted = catalogWorkTitleKey(title);
   const by = normalize((book.volumeInfo.authors ?? []).join(' ')).split(/\s+/);
   // Match complete title words, and author prefixes (Freida vs Freida McFadden).
-  return wanted.length > 0 && wanted.every(word => actual.includes(word))
+  return !audioEditionPenalty(book) && wanted.length > 0 && wanted === actual
     && normalize(author).split(/\s+/).filter(Boolean).every(word => by.some(part => part.startsWith(word)));
 }
 

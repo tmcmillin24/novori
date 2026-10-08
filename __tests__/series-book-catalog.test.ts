@@ -34,3 +34,14 @@ test('series uses another cached English printing without accepting foreign or c
  expect(calls.filter(call => call === 'book_works.normalized_title')).toHaveLength(1);
  expect(calls.filter(call => call === 'book_editions.work_id')).toHaveLength(1);
 });
+
+test('alternate Hobbit subtitle matches the work while concert recordings and graphic adaptations cannot',()=>{
+ const original={title:'The Hobbit',authors:['J. R. R. Tolkien']};
+ for(const title of ['The Hobbit, or There and Back Again','The Hobbit or There and Back Again'])
+  expect(matchesSeriesCatalogEdition(original,{metadata:{volumeInfo:{...original,title,language:'en'}}})).toBe(true);
+ const hitch={title:"The Hitchhiker's Guide to the Galaxy",authors:['Douglas Adams']};
+ expect(matchesSeriesCatalogEdition(hitch,{metadata:{volumeInfo:{...hitch,title:hitch.title+': Douglas Adams Live in Concert',language:'en'}}})).toBe(false);
+ expect(matchesSeriesCatalogEdition(hitch,{metadata:{volumeInfo:{...hitch,language:'en'},novoriEdition:{format:'audio'}}})).toBe(false);
+ for(const title of ['The Hobbit: Graphic Novel','The Hobbit, or There and Back Again: Graphic Novel'])
+  expect(matchesSeriesCatalogEdition(original,{metadata:{volumeInfo:{...original,title,language:'en'}}})).toBe(false);
+});

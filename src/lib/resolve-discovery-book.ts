@@ -1,6 +1,6 @@
 import { createBookReadCache } from './book-read-cache';
 import { preferredCoverIsbn } from '../../supabase/functions/_shared/catalog-cover-preferences';
-import { resolveCanonicalBookCover } from './canonical-book-covers';
+import { resolveCanonicalBookCover, getCanonicalBookCover, getCanonicalBookCoverMetadata, publishCatalogCovers } from './canonical-book-covers';
 import type { DiscoveryBook } from './discovery-books';
 import { createDiscoveryBookResolver } from './discovery-books';
 import { resolveGoogleBooksIdentity } from './google-books';
@@ -8,7 +8,20 @@ import { searchNovoriBooks } from './book-search';
 
 // Endpoint/field names are compatibility names. The server chooses ISBNdb or
 // cached legacy metadata; the client never calls a raw Google Books API here.
-export const resolveDiscoveryBook = createDiscoveryBookResolver(resolveGoogleBooksIdentity, searchNovoriBooks);
+const resolveIdentity = createDiscoveryBookResolver(resolveGoogleBooksIdentity, searchNovoriBooks);
+export async function resolveDiscoveryBook(book: DiscoveryBook) {
+ const id = await resolveIdentity(book);
+ // Adopt only artwork already published by the server-authored feed; route URLs
+ // are never authority. The resolver has verified title/author/product identity.
+ if (id) {
+  const input = {hardcoverBookId:book.id};
+  const cover = getCanonicalBookCover(input), metadata = getCanonicalBookCoverMetadata(input);
+  if (cover && metadata?.provider === 'hardcover') publishCatalogCovers({[id]:cover}, {
+   [id]:{provider:'hardcover',workId:metadata.workId,genres:metadata.genres,alternatives:[cover]},
+  });
+ }
+ return id;
+}
 
 // Only mounted previews resolve; bound concurrency and reuse the same cached
 // identity path as taps. Do not prefetch the entire 100/150-book provider pool.
@@ -25,6 +38,7 @@ async function limited<T>(run: () => Promise<T>): Promise<T> {
 }
 export function loadDiscoveryCover(book: DiscoveryBook) {
  return previewRead(JSON.stringify([book.id, book.title, book.authors]), () => limited(async () => {
+  if (book.coverProvider === 'hardcover' && book.coverUrl) return true;
   if (book.coverPolicyVersion === 7 && book.coverBookId && book.coverUrl) return true;
   const preferred = preferredCoverIsbn(book);
   if (book.coverUrl && !preferred) return true;

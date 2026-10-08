@@ -69,3 +69,11 @@ test('older version markers do not suppress catalog cards; verified alternatives
  expect(await prepareDiscovery('legacy',[book])).toEqual([book]);
  expect(publishCatalogCovers).toHaveBeenCalledWith({'edition-800':'https://art/800.jpg'},expect.objectContaining({'edition-800':expect.objectContaining({alternatives:['https://art/800.jpg','https://art/replacement.jpg']})}));
 });
+
+test('server-selected Hardcover cards are displayed and cached without requiring catalog route IDs',async()=>{
+ const books=Array.from({length:50},(_,i)=>({...card(5000+i),coverBookId:null,coverProvider:'hardcover',coverWorkId:`hardcover:${5000+i}`}));
+ expect(await prepareDiscovery('trending',books)).toEqual(books);
+ expect(resolveDiscoveryBook).not.toHaveBeenCalled();
+ expect(publishCatalogCovers).toHaveBeenCalledWith(expect.objectContaining({hc_art_5000:books[0].coverUrl}),expect.objectContaining({hc_art_5000:expect.objectContaining({provider:'hardcover',workId:'hardcover:5000'})}));
+ expect(await readValidatedDiscovery('trending')).toEqual(books);
+});

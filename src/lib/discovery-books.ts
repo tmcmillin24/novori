@@ -47,7 +47,8 @@ export function subscribeDiscoveryBooks(listener: () => void) {
 // Hardcover ISBNs can identify a different printing or even a different work.
 // Never use them as cover aliases before title/author verification establishes ID.
 export function discoveryCoverInput(book: DiscoveryBook) {
-  return { googleBookId: getDiscoveryBookId(book), existingCoverUrl: book.coverUrl };
+  const id = getDiscoveryBookId(book);
+  return { googleBookId:id, ...(!id && book.coverProvider === 'hardcover' ? {hardcoverBookId:book.id} : {}), existingCoverUrl:book.coverUrl };
 }
 
 type Candidate = { id: string; volumeInfo: { title?: string; authors?: string[]; language?: string } };
@@ -87,6 +88,7 @@ export function parseDiscoveryBook(raw: string | undefined): DiscoveryBook | nul
         !Array.isArray(book.authors) || book.authors.length > 20 || book.authors.some((author: unknown) => typeof author !== 'string' || author.length > 300) ||
         !Array.isArray(book.isbns) || book.isbns.length > 100 || book.isbns.some((isbn: unknown) => typeof isbn !== 'string' || isbn.length > 30)) return null;
     return { id: book.id, title: book.title, authors: book.authors, isbns: book.isbns,
+      coverProvider: book.coverProvider === 'hardcover' ? 'hardcover' : undefined,
       coverBookId: typeof book.coverBookId === 'string' && book.coverBookId.length <= 300 ? book.coverBookId : null,
       coverUrl: typeof book.coverUrl === 'string' && /^https?:\/\/[^\s]+$/i.test(book.coverUrl) && book.coverUrl.length <= 4096 ? book.coverUrl : null,
       releaseDate: typeof book.releaseDate === 'string' ? book.releaseDate.slice(0, 30) : null,

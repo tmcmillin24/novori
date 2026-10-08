@@ -1,6 +1,6 @@
-import { cleanCatalogBookTitle, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
+import { catalogWorkTitleKey, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
-const titleKey = (value: string) => cleanCatalogBookTitle(value).toLowerCase().replace(/[^a-z0-9]/g,'');
+const titleKey = catalogWorkTitleKey;
 export function hardcoverTextEdition(edition: any, title: string, today = new Date().toISOString().slice(0,10)) {
  if (!edition || edition.compilation || Number(edition.audio_seconds) > 0 || edition.reading_format_id === 2) return false;
  const format = `${edition.reading_format?.format ?? ''} ${edition.physical_format ?? ''}`;

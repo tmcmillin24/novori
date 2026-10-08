@@ -1,5 +1,6 @@
 import { hardcoverDiscoveryEligible } from '../_shared/hardcover-discovery-policy.ts';
 import { normalizeBookGenres } from '../_shared/book-genres.ts';
+import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
 import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { englishEditionIsbns } from '../_shared/book-language.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
@@ -349,7 +350,7 @@ if (
     }
 
     const cacheKey =
-      `hardcover-trending:v7:${days}:${poolSize}`;
+      `hardcover-trending:v8:${days}:${poolSize}`;
 
     cachedRow =
       await readCache(
@@ -776,7 +777,8 @@ if (
               usersCount:
                 book.users_count ??
                 null,
-              coverUrl: verifiedEnglishSeriesArt(book, true)?.url ?? null,
+              coverUrl: hardcoverDiscoveryArt(book)?.url ?? null,
+              coverProof: hardcoverDiscoveryArt(book),
               coverEdition: verifiedEnglishSeriesArt(book, true),
               reviewsCount: book.reviews_count ?? null,
               formatPolicyVersion: 1,

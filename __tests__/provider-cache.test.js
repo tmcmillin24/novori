@@ -215,7 +215,7 @@ test('a confirmed no-series result is cached and skips Google language lookup',a
 });
 
 test.each(['hardcover-trending','hardcover-recent-releases'])('fresh %s data survives pull-to-refresh with no provider request',async endpoint=>{
-  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v7:90:100':'hardcover-recent-releases:v4:18:150';
+  const h=harness();const key=endpoint==='hardcover-trending'?'hardcover-trending:v8:90:100':'hardcover-recent-releases:v5:18:150';
   h.discover.set(key,{cache_key:key,payload:{books:[{id:1}]},refreshed_at:new Date(Date.now()-20*60000).toISOString()});
   expect((await h.request(endpoint,{forceRefresh:true})).books).toEqual([{id:1}]);
   expect(h.calls.length).toBe(0);
@@ -516,7 +516,7 @@ test('series lookup tries a second verified duplicate and rejects another author
  expect(h.claims).toBe(0);
 });
 
-test.each(['hardcover-trending', 'hardcover-recent-releases'])('%s uses English edition artwork and ISBNs before a listing has a Novori ID', async endpoint => {
+test.each(['hardcover-trending', 'hardcover-recent-releases'])('%s retains Hardcover work artwork and verified text ISBNs before a listing has a Novori ID', async endpoint => {
  const h = harness();
  const book = { id: 2, title: 'Catching Fire', image: { url: 'https://art/en-llamas.jpg' },
   contributions: [{ contribution: 'Author', author: { name: 'Suzanne Collins' } }],
@@ -526,7 +526,7 @@ test.each(['hardcover-trending', 'hardcover-recent-releases'])('%s uses English 
   ] };
  h.setUpstream(async (_url, _init, body) => body.query.includes('GetTrendingBooks') ? { data: { page0: { ids: [2] } } } : { data: { books: [book] } });
  const result = await h.request(endpoint, {});
- expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverUrl: 'https://art/catching-fire.jpg', isbns: ['9780439023498'] });
+ expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverUrl: 'https://art/en-llamas.jpg', coverProof: {version:2,hardcoverBookId:2,url:'https://art/en-llamas.jpg'}, isbns: ['9780439023498'] });
  const count = h.calls.length;
  await h.request(endpoint, { forceRefresh: true });
  expect(h.calls.length).toBe(count);
@@ -566,4 +566,22 @@ test.each(['hardcover-trending','hardcover-recent-releases'])('%s excludes audio
  expect(result.books).toHaveLength(1);
  expect(result.books[0]).toMatchObject({id:2,coverUrl:text.image.url,coverEdition:{editionId:20,nonAudio:true},reviewsCount:50,genres:['Fantasy']});
  expect(h.calls.at(-1).body.query).toContain('default_cover_edition');
+});
+
+test('identity resolver rejects the concert recording and audio editions while allowing the Hobbit alternate title',async()=>{
+ const api=isbnHarness().load('supabase/functions/_shared/isbndb.ts');
+ const concert=api.adaptIsbnDbBook(isbnBook({title:"The Hitchhiker's Guide to the Galaxy: Douglas Adams Live in Concert",authors:['Douglas Adams'],binding:'Audio CD'}));
+ expect(api.identityMatches(concert,"The Hitchhiker's Guide to the Galaxy",'Douglas Adams')).toBe(false);
+ const audio=api.adaptIsbnDbBook(isbnBook({title:"The Hitchhiker's Guide to the Galaxy",authors:['Douglas Adams'],binding:'Audio CD'}));
+ expect(api.identityMatches(audio,"The Hitchhiker's Guide to the Galaxy",'Douglas Adams')).toBe(false);
+ const hobbit=api.adaptIsbnDbBook(isbnBook({title:'The Hobbit or There and Back Again',authors:['J. R. R. Tolkien'],binding:'Paperback'}));
+ expect(api.identityMatches(hobbit,'The Hobbit','J. R. R. Tolkien')).toBe(true);
+});
+
+test.each(['hardcover-trending','hardcover-recent-releases'])('%s keeps primary work art with no edition ISBN or cover fields',async endpoint=>{
+ const h=harness();
+ const novel={id:2,title:'A Novel',image:{url:'https://assets.hardcover.app/work-primary.jpg'},default_physical_edition:{id:50,title:'A Novel',language:{code2:'en'},reading_format:{format:'Physical Book'}},contributions:[{contribution:'Author',author:{name:'Writer'}}],editions:[]};
+ h.setUpstream(async(_url,_init,body)=>body.query.includes('GetTrendingBooks')?{data:{page0:{ids:[2]}}}:{data:{books:[novel]}});
+ const result=await h.request(endpoint,{});
+ expect(result.books[0]).toMatchObject({coverUrl:novel.image.url,coverEdition:null,coverProof:{version:2,source:'hardcover_work_image',hardcoverBookId:2,url:novel.image.url},isbns:[]});
 });

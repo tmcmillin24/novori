@@ -32,6 +32,18 @@ export function cleanCatalogBookTitle(title: string) {
   .replace(/[\s:–—]+$/, '').trim() || title.trim();
 }
 
+/** Compare work titles without conflating adaptations, recordings or arbitrary subtitles. */
+export function catalogWorkTitleKey(title: string, originalTitle = title) {
+ const product = /\b(?:graphic novel|comic|manga|live in concert|dramatized|dramatised|audiobook|audio cd)\b/i.test(originalTitle);
+ const clean = product ? originalTitle : cleanCatalogBookTitle(title);
+ if (product) return clean.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+ return clean.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/,\s+or[,:]?\s+.+$/i, '')
+  .replace(/\s*[:–—]\s*(?:a novel|a thriller|the novel)\s*$/i, '')
+  .toLowerCase().replace(/[^a-z0-9]/g, '')
+  .replace(/^thehobbitor(?:thereandbackagain)$/, 'thehobbit');
+}
+
 /** Work labels are independent of edition ISBN, release date and artwork. */
 export function displayBookTitle(title: string) {
  const clean = cleanCatalogBookTitle(title);

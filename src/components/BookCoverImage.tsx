@@ -16,10 +16,10 @@ type Props = Omit<ImageProps, 'source'> & CanonicalCoverInput;
 // Every book image renders the catalog's original URL. Display size never
 // participates in selection, and image failures never switch artwork locally.
 export default function BookCoverImage({
-  googleBookId, isbn, isbns, imageLinks, existingCoverUrl,
+  googleBookId, hardcoverBookId, isbn, isbns, imageLinks, existingCoverUrl,
   resizeMode, onError, ...imageProps
 }: Props) {
-  const input = { googleBookId, isbn, isbns, imageLinks, existingCoverUrl };
+  const input = { googleBookId, hardcoverBookId, isbn, isbns, imageLinks, existingCoverUrl };
   const key = canonicalCoverKey(input);
   const subscribe = useCallback((listener: () => void) => subscribeCanonicalBookCovers(listener, key), [key]);
   const url = useSyncExternalStore(
@@ -29,8 +29,8 @@ export default function BookCoverImage({
   );
   const isbnKey = (isbns ?? []).join(',');
   useEffect(() => {
-    void resolveCanonicalBookCover({ googleBookId, isbn, isbns, imageLinks, existingCoverUrl });
-  }, [googleBookId, isbn, isbnKey, imageLinks, existingCoverUrl]);
+    void resolveCanonicalBookCover({ googleBookId, hardcoverBookId, isbn, isbns, imageLinks, existingCoverUrl });
+  }, [googleBookId, hardcoverBookId, isbn, isbnKey, imageLinks, existingCoverUrl]);
 
   const contentFit = resizeMode === 'contain' ? 'contain' : resizeMode === 'center' ? 'none' :
     resizeMode === 'stretch' ? 'fill' : 'cover';

@@ -5,6 +5,7 @@ import type { BookImageLinks } from './book-covers';
 
 export type CanonicalCoverInput = {
   googleBookId?: string | null;
+  hardcoverBookId?: number;
   isbn?: string | null;
   isbns?: string[];
   imageLinks?: BookImageLinks;
@@ -163,7 +164,7 @@ function validIsbns(input: CanonicalCoverInput) {
 }
 
 export function canonicalCoverKey(input: CanonicalCoverInput) {
-  return input.googleBookId || (validIsbns(input)[0] ? `isbn:${validIsbns(input)[0]}` :
+  return input.googleBookId || (Number.isSafeInteger(input.hardcoverBookId) && input.hardcoverBookId! > 0 ? `hc_art_${input.hardcoverBookId}` : null) || (validIsbns(input)[0] ? `isbn:${validIsbns(input)[0]}` :
     (fallback(input) ? `url:${fallback(input)}` : null));
 }
 
@@ -238,10 +239,11 @@ export function publishCatalogCovers(
     }
     const alternatives = (details[key]?.alternatives ?? previous?.alternatives ?? []).map(secure).filter((url): url is string => Boolean(url));
     const failed = failedUrls.get(key);
-    if (url && failed?.has(url)) url = alternatives.find(value => !failed.has(value)) ?? null;
+    if (details[key]?.provider === 'hardcover') { failedUrls.delete(key); }
+    else if (url && failed?.has(url)) url = alternatives.find(value => !failed.has(value)) ?? null;
     url = permitted(url, workId ?? undefined);
     if (!url) continue;
-    const entry = { provider: details[key]?.provider ?? previous?.provider, genres: normalizeBookGenres(details[key]?.genres ?? previous?.genres), url, alternatives, failedUrls: failed ? [...failed] : [], failedAt: previous?.failedAt, locked: details[key]?.locked ?? previous?.locked, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
+    const entry = { provider: details[key]?.provider ?? previous?.provider, genres: normalizeBookGenres(details[key]?.genres ?? previous?.genres), url, alternatives, failedUrls: details[key]?.provider === 'hardcover' ? [] : failed ? [...failed] : [], failedAt: previous?.failedAt, locked: details[key]?.locked ?? previous?.locked, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
     if (workId) {
       for (const [alias, oldEntry] of entries) {
         if (oldEntry.workId === workId) entries.set(alias, entry);
@@ -305,6 +307,7 @@ function schedule() {
 export function resolveCanonicalBookCover(input: CanonicalCoverInput, refresh = false): Promise<string | null> {
   const key = canonicalCoverKey(input);
   if (!key) return Promise.resolve(fallback(input));
+  if (key.startsWith('hc_art_')) return hydrate().then(() => entries.get(key)?.url ?? null);
   // Existing catalog results need no disk wait. Cold requests share one local
   // read before deciding whether a catalog request is needed.
   if (!hydrated && !entries.get(key)?.confirmed && !key.startsWith('url:')) {
@@ -366,7 +369,7 @@ export function reportBookCoverFailure(input: CanonicalCoverInput, failedUrl: st
   const key = canonicalCoverKey(input);
   if (!key || !failedUrl) return;
   const entry = entries.get(key);
-  if (entry?.locked || (entry?.url && entry.url !== failedUrl)) return;
+  if (entry?.locked || entry?.provider === 'hardcover' || (entry?.url && entry.url !== failedUrl)) return;
   if (!entry?.alternatives) { void resolveCanonicalBookCover(input, true); return; }
   const failed = failedUrls.get(key) ?? new Set<string>();
   failed.add(failedUrl);

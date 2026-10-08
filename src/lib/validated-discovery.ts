@@ -8,14 +8,17 @@ import { resolveCanonicalBookCover, publishCatalogCovers, getCanonicalBookCoverM
 type Card = { coverAliases?: string[]; coverProvider?: string; coverWorkId?: string; genres?: string[]; id?: number; title?: string; authors?: string[]; coverBookId?: string | null; coverUrl: string | null; coverPolicyVersion?: number;
  rejectedCoverUrls?: string[];
  coverAlternatives?: { url: string; bookId: string; locked?: boolean }[] };
+const hasArtwork = (book: Card) => Boolean(book.coverUrl && (book.coverBookId || (book.coverProvider === 'hardcover' && book.id)));
 const DAY = 86400000;
-const storageKey = (kind: string) => `novori:validated-discovery:v8:${kind}`;
+const storageKey = (kind: string) => `novori:validated-discovery:v9:${kind}`;
 
 function publish(cards: Card[]) {
  const covers: Record<string, string> = {}, details: Record<string, any> = {};
- for (const card of cards) if (card.coverBookId && card.coverUrl) {
-  covers[card.coverBookId] = card.coverUrl;
-  details[card.coverBookId] = { workId: card.coverWorkId ?? `edition:${card.coverBookId}`, provider: card.coverProvider, aliases: card.coverAliases, genres: card.genres, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
+ for (const card of cards) {
+  const key = card.coverBookId ?? (card.coverProvider === 'hardcover' && card.id ? `hc_art_${card.id}` : null);
+  if (!key || !card.coverUrl) continue;
+  covers[key] = card.coverUrl;
+  details[key] = { workId: card.coverWorkId ?? (card.coverProvider === 'hardcover' ? `hardcover:${card.id}` : `edition:${card.coverBookId}`), provider: card.coverProvider, aliases: card.coverAliases, genres: card.genres, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
  }
  publishCatalogCovers(covers, details);
 }
@@ -23,7 +26,7 @@ export async function readValidatedDiscovery<T extends Card>(kind: string): Prom
  try {
   const saved = JSON.parse(await AsyncStorage.getItem(storageKey(kind)) ?? 'null');
   if (!saved || Date.now() - saved.savedAt > 7 * DAY || !Array.isArray(saved.books)) return [];
-  const cards = saved.books.filter((row: Card) => row.coverBookId && row.coverUrl).slice(0, 100);
+  const cards = saved.books.filter((row: Card) => hasArtwork(row)).slice(0, 100);
   publish(cards);
   return cards;
  } catch { return []; }
@@ -55,7 +58,7 @@ export async function prepareDiscovery<T extends Card>(kind: string, books: T[],
    ? { ...book, coverBookId: old.coverBookId, coverUrl: old.coverUrl, coverAlternatives: old.coverAlternatives } : book;
  });
  const prepared = new Map<number, T>();
- pool.forEach((book, index) => { if (book.coverBookId && book.coverUrl) prepared.set(index, book); });
+ pool.forEach((book, index) => { if (hasArtwork(book)) prepared.set(index, book); });
  const ready = () => [...prepared.entries()].sort((a,b) => a[0]-b[0]).map(([,book]) => book).slice(0, 100);
  const eligible = (book: T) => options.isEligible?.(book) ?? true;
  const authors = () => new Set(ready().filter(eligible).map(discoveryAuthorKey).filter(Boolean));

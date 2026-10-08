@@ -263,6 +263,9 @@ type TrendingBook = {
   usersCount: number | null;
   coverUrl: string | null;
   coverBookId?: string | null;
+  coverProvider?: string;
+  coverWorkId?: string;
+  coverAliases?: string[];
   authors: string[];
   isbns: string[];
   genres: string[];
@@ -1840,9 +1843,9 @@ const DiscoverBookCard = memo(
             </View>
           ) : null}
 
-          {typeof item.novoriWork?.hardcoverReviewsCount === 'number' ? (
+          {typeof item.novoriWork?.hardcoverRatingsCount === 'number' ? (
             <Text style={styles.meta}>
-              {item.novoriWork.hardcoverReviewsCount.toLocaleString()} {item.novoriWork.hardcoverReviewsCount === 1 ? 'review' : 'reviews'}
+              {item.novoriWork.hardcoverRatingsCount.toLocaleString()} {item.novoriWork.hardcoverRatingsCount === 1 ? 'rating' : 'ratings'}
             </Text>
           ) : null}
 
@@ -3454,7 +3457,7 @@ export default function DiscoverScreen() {
     // Show the existing listing immediately while a verified edition resolves.
     router.push({ pathname: '/discovery-book', params: { book: JSON.stringify({
       id: trendingBook.id, title: trendingBook.title, authors: trendingBook.authors,
-      isbns: trendingBook.isbns, coverUrl: trendingBook.coverUrl,
+      isbns: trendingBook.isbns, coverUrl: trendingBook.coverUrl, coverProvider: trendingBook.coverProvider,
       releaseDate: trendingBook.releaseDate, releaseYear: trendingBook.releaseYear,
       rating: trendingBook.rating,
     }) } });

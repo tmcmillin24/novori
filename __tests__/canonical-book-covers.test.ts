@@ -375,3 +375,14 @@ test('verified Hardcover cover and genres propagate to saved edition IDs and sur
  covers.publishCatalogCovers({library_edition:'https://art/manual.jpg'},{library_edition:{provider:'manual',locked:true,workId:'hardcover:900'}});
  expect(covers.getCanonicalBookCover({googleBookId:'library_edition'})).toBe('https://art/manual.jpg');
 });
+
+test('Hardcover image errors keep the selected work art across all aliases and restore it on refresh',()=>{
+ const covers=require('../src/lib/canonical-book-covers');
+ const url='https://assets.hardcover.app/stable.jpg',fallback='https://images.isbndb.com/old.jpg';
+ covers.publishCatalogCovers({hc_art_777:url},{hc_art_777:{provider:'hardcover',workId:'hardcover:777',aliases:['hc_verified_777'],alternatives:[url,fallback]}});
+ covers.reportBookCoverFailure({hardcoverBookId:777},url);
+ expect(covers.getCanonicalBookCover({hardcoverBookId:777})).toBe(url);
+ expect(covers.getCanonicalBookCover({googleBookId:'hc_verified_777'})).toBe(url);
+ covers.publishCatalogCovers({hc_verified_777:fallback},{hc_verified_777:{provider:'isbndb'}});
+ expect(covers.getCanonicalBookCover({googleBookId:'hc_verified_777'})).toBe(url);
+});
