@@ -40,3 +40,37 @@ ISBNdb UI and backend support existed before this audit; their absence from the 
 6. If the 33-request historical gap persists but both totals increase by the same amount, tracking is aligned going forward; historical attribution still requires older deployment logs or provider records. If the gap grows, capture the same-time snapshots and route logs to identify the untracked source.
 
 Regression coverage includes all four Hardcover route boundaries; ISBNdb proxy/search/barcode/detail reuse; a direct Google-request block; series fallback without Google quota; single-count Hardcover misses; warm-cache reuse; failures/cooldowns; and admin ISBNdb totals, status, UTC windows and cache-kind labels. Live deployment validation remains a separate step.
+
+## Follow-up audit — October 8, 2026
+
+Scope: current app search/detail/author/series/barcode readers, persisted discovery pools, canonical artwork, shared provider cache, refresh leases, quota boundaries and deployed-verification requirements. This is source and automated-test evidence; production credentials and device/provider counters were unavailable. No runtime cache settings, records or provider code were changed.
+
+### Current configuration
+
+| Layer | Fresh / retention | Behavior |
+| --- | --- | --- |
+| ISBNdb search | 7 days fresh / 14 days stale, plus positive TTL jitter | Shared page/query cache; refresh lease 60 seconds |
+| ISBNdb ISBN details | 30 days fresh / 60 days stale, plus jitter | Barcode and edition detail share ISBN cache |
+| Hardcover series | 14 days fresh / 90 days stale, plus jitter | Shared membership; derived source-expiration cap; 600-second outer lease |
+| Hardcover popularity | 1 day fresh / 3 days stale, plus jitter | Work/book/batch and GraphQL reuse; source-expiration cap |
+| Trending / Recent Releases | 6 hours fresh / 3 days stale fallback | Raw discovery cache plus refresh lock; separate current policy keys |
+| Completed app search | 5 minutes / 40 entries | Concurrent calls coalesce; returned data is copied |
+| Raw app search | 10 minutes in memory | Query and pagination keys distinct |
+| Device detail metadata | 30 days / 150 persisted books | Original saved timestamp retained on reads; serialized index writes |
+| Device discovery pool | 7 days from local save / 100 cards | Cached-first display; fills bounded to two concurrent resolutions |
+| Canonical cover selection | 60-second recheck / 1,000 idle entries, 512,000 storage characters | Confirmed selection returns immediately; catalog recheck in background |
+| Image files | Expo Image memory-disk | Separate from metadata/provider cache; OS eviction remains possible |
+
+Fresh cached provider reads bypass upstream quota reservation. ISBNdb reserves attempts atomically, with global 1.1-second spacing, 4,500/day safety limit and 250/day reader limit. Hardcover attempts are recorded before sending; 429 cooldown applies across keys. Cache/lock failures do not permit an unclaimed upstream request. Failed refreshes preserve original stale deadlines. Positive artwork survives restart and late responses cannot downgrade newer canonical selections. Manual locks retain priority; Hardcover image-load failures retain the chosen cover rather than silently selecting ISBNdb artwork. Shared cover catalog reads do not consume metadata-provider calls.
+
+### Findings to review
+
+1. **ISBNdb negative detail retention is long.** `lookup` writes both successful books and confirmed null/404 results with the same 30-day freshness and 60-day stale window. Newly available catalog data can stay hidden much longer than intended. Consider a separate short negative TTL while preserving positive entries and quota cooldowns.
+2. **Complete catalog detail rows bypass provider freshness.** `isbnDbDetail` returns any `detail_complete` edition immediately and does not inspect its age. This gives excellent warm-book availability, but provider metadata corrections are not guaranteed to refresh after the advertised 30-day TTL. Keep existing details available while specifying an explicit age-based revalidation policy. The device catalog fast path separately accepts complete rows up to 90 days and may persist them for another 30 days; provider-source age is not carried through that local saved timestamp.
+3. **Incomplete ratings enrichment is cached as a completed search.** The client deliberately swallows popularity lookup failures and returns usable books; the complete result is then reused for five minutes. No-match popularity records also retain a one-day TTL. This matches the user's accepted policy of hiding unavailable counts, but it must not be described as a guaranteed successful metadata lookup. Independent status-aware retry would be a future improvement, not a reason to clear book or cover caches.
+4. **Device discovery age measures local writes, not provider age.** `prepareDiscovery.emit` stores `savedAt: Date.now()` even when re-emitting the saved pool. Repeated fallback use can renew the local seven-day window. Server stale fallback remains bounded to three days. Persisting the provider/original source timestamp would make the local age limit strict while still allowing explicit offline fallback.
+5. **Not all raw memory maps have capacity bounds.** `volumeMemoryCache` has expiry checks but no deletion/cap. `memoryCache` trims only the fresh-provider response branch; persistent/catalog hit insertions and failure entries can bypass that trim. Expired entries remain resident. This creates potential memory growth in long sessions; it is not evidence of extra upstream requests or cover corruption. A shared bounded insertion policy would close this gap.
+
+The full current suite passes **97 suites / 1,043 tests**. Relevant regressions exercise concurrent refresh coalescing, fresh reuse without provider calls, stale fallback/cooldown, GraphQL error rejection, source-expiration caps, ISBNdb/Google separation and quota failure, restart persistence, cover hydration/order, alias propagation, offline retention and shared entry-point reuse. These passing tests do not invalidate the source findings above; they do not cover every identified policy gap.
+
+Production verification remains the read-only same-time counter procedure above. Confirm deployed functions/configuration and warm ISBNdb/Hardcover counter deltas before calling this audit a production sign-off. No cache wipe is recommended.
