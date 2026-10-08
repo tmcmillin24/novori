@@ -3324,7 +3324,7 @@ export default function DiscoverScreen() {
     // Show the existing listing immediately while a verified edition resolves.
     router.push({ pathname: '/discovery-book', params: { book: JSON.stringify({
       id: trendingBook.id, title: trendingBook.title, authors: trendingBook.authors,
-      isbns: trendingBook.isbns, coverUrl: trendingBook.coverUrl, coverProvider: trendingBook.coverProvider,
+      isbns: trendingBook.isbns.slice(0, 100), coverUrl: trendingBook.coverUrl, coverProvider: trendingBook.coverProvider,
       releaseDate: trendingBook.releaseDate, releaseYear: trendingBook.releaseYear,
       rating: trendingBook.rating,
     }) } });

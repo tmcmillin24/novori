@@ -86,8 +86,10 @@ export function parseDiscoveryBook(raw: string | undefined): DiscoveryBook | nul
     const book = JSON.parse(raw);
     if (!Number.isSafeInteger(book.id) || book.id <= 0 || typeof book.title !== 'string' || !book.title.trim() || book.title.length > 1000 ||
         !Array.isArray(book.authors) || book.authors.length > 20 || book.authors.some((author: unknown) => typeof author !== 'string' || author.length > 300) ||
-        !Array.isArray(book.isbns) || book.isbns.length > 100 || book.isbns.some((isbn: unknown) => typeof isbn !== 'string' || isbn.length > 30)) return null;
-    return { id: book.id, title: book.title, authors: book.authors, isbns: book.isbns,
+        !Array.isArray(book.isbns) || book.isbns.some((isbn: unknown) => typeof isbn !== 'string' || isbn.length > 30)) return null;
+    // One provider edition can supply both ISBN-10 and ISBN-13. Bound the
+    // retained metadata without rejecting an otherwise valid work listing.
+    return { id: book.id, title: book.title, authors: book.authors, isbns: book.isbns.slice(0, 100),
       coverProvider: book.coverProvider === 'hardcover' ? 'hardcover' : undefined,
       coverBookId: typeof book.coverBookId === 'string' && book.coverBookId.length <= 300 ? book.coverBookId : null,
       coverUrl: typeof book.coverUrl === 'string' && /^https?:\/\/[^\s]+$/i.test(book.coverUrl) && book.coverUrl.length <= 4096 ? book.coverUrl : null,

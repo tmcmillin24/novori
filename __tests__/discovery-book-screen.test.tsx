@@ -65,3 +65,15 @@ test('invalid listing payload provides a return path without fetching', async ()
   await act(async () => { view.root.findAll(node => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')[0].props.onPress(); view.unmount(); });
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
 });
+
+test('work with many edition ISBNs remains viewable when full details cannot resolve', async () => {
+  mockPayload = JSON.stringify({ ...row, isbns: Array.from({ length: 200 }, (_, i) => String(9780000000000 + i)) });
+  resolve.mockResolvedValue(null);
+  let view!: renderer.ReactTestRenderer;
+  await act(async () => { view = renderer.create(<Screen />); });
+  expect(text(view)).toContain(row.title);
+  expect(text(view)).not.toContain('listing is unavailable');
+  expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ isbns: expect.any(Array) }));
+  expect(resolve.mock.calls[0][0].isbns).toHaveLength(100);
+  await act(async () => { view.unmount(); });
+});

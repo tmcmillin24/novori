@@ -53,3 +53,10 @@ test('listing route validates payload and discards untrusted edition IDs and URL
   expect(parseDiscoveryBook('{bad')).toBeNull();
   expect(parseDiscoveryBook('x'.repeat(16001))).toBeNull();
 });
+
+ test('listing accepts a provider work with 200 edition ISBNs and bounds resolver metadata', () => {
+  const isbns = Array.from({ length: 200 }, (_, i) => String(9780000000000 + i));
+  const parsed = parseDiscoveryBook(JSON.stringify({ ...book(1020), isbns }));
+  expect(parsed).toMatchObject({ id: 1020, title: 'The Book', coverUrl: 'https://listing/tiny.jpg' });
+  expect(parsed?.isbns).toEqual(isbns.slice(0, 100));
+});
