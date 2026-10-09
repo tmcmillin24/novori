@@ -1,3 +1,4 @@
+import { useRecentBookSearches } from '../../lib/recent-book-searches';
 import { prepareDiscovery, readValidatedDiscovery, discoveryAuthorKey } from '../../lib/validated-discovery';
 import { hasMoreBookSearchResults } from '../../lib/book-search';
 import DiscoveryCoverImage from '../../components/DiscoveryCoverImage';
@@ -1992,6 +1993,7 @@ export default function DiscoverScreen() {
     );
 
   const [query, setQuery] = useState('');
+  const recentSearches = useRecentBookSearches();
   useEffect(()=>{
     if(tutorial?.active&&tutorial.step.path==='/discover'){
       setDiscoverMode(tutorial.step.anchor==='discover-readers'?'readers':'books');
@@ -2314,17 +2316,6 @@ export default function DiscoverScreen() {
       () => {
         discoverFocusedRef.current =
           true;
-        // Returning from details or another tab restores the loaded discovery feed.
-        latestRequestRef.current += 1;
-        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-        initialBookSearchPending.current = null;
-        activeBookSearch.current = '';
-        nextBookPage.current = 40;
-        setQuery('');
-        setBooks([]);
-        setError('');
-        setLoading(false);
-        setVisibleBookCount(10);
         discoverSearchInputRef.current?.blur();
         Keyboard.dismiss();
         setDiscoverSearchFocused(false);
@@ -2398,8 +2389,6 @@ export default function DiscoverScreen() {
             false;
           discoverFocusedRef.current =
             false;
-          latestRequestRef.current += 1;
-          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         };
       },
       []
@@ -2842,19 +2831,11 @@ export default function DiscoverScreen() {
               return;
             }
 
-            if (
-              discoverHomeScrollOffsetRef.current >
-              24
-            ) {
-              discoverHomeScrollOffsetRef.current =
-                0;
-
-              discoverHomeScrollRef.current?.scrollTo({
-                y: 0,
-                animated: true,
-              });
-              return;
-            }
+            setDiscoverMode('books');
+            clearBookSearch();
+            dismissDiscoverSearchFocus();
+            discoverHomeScrollOffsetRef.current = 0;
+            discoverHomeScrollRef.current?.scrollTo({y: 0, animated: true});
 
             // Keep the session-cached Discover data. Pull-to-refresh,
             // a three-hour TTL, or a relevant mutation will refresh it.
@@ -2864,7 +2845,7 @@ export default function DiscoverScreen() {
       return unsubscribe;
     },
     [
-      navigation,
+      navigation, discoverMode,
     ]
   );
 
@@ -3065,6 +3046,7 @@ export default function DiscoverScreen() {
       return;
     }
 
+    recentSearches.remember(trimmedQuery);
     const requestId =
       ++latestRequestRef.current;
 
@@ -3142,7 +3124,29 @@ export default function DiscoverScreen() {
 
     dismissDiscoverSearchFocus();
 
-    return true;
+    // Recent-search chips stay tappable on the first touch with the keyboard open.
+    return !(discoverMode === 'books' && !query.trim());
+  }
+
+  function clearBookSearch() {
+    if (
+      debounceTimerRef.current
+    ) {
+      clearTimeout(
+        debounceTimerRef.current
+      );
+    }
+
+    latestRequestRef.current +=
+      1;
+    initialBookSearchPending.current = null;
+    activeBookSearch.current = '';
+    nextBookPage.current = 40;
+    setVisibleBookCount(10);
+    setQuery('');
+    setBooks([]);
+    setError('');
+    setLoading(false);
   }
 
   function clearActiveSearch() {
@@ -3150,20 +3154,7 @@ export default function DiscoverScreen() {
       discoverMode ===
         'books'
     ) {
-      if (
-        debounceTimerRef.current
-      ) {
-        clearTimeout(
-          debounceTimerRef.current
-        );
-      }
-
-      latestRequestRef.current +=
-        1;
-      setQuery('');
-      setBooks([]);
-      setError('');
-      setLoading(false);
+      clearBookSearch();
       return;
     }
 
@@ -3288,6 +3279,7 @@ export default function DiscoverScreen() {
           discoveryId?: number;
         }
       ) => {
+        if (activeBookSearch.current) recentSearches.remember(activeBookSearch.current);
         router.push({
           pathname:
             '/book/[id]',
@@ -3337,7 +3329,7 @@ export default function DiscoverScreen() {
         });
       },
       [
-        router,
+        router, recentSearches.remember,
       ]
     );
 
@@ -4139,6 +4131,30 @@ export default function DiscoverScreen() {
               />
             ) : null}
           </View>
+
+          {discoverMode === 'books' && !query.trim() && recentSearches.searches.length > 0 ? (
+            <View style={styles.recentSearches}>
+              <View style={styles.recentSearchHeader}>
+                <Text style={styles.recentSearchHeading}>Recent searches</Text>
+                <Pressable onPress={recentSearches.clear} accessibilityRole="button" accessibilityLabel="Clear all recent searches" hitSlop={8}>
+                  <Text style={styles.recentSearchClear}>Clear all</Text>
+                </Pressable>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {recentSearches.searches.map(term => (
+                  <View key={term.toLowerCase()} style={styles.recentSearchChip}>
+                    <Pressable onPress={() => {setQuery(term); recentSearches.remember(term);}} accessibilityRole="button" accessibilityLabel={`Search again for ${term}`} style={styles.recentSearchTerm}>
+                      <Ionicons name="time-outline" size={14} color={colors.mutedText} />
+                      <Text style={styles.recentSearchText} numberOfLines={1}>{term}</Text>
+                    </Pressable>
+                    <Pressable onPress={() => recentSearches.remove(term)} accessibilityRole="button" accessibilityLabel={`Remove ${term} from recent searches`} hitSlop={6} style={styles.recentSearchRemove}>
+                      <Ionicons name="close" size={15} color={colors.mutedText} />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
 
           {(discoverMode ===
           'books'
@@ -6076,6 +6092,15 @@ function createStyles(
     listContentEmpty: {
       flexGrow: 1,
     },
+
+    recentSearches: {marginBottom: 14},
+    recentSearchHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8},
+    recentSearchHeading: {color: colors.mutedText, fontSize: 12, fontFamily: 'Inter_600SemiBold'},
+    recentSearchClear: {color: colors.gold, fontSize: 12, fontFamily: 'Inter_500Medium'},
+    recentSearchChip: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 18, marginRight: 8},
+    recentSearchTerm: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingVertical: 9},
+    recentSearchText: {color: colors.secondaryText, fontSize: 12, maxWidth: 190, fontFamily: 'Inter_400Regular'},
+    recentSearchRemove: {paddingHorizontal: 9, paddingVertical: 9},
 
     bookCard: {
       flexDirection:
