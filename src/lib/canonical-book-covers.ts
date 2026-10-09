@@ -169,9 +169,21 @@ export function canonicalCoverKey(input: CanonicalCoverInput) {
     (fallback(input) ? `url:${fallback(input)}` : null));
 }
 
+// Image failures are retry cooldowns, never permanent artwork revocations.
+function expireImageFailures(key: string | undefined) {
+ if(!key || !failedUrls.has(key))return;
+ const entry=entries.get(key);
+ if(!entry?.failedAt || Date.now()-entry.failedAt<6*60*60_000)return;
+ for(const [alias,old] of [...entries]) {
+  if(alias!==key && (!entry.workId || old.workId!==entry.workId))continue;
+  failedUrls.delete(alias);
+  remember(alias,{...old,failedUrls:[],failedAt:0,checkedAt:0});
+ }
+}
 function fallback(input: CanonicalCoverInput) {
   const links = input.imageLinks;
   const key = input.googleBookId || (validIsbns(input)[0] ? `isbn:${validIsbns(input)[0]}` : undefined);
+  expireImageFailures(key);
   const workId = key ? entries.get(key)?.workId : undefined;
   return [input.existingCoverUrl, links?.extraLarge, links?.large, links?.medium, links?.small, links?.thumbnail, links?.smallThumbnail]
     .map(url => permitted(secure(url), workId)).filter(url => !url || (!/assets\.hardcover\.app/i.test(url) && !failedUrls.get(key ?? '')?.has(url))).find(Boolean) ?? null;
@@ -179,6 +191,7 @@ function fallback(input: CanonicalCoverInput) {
 
 export function getCanonicalBookCover(input: CanonicalCoverInput) {
   const key = canonicalCoverKey(input);
+  expireImageFailures(key ?? undefined);
   const entry = key ? entries.get(key) : undefined;
   if (key && entry) { entries.delete(key); entries.set(key, entry); }
   return entry?.url ?? (entry ? null : fallback(input));
@@ -242,6 +255,7 @@ export function publishCatalogCovers(
       if (!entries.has(key) && rejected.size) remember(key, { url: null, workId, confirmed: true, checkedAt: Date.now(), revision: publicationRevision });
     }
     const alternatives = (details[key]?.alternatives ?? previous?.alternatives ?? []).map(secure).filter((url): url is string => Boolean(url));
+    expireImageFailures(key);
     const failed = failedUrls.get(key);
     if (details[key]?.provider === 'hardcover') { failedUrls.delete(key); }
     else if (url && failed?.has(url)) url = alternatives.find(value => !failed.has(value)) ?? null;

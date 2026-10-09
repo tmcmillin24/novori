@@ -420,3 +420,20 @@ test('publisher family alias publication cannot overwrite protected Hardcover or
  expect(covers.getCanonicalBookCover({googleBookId:'manual_family'})).toBe('https://art/manual.jpg');
  expect(covers.getCanonicalBookCover({googleBookId:'family_other'})).toBe('https://art/family.jpg');
 });
+
+test('image failure cooldown expires in a running app and the original catalog URL can recover without wiping covers',()=>{
+ jest.resetModules();jest.useFakeTimers();
+ const covers=require('../src/lib/canonical-book-covers');
+ const url='https://images.isbndb.com/recover.jpg';
+ const detail={provider:'isbndb',workId:'retry-work',aliases:['retry-alias'],alternatives:[url]};
+ covers.publishCatalogCovers({retry:url},{retry:detail});
+ covers.reportBookCoverFailure({googleBookId:'retry'},url);
+ expect(covers.getCanonicalBookCover({googleBookId:'retry'})).toBeNull();
+ covers.publishCatalogCovers({retry:url},{retry:detail});
+ expect(covers.getCanonicalBookCover({googleBookId:'retry'})).toBeNull();
+ jest.setSystemTime(Date.now()+6*60*60_000+1);
+ covers.publishCatalogCovers({retry:url},{retry:detail});
+ expect(covers.getCanonicalBookCover({googleBookId:'retry'})).toBe(url);
+ expect(covers.getCanonicalBookCover({googleBookId:'retry-alias'})).toBe(url);
+ jest.useRealTimers();
+});

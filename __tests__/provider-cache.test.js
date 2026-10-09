@@ -435,7 +435,7 @@ test('ISBNdb adapter validates checksums, handles ISBN10, and never persists tem
   const api = isbnHarness().load('supabase/functions/_shared/isbndb.ts');
   expect(api.validIsbn13('9780134093414')).toBeNull();
   expect(api.isbn13From10('0134093410')).toBe('9780134093413');
-  expect(api.adaptIsbnDbBook(isbnBook({image:'http://images.isbndb.com/cover.jpg'})).volumeInfo.imageLinks).toBeUndefined();
+  expect(api.adaptIsbnDbBook(isbnBook({image:'http://images.isbndb.com/cover.jpg'})).volumeInfo.imageLinks.thumbnail).toBe('https://images.isbndb.com/cover.jpg');
   expect(api.adaptIsbnDbBook(isbnBook({image:'https://images.isbndb.com/placeholder.jpg'})).volumeInfo.imageLinks).toBeUndefined();
   expect(api.identityMatches(api.adaptIsbnDbBook(isbnBook({title:'The Perfect Son',authors:['Freida McFadden']})),'The Perfect Son','Freida')).toBe(true);
 });
@@ -642,4 +642,13 @@ test('fresh complete catalog detail stays a zero-provider read and expired detai
   h.setCatalog([{google_book_id:id,metadata,detail_complete:true,fetched_at:new Date(Date.now()-31*86400000).toISOString()}]);
   h.setUpstream(async()=>{throw new Error('offline');});
   expect((await h.request('google-books-detail',{volumeId:id})).data.volumeInfo.imageLinks).toEqual(metadata.volumeInfo.imageLinks);
+});
+
+test('ISBNdb refresh preserves usable artwork but empty or placeholder snapshots cannot block newly supplied art',()=>{
+ const api=isbnHarness().load('supabase/functions/_shared/isbndb.ts');
+ const good={thumbnail:'https://images.isbndb.com/covers/good.jpg'};
+ expect(api.retainedIsbnDbImageLinks({},good)).toEqual(good);
+ expect(api.retainedIsbnDbImageLinks({thumbnail:'https://images.isbndb.com/no-cover.jpg'},good)).toEqual(good);
+ expect(api.retainedIsbnDbImageLinks(good,{thumbnail:'https://images.isbndb.com/new.jpg'})).toEqual(good);
+ expect(api.stableIsbnDbCover('https://images.isbndb.com/covers/good.jpg?X-Amz-Signature=abc')).toBeUndefined();
 });

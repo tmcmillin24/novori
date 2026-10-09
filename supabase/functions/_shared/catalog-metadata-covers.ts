@@ -1,11 +1,13 @@
-import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
-import { audioEditionPenalty } from './book-edition-metadata.ts';
+import { isEnglishBookLanguage } from './book-language.ts';
+import { audioEditionPenalty, isCatalogCollection, isCatalogSupplement } from './book-edition-metadata.ts';
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 /** Recover publisher artwork already cached in edition metadata; no upstream calls. */
 export function cachedEditionCover(edition: any): string | null {
  if (!['isbndb', 'google_books'].includes(edition.provider)) return null;
  const info = edition.metadata?.volumeInfo;
- if (!info || !matchesSeriesCatalogEdition(info, edition)) return null;
+ if (!info || audioEditionPenalty(edition.metadata) || isCatalogCollection(edition.metadata) || isCatalogSupplement(edition.metadata)) return null;
+ const language=info.language ?? edition.language;
+ if (typeof language==='string' && language.trim() && !isEnglishBookLanguage(language))return null;
  const links = info.imageLinks ?? {};
  for (const variant of ['extraLarge', 'large', 'medium', 'small', 'thumbnail', 'smallThumbnail']) {
   try { const url = new URL(links[variant]);

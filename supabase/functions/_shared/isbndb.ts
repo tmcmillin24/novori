@@ -43,14 +43,25 @@ export function identityMatches(book: Book, title: string, author = '') {
     && normalize(author).split(/\s+/).filter(Boolean).every(word => by.some(part => part.startsWith(word)));
 }
 
+export function stableIsbnDbCover(value: unknown): string | undefined {
+ try {
+  if(typeof value!=='string')return;
+  const url=new URL(value.trim());
+  if(!['http:','https:'].includes(url.protocol) || url.hostname!=='images.isbndb.com' || url.username || url.password ||
+   /placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) ||
+   [...url.searchParams.keys()].some(key=>/signature|expires|token|credential/i.test(key)))return;
+  url.protocol='https:';return url.toString();
+ } catch {return;}
+}
+export function retainedIsbnDbImageLinks(old: any, current: any) {
+ const variants=['extraLarge','large','medium','small','thumbnail','smallThumbnail'];
+ const usable=variants.some(key=>{try {const url=new URL(old?.[key]);return ['http:','https:'].includes(url.protocol) && !url.username && !url.password && !/placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) && ![...url.searchParams.keys()].some(name=>/signature|expires|token|credential/i.test(name));}catch{return false;}});
+ return usable?old:current;
+}
 export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
   const isbn = validIsbn13(raw?.isbn13) ?? validIsbn13(raw?.isbn) ?? isbn13From10(String(raw?.isbn10 ?? raw?.isbn ?? ''));
   if (!isbn || typeof raw?.title !== 'string' || !raw.title.trim()) return null;
-  let image: string | undefined;
-  try {
-    const url = new URL(raw.image);
-    if (url.protocol === 'https:' && url.hostname === 'images.isbndb.com' && !/placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) && !url.username && !url.password) image = url.toString();
-  } catch { /* Missing artwork is normal. Never persist expiring image_original links. */ }
+  const image=stableIsbnDbCover(raw.image);
   return normalizeIsbnDbEdition({
     id: id ?? `nv_${isbn}`,
     source: { provider: PROVIDER, isbn13: isbn },
@@ -152,7 +163,7 @@ async function lookup(admin: SupabaseClient, userId: string, isbn: string): Prom
         // Canonical Hardcover/manual selections remain owned by the cover reader.
         const old = prior?.detail_complete ? prior.metadata?.volumeInfo : null;
         if (old && identityMatches(book, old.title ?? '', old.authors?.[0] ?? ''))
-          book = { ...book, volumeInfo: { ...book.volumeInfo, imageLinks: old.imageLinks ?? book.volumeInfo.imageLinks, pageCount: validPageCount(book.volumeInfo.pageCount) ?? validPageCount(old.pageCount) } };
+          book = { ...book, volumeInfo: { ...book.volumeInfo, imageLinks: retainedIsbnDbImageLinks(old.imageLinks,book.volumeInfo.imageLinks), pageCount: validPageCount(book.volumeInfo.pageCount) ?? validPageCount(old.pageCount) } };
       }
       if (book && book.source.isbn13 !== isbn) throw new Error('ISBNdb returned a different edition.');
       await catalog(admin, book ? [book] : []);

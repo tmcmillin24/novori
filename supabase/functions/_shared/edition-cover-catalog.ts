@@ -24,7 +24,8 @@ export function editionCoverChoices(seed: any, editions: any[], manual?: any, ha
   const familyChoice = publisherCandidates.map(candidate => ({candidate,edition:verifiedSeriesPublisherEdition(seed,candidate,editions)})).filter(choice=>choice.edition).sort((a,b)=>Number(b.edition.isbn_13 === preferred)-Number(a.edition.isbn_13 === preferred) || String(a.edition.isbn_13).localeCompare(String(b.edition.isbn_13)))[0];
   const family = familyChoice?.edition;
   const identityEdition = preferredArtworkIsbn(info) ? editions.find(row=>row.isbn_13 === familyChoice?.candidate.source_metadata?.identityIsbn && matchesSeriesCatalogEdition(info,row)) : null;
-  const matching = editions.filter(row => matchesSeriesCatalogEdition(info, row) && cachedEditionCover(row));
+  const matching = editions.filter(row => cachedEditionCover(row) && (matchesSeriesCatalogEdition(info, row) ||
+    (row.provider === seed.provider && row.provider_book_id === seed.provider_book_id)));
   const rank = (row: any) => [
     preferred && row.isbn_13 === preferred ? 0 : 1,
     family && row.isbn_13 === family.isbn_13 ? 0 : 1,

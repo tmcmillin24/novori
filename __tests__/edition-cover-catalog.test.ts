@@ -1,3 +1,4 @@
+import { cachedEditionCover } from '../supabase/functions/_shared/catalog-metadata-covers';
 import { editionCoverChoices } from '../supabase/functions/_shared/edition-cover-catalog';
 import { matchesSeriesCatalogEdition } from '../supabase/functions/_shared/series-book-catalog';
 import fixture from './fixtures/live-edition-covers.json';
@@ -22,7 +23,7 @@ test.each(fixture)('live exported artwork remains usable for $title', work => {
  const seeds = work.editions.filter(e => ['en','eng','english'].includes((e.language ?? '').toLowerCase()) && Object.keys(e.metadata.volumeInfo.imageLinks ?? {}).length);
  for (const seed of seeds) {
   const choices = editionCoverChoices(seed,work.editions);
-  if (matchesSeriesCatalogEdition(seed.metadata.volumeInfo,seed)) expect(choices.length).toBeGreaterThan(0);
+  if (matchesSeriesCatalogEdition(seed.metadata.volumeInfo,seed) || cachedEditionCover(seed)) expect(choices.length).toBeGreaterThan(0);
   else expect(choices).toEqual([]); // Foreign/mislabeled supplements remain excluded.
  }
 });
@@ -47,3 +48,10 @@ test.each([
  const discovery={...candidate,source_metadata:{...candidate.source_metadata,coverOrigin:undefined}};
  expect(editionCoverChoices(seed,[seed],undefined,[discovery])[0]).toMatchObject({provider:'hardcover',fallback:false});
  });
+
+test('missing language/author metadata cannot hide own edition cover or allow unverified cross-edition borrowing',()=>{
+ const own={...row('own','https://art/own.jpg'),metadata:{volumeInfo:{title:'An Ordinary Novel',imageLinks:{thumbnail:'https://art/own.jpg'}}}};
+ expect(editionCoverChoices(own,[own,row('other','https://art/other.jpg')])[0].url).toBe('https://art/own.jpg');
+ const empty={...own,metadata:{volumeInfo:{title:'An Ordinary Novel'}}};
+ expect(editionCoverChoices(empty,[empty,row('other','https://art/other.jpg')])).toEqual([]);
+});

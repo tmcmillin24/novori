@@ -13,3 +13,9 @@ test('an ordinary edition with a missing ISBN cannot acquire owner-preference pr
  const edition={...row('An Ordinary Novel'),isbn_13:null};
  expect(cachedWorkCovers([edition]).get(edition.work_id)).toMatchObject({preferred:false,score:0});
 });
+
+test('an edition own artwork survives missing language or author metadata, without accepting known foreign or audio editions',()=>{
+ const own={...row('An Ordinary Novel'),metadata:{volumeInfo:{title:'An Ordinary Novel',imageLinks:{thumbnail:'https://publisher/own.jpg'}}}};
+ expect(cachedEditionCover(own)).toBe('https://publisher/own.jpg');
+ expect(cachedEditionCover({...own,language:'es'})).toBeNull();
+});
