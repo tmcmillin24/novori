@@ -1,3 +1,4 @@
+import { createCacheLoggedFetch } from './cache-terminal-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createModeratedFetch } from './moderated-fetch';
 import {
@@ -24,7 +25,7 @@ export const supabase =
     supabaseUrl,
     supabasePublishableKey,
     {
-      global: { fetch: createModeratedFetch(supabaseUrl) },
+      global: { fetch: createCacheLoggedFetch(createModeratedFetch(supabaseUrl)) },
       auth: {
         storage:
           AsyncStorage,

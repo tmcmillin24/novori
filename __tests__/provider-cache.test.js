@@ -21,8 +21,8 @@ function harness() {
         if (acquired) locks.set(key, Date.now() + args.p_lease_seconds * 1000);
         return { data: [{ acquired, lock_until: new Date(locks.get(key)).toISOString() }] };
       }
-      if (name === 'novori_claim_isbndb_request') { if (errors.usage) return {error:{message:'unavailable'}}; isbnRequests++; return {data:[{allowed:true}]}; }
-      if (name === 'novori_record_hardcover_request') { if(errors.usage) return {error:{message:'tracking unavailable'}}; hardcoverRequests++; return {error:null}; }
+      if ((name === 'novori_claim_isbndb_request' || name === 'novori_begin_isbndb_request')) { if (errors.usage) return {error:{message:'unavailable'}}; isbnRequests++; return {data:[{allowed:true}]}; }
+      if ((name === 'novori_record_hardcover_request' || name === 'novori_begin_hardcover_request')) { if(errors.usage) return {error:{message:'tracking unavailable'}}; hardcoverRequests++; return {error:null}; }
       if (name === 'novori_claim_google_books_search') { claims++; return { data: [{ allowed: true, global_upstream_count: claims }] }; }
       if (name === 'novori_search_book_catalog_fuzzy') return { data: catalog };
       return { data: null, error: null };
@@ -30,7 +30,7 @@ function harness() {
     from(table) {
       const filters = {};
       const q = {
-        select: () => q, eq: (k,v) => { filters[k] = v; return q; },
+        update: () => q, select: () => q, eq: (k,v) => { filters[k] = v; return q; },
         in: (k,v) => { filters[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
@@ -209,7 +209,7 @@ test('series membership data is reused when a different book in the same series 
 
 test('a confirmed no-series result is cached and skips Google language lookup',async()=>{
   const h=harness();h.setUpstream(async()=>({data:{editions:[]}}));
-  expect(await h.request('hardcover-series',{isbn:'9781111111111'})).toEqual({series:null,books:[]});
+  expect(await h.request('hardcover-series',{isbn:'9781111111111'})).toMatchObject({series:null,books:[]});
   await h.request('hardcover-series',{isbn:'9781111111111'});
   expect(h.calls.length).toBe(1);expect(h.claims).toBe(0);
 });
@@ -670,4 +670,47 @@ test('warm duplicate provider IDs load ISBNdb details rather than an older Googl
  const result=await h.request('google-books-detail',{volumeId:id});
  expect(result.data.volumeInfo.imageLinks.thumbnail).toBe(modern.volumeInfo.imageLinks.thumbnail);
  expect(result.data.source.provider).toBe('isbndb');expect(h.calls).toHaveLength(0);
+});
+
+test('ISBNdb terminal metadata distinguishes a cold API call from repeat cache hits',async()=>{
+ const h=harness();h.env.NOVORI_BOOK_PROVIDER='isbndb';h.env.ISBNDB_API_KEY='isbn';
+ h.setUpstream(async()=>({books:[{isbn13:'9781601429292',title:'Known Novel',authors:['Writer'],language:'en',image:'https://images.isbndb.com/covers/art.jpg'}]}));
+ const first=await h.request('google-books-search',{query:'Known Novel'});
+ const second=await h.request('google-books-search',{query:'Known Novel'});
+ expect(first.cache.status).toBe('miss');expect(first.cacheTrace.upstream.isbndb).toBe(1);
+ expect(second.cache.status).toBe('hit');expect(second.cacheTrace.upstream).toEqual({});expect(h.isbnRequests).toBe(1);
+});
+test('confirmed Hardcover title/author no-match is reused across different edition ISBNs',async()=>{
+ const h=harness();h.setUpstream(async()=>({data:{books:[],book0:{results:{hits:[]}}}}));
+ const request=(id,isbn)=>h.request('hardcover-search-popularity',{allowTitleFallback:true,books:[{googleBookId:id,title:'An Unmatched Novel',authors:['Example Writer'],isbns:[isbn]}]});
+ await request('one','9781601429292');const coldCalls=h.calls.length;
+ const warm=await request('two','9781601422088');
+ expect(coldCalls).toBeGreaterThan(0);expect(h.calls.length).toBe(coldCalls);expect(warm.popularity).toEqual({});expect(warm.cacheTrace.upstream).toEqual({});
+});
+test('schema-invalid GraphQL queries get a day-long cooldown rather than recurring every five minutes',async()=>{
+ const h=harness();h.setUpstream(async()=>({errors:[{message:'unsupported field',extensions:{code:'validation-failed'}}]}));
+ const init={body:JSON.stringify({query:'query Invalid { unsupported }'})};
+ await expect(h.api.cachedHardcoverFetch(h.admin,'https://api.hardcover.app/v1/graphql',init,10000,30000)).rejects.toThrow('GraphQL');
+ const retry=[...h.rows.values()].find(row=>row.response_json.retry===true);
+ expect(Date.parse(retry.expires_at)-Date.now()).toBeGreaterThan(23*3600000);
+ await expect(h.api.cachedHardcoverFetch(h.admin,'https://api.hardcover.app/v1/graphql',init,10000,30000)).rejects.toThrow('cooling down');expect(h.calls).toHaveLength(1);
+});
+test('simultaneous different editions in one popularity batch share the verified-work lookup',async()=>{
+ const h=harness();h.setUpstream(async()=>({data:{books:[],book0:{results:{hits:[]}}}}));
+ await h.request('hardcover-search-popularity',{allowTitleFallback:true,books:[
+  {googleBookId:'edition-one',title:'Another Unmatched Novel',authors:['Example Writer'],isbns:['9781601429292']},
+  {googleBookId:'edition-two',title:'Another Unmatched Novel',authors:['Example Writer'],isbns:['9781601422088']},
+ ]});
+ expect(h.calls).toHaveLength(2); // one ISBN batch and one title batch, no repeated work.
+ const keys=[...h.rows.keys()].filter(key=>key.includes('work:v5:'));expect(keys).toHaveLength(1);
+});
+test('a cache filled after the initial read but before lease acquisition skips a second provider load',async()=>{
+ const h=harness();const rpc=h.admin.rpc;
+ h.admin.rpc=async(name,args)=>{
+  const result=await rpc(name,args);
+  if(name==='novori_claim_api_cache_refresh')h.rows.set('hardcover_series:series:test',{response_json:{known:true},fetched_at:new Date().toISOString(),expires_at:new Date(Date.now()+10000).toISOString(),stale_until:new Date(Date.now()+30000).toISOString()});
+  return result;
+ };
+ const load=jest.fn(async()=>({known:false}));
+ expect(await h.api.cachedProviderValue({...options(h),load})).toEqual({known:true});expect(load).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
 });

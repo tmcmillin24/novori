@@ -1,3 +1,4 @@
+import { providerTrace, noteProviderCache, noteProviderUpstream, finishProviderAttempt } from './provider-observability.ts';
 import { validPageCount, readEditionPages } from './edition-pages.ts';
 import { normalizeBookGenres } from './book-genres.ts';
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
@@ -85,8 +86,10 @@ async function upstream(admin: SupabaseClient, userId: string, path: string) {
   const key = Deno.env.get('ISBNDB_API_KEY');
   if (!key) throw new Error('ISBNdb credentials are not configured.');
   const deadline = Date.now() + 8000;
+  const requestId = crypto.randomUUID();
+  const route = path.startsWith('/books/') ? 'search' : 'detail';
   while (true) {
-    const { data, error } = await admin.rpc('novori_claim_isbndb_request', { p_user_id: userId || null });
+    const { data, error } = await admin.rpc('novori_begin_isbndb_request', { p_user_id: userId || null, p_request_id: requestId, p_route: route });
     if (error) throw new Error('ISBNdb quota controls are unavailable. Apply the ISBNdb migration first.');
     const claim = Array.isArray(data) ? data[0] : data;
     if (claim?.allowed) break;
@@ -97,8 +100,9 @@ async function upstream(admin: SupabaseClient, userId: string, path: string) {
     }
     await new Promise(resolve => setTimeout(resolve, Math.min(1200, Math.max(100, Number(claim.retry_ms) || 250))));
   }
-  console.info('ISBNdb upstream request', { provider: PROVIDER, route: path.startsWith('/books/') ? 'search' : 'detail' });
+  noteProviderUpstream(admin, PROVIDER, route);
   const response = await fetchJsonWithTimeout('https://api2.isbndb.com' + path, { headers: { Authorization: key } });
+  await finishProviderAttempt(admin, requestId, response, PROVIDER);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`ISBNdb lookup unavailable (${response.status}).`);
   return response.json();
@@ -216,10 +220,11 @@ async function detail(admin: SupabaseClient, userId: string, id: string) {
     const { data: source, error: sourceError } = await admin.from('google_books_catalog')
       .select('fetched_at').eq('google_book_id', id).maybeSingle();
     // A cache outage retains usable details; it must not trigger provider traffic.
-    if (sourceError) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    if (sourceError) { noteProviderCache(admin,PROVIDER,'hit-catalog',id); return { ...normalizeIsbnDbEdition(cached.metadata), id }; }
     const fetchedAt = Date.parse(source?.fetched_at ?? '');
-    if (Number.isFinite(fetchedAt) && fetchedAt <= Date.now() && Date.now() - fetchedAt < 30 * DAY)
-      return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    if (Number.isFinite(fetchedAt) && fetchedAt <= Date.now() && Date.now() - fetchedAt < 30 * DAY) {
+      noteProviderCache(admin,PROVIDER,'hit-catalog',id); return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    }
   }
   const isbn = validIsbn13(id.replace(/^nv_/, '')) ??
     (rows ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean);
@@ -238,8 +243,9 @@ export async function handleIsbnDbRequest(request: Request, kind: 'search' | 'de
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers });
   if (request.method === 'OPTIONS') return new Response('ok', { headers });
   if (request.method !== 'POST') return json({ ok: false, status: 405, error: 'Method not allowed.' }, 405);
+  let requestTrace:ReturnType<typeof providerTrace>|undefined;
   try {
-    const admin = createCacheAdmin();
+    const admin = createCacheAdmin();requestTrace=providerTrace(admin);
     let user;
     try { user = await requireReader(admin, request); } catch { return json({ ok: false, status: 401, error: 'A valid reader session is required.' }, 401); }
     const body = await request.json();
@@ -268,9 +274,10 @@ export async function handleIsbnDbRequest(request: Request, kind: 'search' | 'de
         data = { kind: body.mode, googleBookId: book?.id ?? null };
       }
     }
-    return json({ ok: true, status: 200, data, provider: PROVIDER, cache: { status: 'shared', googleRequestMade: false } });
+    const trace=providerTrace(admin);
+    return json({ ok: true, status: 200, data, provider: PROVIDER, cacheTrace: trace, cache: { status: trace.upstream.isbndb ? 'miss' : 'hit', googleRequestMade: false, providerRequestMade: Boolean(trace.upstream.isbndb) } });
   } catch (error) {
     console.warn('ISBNdb book lookup failed:', error instanceof Error ? error.message : 'unknown');
-    return json({ ok: false, status: error instanceof Error && error.name === 'CacheQuotaBlocked' ? 429 : 503, error: 'Book lookup is temporarily unavailable. Please try again shortly.' });
+    return json({ ok: false, cacheTrace: requestTrace, status: error instanceof Error && error.name === 'CacheQuotaBlocked' ? 429 : 503, error: 'Book lookup is temporarily unavailable. Please try again shortly.' });
   }
 }

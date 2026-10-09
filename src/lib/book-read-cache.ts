@@ -1,3 +1,4 @@
+import { localCacheLog } from './cache-terminal-log';
 /** Bounded local cache for public book metadata, never reader/library state. */
 export function createBookReadCache<T>(ttlMs = 5 * 60_000, maxEntries = 40) {
   const values = new Map<string, { value: T; expiresAt: number }>();
@@ -7,7 +8,7 @@ export function createBookReadCache<T>(ttlMs = 5 * 60_000, maxEntries = 40) {
   const copy = (value: T): T => JSON.parse(JSON.stringify(value));
   return async (key: string, load: (publish: (value: T) => void) => Promise<T>, cacheable: (value: T) => boolean = () => true, onProgress?: (value: T) => void): Promise<T> => {
     const cached = values.get(key);
-    if (cached && cached.expiresAt > Date.now()) return copy(cached.value);
+    if (cached && cached.expiresAt > Date.now()) {localCacheLog('device-metadata','HIT');return copy(cached.value);}
     const notify = (listener: (value: T) => void, value: T) => {
       try { listener(copy(value)); } catch { /* A UI subscriber cannot fail shared loading. */ }
     };
@@ -18,7 +19,9 @@ export function createBookReadCache<T>(ttlMs = 5 * 60_000, maxEntries = 40) {
       if (previews.has(key)) notify(onProgress, previews.get(key)!);
     }
     let request = pending.get(key);
+    if (request) localCacheLog('device-metadata','COALESCED');
     if (!request) {
+      localCacheLog('device-metadata','MISS');
       request = Promise.resolve().then(() => load(value => {
         previews.set(key, copy(value));
         for (const listener of listeners.get(key) ?? []) notify(listener, value);

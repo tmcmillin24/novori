@@ -112,3 +112,9 @@ API & cache now displays provider configuration/key presence (never key values),
 Deploy with `docs/MODERATION_SETUP.md`. The staged migration adds unpublished screening reviews, distinct-reporter priority, image removal/hash blocking, and content-free flag emails through the existing worker. Reports are ordered globally before pagination: three distinct open reporters gives High and five gives Urgent. This does not automatically delete content.
 
 Flagged submissions require owner/moderator decisions with reasons and current row revisions. Approval allows exact-content resubmission under the reader's permissions; rejected items have an appeal approval path. Do not turn on enforcement before the media route, updated app, image backfill and live tests pass. See `docs/MODERATION_LAUNCH_PLAN.md` for coverage and remaining launch checks.
+
+## October 9 cache observability
+
+Run `node scripts/deploy-cache-observability.mjs` from the repository root after exporting the copied CLI token. The migration adds service-only attempt logs and provider-header observations while retaining existing daily counters and cache contents. The wrapper deploys shared provider consumers and the admin handler and prints a compact read-only report. The existing Cloudflare production branch builds the updated UI.
+
+Usage shows **Novori-recorded today** separately from **Provider-reported today · last observed**. Hardcover's reported value comes from existing response daily-limit headers; missing headers are unknown. It can include traffic outside Novori and earlier untracked traffic. It is never backfilled into recorded counters. Attempt logs show route/start/status (pending if interrupted), without keys, queries or reader data. Metro `[Novori cache]` logs expose device hits, shared hits, coalescing and actual provider calls. A device MISS can still be a shared HIT with zero paid calls.

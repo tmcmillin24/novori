@@ -1,3 +1,4 @@
+import { noteProviderCache, noteProviderUpstream, finishProviderAttempt, startProviderTrace } from './provider-observability.ts';
 import { getServerKey } from "./supabase-keys.mjs";
 import { isbnDbEnabled, isbnDbSearch } from './isbndb.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -13,7 +14,8 @@ export function createCacheAdmin() {
   const url = Deno.env.get('SUPABASE_URL');
   let key = getServerKey(name => Deno.env.get(name));
   if (!url || !key) throw new Error('Shared API cache is not configured.');
-  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  startProviderTrace(admin);return admin;
 }
 
 export async function requireReader(admin: SupabaseClient, request: Request) {
@@ -62,7 +64,8 @@ function usable(row: ProviderCacheRow | null | undefined): boolean {
   return Boolean(row && Date.parse(row.stale_until) > Date.now());
 }
 
-async function recordHit(admin: SupabaseClient, provider: string, key: string, stale: boolean) {
+export async function recordHit(admin: SupabaseClient, provider: string, key: string, stale: boolean) {
+  noteProviderCache(admin, provider, stale ? 'hit-stale' : 'hit', key);
   const { error } = await admin.rpc('novori_record_api_cache_hit', {
     p_provider: provider, p_request_key: key, p_stale: stale,
   });
@@ -121,6 +124,10 @@ export async function cachedProviderValue<T>(options: {
     throw busy;
   }
   try {
+    // A peer may have filled the cache between our read and lease acquisition.
+    const filled = capLifetime(await readProviderCache(admin, provider, key));
+    if (filled && fresh(filled)) { options.onCacheRead?.(filled); await recordHit(admin, provider, key, false); return filled.response_json as T; }
+    noteProviderCache(admin, provider, 'miss', key);
     const result = await load();
     const lifetime = options.valueLifetime?.(result) ?? { freshMs, staleMs };
     const row = await writeProviderCache(admin, provider, key, result, lifetime.freshMs, lifetime.staleMs, options.sourceExpiresAt?.());
@@ -130,7 +137,8 @@ export async function cachedProviderValue<T>(options: {
     // Keep the original stale deadline. Failed refreshes cannot make old data immortal.
     if (!(error instanceof Error && ['CacheRefreshBusy', 'CacheQuotaBlocked'].includes(error.name))) {
       try {
-        await writeProviderCache(admin, provider, key + ':retry', { retry: true }, RETRY_MS, RETRY_MS);
+        const retryMs = error instanceof Error && error.name === 'ProviderQueryUnsupported' ? 86400000 : RETRY_MS;
+        await writeProviderCache(admin, provider, key + ':retry', { retry: true }, retryMs, retryMs);
       } catch (cacheError) { console.warn('Could not persist provider retry cooldown:', cacheError); }
     }
     if (options.allowStale !== false && cached && usable(cached)) {
@@ -173,7 +181,11 @@ export async function cachedHardcoverFetch(
     const response = await fetchHardcoverUpstream(admin, url, init, provider);
     if (!response.ok) throw new Error('Hardcover request failed (' + response.status + ').');
     const payload = await response.json();
-    if (payload.errors?.length) throw new Error('Hardcover returned GraphQL errors.');
+    if (payload.errors?.length) {
+      const error = new Error('Hardcover returned GraphQL errors.');
+      if (payload.errors.every((item: any) => ['validation-failed','GRAPHQL_VALIDATION_FAILED'].includes(item.extensions?.code))) error.name = 'ProviderQueryUnsupported';
+      throw error;
+    }
     return payload;
   } });
   return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -182,10 +194,12 @@ export async function cachedHardcoverFetch(
 export async function fetchHardcoverUpstream(admin: SupabaseClient, url: string, init: RequestInit, route = 'unknown') {
   const retry = await readProviderCache(admin, 'hardcover_popularity', 'hardcover:rate-limit-retry');
   if (fresh(retry)) throw new Error('Hardcover rate limit is cooling down.');
-  const { error: usageError } = await admin.rpc('novori_record_hardcover_request');
+  const requestId = crypto.randomUUID();
+  const { error: usageError } = await admin.rpc('novori_begin_hardcover_request', {p_request_id: requestId, p_route: route});
   if (usageError) throw new Error('Could not record Hardcover request: ' + usageError.message);
-  console.info('Hardcover upstream request', { provider: 'hardcover', route });
+  noteProviderUpstream(admin, 'hardcover', route);
   const response = await fetchJsonWithTimeout(url, init);
+  await finishProviderAttempt(admin, requestId, response, 'hardcover');
   if (response.status === 429) {
     await writeProviderCache(admin, 'hardcover_popularity', 'hardcover:rate-limit-retry', { retry: true }, RETRY_MS, RETRY_MS);
   }

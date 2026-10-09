@@ -1,5 +1,6 @@
+import { providerTrace } from '../_shared/provider-observability.ts';
 import { cleanCatalogBookTitle, catalogWorkTitleKey, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
-import { cacheDigest, cachedHardcoverFetch, cachedProviderValue, createCacheAdmin, readProviderCache, requireReader, writeProviderCache } from '../_shared/provider-cache.ts';
+import { cacheDigest, cachedHardcoverFetch, cachedProviderValue, createCacheAdmin, readProviderCache, requireReader, writeProviderCache, recordHit } from '../_shared/provider-cache.ts';
 import { claimApiCacheRefresh, waitForApiCacheFill } from '../_shared/api-cache-guard.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -405,8 +406,9 @@ Deno.serve(async request => {
   const respond = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
     status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+  let requestTrace:ReturnType<typeof providerTrace>|undefined;
   try {
-    const admin = createCacheAdmin();
+    const admin = createCacheAdmin();requestTrace=providerTrace(admin);
     await requireReader(admin, request);
     const token = Deno.env.get('HARDCOVER_API_TOKEN') ?? Deno.env.get('HARDCOVER_API_KEY') ?? Deno.env.get('HARDCOVER_TOKEN');
     if (!token) throw new Error('Hardcover API token is not configured.');
@@ -435,7 +437,8 @@ Deno.serve(async request => {
       const popularity: Record<string, Popularity> = {};
       const pending: typeof prepared = [], waiting: typeof prepared = [];
       for (const item of prepared) {
-        const work = item.workKey ? await readProviderCache(admin, provider, item.workKey) : null;
+        let work = item.workKey ? await readProviderCache(admin, provider, item.workKey) : null;
+        if (work && !cachedPopularity(work) && !allowTitleFallback) work = null;
         let cached = work && Date.parse(work.expires_at) > Date.now() ? work : await readProviderCache(admin, provider, item.key);
         if (cached && !cachedPopularity(cached)) {
           const fetchedAt = Date.parse(cached.fetched_at ?? '');
@@ -443,11 +446,12 @@ Deno.serve(async request => {
         }
         if (cached && Date.parse(cached.expires_at) > Date.now()) {
           noteSource(cached);
+          await recordHit(admin,provider,cached === work ? item.workKey! : item.key,false);
           const result = cachedPopularity(cached);
           if (result) popularity[item.book.googleBookId] = result;
           continue;
         }
-        const claim = await claimApiCacheRefresh(admin, provider, item.key, crypto.randomUUID(), 60);
+        const claim = await claimApiCacheRefresh(admin, provider, allowTitleFallback && item.workKey ? item.workKey : item.key, crypto.randomUUID(), 60);
         (claim.acquired ? pending : waiting).push(item);
       }
       const allIsbns = Array.from(new Set<string>(pending.flatMap(item => item.book.isbns))).sort();
@@ -516,10 +520,12 @@ Deno.serve(async request => {
         if (result) {
           popularity[item.book.googleBookId] = result;
           if (item.workKey) await writeProviderCache(admin, provider, item.workKey, result, freshMs, staleMs, sourceExpiresAt);
+        } else if (allowTitleFallback && item.workKey) {
+          await writeProviderCache(admin, provider, item.workKey, {kind: 'book_popularity', value: null}, 6 * 3600000, 6 * 3600000, sourceExpiresAt);
         }
       }
       for (const item of waiting) {
-        const cached = await waitForApiCacheFill(admin, provider, item.key);
+        const cached = await waitForApiCacheFill(admin, provider, allowTitleFallback && item.workKey ? item.workKey : item.key);
         if (!cached) {
           const busy = new Error('Provider refresh is already in progress.');
           busy.name = 'CacheRefreshBusy';
@@ -531,9 +537,9 @@ Deno.serve(async request => {
       }
       return { popularity };
     } });
-    return respond(payload);
+    return respond({...payload, cacheTrace: providerTrace(admin)});
   } catch (error) {
     console.error('hardcover-search-popularity failed:', error);
-    return respond({ error: error instanceof Error ? error.message : 'Could not load Hardcover popularity.' }, 503);
+    return respond({ cacheTrace:requestTrace, error: error instanceof Error ? error.message : 'Could not load Hardcover popularity.' }, 503);
   }
 });

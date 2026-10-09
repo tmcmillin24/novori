@@ -775,7 +775,7 @@ const screens = {
         );
       } else {
         for (const [key, label] of [
-          ["today", "Today"],
+          ["today", "Novori-recorded today"],
           ["days7", "Last 7 days"],
           ["days30", "Last 30 days"],
         ])
@@ -786,6 +786,12 @@ const screens = {
               el("strong", Number(totals[key]).toLocaleString()),
             ),
           );
+        if (totals.provider_reported) {
+          card.append(add(el("div"),el("small","Provider-reported today · last observed"),el("strong",Number(totals.provider_reported.reported_used).toLocaleString())));
+          card.append(el("p",`From provider response headers at ${date(totals.provider_reported.observed_at)}. Novori-recorded today: ${Number(totals.today).toLocaleString()}.`,"hint"));
+        } else if (provider === "hardcover") {
+          card.append(el("p","Provider-reported daily usage will appear after the next normal upstream response supplies its daily quota headers.","hint"));
+        }
         card.append(
           el(
             "p",
@@ -813,6 +819,10 @@ const screens = {
       ]),
     );
     main.append(panel);
+    const attemptPanel=el("section",undefined,"panel");
+    add(attemptPanel,el("h2","Recent provider attempts · UTC"));
+    table(attemptPanel,["Started","Provider","Route","HTTP"],(d.recent_attempts??[]).map(row=>[date(row.started_at),pretty(row.provider),row.route,row.status_code??"Pending / interrupted"]));
+    main.append(attemptPanel);
     main.append(
       el(
         "p",

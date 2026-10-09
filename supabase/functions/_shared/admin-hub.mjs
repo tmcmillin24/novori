@@ -578,6 +578,14 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     summary.isbndb.last_request_at = isbnDbReady
       ? (check(isbndb)[0]?.last_request_at ?? null)
       : null;
+    const observations = await client.from("novori_provider_usage_observations")
+      .select("provider,usage_date,reported_used,reported_limit,remaining,observed_at,source").eq("usage_date",today);
+    const attempts = await client.from("novori_provider_request_log")
+      .select("id,provider,route,started_at,completed_at,status_code")
+      .gte("started_at",`${today}T00:00:00.000Z`).order("started_at",{ascending:false}).limit(50);
+    if (!missing(observations)) for (const observation of check(observations)) {
+      if (summary[observation.provider]) summary[observation.provider].provider_reported = observation;
+    }
     const cache = await client
       .from("book_api_cache")
       .select("provider,request_key,hit_count,fetched_at,expires_at", {
@@ -588,10 +596,11 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     return {
       rows,
       summary,
+      recent_attempts: missing(attempts) ? [] : check(attempts),
       configuration: {
         book_provider: settings.bookProvider ?? "unknown",
         isbndb_key_configured: Boolean(settings.isbnDbConfigured),
-        audit_version: "2026-10-05-api-audit-v1",
+        audit_version: "2026-10-09-cache-observability-v2",
       },
       utc_window: {
         start: `${today}T00:00:00.000Z`,

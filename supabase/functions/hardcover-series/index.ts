@@ -1,3 +1,4 @@
+import { providerTrace, noteProviderCache } from '../_shared/provider-observability.ts';
 import { cacheSeriesEditionPages } from '../_shared/edition-pages.ts';
 import { readSeriesMembership, cacheSeriesMembership } from '../_shared/series-membership-cache.ts';
 import { cleanCatalogBookTitle, normalizeCatalogAuthor, catalogWorkTitleKey } from '../_shared/book-edition-metadata.ts';
@@ -14,6 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { selectCanonicalGoogleCoversForWorkIds } from "../_shared/book-cover-selector.ts";
 
 Deno.serve(async (req) => {
+  let requestTrace:ReturnType<typeof providerTrace>|undefined;
 
   const corsHeaders = {
 
@@ -214,7 +216,7 @@ Deno.serve(async (req) => {
 
 
 
-    const supabaseAdmin = createCacheAdmin();
+    const supabaseAdmin = createCacheAdmin();requestTrace=providerTrace(supabaseAdmin);
     await requireReader(supabaseAdmin, req);
     let sourceExpiresAt = Infinity;
     const fetchHardcover = (url: string, init: RequestInit) => cachedHardcoverFetch(
@@ -283,6 +285,7 @@ Deno.serve(async (req) => {
     ].join('::');
 
     const knownMembership = await readSeriesMembership(supabaseAdmin,{title:requestedTitle,authors:requestedAuthors,coverBookId:requestedGoogleBookId});
+    if (knownMembership) noteProviderCache(supabaseAdmin,'hardcover_series','hit-membership',hardcoverSeriesCacheKey);
     const responsePayload = knownMembership ?? await cachedProviderValue({
       admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,
       key: hardcoverSeriesCacheKey, freshMs: HARDCOVER_SERIES_CACHE_TTL_MS,
@@ -3007,7 +3010,7 @@ Deno.serve(async (req) => {
     const verifiedPayload = await attachDiscoveryCatalogCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({...row, coverOrigin: 'series', formatPolicyVersion: 1})) });
     await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
     if (!knownMembership) await cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey);
-    return new Response(JSON.stringify(verifiedPayload), {
+    return new Response(JSON.stringify({...verifiedPayload,cacheTrace:providerTrace(supabaseAdmin)}), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
@@ -3015,6 +3018,7 @@ Deno.serve(async (req) => {
     return new Response(
 
       JSON.stringify({
+        cacheTrace:requestTrace,
 
         error:
 

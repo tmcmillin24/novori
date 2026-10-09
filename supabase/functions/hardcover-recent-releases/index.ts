@@ -1,3 +1,4 @@
+import { providerTrace, noteProviderCache } from '../_shared/provider-observability.ts';
 import { hardcoverDiscoveryEligible } from '../_shared/hardcover-discovery-policy.ts';
 import { normalizeBookGenres } from '../_shared/book-genres.ts';
 import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
@@ -155,10 +156,11 @@ function withCacheMeta(
   payload: Record<string, unknown>,
   status: string,
   refreshedAt: string,
-  ttlMs: number
+  ttlMs: number, cacheTrace?: unknown
 ) {
   return {
     ...payload,
+    cacheTrace,
     cache: {
       status,
       refreshedAt,
@@ -278,8 +280,10 @@ Deno.serve(async (req) => {
   let cachedRow:
     CacheRow | null = null;
 
+  let requestTrace: ReturnType<typeof providerTrace> | undefined;
   try {
     const supabaseAdmin = createCacheAdmin();
+    requestTrace = providerTrace(supabaseAdmin);
     await requireReader(supabaseAdmin, req);
     const fetchHardcover = (url: string, init: RequestInit) => fetchHardcoverUpstream(
       supabaseAdmin, url, init, 'hardcover_recent_releases'
@@ -371,6 +375,7 @@ if (
       cachedRow &&
       (cacheIsFresh)
     ) {
+      noteProviderCache(supabaseAdmin,'hardcover_popularity','hit-discovery',cacheKey);
       const responsePayload =
         await applyCanonicalDiscoveryCovers(
           cachedRow.payload
@@ -381,7 +386,7 @@ if (
           responsePayload,
           "hit",
           cachedRow.refreshed_at,
-          CACHE_TTL_MS
+          CACHE_TTL_MS, requestTrace
         )
       );
     }
@@ -638,7 +643,7 @@ if (
       },
     });
     const responsePayload = await applyCanonicalDiscoveryCovers(refreshedPayload);
-    return jsonResponse(withCacheMeta(responsePayload, "shared", sharedRefreshedAt, CACHE_TTL_MS));
+    return jsonResponse(withCacheMeta(responsePayload, "shared", sharedRefreshedAt, CACHE_TTL_MS, requestTrace));
   } catch (error) {
     console.error(
       "hardcover-recent-releases error:",
@@ -656,7 +661,7 @@ if (
           responsePayload,
           "stale-fallback",
           cachedRow.refreshed_at,
-          CACHE_TTL_MS
+          CACHE_TTL_MS, requestTrace
         )
       );
     }
@@ -665,6 +670,7 @@ if (
       {
         error:
           "Unexpected error",
+        cacheTrace:requestTrace,
         details:
           String(error),
       },

@@ -1,3 +1,4 @@
+import { localCacheLog } from './cache-terminal-log';
 import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { normalizeIsbnDbEdition } from '../../supabase/functions/_shared/book-edition-metadata';
@@ -785,18 +786,18 @@ async function loadGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResul
   const startIndex = searchQuery ? Math.max(0, Number(new URL(url).searchParams.get('startIndex') ?? 0) || 0) : 0;
   const key = detailId ? 'detail:' + detailId : 'search:' + (searchQuery ?? '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim() + ':' + startIndex;
   const memory = memoryCache.get(key);
-  if (memory && memory.expiresAt > Date.now()) return { ok: memory.status >= 200 && memory.status < 300, status: memory.status, data: memory.data as T, fromCache: true };
+  if (memory && memory.expiresAt > Date.now()) { localCacheLog('device-provider','HIT'); return { ok: memory.status >= 200 && memory.status < 300, status: memory.status, data: memory.data as T, fromCache: true }; }
   const existing = inFlight.get(key);
   if (existing) return existing as Promise<GoogleBooksJsonResult<T>>;
   const request = (async () => {
     if (detailId) {
       const primed = volumeMemoryCache.get(detailId);
-      if (primed && primed.expiresAt > Date.now()) return { ok: true, status: 200, data: primed.data, fromCache: true };
+      if (primed && primed.expiresAt > Date.now()) { localCacheLog('device-detail','HIT');return { ok: true, status: 200, data: primed.data, fromCache: true }; }
       const persisted = await readPersistentDetail<unknown>(detailId);
       if (persisted) {
         storeMemory(volumeMemoryCache, detailId, persisted);
         storeMemory(memoryCache, key, { ...persisted, status: 200 });
-        return { ok: true, status: 200, data: persisted.data, fromCache: true };
+        localCacheLog('device-disk','HIT');return { ok: true, status: 200, data: persisted.data, fromCache: true };
       }
       const catalog = await readCatalogBook<unknown>(detailId);
       if (catalog) {
@@ -804,7 +805,7 @@ async function loadGoogleBooksJson<T>(url: string): Promise<GoogleBooksJsonResul
         storeMemory(volumeMemoryCache, detailId, { data: catalog.data, expiresAt });
         storeMemory(memoryCache, key, { data: catalog.data, expiresAt, status: 200 });
         void persistDetail(detailId, catalog.data, catalog.savedAt);
-        return { ok: true, status: 200, data: catalog.data, fromCache: true };
+        localCacheLog('catalog-detail','HIT');return { ok: true, status: 200, data: catalog.data, fromCache: true };
       }
     }
     const result = detailId ? await fetchSharedGoogleBooksDetail(detailId)

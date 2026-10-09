@@ -17,7 +17,7 @@ function harness(workDetails) {
   function load(){
     const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/lib/google-books.ts'),'utf8');
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(compiled+";exports.cacheSizes=()=>[memoryCache.size,volumeMemoryCache.size];",{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
+    vm.runInNewContext(compiled+";exports.cacheSizes=()=>[memoryCache.size,volumeMemoryCache.size];",{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('cache-terminal-log')?{localCacheLog:()=>{}}:name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
     return exports;
   }
   return {storage,calls,load,setCatalog:value=>{catalog=value;}};
