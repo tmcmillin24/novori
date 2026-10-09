@@ -1,3 +1,4 @@
+import { applyEditionPages, subscribeEditionPages, rememberEditionPages } from '../../../lib/edition-pages';
 import { normalizeBookGenres } from '../../../../supabase/functions/_shared/book-genres';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
 import { matchesSeriesCatalogEdition } from '../../../../supabase/functions/_shared/series-book-catalog';
@@ -142,6 +143,7 @@ type HardcoverSeries = {
 };
 
 type HardcoverSeriesResponse = {
+  pageCounts?: Record<string,{isbn:string;pageCount:number}>;
   series: HardcoverSeries | null;
   books: HardcoverSeriesBook[];
   error?: string;
@@ -1116,6 +1118,8 @@ export default function BookDetailsScreen() {
     useState(false);
   const [savingOwned, setSavingOwned] =
     useState(false);
+  useEffect(() => subscribeEditionPages(() => setBook(current => current ? applyEditionPages(current) : current)), []);
+
   const [series, setSeries] =
     useState<HardcoverSeries | null>(null);
   const [seriesBooks, setSeriesBooks] =
@@ -1353,7 +1357,7 @@ export default function BookDetailsScreen() {
             cachedFirst: true,
             onWorkDetails: enriched => {
               latestWorkDetails = enriched;
-              if (active && coreReady && enriched.id === openingBookId) setBook(enriched);
+              if (active && coreReady && enriched.id === openingBookId) setBook(applyEditionPages(enriched));
             },
           }
         );
@@ -1407,7 +1411,7 @@ export default function BookDetailsScreen() {
         }, resolvedBook.id);
         openingBookId = resolvedBook.id;
         coreReady = true;
-        setBook(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
+        setBook(applyEditionPages(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook));
         const coverInput = {
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
@@ -2050,6 +2054,7 @@ export default function BookDetailsScreen() {
         return null;
       }
 
+      rememberEditionPages(response.pageCounts ?? {});
       const resolvedSeries =
         response.series ??
           null;

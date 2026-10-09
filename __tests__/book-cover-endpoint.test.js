@@ -57,6 +57,7 @@ function endpoint(locked = false, customize = () => {}) {
       : name.includes('series-book-catalog') ? require('../supabase/functions/_shared/series-book-catalog')
       : name.includes('catalog-metadata-covers') ? require('../supabase/functions/_shared/catalog-metadata-covers')
       : name.includes('catalog-cover-aliases') ? require('../supabase/functions/_shared/catalog-cover-aliases')
+      : name.includes('edition-pages') ? require('../supabase/functions/_shared/edition-pages')
       : name.includes('book-publication-cache') ? require('../supabase/functions/_shared/book-publication-cache')
       : { selectCanonicalGoogleCoversForWorkIds },
   });
@@ -144,4 +145,15 @@ test('the actual shared cover endpoint serves persisted Hardcover art across edi
  const result=await run({volumeIds:['volumeA','volumeB'],isbns:['9781234567897','123456789X']});
  expect(Object.values(result.data.covers).every(value=>value===url)).toBe(true);
  expect(result.data.details.volumeA).toMatchObject({provider:'hardcover',workId:'hardcover:30',scope:'work',genres:['Fantasy'],reviewsCount:123,aliases:['volumeA','volumeB']});
+});
+
+
+test('the shared cover batch carries exact-edition pages independently of the artwork winner', async () => {
+ const api = endpoint(false, rows => {
+  rows.book_editions[0].metadata.source = {provider:'isbndb',isbn13:'9781234567897'};
+  rows.book_editions[0].metadata.volumeInfo.pageCount = '320';
+ });
+ const result = await api({volumeIds:['volumeA']});
+ expect(result.data.pageCounts.volumeA).toEqual({isbn:'9781234567897',pageCount:320});
+ expect(result.data.covers.volumeA).toBe('https://art/original.jpg');
 });

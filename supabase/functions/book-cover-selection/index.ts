@@ -1,3 +1,4 @@
+import { readEditionPages } from '../_shared/edition-pages.ts';
 import { readEditionCovers } from '../_shared/edition-cover-catalog.ts';
 import { matchesSeriesCatalogEdition } from '../_shared/series-book-catalog.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
@@ -237,7 +238,7 @@ Deno.serve(
             'book_editions'
           )
           .select(
-            'id,provider,provider_book_id, work_id, isbn_10, isbn_13, language, metadata'
+            'id,provider,provider_book_id, work_id, isbn_10, isbn_13, language, page_count, metadata'
           )
           .in('provider', ['google_books', 'isbndb'])
           .in(
@@ -256,7 +257,7 @@ Deno.serve(
         const wanted = requestedIsbns.filter(value => value.length === (column === 'isbn_10' ? 10 : 13));
         if (!wanted.length) continue;
         const { data: isbnEditions, error: isbnError } = await supabaseAdmin
-          .from('book_editions').select('id,provider,provider_book_id, work_id, isbn_10, isbn_13, language, metadata')
+          .from('book_editions').select('id,provider,provider_book_id, work_id, isbn_10, isbn_13, language, page_count, metadata')
           .in('provider', ['google_books', 'isbndb']).in(column, wanted);
         if (isbnError) throw new Error(`Could not read ISBN cover identities: ${isbnError.message}`);
         for (const edition of isbnEditions ?? []) {
@@ -314,6 +315,7 @@ Deno.serve(
             covers,
             details,
             publications: await readCatalogPublications(supabaseAdmin, editionRows),
+            pageCounts: await readEditionPages(supabaseAdmin, editionRows),
           },
         }
       );

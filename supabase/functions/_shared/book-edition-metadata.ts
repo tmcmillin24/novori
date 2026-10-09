@@ -1,3 +1,4 @@
+import { validPageCount } from './page-count.ts';
 type EditionBook = {
  source?: { provider?: string };
  novoriEdition?: { binding?: string; format?: string; originalTitle?: string; productKind?: string };
@@ -97,7 +98,7 @@ export function normalizeIsbnDbEdition<T extends EditionBook>(book: T): T {
   description: book.volumeInfo.description?.replace(/\s*\[Bokinfo\]\s*$/i, '').trim(),
   authors: book.volumeInfo.authors?.map(normalizeCatalogAuthor),
   // Audio disc counts are not reading pages. Preserve valid short print books.
-  pageCount: format === 'audio' ? undefined : book.volumeInfo.pageCount,
+  pageCount: format === 'audio' ? undefined : validPageCount(book.volumeInfo.pageCount),
  } };
 }
 

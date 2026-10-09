@@ -1,3 +1,4 @@
+import { readEditionPages } from './edition-pages.ts';
 import { safeHardcoverCoverUrl, verifiedHardcoverDiscoveryChoice, DISCOVERY_COVER_VARIANT } from './hardcover-discovery-covers.ts';
 import { attachSeriesCatalogIdentities } from './series-book-catalog.ts';
 import { readEditionCovers } from './edition-cover-catalog.ts';
@@ -12,7 +13,7 @@ export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
     .in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
   if (error) throw error;
   const choices = await readEditionCovers(admin, editions ?? [], payload.books ?? [], payload.series);
-  return { ...verified, books: verified.books.flatMap((book: any) => {
+  return { ...verified, pageCounts: await readEditionPages(admin, editions ?? []), books: verified.books.flatMap((book: any) => {
     const candidates = choices.get(book.coverBookId) ?? [];
     const cover = candidates[0];
     if (!cover) return [discoveryArtOnly(book)];

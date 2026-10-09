@@ -1,3 +1,4 @@
+import { rememberEditionPages } from './edition-pages';
 import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genres';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
@@ -284,6 +285,7 @@ async function flush() {
       },
     });
     if (error || data?.ok !== true) throw error ?? new Error('Cover catalog unavailable');
+    rememberEditionPages(data.data?.pageCounts ?? {});
     publishCatalogCovers(data.data?.covers ?? {}, data.data?.details ?? {}, readRevision);
     for (const [key, waiters] of requests) {
       if (!entries.get(key)?.url) {

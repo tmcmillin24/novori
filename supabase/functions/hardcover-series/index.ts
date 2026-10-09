@@ -1,4 +1,6 @@
-import { cleanCatalogBookTitle, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
+import { cacheSeriesEditionPages } from '../_shared/edition-pages.ts';
+import { readSeriesMembership, cacheSeriesMembership } from '../_shared/series-membership-cache.ts';
+import { cleanCatalogBookTitle, normalizeCatalogAuthor, catalogWorkTitleKey } from '../_shared/book-edition-metadata.ts';
 import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachDiscoveryCatalogCovers } from '../_shared/discovery-cover-catalog.ts';
@@ -280,7 +282,8 @@ Deno.serve(async (req) => {
       requestedTitle && requestedAuthors.length ? '' : requestedIsbns.slice().sort().join(','),
     ].join('::');
 
-    const responsePayload = await cachedProviderValue({
+    const knownMembership = await readSeriesMembership(supabaseAdmin,{title:requestedTitle,authors:requestedAuthors,coverBookId:requestedGoogleBookId});
+    const responsePayload = knownMembership ?? await cachedProviderValue({
       admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,
       key: hardcoverSeriesCacheKey, freshMs: HARDCOVER_SERIES_CACHE_TTL_MS,
       staleMs: HARDCOVER_SERIES_STALE_TTL_MS, leaseSeconds: 600, sourceExpiresAt: () => sourceExpiresAt,
@@ -707,7 +710,7 @@ Deno.serve(async (req) => {
           .trim();
       }
 
-    const workTitleKey = (value: string) => normalizeSearchText(cleanCatalogBookTitle(value ?? ''));
+    const workTitleKey = (value: string) => catalogWorkTitleKey(value ?? '');
     const workAuthorKey = (value: string) => normalizeSearchText(normalizeCatalogAuthor(value ?? ''));
     const matchesRequestedBook = (book: any) => Boolean(book) &&
       (!requestedTitle || workTitleKey(book.title) === workTitleKey(requestedTitle)) &&
@@ -1324,6 +1327,7 @@ Deno.serve(async (req) => {
                 title
                 image { url width height }
                 reading_format { format }
+                pages
                 release_date
                 compilation
 
@@ -1472,6 +1476,8 @@ Deno.serve(async (req) => {
     const fullSeries =
 
       seriesJson?.data?.series_by_pk;
+    await cacheSeriesEditionPages(supabaseAdmin,(fullSeries?.book_series ?? []).map((row: any)=>row.book).filter(Boolean),sourceExpiresAt);
+
 
 
 
@@ -3000,6 +3006,7 @@ Deno.serve(async (req) => {
     });
     const verifiedPayload = await attachDiscoveryCatalogCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({...row, coverOrigin: 'series', formatPolicyVersion: 1})) });
     await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
+    if (!knownMembership) await cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey);
     return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

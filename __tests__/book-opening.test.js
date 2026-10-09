@@ -10,7 +10,7 @@ function harness({ canonicalId = 'book', failStatus = false, discoveryId = undef
   let metadataOptions;
   const getUserBook = jest.fn(id => failStatus ? Promise.reject(Error('offline')) : reader.promise.then(row => ({ ...row, google_book_id: id })));
   const deps = {
-    ...setters, discoveryId, rememberDiscoveryBookId: jest.fn(), id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
+    ...setters, applyEditionPages: require('../src/lib/edition-pages').applyEditionPages, discoveryId, rememberDiscoveryBookId: jest.fn(), id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
     clickedTitle: 'Dune', discoverClickedAuthors: ['Frank Herbert'], clickedIsbn: undefined, discoverCoverUrl: 'https://covers/current',
     savedStatusVersion: { current: 0 }, bookLoadGeneration: { current: 0 }, firstFocusBook: { current: null }, isSavedBookContext: true,
     getUserBook,

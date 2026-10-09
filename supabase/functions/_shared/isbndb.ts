@@ -1,3 +1,4 @@
+import { validPageCount, readEditionPages } from './edition-pages.ts';
 import { normalizeBookGenres } from './book-genres.ts';
 import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { normalizeIsbnDbEdition, isCatalogCollection, isCatalogSupplement, catalogWorkTitleKey, audioEditionPenalty } from './book-edition-metadata.ts';
@@ -59,7 +60,7 @@ export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
       publisher: typeof raw.publisher === 'string' ? raw.publisher : undefined,
       publishedDate: typeof raw.date_published === 'string' ? raw.date_published : undefined,
       description: typeof raw.synopsis === 'string' ? raw.synopsis : undefined,
-      pageCount: Number.isInteger(raw.pages) && raw.pages > 0 ? raw.pages : undefined,
+      pageCount: validPageCount(raw.pages),
       language: ({ eng: 'en', fra: 'fr', spa: 'es', deu: 'de' } as Record<string, string>)[raw.language] ?? raw.language,
       categories: normalizeBookGenres(raw.subjects),
       industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }, ...(typeof raw.isbn10 === 'string' && isbn13From10(raw.isbn10) === isbn ? [{ type: 'ISBN_10', identifier: raw.isbn10 }] : [])],
@@ -235,6 +236,8 @@ export async function handleIsbnDbRequest(request: Request, kind: 'search' | 'de
     else if (kind === 'detail') {
       data = await detail(admin, user.id, body.volumeId);
       if (!data) return json({ ok: false, status: 404, error: 'This book edition is unavailable.' });
+      const pages = await readEditionPages(admin,[{provider_book_id:body.volumeId,metadata:data}]);
+      if (pages[body.volumeId]) (data as Book).volumeInfo.pageCount = pages[body.volumeId].pageCount;
     } else {
       if (!['isbn', 'identity', 'trending'].includes(body.mode)) throw new Error('Invalid resolver mode.');
       if (body.mode === 'isbn') {

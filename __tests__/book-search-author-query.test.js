@@ -6,6 +6,7 @@ function load(items,responses={},popularity={}){
  exports,console,URL,Date,Math,Map,Set,Promise,require:name=>{
  if(name.includes('book-work-details'))return require('../src/lib/book-work-details');
  if(name.includes('book-read-cache'))return require('../src/lib/book-read-cache');
+ if(name==='./edition-pages')return require('../src/lib/edition-pages');
  if(name.includes('book-publication'))return require('../src/lib/book-publication');
  if(name.includes('book-genres'))return require('../supabase/functions/_shared/book-genres');
  if(name.includes('book-edition-metadata'))return require('../supabase/functions/_shared/book-edition-metadata');

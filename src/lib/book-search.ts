@@ -1,3 +1,4 @@
+import { rememberEditionPages, applyEditionPages } from './edition-pages';
 import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genres';
 import { bookWorkDetails } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
@@ -224,10 +225,12 @@ async function attachCatalogSearchCovers(
       return;
     }
 
+    rememberEditionPages((data as any)?.data?.pageCounts ?? {});
     const covers = response.data?.covers ?? {};
     const publications = (data as any)?.data?.publications ?? {};
     rememberBookPublications(Object.values(publications));
     for (const book of books) {
+      book.volumeInfo = applyEditionPages(book).volumeInfo;
       const detail = (data as any)?.data?.details?.[book.id];
       book.volumeInfo.categories = normalizeBookGenres(detail?.genres?.length ? detail.genres : book.volumeInfo.categories);
       if (Number.isSafeInteger(detail?.reviewsCount) && detail.reviewsCount >= 0) {
