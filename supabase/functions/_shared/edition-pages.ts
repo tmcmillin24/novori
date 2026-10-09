@@ -23,7 +23,7 @@ export function samePageEdition(book: any, candidate: any) {
   (book.volumeInfo?.authors ?? []).some((name: string)=>(candidate.volumeInfo?.authors ?? []).some((other: string)=>authorKey(name) === authorKey(other)));
 }
 /** Reuse exact-edition metadata only; artwork and work popularity are irrelevant. */
-export async function readEditionPages(admin: any, editions: any[]) {
+export async function readEditionPages(admin: any, editions: any[], options: {persist?:boolean} = {}) {
  const result: Record<string, any> = {};
  const missing = editions.filter(row=>row.metadata && !audioEditionPenalty(row.metadata) && !(validPageCount(row.metadata?.volumeInfo?.pageCount) ?? validPageCount(row.page_count)));
  let candidates: any[] = [];
@@ -32,6 +32,8 @@ export async function readEditionPages(admin: any, editions: any[]) {
   try {
    const {data,error} = await admin.from('book_editions').select('provider,provider_book_id,isbn_13,page_count,metadata').in('isbn_13',isbns);
    if (!error) candidates = data ?? [];
+   const {data:published,error:publishedError} = await admin.from('book_edition_page_facts').select('isbn_13,title,authors,page_count').in('isbn_13',isbns);
+   if (!publishedError) candidates.push(...(published ?? []).map((row: any)=>({provider:'publisher',metadata:{source:{isbn13:row.isbn_13},volumeInfo:{title:row.title,authors:row.authors,pageCount:row.page_count}}})));
    const {data:facts,error:factError} = await admin.from('book_api_cache').select('response_json').eq('provider','hardcover_series').in('request_key',isbns.map(isbn=>`edition-pages:v1:${isbn}`)).gt('stale_until',new Date().toISOString());
    if (!factError) candidates.push(...(facts ?? []).map((row: any)=>({provider:'hardcover',metadata:row.response_json})));
   } catch { /* Missing supplementary cache data never prevents opening a book. */ }
@@ -46,7 +48,15 @@ export async function readEditionPages(admin: any, editions: any[]) {
    const matching = candidates.filter(candidate=>samePageEdition(book,candidate.metadata)).sort((a,b)=>Number(b.provider === 'isbndb')-Number(a.provider === 'isbndb'));
    pages = matching.map(candidate=>validPageCount(candidate.metadata?.volumeInfo?.pageCount) ?? validPageCount(candidate.page_count)).find(Boolean);
   }
-  if (pages) result[row.provider_book_id] = {isbn,pageCount:pages};
+  if (pages) {
+   if (options.persist !== false && !validPageCount(book.volumeInfo?.pageCount) && !validPageCount(row.page_count) && typeof admin.rpc === 'function') {
+    try {
+     const {data,error}=await admin.rpc('novori_store_edition_pages',{p_book_id:row.provider_book_id,p_isbn:isbn,p_page_count:pages});
+     if (!error && validPageCount(data)) pages=Number(data);
+    } catch { /* Page persistence cannot break cover selection. The detail resolver retries it. */ }
+   }
+   result[row.provider_book_id] = {isbn,pageCount:pages};
+  }
  }
  return result;
 }

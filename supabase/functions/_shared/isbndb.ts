@@ -151,8 +151,8 @@ async function lookup(admin: SupabaseClient, userId: string, isbn: string): Prom
         // Automatic metadata revalidation retains established edition artwork.
         // Canonical Hardcover/manual selections remain owned by the cover reader.
         const old = prior?.detail_complete ? prior.metadata?.volumeInfo : null;
-        if (old?.imageLinks && identityMatches(book, old.title ?? '', old.authors?.[0] ?? ''))
-          book = { ...book, volumeInfo: { ...book.volumeInfo, imageLinks: old.imageLinks } };
+        if (old && identityMatches(book, old.title ?? '', old.authors?.[0] ?? ''))
+          book = { ...book, volumeInfo: { ...book.volumeInfo, imageLinks: old.imageLinks ?? book.volumeInfo.imageLinks, pageCount: validPageCount(book.volumeInfo.pageCount) ?? validPageCount(old.pageCount) } };
       }
       if (book && book.source.isbn13 !== isbn) throw new Error('ISBNdb returned a different edition.');
       await catalog(admin, book ? [book] : []);

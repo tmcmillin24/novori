@@ -4,6 +4,7 @@ set -euo pipefail
 # Deploy every consumer of the repaired shared catalog helpers together.
 project_ref="${NOVORI_SUPABASE_PROJECT_REF:-oanpmuiuuwljknwvyzev}"
 for function_name in \
+  book-edition-pages \
   book-cover-selection \
   google-books-detail \
   google-books-resolve \

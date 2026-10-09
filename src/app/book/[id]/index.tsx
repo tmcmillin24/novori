@@ -1,3 +1,4 @@
+import { syncEditionPages } from '../../../lib/edition-page-loader';
 import { applyEditionPages, subscribeEditionPages, rememberEditionPages } from '../../../lib/edition-pages';
 import { normalizeBookGenres } from '../../../../supabase/functions/_shared/book-genres';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
@@ -1409,6 +1410,7 @@ export default function BookDetailsScreen() {
         if (discoveryId && clickedTitle) rememberDiscoveryBookId({
           id: Number(discoveryId), title: clickedTitle, authors: discoverClickedAuthors,
         }, resolvedBook.id);
+        void syncEditionPages(resolvedBook).catch(() => {});
         openingBookId = resolvedBook.id;
         coreReady = true;
         setBook(applyEditionPages(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook));
