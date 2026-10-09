@@ -1672,53 +1672,58 @@ const DiscoverBookCard = memo(
               'Unknown author'}
           </Text>
 
-          {typeof item.novoriWork
-            ?.hardcoverRating ===
-          'number' ? (
-            <View
-              style={
-                styles.searchRatingStars
-              }
-            >
-              {[1,2,3,4,5].map(
-                (
-                  star
-                ) => {
-                  const rating =
-                    item.novoriWork
-                      ?.hardcoverRating ??
-                    0;
-
-                  return (
-                    <Ionicons
-                      key={
-                        star
-                      }
-                      name={
-                        rating >=
-                        star
-                          ? 'star'
-                          : rating >=
-                            star -
-                              0.5
-                            ? 'star-half'
-                            : 'star-outline'
-                      }
-                      size={14}
-                      color={
-                        goldColor
-                      }
-                    />
-                  );
+          {(typeof item.novoriWork?.hardcoverRating === 'number' || typeof item.novoriWork?.hardcoverRatingsCount === 'number') ? (
+            <View style={styles.searchRatingRow}>
+            {typeof item.novoriWork
+              ?.hardcoverRating ===
+            'number' ? (
+              <View
+                style={
+                  styles.searchRatingStars
                 }
-              )}
+              >
+                {[1,2,3,4,5].map(
+                  (
+                    star
+                  ) => {
+                    const rating =
+                      item.novoriWork
+                        ?.hardcoverRating ??
+                      0;
+
+                    return (
+                      <Ionicons
+                        key={
+                          star
+                        }
+                        name={
+                          rating >=
+                          star
+                            ? 'star'
+                            : rating >=
+                              star -
+                                0.5
+                              ? 'star-half'
+                              : 'star-outline'
+                        }
+                        size={14}
+                        color={
+                          goldColor
+                        }
+                      />
+                    );
+                  }
+                )}
             </View>
           ) : null}
 
           {typeof item.novoriWork?.hardcoverRatingsCount === 'number' ? (
-            <Text style={styles.meta}>
+            <Text style={styles.searchRatingCount} numberOfLines={1}>
               {item.novoriWork.hardcoverRatingsCount.toLocaleString()} {item.novoriWork.hardcoverRatingsCount === 1 ? 'rating' : 'ratings'}
             </Text>
+          ) : null}
+
+            </View>
           ) : null}
 
           {publication.date ? (
@@ -6140,7 +6145,21 @@ function createStyles(
       fontSize: 13,
       fontFamily:
         'Inter_500Medium',
-      marginBottom: 7,
+      marginBottom: 4,
+    },
+
+    searchRatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4,
+    },
+
+    searchRatingCount: {
+      color: colors.mutedText,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      flexShrink: 1,
     },
 
     searchRatingStars: {
@@ -6149,8 +6168,7 @@ function createStyles(
       alignItems:
         'center',
       gap: 2,
-      marginTop: 7,
-      marginBottom: 1,
+      flexShrink: 0,
     },
 
     meta: {
