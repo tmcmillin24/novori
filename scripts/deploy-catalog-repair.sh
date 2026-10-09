@@ -3,6 +3,7 @@ set -euo pipefail
 # Run from the repository root after authenticating the Supabase CLI.
 # Deploy every consumer of the repaired shared catalog helpers together.
 project_ref="${NOVORI_SUPABASE_PROJECT_REF:-oanpmuiuuwljknwvyzev}"
+node scripts/deploy-cover-content-health.mjs
 for function_name in \
   book-edition-pages \
   book-cover-selection \

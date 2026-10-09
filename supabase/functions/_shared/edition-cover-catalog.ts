@@ -1,3 +1,4 @@
+import { rejectedCoverContent } from './cover-content-health.ts';
 import { cacheDiscoveryCoverChoices, verifiedHardcoverDiscoveryChoice, DISCOVERY_COVER_VARIANT } from './hardcover-discovery-covers.ts';
 import { cachedEditionCover } from './catalog-metadata-covers.ts';
 import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
@@ -122,11 +123,27 @@ export async function readEditionCovers(admin: any, seeds: any[], discoveryBooks
     if (error) throw error;
     editions.push(...(chosen ?? []));
   }
-  return new Map(seeds.map(seed => {
+  const result = new Map(seeds.map(seed => {
     const allowed = aliases.get(seed.work_id) ?? [seed.work_id];
     const choices = editionCoverChoices(seed, editions.filter(row => allowed.includes(row.work_id) || publisherCandidates.some(choice=>allowed.includes(choice.work_id) && [choice.source_metadata?.isbn,choice.source_metadata?.identityIsbn].includes(row.isbn_13))), allowed.map(id => manual.get(id)).find(Boolean), hardcoverCandidates.filter(row => allowed.includes(row.work_id)), publisherCandidates.filter(row=>allowed.includes(row.work_id)));
     const coverAliases = editions.filter(row => allowed.includes(row.work_id) && matchesSeriesCatalogEdition(seed.metadata?.volumeInfo ?? {}, row))
       .map(row => row.provider_book_id).filter((id: unknown): id is string => typeof id === 'string');
-    return [seed.provider_book_id, choices.map(choice => choice.provider === 'hardcover' ? {...choice, aliases:[...new Set(coverAliases)]} : choice)] as const;
+    const selected = choices.map(choice => choice.provider === 'hardcover' ? {...choice, aliases:[...new Set(coverAliases)]} : choice);
+    return [seed.provider_book_id, selected] as const;
   }));
+  // Prioritize selected images before alternatives. Protected Hardcover/manual
+  // choices need no ISBNdb CDN verification or extra wait.
+  const automatic = [...result.values()].filter(choices => choices[0]?.provider === 'isbndb' && !choices[0]?.locked);
+  const urls: string[] = [];
+  for (let index = 0; index < 8; index++) for (const choices of automatic) {
+    const choice = choices[index]; if (choice?.provider === 'isbndb' && !choice.locked) urls.push(choice.url);
+  }
+  const rejected = await rejectedCoverContent(admin, urls);
+  // Retire persisted placeholders on the client, without touching editions.
+  for (const [key, choices] of result) {
+    const rejectedUrls = choices.filter(choice => !choice.locked && choice.provider === 'isbndb' && rejected.has(choice.url)).map(choice => choice.url);
+    const usable = choices.filter(choice => choice.locked || choice.provider !== 'isbndb' || !rejected.has(choice.url));
+    Object.assign(usable, { rejectedUrls }); result.set(key, usable);
+  }
+  return result;
 }

@@ -437,3 +437,13 @@ test('image failure cooldown expires in a running app and the original catalog U
  expect(covers.getCanonicalBookCover({googleBookId:'retry-alias'})).toBe(url);
  jest.useRealTimers();
 });
+
+test('server content rejection replaces a previously cached successful placeholder across shared aliases',()=>{
+ jest.resetModules();
+ const covers:typeof import('../src/lib/canonical-book-covers')=require('../src/lib/canonical-book-covers');
+ const placeholder='https://images.isbndb.com/covers/4996893482325.jpg';
+ const artwork='https://images.isbndb.com/covers/4484103482758.jpg';
+ covers.publishCatalogCovers({search:placeholder,stack:placeholder},{search:{workId:'same',provider:'isbndb'},stack:{workId:'same',provider:'isbndb'}});
+ covers.publishCatalogCovers({search:artwork},{search:{workId:'same',provider:'isbndb',rejectedUrls:[placeholder],alternatives:[artwork]}});
+ for(const googleBookId of ['search','stack'])expect(covers.getCanonicalBookCover({googleBookId,existingCoverUrl:placeholder})).toBe(artwork);
+});

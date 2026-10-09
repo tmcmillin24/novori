@@ -12,7 +12,7 @@ test('exact edition synchronization stays in the background and coalesces overla
 });
 
 test('legacy details without display ISBN use the stored edition and empty results retry after short backoff',async()=>{
- const legacy={id:'legacy-page-id',volumeInfo:{title:'Another Novel',authors:['Another Author']}};
+ const legacy:{id:string;volumeInfo:{title:string;authors:string[];pageCount?:number}}={id:'legacy-page-id',volumeInfo:{title:'Another Novel',authors:['Another Author']}};
  (supabase.functions.invoke as jest.Mock).mockResolvedValueOnce({data:{ok:true,pageCounts:{}}});
  await expect(syncEditionPages(legacy)).rejects.toThrow('not available');
  const spy=jest.spyOn(Date,'now').mockReturnValue(Date.now()+61000);

@@ -281,11 +281,12 @@ Deno.serve(
         details[key] = {
           workId: first?.workId ?? (seed ? `edition:${seed.provider_book_id}` : null),
           catalogWorkId: seed?.work_id ?? null,
-          scope: first?.provider === 'hardcover' ? 'work' : 'edition', selectorVersion: 8,
+          scope: first?.provider === 'hardcover' ? 'work' : 'edition', selectorVersion: 9,
           genres: first?.genres ?? [], reviewsCount: first?.reviewsCount ?? null, aliases: first?.aliases ?? [],
           url: first?.url ?? null, provider: first?.provider ?? null,
           fallback: first?.fallback === true, locked: first?.locked ?? false, authoritative: Boolean(first),
           selectionStatus: first ? 'selected' : 'unavailable',
+          rejectedUrls: (choices as any).rejectedUrls ?? [],
           alternatives: choices.map(choice => choice.url),
           coverBookId: first?.bookId ?? null,
         };
