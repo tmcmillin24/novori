@@ -2108,11 +2108,8 @@ export default function BookDetailsScreen() {
   async function findGoogleBookForSeries(
     seriesBook: HardcoverSeriesBook
   ): Promise<GoogleBook | null> {
-    // The shared series response/search has already verified this catalog ID.
-    // Navigate directly; details use the normal cached-first load on arrival.
-    if (seriesBook.coverBookId && /^[A-Za-z0-9_-]{1,200}$/.test(seriesBook.coverBookId) && !seriesBook.coverBookId.startsWith('hc_art_')) {
-      return { id: seriesBook.coverBookId, volumeInfo: { title: seriesBook.title, authors: seriesBook.authors } };
-    }
+    // coverBookId identifies artwork, not necessarily the reading edition.
+    // Resolve the work through Discover's shared ranked/cache path below.
     const author =
       seriesBook.authors?.[0];
 
@@ -2353,8 +2350,10 @@ export default function BookDetailsScreen() {
     // Use the same work representative as Discover before trying individual ISBNs.
     try {
       const results = await searchNovoriBooks(seriesBook.title);
-      const candidate = rankResults(results)[0];
-      if (candidate?.exactTitle && candidate.authorMatches) return candidate.result;
+      // Keep the shared search order: series ISBNs and cover/page availability
+      // must not promote a different edition over Discover's representative.
+      const candidate = results.find(result => matchesSeriesCatalogEdition(seriesBook, { metadata: result }));
+      if (candidate) return candidate;
     } catch {
       // Keep the verified-English identity/ISBN fallback available when search fails.
     }

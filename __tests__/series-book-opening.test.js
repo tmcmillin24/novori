@@ -38,12 +38,26 @@ test('series ISBN fallback remains on shared search and never opens raw provider
  expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
 });
 
-test('verified series catalog ID navigates without repeating search, rating or ISBN resolution',async()=>{
- const h=harness([]);
+test('series artwork ID cannot bypass the shared reading-edition result',async()=>{
+ const h=harness([novel]);
  const result=await h.resolve({...row,coverBookId:'nv_9781496764898'});
- expect(result.id).toBe('nv_9781496764898');
- expect(h.deps.searchNovoriBooks).not.toHaveBeenCalled();
+ expect(result).toEqual(novel);
+ expect(h.deps.searchNovoriBooks).toHaveBeenCalledWith(row.title);
  expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
  expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
- expect(result.volumeInfo.industryIdentifiers).toBeUndefined();
+});
+
+test.each([
+ ['A Fate So Dark and Delicate','Sophia St. Germain'],
+ ['Catching Fire','Suzanne Collins'],
+ ['The Cruel Prince','Holly Black'],
+ ['Platform Decay','Martha Wells'],
+])('series opens Discover representative for %s regardless of artwork ID or Hardcover ISBN order',async(title,author)=>{
+ const selected={id:'discover-reading-edition',source:{isbn13:'9781496764751'},volumeInfo:{title,authors:[author],language:'en',pageCount:480}};
+ const artwork={...selected,id:'artwork-edition',source:{isbn13:'9781496764898'},volumeInfo:{...selected.volumeInfo,pageCount:undefined,imageLinks:{thumbnail:'https://art/good.jpg'},industryIdentifiers:[{identifier:'9781496764898'}]}};
+ const h=harness([selected,artwork]);
+ const series={title,authors:[author],isbns:['9781496764898'],coverBookId:artwork.id,coverUrl:'https://art/good.jpg'};
+ expect(await h.resolve(series)).toEqual(selected);
+ expect(h.deps.searchNovoriBooks).toHaveBeenCalledTimes(1);
+ expect(series.coverUrl).toBe('https://art/good.jpg');
 });
