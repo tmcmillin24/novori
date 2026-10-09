@@ -2,7 +2,8 @@ import { audioEditionPenalty, catalogWorkTitleKey, normalizeCatalogAuthor } from
 import { validPageCount } from './page-count.ts';
 export { validPageCount } from './page-count.ts';
 export function editionIsbn(book: any): string | undefined {
- const values = [book?.source?.isbn13, ...(book?.volumeInfo?.industryIdentifiers ?? []).filter((id: any)=>id.type === 'ISBN_13' || id.type === 'ISBN_10').map((id: any)=>id.identifier)];
+ const values = [book?.source?.isbn13, ...(Array.isArray(book?.volumeInfo?.industryIdentifiers) ? book.volumeInfo.industryIdentifiers : []).filter((id: any)=>id.type === 'ISBN_13' || id.type === 'ISBN_10').map((id: any)=>id.identifier)];
+ if(typeof book?.id==='string' && /^nv_(?:978|979)\d{10}$/.test(book.id)) values.push(book.id.slice(3));
  for (const value of values) {
   if (typeof value !== 'string') continue;
   const isbn = value.replace(/[\s-]/g,'').toUpperCase();
@@ -14,6 +15,13 @@ export function editionIsbn(book: any): string | undefined {
   }
  }
  return undefined;
+}
+/** Recover missing display identifiers from the stored edition, never from cover artwork. */
+export function editionBookFromRow(row: any) {
+ const book=row.metadata;
+ if(!book || editionIsbn(book))return book;
+ const candidate={...book,source:{...book.source,isbn13:row.isbn_13}};
+ return editionIsbn(candidate)?candidate:book;
 }
 const authorKey = (name: string) => normalizeCatalogAuthor(name).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g,'');
 export function samePageEdition(book: any, candidate: any) {
@@ -27,7 +35,7 @@ export async function readEditionPages(admin: any, editions: any[], options: {pe
  const result: Record<string, any> = {};
  const missing = editions.filter(row=>row.metadata && !audioEditionPenalty(row.metadata) && !(validPageCount(row.metadata?.volumeInfo?.pageCount) ?? validPageCount(row.page_count)));
  let candidates: any[] = [];
- const isbns = [...new Set(missing.map(row=>editionIsbn(row.metadata)).filter(Boolean))];
+ const isbns = [...new Set(missing.map(row=>editionIsbn(editionBookFromRow(row))).filter(Boolean))];
  if (isbns.length) {
   try {
    const {data,error} = await admin.from('book_editions').select('provider,provider_book_id,isbn_13,page_count,metadata').in('isbn_13',isbns);
@@ -39,13 +47,13 @@ export async function readEditionPages(admin: any, editions: any[], options: {pe
   } catch { /* Missing supplementary cache data never prevents opening a book. */ }
  }
  for (const row of editions) {
-  const book = row.metadata;
+  const book = editionBookFromRow(row);
   if (!book || audioEditionPenalty(book)) continue;
   const isbn = editionIsbn(book);
   if (!isbn) continue;
   let pages = validPageCount(book.volumeInfo?.pageCount) ?? validPageCount(row.page_count);
   if (!pages) {
-   const matching = candidates.filter(candidate=>samePageEdition(book,candidate.metadata)).sort((a,b)=>Number(b.provider === 'isbndb')-Number(a.provider === 'isbndb'));
+   const matching = candidates.filter(candidate=>samePageEdition(book,editionBookFromRow(candidate))).sort((a,b)=>Number(b.provider === 'isbndb')-Number(a.provider === 'isbndb'));
    pages = matching.map(candidate=>validPageCount(candidate.metadata?.volumeInfo?.pageCount) ?? validPageCount(candidate.page_count)).find(Boolean);
   }
   if (pages) {

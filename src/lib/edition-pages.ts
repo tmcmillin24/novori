@@ -15,6 +15,10 @@ export function rememberEditionPages(facts: Record<string,{isbn:string;pageCount
 export function subscribeEditionPages(listener:()=>void) { listeners.add(listener); return ()=>{listeners.delete(listener);}; }
 export function applyEditionPages<T extends {id:string;volumeInfo:any}>(book:T):T {
  const known = counts.get(book.id);
- if (!known || known.isbn !== editionIsbn(book) || audioEditionPenalty(book)) return book;
+ if (!known || audioEditionPenalty(book)) return book;
+ const isbn=editionIsbn(book);
+ if (isbn && known.isbn !== isbn) return book;
+ // Facts for identifier-less legacy details come from this exact stored book ID.
+ if (!isbn) return {...book,volumeInfo:{...book.volumeInfo,pageCount:known.pageCount,industryIdentifiers:[...(Array.isArray(book.volumeInfo.industryIdentifiers)?book.volumeInfo.industryIdentifiers:[]),{type:'ISBN_13',identifier:known.isbn}]}};
  return {...book,volumeInfo:{...book.volumeInfo,pageCount:known.pageCount}};
 }

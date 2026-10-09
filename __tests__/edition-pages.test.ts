@@ -37,3 +37,10 @@ test('series page index excludes audio and unrelated edition titles, and does no
  await cacheSeriesEditionPages(admin,works,expiry);
  expect(tables.book_api_cache).toHaveLength(1);
 });
+
+test('legacy metadata without identifiers reuses the exact stored ISBN and generic numeric page counts',async()=>{
+ const legacy={...book,id:'legacy-id',source:undefined,volumeInfo:{title:book.volumeInfo.title,authors:book.volumeInfo.authors}};
+ const admin=database({book_edition_page_facts:[{isbn_13:'9781496764751',title:book.volumeInfo.title,authors:book.volumeInfo.authors,page_count:480}]});
+ expect(await readEditionPages(admin,[{provider_book_id:legacy.id,isbn_13:'9781496764751',metadata:legacy}])).toEqual({'legacy-id':{isbn:'9781496764751',pageCount:480}});
+ expect(legacy.volumeInfo).not.toHaveProperty('industryIdentifiers');
+});

@@ -1,4 +1,4 @@
-import { editionIsbn, readEditionPages, samePageEdition, validPageCount } from './edition-pages.ts';
+import { editionIsbn, editionBookFromRow, readEditionPages, samePageEdition, validPageCount } from './edition-pages.ts';
 import { audioEditionPenalty } from './book-edition-metadata.ts';
 import { cachedHardcoverFetch, cachedProviderValue } from './provider-cache.ts';
 const DAY=86400000;
@@ -7,14 +7,14 @@ export function hardcoverPageFact(book: any, rows: any[]) {
  for(const row of rows) {
   const format=row.reading_format?.format ?? '';
   if(row.isbn_13!==isbn || row.compilation || Number(row.audio_seconds)>0 || row.reading_format_id===2 ||
-   !/physical|print|paper|hardcover|hardback|ebook|digital|e-book/i.test(format) || /audio/i.test(format))continue;
+   (format && !/physical|print|paper|hardcover|hardback|ebook|digital|e-book/i.test(format)) || /audio/i.test(format))continue;
   const candidate={source:{isbn13:row.isbn_13},volumeInfo:{title:row.book?.title,authors:(row.book?.contributions ?? []).map((item:any)=>item.author?.name).filter(Boolean),pageCount:validPageCount(row.pages)}};
   if(candidate.volumeInfo.pageCount && samePageEdition(book,candidate))return candidate.volumeInfo.pageCount;
  }
  return null;
 }
 export async function resolveEditionPageCount(admin:any,row:any,token:string|undefined) {
- const book=row.metadata;const isbn=editionIsbn(book);
+ const book=editionBookFromRow(row);const isbn=editionIsbn(book);
  if(!isbn || !book || audioEditionPenalty(book))return null;
  const cached=await readEditionPages(admin,[row],{persist:false});
  let count=cached[row.provider_book_id]?.pageCount;

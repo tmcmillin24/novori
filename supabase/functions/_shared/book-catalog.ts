@@ -1,3 +1,5 @@
+import { validPageCount } from './page-count.ts';
+import { samePageEdition } from './edition-pages.ts';
 import type {
   SupabaseClient,
 } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -550,21 +552,7 @@ function prepareBook(
         .industryIdentifiers
     );
 
-  const pageCountValue =
-    volumeInfo.pageCount;
-
-  const pageCount =
-    typeof pageCountValue ===
-      'number' &&
-    Number.isFinite(
-      pageCountValue
-    ) &&
-    pageCountValue >
-      0
-      ? Math.trunc(
-          pageCountValue
-        )
-      : null;
+  const pageCount = validPageCount(volumeInfo.pageCount) ?? null;
 
   const imageLinks =
     extractImageLinks(
@@ -785,7 +773,7 @@ export async function recordGoogleBooksInCatalog(
           'book_editions'
         )
         .select(
-          'provider_book_id, detail_complete'
+          'provider_book_id, detail_complete, isbn_13, page_count, metadata'
         )
         .eq(
           'provider',
@@ -856,6 +844,11 @@ export async function recordGoogleBooksInCatalog(
               return null;
             }
 
+            const previous = (existingEditions ?? []).find((row: any) => row.provider_book_id === book.googleBookId);
+            const retainedPages = !book.pageCount && previous && samePageEdition(book.metadata,previous.metadata)
+              ? validPageCount(previous.metadata?.volumeInfo?.pageCount) ?? validPageCount(previous.page_count) : undefined;
+            const pages = book.pageCount ?? retainedPages ?? null;
+            const metadata = retainedPages ? {...book.metadata,volumeInfo:{...(book.metadata as any).volumeInfo,pageCount:retainedPages}} : book.metadata;
             return {
               work_id:
                 workId,
@@ -880,7 +873,7 @@ export async function recordGoogleBooksInCatalog(
               language:
                 book.language,
               page_count:
-                book.pageCount,
+                pages,
               sale_country:
                 book.saleCountry,
               cover_url:
@@ -888,7 +881,7 @@ export async function recordGoogleBooksInCatalog(
               image_links:
                 book.imageLinks,
               metadata:
-                book.metadata,
+                metadata,
               detail_complete:
                 detailComplete,
               source_fetched_at:

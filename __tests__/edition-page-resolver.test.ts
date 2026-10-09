@@ -25,3 +25,8 @@ test('other ISBNs, audio, wrong authors, wrong titles and cached identity confli
  (cachedProviderValue as jest.Mock).mockResolvedValue({source:{isbn13:'9781496764751'},volumeInfo:{title:'Other Novel',authors:['Other Writer'],pageCount:480}});
  const admin=db();expect(await resolveEditionPageCount(admin,row,'token')).toBeNull();expect(admin.rpc).not.toHaveBeenCalled();
 });
+
+test('missing reading-format labels do not discard verified exact-ISBN pages; explicit audio still does',()=>{
+ expect(hardcoverPageFact(metadata,[{...edition,reading_format:null}])).toBe(480);
+ expect(hardcoverPageFact(metadata,[{...edition,reading_format:null,audio_seconds:120}])).toBeNull();
+});
