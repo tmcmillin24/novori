@@ -1994,6 +1994,8 @@ export default function DiscoverScreen() {
 
   const [query, setQuery] = useState('');
   const recentSearches = useRecentBookSearches();
+  const recentSearchPanelRef = useRef<View | null>(null);
+  const recentSearchPanelBounds = useRef<{x:number;y:number;width:number;height:number}|null>(null);
   useEffect(()=>{
     if(tutorial?.active&&tutorial.step.path==='/discover'){
       setDiscoverMode(tutorial.step.anchor==='discover-readers'?'readers':'books');
@@ -3106,6 +3108,10 @@ export default function DiscoverScreen() {
     } =
       event.nativeEvent;
 
+    const panel = recentSearchPanelBounds.current;
+    if (discoverMode === 'books' && !query.trim() && recentSearches.searches.length && panel &&
+        pageX >= panel.x && pageX <= panel.x + panel.width && pageY >= panel.y && pageY <= panel.y + panel.height) return false;
+
     if (
       bounds &&
       pageX >=
@@ -4132,15 +4138,15 @@ export default function DiscoverScreen() {
             ) : null}
           </View>
 
-          {discoverMode === 'books' && !query.trim() && recentSearches.searches.length > 0 ? (
-            <View style={styles.recentSearches}>
+          {discoverMode === 'books' && discoverSearchFocused && !query.trim() && recentSearches.searches.length > 0 ? (
+            <View ref={recentSearchPanelRef} onLayout={() => recentSearchPanelRef.current?.measureInWindow((x,y,width,height) => {recentSearchPanelBounds.current={x,y,width,height};})} style={styles.recentSearches}>
               <View style={styles.recentSearchHeader}>
                 <Text style={styles.recentSearchHeading}>Recent searches</Text>
                 <Pressable onPress={recentSearches.clear} accessibilityRole="button" accessibilityLabel="Clear all recent searches" hitSlop={8}>
                   <Text style={styles.recentSearchClear}>Clear all</Text>
                 </Pressable>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView style={styles.recentSearchList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {recentSearches.searches.map(term => (
                   <View key={term.toLowerCase()} style={styles.recentSearchChip}>
                     <Pressable onPress={() => {setQuery(term); recentSearches.remember(term);}} accessibilityRole="button" accessibilityLabel={`Search again for ${term}`} style={styles.recentSearchTerm}>
@@ -6093,13 +6099,14 @@ function createStyles(
       flexGrow: 1,
     },
 
-    recentSearches: {marginBottom: 14},
+    recentSearches: {marginTop: 4, marginBottom: 8, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface},
+    recentSearchList: {maxHeight: 180},
     recentSearchHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8},
     recentSearchHeading: {color: colors.mutedText, fontSize: 12, fontFamily: 'Inter_600SemiBold'},
     recentSearchClear: {color: colors.gold, fontSize: 12, fontFamily: 'Inter_500Medium'},
-    recentSearchChip: {flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 18, marginRight: 8},
-    recentSearchTerm: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingVertical: 9},
-    recentSearchText: {color: colors.secondaryText, fontSize: 12, maxWidth: 190, fontFamily: 'Inter_400Regular'},
+    recentSearchChip: {flexDirection: 'row', alignItems: 'center'},
+    recentSearchTerm: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10},
+    recentSearchText: {color: colors.secondaryText, fontSize: 12, flexShrink: 1, fontFamily: 'Inter_400Regular'},
     recentSearchRemove: {paddingHorizontal: 9, paddingVertical: 9},
 
     bookCard: {
