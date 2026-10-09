@@ -283,7 +283,7 @@ Deno.serve(
           scope: first?.provider === 'hardcover' ? 'work' : 'edition', selectorVersion: 8,
           genres: first?.genres ?? [], reviewsCount: first?.reviewsCount ?? null, aliases: first?.aliases ?? [],
           url: first?.url ?? null, provider: first?.provider ?? null,
-          locked: first?.locked ?? false, authoritative: Boolean(first),
+          fallback: first?.fallback === true, locked: first?.locked ?? false, authoritative: Boolean(first),
           selectionStatus: first ? 'selected' : 'unavailable',
           alternatives: choices.map(choice => choice.url),
           coverBookId: first?.bookId ?? null,

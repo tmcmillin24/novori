@@ -36,3 +36,14 @@ test.each([
  const seed=work.editions.find(e=>e.language==='en')!;
  expect(editionCoverChoices(seed,work.editions)[0].bookId).toBe(requested.provider_book_id);
 });
+
+ test('ISBNdb wins over series artwork, while a verified discovery cover remains primary', () => {
+ const seed=row('seed','https://art/isbn.jpg');
+ const candidate={provider:'hardcover',source_variant:'discovery_verified_v1',url:'https://assets.hardcover.app/series.jpg',source_metadata:{
+ hardcoverBookId:42,title:'A Novel',authors:['Writer'],coverOrigin:'series',
+ coverProof:{version:2,source:'hardcover_work_image',hardcoverBookId:42,title:'A Novel',url:'https://assets.hardcover.app/series.jpg'}}};
+ expect(editionCoverChoices(seed,[seed],undefined,[candidate])[0].provider).toBe('isbndb');
+ expect(editionCoverChoices({...seed,metadata:{volumeInfo:{...seed.metadata.volumeInfo,imageLinks:{}}}},[],undefined,[candidate])[0]).toMatchObject({provider:'hardcover',fallback:true});
+ const discovery={...candidate,source_metadata:{...candidate.source_metadata,coverOrigin:undefined}};
+ expect(editionCoverChoices(seed,[seed],undefined,[discovery])[0]).toMatchObject({provider:'hardcover',fallback:false});
+ });

@@ -6,15 +6,16 @@ import { audioEditionPenalty } from './book-edition-metadata.ts';
 import { catalogCoverAliases } from './catalog-cover-aliases.ts';
 
 export type EditionCoverChoice = { url: string; bookId: string; provider: string; locked: boolean;
- workId?: string; genres?: string[]; reviewsCount?: number|null; aliases?: string[] };
+ fallback?: boolean; workId?: string; genres?: string[]; reviewsCount?: number|null; aliases?: string[] };
 
-// Verified Hardcover work artwork is shared across matching text editions.
+// Verified Trending/Recent Hardcover artwork remains primary across matching editions.
+// Other books use ISBNdb first, then verified series Hardcover art, then legacy artwork.
 // Otherwise use edition artwork and verified alternatives. Reader IDs, edition
 // metadata, provider response caches and ratings are never rewritten here.
 export function editionCoverChoices(seed: any, editions: any[], manual?: any, hardcoverCandidates: any[] = []): EditionCoverChoice[] {
   if (manual?.url) return [{ url: manual.url, bookId: seed.provider_book_id, provider: manual.provider, locked: true }];
   if (audioEditionPenalty(seed.metadata ?? {volumeInfo:{}})) return [];
-  const primaryWorks = new Set(hardcoverCandidates.filter(row => row.source_metadata?.coverProof?.version === 2 && verifiedHardcoverDiscoveryChoice(seed,row)).map(row => row.source_metadata.hardcoverBookId));
+  const primaryWorks = new Set(hardcoverCandidates.filter(row => row.source_metadata?.coverOrigin !== 'series' && row.source_metadata?.coverProof?.version === 2 && verifiedHardcoverDiscoveryChoice(seed,row)).map(row => row.source_metadata.hardcoverBookId));
   const hardcover = hardcoverCandidates.filter(row => !primaryWorks.has(row.source_metadata?.hardcoverBookId) || row.source_metadata?.coverProof?.version === 2).map(row => verifiedHardcoverDiscoveryChoice(seed, row)).filter((row): row is NonNullable<typeof row> => row !== null)
     .sort((a: any,b: any) => b.usersCount-a.usersCount || a.workId.localeCompare(b.workId) || a.url.localeCompare(b.url));
   const info = seed.metadata?.volumeInfo ?? {};
@@ -37,7 +38,7 @@ export function editionCoverChoices(seed: any, editions: any[], manual?: any, ha
     seen.add(url);
     return [{ url, bookId: row.provider_book_id, provider: row.provider, locked: false }];
   });
-  return [...hardcover, ...catalog].filter((row, index, all) => all.findIndex(choice => choice.url === row.url) === index).slice(0, 8);
+  return [...hardcover.filter(choice => !choice.fallback), ...catalog.filter(choice => choice.provider === 'isbndb'), ...hardcover.filter(choice => choice.fallback), ...catalog.filter(choice => choice.provider !== 'isbndb')].filter((row, index, all) => all.findIndex(choice => choice.url === row.url) === index).slice(0, 8);
 }
 
 export async function readEditionCovers(admin: any, seeds: any[], discoveryBooks: any[] = []) {

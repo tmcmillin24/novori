@@ -17,7 +17,7 @@ export function hardcoverDiscoveryArt(book: any) {
  return url && Number.isSafeInteger(book.id) && book.id > 0
   ? {version:2, source:'hardcover_work_image', hardcoverBookId:book.id, title:book.title, url} : null;
 }
-export type HardcoverDiscoveryChoice = {url:string;bookId:string;provider:string;locked:boolean;workId:string;genres:string[];reviewsCount:number|null;usersCount:number};
+export type HardcoverDiscoveryChoice = {url:string;bookId:string;provider:string;locked:boolean;workId:string;genres:string[];reviewsCount:number|null;usersCount:number;fallback:boolean};
 export function verifiedHardcoverDiscoveryChoice(seed: any, candidate: any): HardcoverDiscoveryChoice | null {
  const source = candidate.source_metadata, proof = source?.coverEdition, art = source?.coverProof;
  const workProof = art?.version === 2 && art.source === 'hardcover_work_image' &&
@@ -31,7 +31,7 @@ export function verifiedHardcoverDiscoveryChoice(seed: any, candidate: any): Har
  return { url: candidate.url, bookId: seed.provider_book_id, provider: 'hardcover', locked: false,
   workId: `hardcover:${source.hardcoverBookId}`, genres: normalizeBookGenres(source.genres),
   reviewsCount: Number.isSafeInteger(source.reviewsCount) && source.reviewsCount >= 0 ? source.reviewsCount : null,
-  usersCount: Number(source.usersCount) || 0 };
+  usersCount: Number(source.usersCount) || 0, fallback: source.coverOrigin === 'series' };
 }
 
 const stableJson = (value: any): string => JSON.stringify(value, (_key, child) =>
@@ -55,9 +55,9 @@ export async function cacheDiscoveryCoverChoices(admin: any, seeds: any[], disco
    const candidate = { work_id: seed.work_id, edition_id: seed.id, provider: 'hardcover',
     source_variant: DISCOVERY_COVER_VARIANT, scope: 'edition', source_kind: 'image_link',
     external_id: String(row.id), url: row.coverProof?.url ?? row.coverEdition?.url,
-    candidate_key: `hardcover:${row.id}:${seed.work_id}:${DISCOVERY_COVER_VARIANT}`,
+    candidate_key: `hardcover:${row.id}:${seed.work_id}:${DISCOVERY_COVER_VARIANT}${row.coverOrigin === 'series' ? ':series' : ''}`,
     discovery_source: 'hardcover_discovery_verified', last_seen_at: new Date().toISOString(),
-    source_metadata: { hardcoverBookId: row.id, title: row.title, authors: row.authors,
+    source_metadata: { hardcoverBookId: row.id, title: row.title, authors: row.authors, coverOrigin: row.coverOrigin,
       coverEdition: row.coverEdition, coverProof: row.coverProof, genres: normalizeBookGenres(row.genres),
       usersCount: row.usersCount, reviewsCount: row.reviewsCount },
    };

@@ -8,6 +8,7 @@ import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
 import { getCanonicalBookCover, resolveCanonicalBookCover, getCanonicalBookCoverMetadata, subscribeCanonicalBookCovers } from '../../../lib/canonical-book-covers';
+import { publishCatalogCovers } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
 import { getBookPublication, rememberBookPublications } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
@@ -121,6 +122,12 @@ type HardcoverSeriesBook = {
   title: string;
   slug?: string | null;
   releaseDate?: string | null;
+  coverUrl?: string | null;
+  coverProvider?: string;
+  coverFallback?: boolean;
+  coverWorkId?: string;
+  coverAliases?: string[];
+  coverAlternatives?: {url: string; locked?: boolean}[];
   imageUrl?: string | null;
   coverBookId?: string | null;
   authors: string[];
@@ -2058,6 +2065,15 @@ export default function BookDetailsScreen() {
       setSeriesBooks(
         resolvedSeriesBooks
       );
+      // Publish the server's shared selection before the dropdown mounts.
+      for (const row of resolvedSeriesBooks) {
+        const key = row.coverBookId ?? (row.coverProvider === 'hardcover' ? `hc_art_${row.id}` : null);
+        if (key && row.coverUrl) publishCatalogCovers({[key]: row.coverUrl}, {[key]: {
+          provider: row.coverProvider, fallback: row.coverFallback, workId: row.coverWorkId,
+          aliases: row.coverAliases, alternatives: row.coverAlternatives?.map(choice => choice.url),
+          locked: row.coverAlternatives?.some(choice => choice.url === row.coverUrl && choice.locked),
+        }});
+      }
       // Batch the known catalog IDs before the dropdown's images mount.
       for (const row of resolvedSeriesBooks) {
         if (row.coverBookId) void resolveCanonicalBookCover({ googleBookId: row.coverBookId });
@@ -2946,7 +2962,7 @@ export default function BookDetailsScreen() {
         resolved.novoriWork
           ?.canonicalCoverUrl ??
         secureGoogleBooksImageUrl(
-          seriesBook.imageUrl ?? undefined
+          seriesBook.coverUrl ?? seriesBook.imageUrl ?? undefined
         ) ??
         getValidatedHighResolutionCover(
           undefined,
@@ -4891,9 +4907,10 @@ export default function BookDetailsScreen() {
                           styles.seriesRowPressed,
                       ]}
                     >
-                      {(isCurrent || seriesBook.coverBookId) ? (
+                      {(isCurrent || seriesBook.coverBookId || seriesBook.coverUrl) ? (
                         <BookCoverImage
                           googleBookId={isCurrent ? book.id : seriesBook.coverBookId}
+                          hardcoverBookId={!isCurrent && !seriesBook.coverBookId && seriesBook.coverProvider === 'hardcover' ? seriesBook.id : undefined}
                           existingCoverUrl={isCurrent ? displayExistingCoverUrl : undefined}
                           style={styles.seriesCover}
                         />

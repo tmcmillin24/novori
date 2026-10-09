@@ -5,7 +5,7 @@ import { resolveDiscoveryBook } from './resolve-discovery-book';
 import type { DiscoveryBook } from './discovery-books';
 import { resolveCanonicalBookCover, publishCatalogCovers, getCanonicalBookCoverMetadata } from './canonical-book-covers';
 
-type Card = { coverAliases?: string[]; coverProvider?: string; coverWorkId?: string; genres?: string[]; id?: number; title?: string; authors?: string[]; coverBookId?: string | null; coverUrl: string | null; coverPolicyVersion?: number;
+type Card = { coverFallback?: boolean; coverAliases?: string[]; coverProvider?: string; coverWorkId?: string; genres?: string[]; id?: number; title?: string; authors?: string[]; coverBookId?: string | null; coverUrl: string | null; coverPolicyVersion?: number;
  rejectedCoverUrls?: string[];
  coverAlternatives?: { url: string; bookId: string; locked?: boolean }[] };
 const hasArtwork = (book: Card) => Boolean(book.coverUrl && (book.coverBookId || (book.coverProvider === 'hardcover' && book.id)));
@@ -18,7 +18,7 @@ function publish(cards: Card[]) {
   const key = card.coverBookId ?? (card.coverProvider === 'hardcover' && card.id ? `hc_art_${card.id}` : null);
   if (!key || !card.coverUrl) continue;
   covers[key] = card.coverUrl;
-  details[key] = { workId: card.coverWorkId ?? (card.coverProvider === 'hardcover' ? `hardcover:${card.id}` : `edition:${card.coverBookId}`), provider: card.coverProvider, aliases: card.coverAliases, genres: card.genres, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
+  details[key] = { workId: card.coverWorkId ?? (card.coverProvider === 'hardcover' ? `hardcover:${card.id}` : `edition:${card.coverBookId}`), provider: card.coverProvider, fallback: card.coverFallback === true, aliases: card.coverAliases, genres: card.genres, rejectedUrls: card.rejectedCoverUrls ?? [], locked: card.coverAlternatives?.some(choice => choice.url === card.coverUrl && choice.locked) ?? false, alternatives: [...new Set([card.coverUrl, ...(card.coverAlternatives ?? []).map(choice => choice.url)])] };
  }
  publishCatalogCovers(covers, details);
 }

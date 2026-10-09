@@ -12,8 +12,8 @@ export type CanonicalCoverInput = {
   existingCoverUrl?: string | null;
 };
 
-type Entry = { provider?: string; genres?: string[]; failedUrls?: string[]; failedAt?: number; locked?: boolean; alternatives?: string[]; url: string | null; workId?: string; checkedAt: number; confirmed: boolean; revision: number };
-type SelectionDetail = { aliases?: string[]; provider?: string | null; genres?: string[]; workId?: string | null; url?: string | null; locked?: boolean; rejectedUrls?: string[]; alternatives?: string[] };
+type Entry = { fallback?: boolean; provider?: string; genres?: string[]; failedUrls?: string[]; failedAt?: number; locked?: boolean; alternatives?: string[]; url: string | null; workId?: string; checkedAt: number; confirmed: boolean; revision: number };
+type SelectionDetail = { fallback?: boolean; aliases?: string[]; provider?: string | null; genres?: string[]; workId?: string | null; url?: string | null; locked?: boolean; rejectedUrls?: string[]; alternatives?: string[] };
 const entries = new Map<string, Entry>();
 // Rejections are scoped to a work so another work's manual selection is untouched.
 const rejectedByWork = new Map<string, Set<string>>();
@@ -69,7 +69,7 @@ function storedEntry(value: unknown, now: number): [string, Entry] | null {
       (entry.url === null && !entry.workId) ||
       !Number.isFinite(entry.checkedAt) || entry.checkedAt < 0 || entry.checkedAt > now || now - entry.checkedAt >= RETENTION_MS ||
       (entry.workId !== undefined && (typeof entry.workId !== 'string' || !entry.workId || entry.workId.length > 256))) return null;
-  return [key, { provider: ['hardcover','manual','isbndb','google_books'].includes(entry.provider) ? entry.provider : undefined, genres: normalizeBookGenres(entry.genres), locked: entry.locked === true, failedUrls: Array.isArray(entry.failedUrls) ? entry.failedUrls.filter((url: unknown) => typeof url === 'string').slice(0, 8) : [], failedAt: Number(entry.failedAt) || 0, alternatives: Array.isArray(entry.alternatives) ? entry.alternatives.filter((url: unknown) => typeof url === 'string' && /^https:\/\//.test(url)).slice(0, 8) : [], url: secure(entry.url), checkedAt: entry.checkedAt, workId: entry.workId, confirmed: true, revision: 0 }];
+  return [key, { fallback: entry.fallback === true, provider: ['hardcover','manual','isbndb','google_books'].includes(entry.provider) ? entry.provider : undefined, genres: normalizeBookGenres(entry.genres), locked: entry.locked === true, failedUrls: Array.isArray(entry.failedUrls) ? entry.failedUrls.filter((url: unknown) => typeof url === 'string').slice(0, 8) : [], failedAt: Number(entry.failedAt) || 0, alternatives: Array.isArray(entry.alternatives) ? entry.alternatives.filter((url: unknown) => typeof url === 'string' && /^https:\/\//.test(url)).slice(0, 8) : [], url: secure(entry.url), checkedAt: entry.checkedAt, workId: entry.workId, confirmed: true, revision: 0 }];
 }
 
 function hydrate(): Promise<void> {
@@ -141,7 +141,7 @@ function persist() {
           const entry = !original.confirmed && original.workId && rejectedByWork.get(original.workId)?.size
             ? { ...original, url: null, confirmed: true } : original;
           if (!storedEntry([key, entry], now)) continue;
-          const encoded = JSON.stringify([key, { provider: entry.provider, genres: entry.genres, url: entry.url, locked: entry.locked, failedUrls: entry.failedUrls, failedAt: entry.failedAt, alternatives: entry.alternatives, workId: entry.workId, checkedAt: entry.checkedAt, confirmed: true }]);
+          const encoded = JSON.stringify([key, { fallback: entry.fallback, provider: entry.provider, genres: entry.genres, url: entry.url, locked: entry.locked, failedUrls: entry.failedUrls, failedAt: entry.failedAt, alternatives: entry.alternatives, workId: entry.workId, checkedAt: entry.checkedAt, confirmed: true }]);
           const added = encoded.length + (saved.length ? 1 : 0);
           if (length + added > MAX_STORAGE_CHARS) continue;
           saved.push(encoded);
@@ -214,9 +214,12 @@ export function publishCatalogCovers(
   for (const [key, rawUrl] of Object.entries(covers)) {
     let url = secure(rawUrl);
     const previous = entries.get(key);
-    // A verified Hardcover choice is shared work artwork. Older feed snapshots
-    // and ISBNdb refreshes cannot silently downgrade it; manual locks can win.
-    if (previous?.provider === 'hardcover' && details[key]?.provider !== 'hardcover' && !details[key]?.locked) continue;
+    if (previous?.locked && !details[key]?.locked) continue;
+    // Discovery Hardcover artwork survives refreshes. Series-only Hardcover
+    // artwork is a fallback and yields to ISBNdb; manual locks can win.
+    if (previous?.provider === 'hardcover' && !previous.fallback && details[key]?.provider !== 'hardcover' && !details[key]?.locked) continue;
+    if (previous?.provider === 'hardcover' && !previous.fallback && details[key]?.fallback && !details[key]?.locked) continue;
+    if (previous?.provider === 'isbndb' && details[key]?.fallback && !details[key]?.locked) continue;
     const workId = details[key]?.workId ?? previous?.workId;
     // A read started before another catalog result cannot undo that selection,
     // even when its response introduces a previously unknown ISBN/work alias.
@@ -243,15 +246,19 @@ export function publishCatalogCovers(
     else if (url && failed?.has(url)) url = alternatives.find(value => !failed.has(value)) ?? null;
     url = permitted(url, workId ?? undefined);
     if (!url) continue;
-    const entry = { provider: details[key]?.provider ?? previous?.provider, genres: normalizeBookGenres(details[key]?.genres ?? previous?.genres), url, alternatives, failedUrls: details[key]?.provider === 'hardcover' ? [] : failed ? [...failed] : [], failedAt: previous?.failedAt, locked: details[key]?.locked ?? previous?.locked, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
+    const entry = { fallback: details[key]?.fallback === true, provider: details[key]?.provider ?? previous?.provider, genres: normalizeBookGenres(details[key]?.genres ?? previous?.genres), url, alternatives, failedUrls: details[key]?.provider === 'hardcover' ? [] : failed ? [...failed] : [], failedAt: previous?.failedAt, locked: details[key]?.locked ?? previous?.locked, workId: workId || undefined, checkedAt: Date.now(), confirmed: true, revision: publicationRevision };
     if (workId) {
       for (const [alias, oldEntry] of entries) {
-        if (oldEntry.workId === workId) entries.set(alias, entry);
+        if ((oldEntry.workId === workId || (previous?.fallback && oldEntry.fallback && oldEntry.workId === previous.workId && entry.provider === 'isbndb')) &&
+            (!oldEntry.locked || entry.locked) &&
+            !(entry.fallback && (oldEntry.provider === 'isbndb' || (oldEntry.provider === 'hardcover' && !oldEntry.fallback)))) entries.set(alias, entry);
       }
     }
     remember(key, entry);
     for (const alias of (details[key]?.aliases ?? []).slice(0,500)) {
-      if (/^[A-Za-z0-9_-]{1,200}$/.test(alias) && (!entries.get(alias)?.locked || entry.locked)) remember(alias,entry);
+      const oldAlias = entries.get(alias);
+      if (/^[A-Za-z0-9_-]{1,200}$/.test(alias) && (!oldAlias?.locked || entry.locked) &&
+          !(entry.fallback && (oldAlias?.provider === 'isbndb' || (oldAlias?.provider === 'hardcover' && !oldAlias.fallback)))) remember(alias,entry);
     }
   }
   persist();

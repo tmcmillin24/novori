@@ -65,3 +65,27 @@ test('older edition proofs cannot undo a persisted Hardcover work-image choice',
  expect((await readEditionCovers(h.admin,[seed])).get('nv_a')![0].url).toBe(primary);
  expect(h.tables.book_cover_candidates[0].url).toBe(primary);
 });
+
+ test('series artwork is persisted as fallback without changing the discovery candidate',async()=>{
+ const h=harness();
+ await readEditionCovers(h.admin,[seed]);
+ const feedCandidate=h.tables.book_cover_candidates[0];
+ const series={...feedBook,coverOrigin:'series',coverProof:{...workProof,url:'https://assets.hardcover.app/series.jpg'}};
+ const response=await attachDiscoveryCatalogCovers(h.admin,{books:[series]});
+ expect(response.books[0]).toMatchObject({coverUrl:url,coverProvider:'hardcover',coverFallback:false});
+ expect(h.tables.book_cover_candidates.find(row=>row.candidate_key===feedCandidate.candidate_key)?.url).toBe(url);
+ expect(h.tables.book_cover_candidates.some(row=>row.source_metadata.coverOrigin==='series')).toBe(true);
+ });
+ test('series with ISBNdb artwork keeps it, while missing artwork uses the persisted Hardcover fallback',async()=>{
+ const h=harness();h.tables.novori_discover_cache=[];
+ const series={...feedBook,coverOrigin:'series',coverProof:workProof};
+ const response=await attachDiscoveryCatalogCovers(h.admin,{books:[series]});
+ expect(response.books[0]).toMatchObject({coverProvider:'isbndb',coverFallback:false,coverUrl:seed.metadata.volumeInfo.imageLinks.medium});
+ h.tables.book_editions=h.tables.book_editions.map(row=>({...row,metadata:{volumeInfo:{...row.metadata.volumeInfo,imageLinks:{}}}}));
+ expect((await readEditionCovers(h.admin,h.tables.book_editions)).get('nv_a')![0]).toMatchObject({provider:'hardcover',fallback:true,url});
+ });
+ test('old cached series proof can render before an ISBNdb identity exists',async()=>{
+ const h=harness();h.tables.book_editions=[];h.tables.book_works=[];h.tables.novori_discover_cache=[];
+ const result=await attachDiscoveryCatalogCovers(h.admin,{books:[{...feedBook,coverOrigin:'series'}]});
+ expect(result.books[0]).toMatchObject({coverUrl:url,coverProvider:'hardcover',coverFallback:true,coverBookId:null});
+ });

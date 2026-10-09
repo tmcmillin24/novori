@@ -2,7 +2,7 @@ import { loadMissingSeriesCovers } from '../src/lib/series-cover-loading';
 import { test, expect, jest } from '@jest/globals';
 
 const row = { id: 1, title: 'Iron Flame', authors: ['Rebecca Yarros'] };
-const result = { id: 'english', volumeInfo: { title: 'Iron Flame', authors: ['Rebecca Yarros'], language: 'en' } };
+const result = { id: 'english', volumeInfo: { title: 'Iron Flame', authors: ['Rebecca Yarros'], language: 'en', imageLinks: {thumbnail:'https://covers/good.jpg'} } };
 
 test('loads missing series covers without opening books, skips cached and unannounced rows', async () => {
  const search = jest.fn<(title: string) => Promise<any[]>>().mockResolvedValue([
@@ -11,7 +11,7 @@ test('loads missing series covers without opening books, skips cached and unanno
   result,
  ]);
  const publish = jest.fn();
- await loadMissingSeriesCovers([row, { ...row, id: 2, coverBookId: 'cached' }, { ...row, id: 3, title: 'Unannounced' }], search, publish, () => true);
+ await loadMissingSeriesCovers([row, { ...row, id: 2, coverBookId: 'cached', coverUrl: 'https://covers/cached.jpg' }, { ...row, id: 3, title: 'Unannounced' }], search, publish, () => true);
  expect(search).toHaveBeenCalledTimes(1);
  expect(publish).toHaveBeenCalledWith(row, 'english');
 });
@@ -32,3 +32,12 @@ test('an optional cover failure does not abort the remaining series', async () =
  expect(publish).toHaveBeenCalledTimes(1);
  expect(publish).toHaveBeenCalledWith({ ...row, id: 2 }, 'english');
 });
+
+ test('an existing ID without artwork is repaired and a coverless first match is skipped', async () => {
+ const missing = {...row, coverBookId:'old'};
+ const search = jest.fn<(title:string)=>Promise<any[]>>().mockResolvedValue([
+ {...result,id:'empty',volumeInfo:{...result.volumeInfo,imageLinks:{}}},result]);
+ const publish = jest.fn();
+ await loadMissingSeriesCovers([missing],search,publish,()=>true);
+ expect(publish).toHaveBeenCalledWith(missing,'english');
+ });

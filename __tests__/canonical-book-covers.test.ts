@@ -386,3 +386,27 @@ test('Hardcover image errors keep the selected work art across all aliases and r
  covers.publishCatalogCovers({hc_verified_777:fallback},{hc_verified_777:{provider:'isbndb'}});
  expect(covers.getCanonicalBookCover({googleBookId:'hc_verified_777'})).toBe(url);
 });
+
+ test('series fallback yields to ISBNdb but cannot displace verified discovery artwork',()=>{
+ const covers=require('../src/lib/canonical-book-covers');
+ covers.publishCatalogCovers({series_entry:'https://assets.hardcover.app/series.jpg'},{series_entry:{provider:'hardcover',fallback:true}});
+ covers.publishCatalogCovers({series_entry:'https://art/isbn.jpg'},{series_entry:{provider:'isbndb'}});
+ expect(covers.getCanonicalBookCover({googleBookId:'series_entry'})).toBe('https://art/isbn.jpg');
+ covers.publishCatalogCovers({series_entry:'https://assets.hardcover.app/series.jpg'},{series_entry:{provider:'hardcover',fallback:true}});
+ expect(covers.getCanonicalBookCover({googleBookId:'series_entry'})).toBe('https://art/isbn.jpg');
+ covers.publishCatalogCovers({series_entry:'https://assets.hardcover.app/feed.jpg'},{series_entry:{provider:'hardcover'}});
+ covers.publishCatalogCovers({series_entry:'https://assets.hardcover.app/series.jpg'},{series_entry:{provider:'hardcover',fallback:true}});
+ expect(covers.getCanonicalBookCover({googleBookId:'series_entry'})).toBe('https://assets.hardcover.app/feed.jpg');
+ });
+
+ test('series fallback aliases preserve discovery and ISBNdb choices and upgrade together',()=>{
+ const covers=require('../src/lib/canonical-book-covers');
+ covers.publishCatalogCovers({protected_feed:'https://art/feed.jpg'},{protected_feed:{provider:'hardcover',workId:'hardcover:81'}});
+ covers.publishCatalogCovers({protected_isbn:'https://art/isbn.jpg'},{protected_isbn:{provider:'isbndb'}});
+ covers.publishCatalogCovers({fallback_series:'https://art/fallback.jpg'},{fallback_series:{provider:'hardcover',fallback:true,workId:'hardcover:81',aliases:['protected_feed','protected_isbn','fallback_alias']}});
+ expect(covers.getCanonicalBookCover({googleBookId:'protected_feed'})).toBe('https://art/feed.jpg');
+ expect(covers.getCanonicalBookCover({googleBookId:'protected_isbn'})).toBe('https://art/isbn.jpg');
+ covers.publishCatalogCovers({fallback_series:'https://art/new-isbn.jpg'},{fallback_series:{provider:'isbndb',workId:'edition:fallback_series'}});
+ expect(covers.getCanonicalBookCover({googleBookId:'fallback_alias'})).toBe('https://art/new-isbn.jpg');
+ expect(covers.getCanonicalBookCover({googleBookId:'protected_feed'})).toBe('https://art/feed.jpg');
+ });

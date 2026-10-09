@@ -1,4 +1,4 @@
-import { safeHardcoverCoverUrl } from './hardcover-discovery-covers.ts';
+import { safeHardcoverCoverUrl, verifiedHardcoverDiscoveryChoice, DISCOVERY_COVER_VARIANT } from './hardcover-discovery-covers.ts';
 import { attachSeriesCatalogIdentities } from './series-book-catalog.ts';
 import { readEditionCovers } from './edition-cover-catalog.ts';
 
@@ -18,15 +18,17 @@ export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
     if (!cover) return [discoveryArtOnly(book)];
     return [{ ...book, coverBookId: cover.bookId, coverUrl: cover.url,
       coverAlternatives: candidates, coverPolicyVersion: 7,
-      coverProvider: cover.provider, coverAliases: cover.aliases, coverWorkId: cover.workId ?? `edition:${cover.bookId}`,
+      coverProvider: cover.provider, coverFallback: cover.fallback === true, coverAliases: cover.aliases, coverWorkId: cover.workId ?? `edition:${cover.bookId}`,
       genres: cover.genres?.length ? cover.genres : book.genres }];
   }) };
 }
 
 export function discoveryArtOnly(book: any) {
  const proof = book.coverProof;
+ const legacy = book.coverOrigin === 'series' && verifiedHardcoverDiscoveryChoice({metadata:{volumeInfo:{title:book.title,authors:book.authors,language:'en'}}}, {provider:'hardcover',source_variant:DISCOVERY_COVER_VARIANT,url:book.coverEdition?.url,source_metadata:{hardcoverBookId:book.id,title:book.title,authors:book.authors,coverOrigin:'series',coverEdition:book.coverEdition}});
  const valid = proof?.version === 2 && proof.source === 'hardcover_work_image' &&
   proof.hardcoverBookId === book.id && proof.title === book.title && Boolean(safeHardcoverCoverUrl(proof.url));
- return {...book, coverUrl: valid ? proof.url : null, coverProvider: valid ? 'hardcover' : undefined,
-  coverWorkId: valid ? `hardcover:${book.id}` : undefined, coverPolicyVersion:7};
+ const url = valid ? proof.url : legacy ? legacy.url : null;
+ return {...book, coverUrl: url, coverProvider: url ? 'hardcover' : undefined,
+  coverFallback: book.coverOrigin === 'series', coverWorkId: url ? `hardcover:${book.id}` : undefined, coverPolicyVersion:7};
 }

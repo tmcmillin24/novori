@@ -1,7 +1,9 @@
 import { cleanCatalogBookTitle, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
 import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
-import { attachSeriesCatalogIdentities } from '../_shared/series-book-catalog.ts';
+import { attachDiscoveryCatalogCovers } from '../_shared/discovery-cover-catalog.ts';
+import { hardcoverTextEdition } from '../_shared/hardcover-discovery-policy.ts';
+import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
 import { isbnDbEnabled } from '../_shared/isbndb.ts';
 import { englishEditionIsbns, isEnglishBookLanguage } from '../_shared/book-language.ts';
@@ -272,7 +274,7 @@ Deno.serve(async (req) => {
     // Series membership belongs to a verified work, not its printing's ISBN.
     // Keep ISBN-only/authorless requests isolated rather than aliasing unknown works.
     const hardcoverSeriesCacheKey = [
-      'series:v4:work-membership',
+      'series:v5:shared-cover-policy',
       normalizeSeriesCacheText(cleanCatalogBookTitle(requestedTitle)),
       requestedAuthors.map(author => normalizeSeriesCacheText(normalizeCatalogAuthor(author))).sort().join('|'),
       requestedTitle && requestedAuthors.length ? '' : requestedIsbns.slice().sort().join(','),
@@ -1585,6 +1587,8 @@ Deno.serve(async (req) => {
 
       const coverEdition = verifiedEnglishSeriesArt(book);
       const imageUrl = coverEdition?.url ?? null;
+      const coverProof = (book.editions ?? []).some((edition: any) => hardcoverTextEdition(edition, book.title, '9999-12-31'))
+        ? hardcoverDiscoveryArt({ ...book, image: book.image ?? book.cached_image }) : null;
 
       return {
 
@@ -1620,6 +1624,9 @@ Deno.serve(async (req) => {
 
         imageUrl,
         coverEdition,
+        coverProof,
+        coverOrigin: 'series',
+        formatPolicyVersion: 1,
 
 
 
@@ -2991,7 +2998,7 @@ Deno.serve(async (req) => {
     return seriesPayload;
       },
     });
-    const verifiedPayload = await attachSeriesCatalogIdentities(supabaseAdmin, responsePayload);
+    const verifiedPayload = await attachDiscoveryCatalogCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({...row, coverOrigin: 'series', formatPolicyVersion: 1})) });
     await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
     return new Response(JSON.stringify(verifiedPayload), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
