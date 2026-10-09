@@ -652,3 +652,22 @@ test('ISBNdb refresh preserves usable artwork but empty or placeholder snapshots
  expect(api.retainedIsbnDbImageLinks(good,{thumbnail:'https://images.isbndb.com/new.jpg'})).toEqual(good);
  expect(api.stableIsbnDbCover('https://images.isbndb.com/covers/good.jpg?X-Amz-Signature=abc')).toBeUndefined();
 });
+
+test('tokenized old Google artwork cannot replace a current stable ISBNdb image on revalidation',()=>{
+ const api=isbnHarness().load('supabase/functions/_shared/isbndb.ts');
+ const modern={thumbnail:'https://images.isbndb.com/covers/4412063482758.jpg'};
+ expect(api.retainedIsbnDbImageLinks({large:'https://books.google.com/books/content?id=old&imgtk=expired'},modern)).toEqual(modern);
+ expect(api.retainedIsbnDbImageLinks({thumbnail:'https://books.google.com/books/content?id=old&zoom=1'},modern)).toEqual({thumbnail:'https://books.google.com/books/content?id=old&zoom=1'});
+});
+
+test('warm duplicate provider IDs load ISBNdb details rather than an older Google image without an upstream request',async()=>{
+ const h=isbnHarness();
+ const id='7g4GFBzTI6QC',isbn='9781601422088';
+ const modern={id,source:{provider:'isbndb',isbn13:isbn},volumeInfo:{title:'In a Pit with a Lion on a Snowy Day',authors:['Mark Batterson'],language:'en',imageLinks:{thumbnail:'https://images.isbndb.com/covers/4412063482758.jpg'},industryIdentifiers:[{type:'ISBN_13',identifier:isbn}]}};
+ const old={...modern,source:{provider:'google_books'},volumeInfo:{...modern.volumeInfo,imageLinks:{large:'https://books.google.com/books/content?id=old&imgtk=old-image-token'}}};
+ h.legacy.push({provider:'google_books',provider_book_id:id,isbn_13:isbn,detail_complete:true,metadata:old},{provider:'isbndb',provider_book_id:id,isbn_13:isbn,detail_complete:true,metadata:modern});
+ h.setCatalog([{google_book_id:id,fetched_at:new Date().toISOString(),metadata:old}]);
+ const result=await h.request('google-books-detail',{volumeId:id});
+ expect(result.data.volumeInfo.imageLinks.thumbnail).toBe(modern.volumeInfo.imageLinks.thumbnail);
+ expect(result.data.source.provider).toBe('isbndb');expect(h.calls).toHaveLength(0);
+});

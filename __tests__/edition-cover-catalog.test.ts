@@ -55,3 +55,11 @@ test('missing language/author metadata cannot hide own edition cover or allow un
  const empty={...own,metadata:{volumeInfo:{title:'An Ordinary Novel'}}};
  expect(editionCoverChoices(empty,[empty,row('other','https://art/other.jpg')])).toEqual([]);
 });
+
+test('a legacy Google edition cannot outrank verified ISBNdb artwork solely because it was the requested ID',()=>{
+ const legacy={...row('legacy','https://books.google.com/books/content?imgtk=old'),provider:'google_books'};
+ const modern=row('publisher','https://images.isbndb.com/covers/good.jpg');
+ expect(editionCoverChoices(legacy,[legacy,modern])[0]).toMatchObject({url:modern.metadata.volumeInfo.imageLinks.medium,provider:'isbndb'});
+ expect(editionCoverChoices(legacy,[modern,legacy])[0].url).toBe(modern.metadata.volumeInfo.imageLinks.medium);
+ expect(editionCoverChoices(legacy,[legacy])[0].url).toBe(legacy.metadata.volumeInfo.imageLinks.medium);
+});

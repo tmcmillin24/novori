@@ -29,8 +29,8 @@ export function editionCoverChoices(seed: any, editions: any[], manual?: any, ha
   const rank = (row: any) => [
     preferred && row.isbn_13 === preferred ? 0 : 1,
     family && row.isbn_13 === family.isbn_13 ? 0 : 1,
-    row.provider_book_id === seed.provider_book_id ? 0 : 1,
     audioEditionPenalty(row.metadata), row.provider === 'isbndb' ? 0 : 1,
+    row.provider_book_id === seed.provider_book_id ? 0 : 1,
   ];
   matching.sort((a, b) => {
     const aa = rank(a), bb = rank(b);

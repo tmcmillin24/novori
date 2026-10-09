@@ -157,3 +157,17 @@ test('the shared cover batch carries exact-edition pages independently of the ar
  expect(result.data.pageCounts.volumeA).toEqual({isbn:'9781234567897',pageCount:320});
  expect(result.data.covers.volumeA).toBe('https://art/original.jpg');
 });
+
+test('uploaded Lion catalog evidence resolves publisher covers for legacy IDs and every non-audio edition',async()=>{
+ const records=require('./fixtures/lion-artwork-diagnostic.json');
+ const valid=records.filter(record=>record.format!=='audio' && !record.title.startsWith('100 Facts'));
+ const api=endpoint(false,tables=>{
+  tables.book_editions=records.map((r,i)=>({id:'lion-'+i,provider:r.provider,provider_book_id:r.book_id,work_id:r.title.includes('How to Survive')?'lion-subtitle':'lion-short',isbn_13:r.isbn,language:r.language,metadata:{source:{provider:r.provider,isbn13:r.isbn},novoriEdition:{format:r.format},volumeInfo:{title:r.title,authors:r.authors,language:r.language,imageLinks:r.images}}}));
+  tables.book_works=[{id:'lion-short',normalized_title:'in a pit with a lion on a snowy day'},{id:'lion-subtitle',normalized_title:'in a pit with a lion on a snowy day how to survive and thrive when opportunity roars'}];
+  tables.book_cover_candidates=[];
+ });
+ const result=await api({volumeIds:[...new Set(valid.map(record=>record.book_id))]});
+ for(const record of valid){
+  expect(result.data.covers[record.book_id]).toMatch(/^https:\/\/images\.isbndb\.com\//);
+ }
+});

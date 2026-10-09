@@ -49,13 +49,13 @@ export function stableIsbnDbCover(value: unknown): string | undefined {
   const url=new URL(value.trim());
   if(!['http:','https:'].includes(url.protocol) || url.hostname!=='images.isbndb.com' || url.username || url.password ||
    /placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) ||
-   [...url.searchParams.keys()].some(key=>/signature|expires|token|credential/i.test(key)))return;
+   [...url.searchParams.keys()].some(key=>/signature|expires|token|credential|^imgtk$/i.test(key)))return;
   url.protocol='https:';return url.toString();
  } catch {return;}
 }
 export function retainedIsbnDbImageLinks(old: any, current: any) {
  const variants=['extraLarge','large','medium','small','thumbnail','smallThumbnail'];
- const usable=variants.some(key=>{try {const url=new URL(old?.[key]);return ['http:','https:'].includes(url.protocol) && !url.username && !url.password && !/placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) && ![...url.searchParams.keys()].some(name=>/signature|expires|token|credential/i.test(name));}catch{return false;}});
+ const usable=variants.some(key=>{try {const url=new URL(old?.[key]);return ['http:','https:'].includes(url.protocol) && !url.username && !url.password && !/placeholder|no[-_]?image|no[-_]?cover|default/i.test(url.pathname) && ![...url.searchParams.keys()].some(name=>/signature|expires|token|credential|^imgtk$/i.test(name));}catch{return false;}});
  return usable?old:current;
 }
 export function adaptIsbnDbBook(raw: any, id?: string): Book | null {
@@ -209,7 +209,8 @@ async function detail(admin: SupabaseClient, userId: string, id: string) {
   const { data: rows, error } = await admin.from('book_editions')
     .select('isbn_13,isbn_10,metadata,detail_complete').eq('provider_book_id', id).limit(20);
   if (error) throw new Error('Could not read existing book mapping.');
-  const cached = (rows ?? []).find((row: any) => row.metadata?.volumeInfo?.title);
+  const cached = (rows ?? []).find((row: any) => row.metadata?.source?.provider === 'isbndb' && row.metadata?.volumeInfo?.title) ??
+    (rows ?? []).find((row: any) => row.metadata?.volumeInfo?.title);
   // Cached catalog books remain openable even when ISBNdb lacks a legacy ISBN.
   if (cached?.detail_complete) {
     const { data: source, error: sourceError } = await admin.from('google_books_catalog')

@@ -1,0 +1,205 @@
+[
+  {
+    "isbn": "9781601422088",
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": null,
+    "images": {
+      "large": "http://books.google.com/books/content?id=7g4GFBzTI6QC&printsec=frontcover&img=1&zoom=4&edge=curl&imgtk=old-image-token&source=gbs_api",
+      "small": "http://books.google.com/books/content?id=7g4GFBzTI6QC&printsec=frontcover&img=1&zoom=2&edge=curl&imgtk=old-image-token&source=gbs_api",
+      "medium": "http://books.google.com/books/content?id=7g4GFBzTI6QC&printsec=frontcover&img=1&zoom=3&edge=curl&imgtk=old-image-token&source=gbs_api",
+      "thumbnail": "http://books.google.com/books/content?id=7g4GFBzTI6QC&printsec=frontcover&img=1&zoom=1&edge=curl&imgtk=old-image-token&source=gbs_api",
+      "smallThumbnail": "http://books.google.com/books/content?id=7g4GFBzTI6QC&printsec=frontcover&img=1&zoom=5&edge=curl&imgtk=old-image-token&source=gbs_api"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "7g4GFBzTI6QC",
+    "complete": true,
+    "language": "en",
+    "provider": "google_books"
+  },
+  {
+    "isbn": null,
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": null,
+    "images": null,
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "8VjjzQEACAAJ",
+    "complete": false,
+    "language": "en",
+    "provider": "google_books"
+  },
+  {
+    "isbn": "9781601422088",
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": "unknown",
+    "images": {
+      "small": "https://images.isbndb.com/covers/4412063482758.jpg",
+      "medium": "https://images.isbndb.com/covers/4412063482758.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/4412063482758.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "7g4GFBzTI6QC",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9780385365864",
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": "unknown",
+    "images": {
+      "small": "https://images.isbndb.com/covers/4996893482325.jpg",
+      "medium": "https://images.isbndb.com/covers/4996893482325.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/4996893482325.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9780385365864",
+    "complete": true,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9781590527153",
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": "print",
+    "images": {
+      "small": "https://images.isbndb.com/covers/7805873482754.jpg",
+      "medium": "https://images.isbndb.com/covers/7805873482754.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/7805873482754.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9781590527153",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9781596445857",
+    "title": "In a Pit with a Lion on a Snowy Day: How to Survive and Thrive When Opportunity Roars",
+    "format": "audio",
+    "images": {
+      "small": "https://images.isbndb.com/covers/10821333482756.jpg",
+      "medium": "https://images.isbndb.com/covers/10821333482756.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/10821333482756.jpg"
+    },
+    "authors": [
+      "Batterson",
+      "Mark"
+    ],
+    "book_id": "nv_9781596445857",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9781601429292",
+    "title": "In a Pit with a Lion on a Snowy Day: How to Survive and Thrive When Opportunity Roars",
+    "format": "print",
+    "images": {
+      "small": "https://images.isbndb.com/covers/4484103482758.jpg",
+      "medium": "https://images.isbndb.com/covers/4484103482758.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/4484103482758.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9781601429292",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9781606710913",
+    "title": "In a Pit with a Lion on a Snowy Day",
+    "format": "print",
+    "images": {
+      "small": "https://images.isbndb.com/covers/1128733482760.jpg",
+      "medium": "https://images.isbndb.com/covers/1128733482760.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/1128733482760.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9781606710913",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9785458823371",
+    "title": "100 Facts About in a Pit with a Lion on a Snowy Day How to Survive and Thrive When Opportunity Roars That Even the Cia Doesn't Know",
+    "format": "print",
+    "images": {
+      "small": "https://images.isbndb.com/covers/16635223484131.jpg",
+      "medium": "https://images.isbndb.com/covers/16635223484131.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/16635223484131.jpg"
+    },
+    "authors": [
+      "Max Boeing"
+    ],
+    "book_id": "nv_9785458823371",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9798200504725",
+    "title": "In a Pit with a Lion on a Snowy Day Lib/E: How to Survive and Thrive When Opportunity Roars",
+    "format": "unknown",
+    "images": {
+      "small": "https://images.isbndb.com/covers/8219533488668.jpg",
+      "medium": "https://images.isbndb.com/covers/8219533488668.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/8219533488668.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9798200504725",
+    "complete": true,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9798200504732",
+    "title": "In a Pit with a Lion on a Snowy Day: How to Survive and Thrive When Opportunity Roars",
+    "format": "audio",
+    "images": {
+      "small": "https://images.isbndb.com/covers/8219603488668.jpg",
+      "medium": "https://images.isbndb.com/covers/8219603488668.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/8219603488668.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9798200504732",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  },
+  {
+    "isbn": "9798200504749",
+    "title": "In a Pit with a Lion on a Snowy Day: How to Survive and Thrive When Opportunity Roars",
+    "format": "audio",
+    "images": {
+      "small": "https://images.isbndb.com/covers/8219773488668.jpg",
+      "medium": "https://images.isbndb.com/covers/8219773488668.jpg",
+      "thumbnail": "https://images.isbndb.com/covers/8219773488668.jpg"
+    },
+    "authors": [
+      "Mark Batterson"
+    ],
+    "book_id": "nv_9798200504749",
+    "complete": false,
+    "language": "en",
+    "provider": "isbndb"
+  }
+]

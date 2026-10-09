@@ -288,3 +288,13 @@ test('cover-ready results arrive before deferred ratings, coalesce, and cache on
  expect((await api.searchNovoriBooks('The Book'))[0].novoriWork.hardcoverRatingsCount).toBe(100);
  expect(api.popularityCalls).toHaveLength(1);
 });
+
+test('uploaded Lion catalog records retain publisher artwork through the shared search representative selection',async()=>{
+ const records=require('./fixtures/lion-artwork-diagnostic.json');
+ const items=records.filter(r=>r.provider==='isbndb').map(r=>({id:r.book_id,source:{provider:r.provider,isbn13:r.isbn},novoriEdition:{format:r.format},volumeInfo:{title:r.title,authors:r.authors,language:r.language,imageLinks:r.images,industryIdentifiers:[{type:'ISBN_13',identifier:r.isbn}]}}));
+ const api=load(items);
+ const results=await api.searchNovoriBooks('In a Pit with a Lion on a Snowy Day');
+ expect(results.length).toBeGreaterThan(0);
+ expect(results[0].volumeInfo.authors).toContain('Mark Batterson');
+ expect(api.getNovoriSearchBookCover(results[0])).toMatch(/^https:\/\/images\.isbndb\.com\//);
+});
