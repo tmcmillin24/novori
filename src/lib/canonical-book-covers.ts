@@ -251,6 +251,7 @@ export function publishCatalogCovers(
       for (const [alias, oldEntry] of entries) {
         if ((oldEntry.workId === workId || (previous?.fallback && oldEntry.fallback && oldEntry.workId === previous.workId && entry.provider === 'isbndb')) &&
             (!oldEntry.locked || entry.locked) &&
+            !(oldEntry.provider === 'hardcover' && !oldEntry.fallback && entry.provider !== 'hardcover' && !entry.locked) &&
             !(entry.fallback && (oldEntry.provider === 'isbndb' || (oldEntry.provider === 'hardcover' && !oldEntry.fallback)))) entries.set(alias, entry);
       }
     }
@@ -258,6 +259,7 @@ export function publishCatalogCovers(
     for (const alias of (details[key]?.aliases ?? []).slice(0,500)) {
       const oldAlias = entries.get(alias);
       if (/^[A-Za-z0-9_-]{1,200}$/.test(alias) && (!oldAlias?.locked || entry.locked) &&
+          !(oldAlias?.provider === 'hardcover' && !oldAlias.fallback && entry.provider !== 'hardcover' && !entry.locked) &&
           !(entry.fallback && (oldAlias?.provider === 'isbndb' || (oldAlias?.provider === 'hardcover' && !oldAlias.fallback)))) remember(alias,entry);
     }
   }

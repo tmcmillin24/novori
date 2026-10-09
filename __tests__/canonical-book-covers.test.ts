@@ -410,3 +410,13 @@ test('Hardcover image errors keep the selected work art across all aliases and r
  expect(covers.getCanonicalBookCover({googleBookId:'fallback_alias'})).toBe('https://art/new-isbn.jpg');
  expect(covers.getCanonicalBookCover({googleBookId:'protected_feed'})).toBe('https://art/feed.jpg');
  });
+
+test('publisher family alias publication cannot overwrite protected Hardcover or manual images',()=>{
+ const covers=require('../src/lib/canonical-book-covers');
+ covers.publishCatalogCovers({feed_family:'https://art/feed.jpg'},{feed_family:{provider:'hardcover',workId:'hardcover:family'}});
+ covers.publishCatalogCovers({manual_family:'https://art/manual.jpg'},{manual_family:{provider:'manual',locked:true}});
+ covers.publishCatalogCovers({family_new:'https://art/family.jpg'},{family_new:{provider:'isbndb',workId:'series-edition:example',aliases:['feed_family','manual_family','family_other']}});
+ expect(covers.getCanonicalBookCover({googleBookId:'feed_family'})).toBe('https://art/feed.jpg');
+ expect(covers.getCanonicalBookCover({googleBookId:'manual_family'})).toBe('https://art/manual.jpg');
+ expect(covers.getCanonicalBookCover({googleBookId:'family_other'})).toBe('https://art/family.jpg');
+});

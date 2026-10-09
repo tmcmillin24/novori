@@ -11,7 +11,7 @@ export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
     .select('id,provider,provider_book_id,work_id,isbn_10,isbn_13,language,metadata')
     .in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
   if (error) throw error;
-  const choices = await readEditionCovers(admin, editions ?? [], payload.books ?? []);
+  const choices = await readEditionCovers(admin, editions ?? [], payload.books ?? [], payload.series);
   return { ...verified, books: verified.books.flatMap((book: any) => {
     const candidates = choices.get(book.coverBookId) ?? [];
     const cover = candidates[0];

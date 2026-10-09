@@ -24,6 +24,7 @@ export function cleanCatalogBookTitle(title: string) {
  return title.trim()
   .replace(/\s*(?:[:–—]\s*)?\bdiscover the (?:follow[- ]up|sequel) to the (?:global|worldwide) phenomenons?\b[\s\S]*$/i, '')
   .replace(/\s*\((?:Standard Edition|English(?:[- ]language)? edition|Engelstalige editie)\)\s*$/i, '')
+  .replace(/\s*\((?:the )?[^()]+\b(?:saga|series)\)\s*$/i, '')
   // Confirmed series-name label used by the Empyrean catalog editions.
   .replace(/\s*\((?:the )?Empyrean\)\s*$/i, '')
   .replace(/\s*[\[(][^\])]*(?:\b(?:edition|collector|deluxe|special|anniversary|book\s*\d+|volume\s*\d+|vol\.?\s*\d+|series)|#\s*\d+|,\s*\d+)[^\])]*[\])]\s*$/i, '')

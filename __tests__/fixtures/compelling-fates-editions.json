@@ -1,0 +1,898 @@
+{
+  "books": [
+    {
+      "id": 1620788,
+      "position": 1,
+      "title": "A Tongue so Sweet and Deadly",
+      "authors": [
+        "Sophia St. Germain"
+      ],
+      "isbns": [
+        "9789198968910",
+        "9198968912",
+        "9789198968903",
+        "9198968904",
+        "9798260865972",
+        "9781035443086",
+        "1035443082"
+      ]
+    },
+    {
+      "id": 1839200,
+      "position": 2,
+      "title": "A Promise so Bold and Broken",
+      "authors": [
+        "Sophia St. Germain"
+      ],
+      "isbns": [
+        "9789198968927",
+        "9198968920",
+        "9798347005260"
+      ]
+    },
+    {
+      "id": 1879294,
+      "position": 3,
+      "title": "A Bond so Fierce and Fragile",
+      "authors": [
+        "Sophia St. Germain"
+      ],
+      "isbns": [
+        "9789199004143",
+        "9199004143",
+        "9789199004150",
+        "9199004151"
+      ]
+    },
+    {
+      "id": 2160849,
+      "position": 4,
+      "title": "A Fate so Dark and Delicate",
+      "authors": [
+        "Sophia St. Germain"
+      ],
+      "isbns": [
+        "9789199004174",
+        "9199004178"
+      ]
+    }
+  ],
+  "editions": [
+    {
+      "id": "edition:9781035443130",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443130",
+      "isbn_13": "9781035443130",
+      "work_id": "ddb71e26-232d-4160-bfa6-65391a198a18",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Mass Market Paperback",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2026-02-12",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17952063482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17952063482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17952063482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764744",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764744",
+      "isbn_13": "9781496764744",
+      "work_id": "ddb71e26-232d-4160-bfa6-65391a198a18",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-05-26",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25098643482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25098643482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25098643482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764881",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764881",
+      "isbn_13": "9781496764881",
+      "work_id": "ddb71e26-232d-4160-bfa6-65391a198a18",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "binding": "ePub",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-01-27",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25100013482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25100013482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25100013482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789199004150",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789199004150",
+      "isbn_13": "9789199004150",
+      "work_id": "ddb71e26-232d-4160-bfa6-65391a198a18",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Bond So Fierce and Fragile"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-08-20",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/8170733485463.jpg",
+            "medium": "https://images.isbndb.com/covers/8170733485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/8170733485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789199004167",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789199004167",
+      "isbn_13": "9789199004167",
+      "work_id": "ddb71e26-232d-4160-bfa6-65391a198a18",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Hardcover",
+          "productKind": "book",
+          "originalTitle": "A Bond So Fierce and Fragile"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-08-20",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/8170903485463.jpg",
+            "medium": "https://images.isbndb.com/covers/8170903485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/8170903485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789198968958",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789198968958",
+      "isbn_13": "9789198968958",
+      "work_id": "045f66b0-61be-413f-9fd2-258f38da9a14",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Hardcover",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile (Compelling Fates Saga)"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile (Compelling Fates Saga)",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-08-17",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/7818813485463.jpg",
+            "medium": "https://images.isbndb.com/covers/7818813485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/7818813485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789199004099",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789199004099",
+      "isbn_13": "9789199004099",
+      "work_id": "045f66b0-61be-413f-9fd2-258f38da9a14",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile (Compelling Fates Saga)"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile (Compelling Fates Saga)",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-08-17",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/8170223485463.jpg",
+            "medium": "https://images.isbndb.com/covers/8170223485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/8170223485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443147",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443147",
+      "isbn_13": "9781035443147",
+      "work_id": "35b06536-093e-4511-a37f-f140a02e1384",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "productKind": "book",
+          "originalTitle": "A Bond so Fierce and Fragile The epic, spicy, slow-burn romantasy series continues - perfect for fans of Gild and The Veiled Kingdom!"
+        },
+        "volumeInfo": {
+          "title": "A Bond So Fierce and Fragile the Epic, Spicy, Slow-Burn Romantasy Series Continues - Perfect for Fans of Gild and the Veiled Kingdom!",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2025-12-11",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17952233482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17952233482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17952233482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443161",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443161",
+      "isbn_13": "9781035443161",
+      "work_id": "878a3d8c-0cb9-4f97-ac14-deb6170ec617",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Mass Market Paperback",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2026-04-09",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17952373482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17952373482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17952373482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764898",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764898",
+      "isbn_13": "9781496764898",
+      "work_id": "878a3d8c-0cb9-4f97-ac14-deb6170ec617",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "binding": "ePub",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-01-27",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25100183482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25100183482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25100183482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443178",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443178",
+      "isbn_13": "9781035443178",
+      "work_id": "5c27802d-9a6b-4a94-a6a7-febe96fd7249",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate - The slow-burn romantasy with sizzling tension, secrets and twists!"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate - the Slow-Burn Romantasy with Sizzling Tension, Secrets and Twists!",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2025-12-17",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17952543482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17952543482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17952543482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789199004181",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789199004181",
+      "isbn_13": "9789199004181",
+      "work_id": "ed95443a-07a5-448f-81ba-6d42a2a408fe",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "paperback",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate (Compelling Fates Saga)"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate (Compelling Fates Saga)",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-12-17",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/8171043485463.jpg",
+            "medium": "https://images.isbndb.com/covers/8171043485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/8171043485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789199004198",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789199004198",
+      "isbn_13": "9789199004198",
+      "work_id": "ed95443a-07a5-448f-81ba-6d42a2a408fe",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "hardcover",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate (Compelling Fates Saga)"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate (Compelling Fates Saga)",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-12-17",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/8171213485463.jpg",
+            "medium": "https://images.isbndb.com/covers/8171213485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/8171213485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764751",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764751",
+      "isbn_13": "9781496764751",
+      "work_id": "3fdd6a78-49e2-4e6a-8e69-8e359f054560",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Fate so Dark and Delicate (The Compelling Fates Saga)"
+        },
+        "volumeInfo": {
+          "title": "A Fate So Dark and Delicate (The Compelling Fates Saga)",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Replenishment Titles (KRT)",
+          "publishedDate": "2026-05-26",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25098713482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25098713482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25098713482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443109",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443109",
+      "isbn_13": "9781035443109",
+      "work_id": "0e09b587-80de-471e-8317-37768b3cb230",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Mass Market Paperback",
+          "productKind": "book",
+          "originalTitle": "A Promise so Bold and Broken"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2026-02-12",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17951853482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17951853482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17951853482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764737",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764737",
+      "isbn_13": "9781496764737",
+      "work_id": "0e09b587-80de-471e-8317-37768b3cb230",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Promise so Bold And Broken"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-05-26",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25098573482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25098573482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25098573482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764874",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764874",
+      "isbn_13": "9781496764874",
+      "work_id": "0e09b587-80de-471e-8317-37768b3cb230",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "binding": "ePub",
+          "productKind": "book",
+          "originalTitle": "A Promise so Bold and Broken"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-01-27",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25099943482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25099943482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25099943482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789198968934",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789198968934",
+      "isbn_13": "9789198968934",
+      "work_id": "0e09b587-80de-471e-8317-37768b3cb230",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Promise So Bold and Broken"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-04-30",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/7818573485463.jpg",
+            "medium": "https://images.isbndb.com/covers/7818573485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/7818573485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789198968941",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789198968941",
+      "isbn_13": "9789198968941",
+      "work_id": "0e09b587-80de-471e-8317-37768b3cb230",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Hardcover",
+          "productKind": "book",
+          "originalTitle": "A Promise So Bold and Broken"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2025-04-30",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/7818643485463.jpg",
+            "medium": "https://images.isbndb.com/covers/7818643485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/7818643485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443116",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443116",
+      "isbn_13": "9781035443116",
+      "work_id": "4db7fe58-c981-4bca-b7dd-1006118f07e9",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "productKind": "book",
+          "originalTitle": "A Promise so Bold and Broken Don't miss the epic enemies-to-lovers series that is taking the romantasy world by storm!"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken Don't Miss the Epic Enemies-to-Lovers Series That Is Taking the Romantasy World by Storm!",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2025-12-11",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17951923482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17951923482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17951923482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9783570317990",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9783570317990",
+      "isbn_13": "9783570317990",
+      "work_id": "c6e75945-b070-474f-a047-c9f5cf265330",
+      "language": "de",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Promise so Bold and Broken: Die Prophezeiung der Elfenkrone - Der zweite Band der s\u00fcchtigmachenden spicy Elfenromantasyreihe"
+        },
+        "volumeInfo": {
+          "title": "A Promise So Bold and Broken: Die Prophezeiung Der Elfenkrone - Der Zweite Band Der S\u00fcchtigmachenden Spicy Elfenromantasyreihe",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "cbt",
+          "publishedDate": "2027",
+          "language": "de",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/5232293483459.jpg",
+            "medium": "https://images.isbndb.com/covers/5232293483459.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/5232293483459.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443079",
+      "provider": "isbndb",
+      "provider_book_id": "OknH0QEACAAJ",
+      "isbn_13": "9781035443079",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Mass Market Paperback",
+          "productKind": "book",
+          "originalTitle": "A Tongue so Sweet and Deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2026-02-12",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17951553482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17951553482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17951553482556.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764720",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764720",
+      "isbn_13": "9781496764720",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Tongue So Sweet and Deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Replenishment Titles (Krt)",
+          "publishedDate": "2026-05-26",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25098403482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25098403482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25098403482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764799",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781496764799",
+      "isbn_13": "9781496764799",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A Tongue so Sweet and Deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Penguin USA",
+          "publishedDate": "2027-03-30",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25099193482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25099193482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25099193482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781496764867",
+      "provider": "isbndb",
+      "provider_book_id": "I5SrEQAAQBAJ",
+      "isbn_13": "9781496764867",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "binding": "ePub",
+          "productKind": "book",
+          "originalTitle": "A Tongue so Sweet and Deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Kensington Publishing Corp",
+          "publishedDate": "2026-01-27",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/25099873482720.jpg",
+            "medium": "https://images.isbndb.com/covers/25099873482720.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/25099873482720.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789198968903",
+      "provider": "isbndb",
+      "provider_book_id": "LkQG0QEACAAJ",
+      "isbn_13": "9789198968903",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Paperback",
+          "productKind": "book",
+          "originalTitle": "A tongue so sweet and deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2024-12-03",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/7818263485463.jpg",
+            "medium": "https://images.isbndb.com/covers/7818263485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/7818263485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9789198968910",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9789198968910",
+      "isbn_13": "9789198968910",
+      "work_id": "cdf2ed27-5a9e-497b-b1d4-dee0f35baa90",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "print",
+          "binding": "Hardcover",
+          "productKind": "book",
+          "originalTitle": "A tongue so sweet and deadly"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Sophia St. Germain",
+          "publishedDate": "2024-12-03",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/7818333485463.jpg",
+            "medium": "https://images.isbndb.com/covers/7818333485463.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/7818333485463.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": "edition:9781035443086",
+      "provider": "isbndb",
+      "provider_book_id": "nv_9781035443086",
+      "isbn_13": "9781035443086",
+      "work_id": "808460d9-69a3-46d4-8321-aabe908eb541",
+      "language": "en",
+      "metadata": {
+        "novoriEdition": {
+          "format": "unknown",
+          "productKind": "book",
+          "originalTitle": "A Tongue so Sweet and Deadly Discover your next dark and spicy enemies-to-lovers fae romantasy obsession!"
+        },
+        "volumeInfo": {
+          "title": "A Tongue So Sweet and Deadly Discover Your Next Dark and Spicy Enemies-to-Lovers Fae Romantasy Obsession!",
+          "authors": [
+            "Sophia St. Germain"
+          ],
+          "publisher": "Headline",
+          "publishedDate": "2025-12-11",
+          "language": "en",
+          "imageLinks": {
+            "small": "https://images.isbndb.com/covers/17951623482556.jpg",
+            "medium": "https://images.isbndb.com/covers/17951623482556.jpg",
+            "thumbnail": "https://images.isbndb.com/covers/17951623482556.jpg"
+          }
+        }
+      }
+    }
+  ]
+}
