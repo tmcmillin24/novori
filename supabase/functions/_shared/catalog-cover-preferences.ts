@@ -12,3 +12,10 @@ export function preferredCoverIsbn(book: { title?: string; authors?: string[] })
 }
 
 export function isPreferredCoverIsbn(isbn: string) { return preferences.some(row => row.isbn === isbn); }
+
+// Artwork-only choices do not select the edition used for its metadata.
+export function preferredArtworkIsbn(book: {title?: string;authors?: string[]}) {
+ return key(cleanCatalogBookTitle(book.title ?? '')) === key('A Fate So Dark and Delicate') &&
+  (book.authors ?? []).some(author => key(normalizeCatalogAuthor(author)) === key('Sophia St. Germain'))
+  ? '9781496764898' : null;
+}

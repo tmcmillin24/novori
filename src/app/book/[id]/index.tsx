@@ -2101,6 +2101,11 @@ export default function BookDetailsScreen() {
   async function findGoogleBookForSeries(
     seriesBook: HardcoverSeriesBook
   ): Promise<GoogleBook | null> {
+    // The shared series response/search has already verified this catalog ID.
+    // Navigate directly; details use the normal cached-first load on arrival.
+    if (seriesBook.coverBookId && /^[A-Za-z0-9_-]{1,200}$/.test(seriesBook.coverBookId) && !seriesBook.coverBookId.startsWith('hc_art_')) {
+      return { id: seriesBook.coverBookId, volumeInfo: { title: seriesBook.title, authors: seriesBook.authors } };
+    }
     const author =
       seriesBook.authors?.[0];
 
@@ -3034,8 +3039,15 @@ export default function BookDetailsScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.gold} />
-        <Text style={styles.loadingText}>Opening book...</Text>
+        {clickedTitle ? (
+          <>
+            <BookCoverImage googleBookId={id} existingCoverUrl={discoverCoverUrl}
+              style={{width:112,height:168,borderRadius:8,marginBottom:20}} resizeMode="contain" />
+            <Text style={[styles.errorTitle,{textAlign:'center',paddingHorizontal:24}]}>{displayBookTitle(clickedTitle)}</Text>
+          </>
+        ) : null}
+        <ActivityIndicator size="small" color={colors.gold} />
+        <Text style={styles.loadingText}>Loading details…</Text>
       </View>
     );
   }

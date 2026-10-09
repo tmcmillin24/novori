@@ -66,3 +66,14 @@ test('missing publisher edition preserves the ordinary cover path instead of for
  expect(candidates.some(row=>row.source_metadata.title===fixture.books[2].title)).toBe(false);
  expect(editionCoverChoices(seed,editions,undefined,[],candidates)[0].bookId).toBe(seed.provider_book_id);
 });
+
+test('confirmed ebook artwork is shared while the paperback remains the series metadata identity',()=>{
+ const candidates=seriesPublisherCandidates(fixture.editions,fixture.books,146527);
+ const seed=fixture.editions.find(row=>row.isbn_13==='9781496764751')!;
+ const ebook=fixture.editions.find(row=>row.isbn_13==='9781496764898')!;
+ const choice=editionCoverChoices(seed,fixture.editions,undefined,[],candidates)[0];
+ expect(choice.bookId).toBe(seed.provider_book_id);
+ expect(choice.url).toBe(ebook.metadata.volumeInfo.imageLinks.medium);
+ expect(seed.metadata.novoriEdition.format).toBe('print');
+ expect(seed.metadata.volumeInfo.publishedDate).toBe('2026-05-26');
+});

@@ -1,4 +1,4 @@
-import { isPreferredCoverIsbn as isRegisteredAnchor, preferredCoverIsbn } from './catalog-cover-preferences.ts';
+import { isPreferredCoverIsbn as isRegisteredAnchor, preferredArtworkIsbn, preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
 import { cachedEditionCover } from './catalog-metadata-covers.ts';
 
@@ -29,14 +29,18 @@ export function seriesPublisherCandidates(editions: any[], books: any[], seriesI
       matchesSeriesCatalogEdition(book, row) && paperback(row) && cachedEditionCover(row) &&
       publisherKey(row.metadata.volumeInfo.publisher ?? '') === anchor.publisher);
     matches.sort((a,b) => String(a.isbn_13).localeCompare(String(b.isbn_13)));
-    const row = matches.find(row => row.isbn_13 === preferredCoverIsbn(book)) ?? matches[0];
+    // An explicit artwork ISBN may use an ebook cover without changing the
+    // publisher/format preference used for the other siblings.
+    const explicit = editions.find(row => row.id && row.work_id && row.provider === 'isbndb' &&
+      (row.isbn_13 === (preferredArtworkIsbn(book) ?? preferredCoverIsbn(book))) && matchesSeriesCatalogEdition(book,row) && cachedEditionCover(row));
+    const row = explicit ?? matches[0];
     if (!row) return [];
     const workIds = [...new Set(editions.filter(edition => edition.work_id && matchesSeriesCatalogEdition(book, edition)).map(edition => edition.work_id))];
     return workIds.map(workId => ({work_id:workId,edition_id:editions.find(edition => edition.work_id === workId && matchesSeriesCatalogEdition(book, edition))!.id,provider:'isbndb',source_variant:SERIES_PUBLISHER_VARIANT,
       scope:'work',source_kind:'image_link',external_id:String(seriesId),url:cachedEditionCover(row),
       candidate_key:`isbndb:${seriesId}:${workId}:${SERIES_PUBLISHER_VARIANT}`,
       discovery_source:'series_publisher_preference',last_seen_at:new Date().toISOString(),
-      source_metadata:{seriesId,anchorIsbn:anchor.isbn,publisher:anchor.publisher,isbn:row.isbn_13,
+      source_metadata:{seriesId,anchorIsbn:anchor.isbn,publisher:anchor.publisher,isbn:row.isbn_13,identityIsbn:matches[0]?.isbn_13 ?? row.isbn_13,
         title:book.title,authors:book.authors}}));
   });
 }
@@ -53,6 +57,7 @@ export function verifiedSeriesPublisherEdition(seed: any, candidate: any, editio
   // server-only proof. On later reads its registered ISBN is checked below.
   if (!anchor && !isRegisteredAnchor(proof.anchorIsbn)) return null;
   return editions.find(row => row.provider === 'isbndb' && row.isbn_13 === proof.isbn &&
-    matchesSeriesCatalogEdition(seed.metadata?.volumeInfo ?? {}, row) && paperback(row) &&
+    matchesSeriesCatalogEdition(seed.metadata?.volumeInfo ?? {}, row) &&
+    (paperback(row) || (preferredArtworkIsbn(row.metadata?.volumeInfo ?? {}) ?? preferredCoverIsbn(row.metadata?.volumeInfo ?? {})) === row.isbn_13) &&
     publisherKey(row.metadata.volumeInfo.publisher ?? '') === proof.publisher && cachedEditionCover(row) === candidate.url) ?? null;
 }

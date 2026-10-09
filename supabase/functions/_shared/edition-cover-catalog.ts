@@ -1,7 +1,7 @@
 import { cacheDiscoveryCoverChoices, verifiedHardcoverDiscoveryChoice, DISCOVERY_COVER_VARIANT } from './hardcover-discovery-covers.ts';
 import { cachedEditionCover } from './catalog-metadata-covers.ts';
 import { matchesSeriesCatalogEdition } from './series-book-catalog.ts';
-import { preferredCoverIsbn } from './catalog-cover-preferences.ts';
+import { preferredArtworkIsbn, preferredCoverIsbn } from './catalog-cover-preferences.ts';
 import { audioEditionPenalty } from './book-edition-metadata.ts';
 import { SERIES_PUBLISHER_VARIANT, seriesPublisherCandidates, verifiedSeriesPublisherEdition } from './series-publisher-covers.ts';
 import { catalogCoverAliases } from './catalog-cover-aliases.ts';
@@ -20,8 +20,10 @@ export function editionCoverChoices(seed: any, editions: any[], manual?: any, ha
   const hardcover = hardcoverCandidates.filter(row => !primaryWorks.has(row.source_metadata?.hardcoverBookId) || row.source_metadata?.coverProof?.version === 2).map(row => verifiedHardcoverDiscoveryChoice(seed, row)).filter((row): row is NonNullable<typeof row> => row !== null)
     .sort((a: any,b: any) => b.usersCount-a.usersCount || a.workId.localeCompare(b.workId) || a.url.localeCompare(b.url));
   const info = seed.metadata?.volumeInfo ?? {};
-  const preferred = preferredCoverIsbn(info);
-  const family = publisherCandidates.map(candidate => verifiedSeriesPublisherEdition(seed, candidate, editions)).filter(Boolean).sort((a,b) => String(a.isbn_13).localeCompare(String(b.isbn_13)))[0];
+  const preferred = preferredArtworkIsbn(info) ?? preferredCoverIsbn(info);
+  const familyChoice = publisherCandidates.map(candidate => ({candidate,edition:verifiedSeriesPublisherEdition(seed,candidate,editions)})).filter(choice=>choice.edition).sort((a,b)=>Number(b.edition.isbn_13 === preferred)-Number(a.edition.isbn_13 === preferred) || String(a.edition.isbn_13).localeCompare(String(b.edition.isbn_13)))[0];
+  const family = familyChoice?.edition;
+  const identityEdition = preferredArtworkIsbn(info) ? editions.find(row=>row.isbn_13 === familyChoice?.candidate.source_metadata?.identityIsbn && matchesSeriesCatalogEdition(info,row)) : null;
   const matching = editions.filter(row => matchesSeriesCatalogEdition(info, row) && cachedEditionCover(row));
   const rank = (row: any) => [
     preferred && row.isbn_13 === preferred ? 0 : 1,
@@ -39,7 +41,7 @@ export function editionCoverChoices(seed: any, editions: any[], manual?: any, ha
     const url = cachedEditionCover(row)!;
     if (seen.has(url)) return [];
     seen.add(url);
-    return [{ url, bookId: row.provider_book_id, provider: row.provider, locked: false, ...(family && row.isbn_13 === family.isbn_13 ? {workId: `series-edition:${family.isbn_13}`, aliases: [...new Set(matching.map(item => item.provider_book_id))]} : {}) }];
+    return [{ url, bookId: preferredArtworkIsbn(info) && row.isbn_13 === preferred ? identityEdition?.provider_book_id ?? seed.provider_book_id : row.provider_book_id, provider: row.provider, locked: false, ...(family && row.isbn_13 === family.isbn_13 ? {workId: `series-edition:${family.isbn_13}`, aliases: [...new Set(matching.map(item => item.provider_book_id))]} : {}) }];
   });
   return [...hardcover.filter(choice => !choice.fallback), ...catalog.filter(choice => choice.provider === 'isbndb'), ...hardcover.filter(choice => choice.fallback), ...catalog.filter(choice => choice.provider !== 'isbndb')].filter((row, index, all) => all.findIndex(choice => choice.url === row.url) === index).slice(0, 8);
 }
@@ -105,14 +107,14 @@ export async function readEditionCovers(admin: any, seeds: any[], discoveryBooks
   if (promotedFamilies.length) {
     const changed = promotedFamilies.filter(row => !publisherCandidates.some(old => old.work_id === row.work_id && old.url === row.url &&
       old.source_metadata?.seriesId === row.source_metadata.seriesId && old.source_metadata?.anchorIsbn === row.source_metadata.anchorIsbn &&
-      old.source_metadata?.isbn === row.source_metadata.isbn && old.source_metadata?.publisher === row.source_metadata.publisher));
+      old.source_metadata?.isbn === row.source_metadata.isbn && old.source_metadata?.identityIsbn === row.source_metadata.identityIsbn && old.source_metadata?.publisher === row.source_metadata.publisher));
     if (changed.length) {
       const {error} = await admin.from('book_cover_candidates').upsert(changed,{onConflict:'candidate_key'});
       if (error) console.warn('Could not persist series publisher preference:', error);
     }
     publisherCandidates.push(...promotedFamilies);
   }
-  const preferredIsbns = [...new Set(publisherCandidates.map(row=>row.source_metadata?.isbn).filter(Boolean))].filter(isbn => !editions.some(row => row.provider === 'isbndb' && row.isbn_13 === isbn));
+  const preferredIsbns = [...new Set(publisherCandidates.flatMap(row=>[row.source_metadata?.isbn,row.source_metadata?.identityIsbn]).filter(Boolean))].filter(isbn => !editions.some(row => row.provider === 'isbndb' && row.isbn_13 === isbn));
   if (preferredIsbns.length) {
     const {data:chosen,error} = await admin.from('book_editions').select('id,provider,provider_book_id,work_id,isbn_10,isbn_13,language,metadata')
       .eq('provider','isbndb').in('isbn_13',preferredIsbns);
@@ -121,7 +123,7 @@ export async function readEditionCovers(admin: any, seeds: any[], discoveryBooks
   }
   return new Map(seeds.map(seed => {
     const allowed = aliases.get(seed.work_id) ?? [seed.work_id];
-    const choices = editionCoverChoices(seed, editions.filter(row => allowed.includes(row.work_id) || publisherCandidates.some(choice=>allowed.includes(choice.work_id) && choice.source_metadata?.isbn === row.isbn_13)), allowed.map(id => manual.get(id)).find(Boolean), hardcoverCandidates.filter(row => allowed.includes(row.work_id)), publisherCandidates.filter(row=>allowed.includes(row.work_id)));
+    const choices = editionCoverChoices(seed, editions.filter(row => allowed.includes(row.work_id) || publisherCandidates.some(choice=>allowed.includes(choice.work_id) && [choice.source_metadata?.isbn,choice.source_metadata?.identityIsbn].includes(row.isbn_13))), allowed.map(id => manual.get(id)).find(Boolean), hardcoverCandidates.filter(row => allowed.includes(row.work_id)), publisherCandidates.filter(row=>allowed.includes(row.work_id)));
     const coverAliases = editions.filter(row => allowed.includes(row.work_id) && matchesSeriesCatalogEdition(seed.metadata?.volumeInfo ?? {}, row))
       .map(row => row.provider_book_id).filter((id: unknown): id is string => typeof id === 'string');
     return [seed.provider_book_id, choices.map(choice => choice.provider === 'hardcover' ? {...choice, aliases:[...new Set(coverAliases)]} : choice)] as const;

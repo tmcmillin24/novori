@@ -37,3 +37,13 @@ test('series ISBN fallback remains on shared search and never opens raw provider
  expect(h.deps.searchNovoriBooks.mock.calls.map(call=>call[0])).toEqual([row.title,'isbn:'+row.isbns[0]]);
  expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
 });
+
+test('verified series catalog ID navigates without repeating search, rating or ISBN resolution',async()=>{
+ const h=harness([]);
+ const result=await h.resolve({...row,coverBookId:'nv_9781496764898'});
+ expect(result.id).toBe('nv_9781496764898');
+ expect(h.deps.searchNovoriBooks).not.toHaveBeenCalled();
+ expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
+ expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
+ expect(result.volumeInfo.industryIdentifiers).toBeUndefined();
+});
