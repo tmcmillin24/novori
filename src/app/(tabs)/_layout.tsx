@@ -15,8 +15,11 @@ export default function TabLayout() {
     useNovoriTheme();
 
   return (
+    <View style={{flex: 1, backgroundColor: colors.background}}>
     <Tabs
-      detachInactiveScreens={false}
+      // Detach native views without unmounting tab state. Keep tutorial targets
+      // attached while the walkthrough measures anchors across tabs.
+      detachInactiveScreens={!tutorial?.active}
       screenOptions={{
         headerShown: false,
         animation: 'none',
@@ -155,6 +158,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
 
