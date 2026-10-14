@@ -1,3 +1,4 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
@@ -989,7 +990,7 @@ export default function ProfileScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-            <ExpoImage source={profile.avatar_url} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" transition={0}/>
+            <ExpoImage source={{uri: moderationMediaUrl(profile.avatar_url)}} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" transition={0}/>
           </Pressable>) : (<View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {avatarInitial}
