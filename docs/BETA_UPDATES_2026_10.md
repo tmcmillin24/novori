@@ -52,3 +52,15 @@ Open the existing development client, not the TestFlight installation. No new na
 - Admin bundle compiled in explicitly unconfigured mode (no live credentials or deployment).
 
 These are source/bundle/database checks, not a claim that the modified UI was exercised on a physical device. Complete the phone and test-backend checks before the next TestFlight submission. The saved database export has not been restore-tested and does not cover Storage object bytes or all project configuration.
+
+## Approved release procedure
+
+The owner approved the phone-tested app changes for release. The tested code checkpoint is also saved at GitHub branch `baseline/beta-approved-2026-10-15` (`cb9da8c`).
+
+1. Before deployment, take a new timestamped database export on the owner's Mac. Keep roles/schema/data together outside Git, record the Git commit, and copy local `app.json`, `eas.json` and the iOS project signing configuration into that private backup directory. Check that the three SQL exports are nonempty. This is not a verified full-project restore or a backup of Storage object bytes.
+2. From updated `beta-updates`, run `node scripts/deploy-book-artwork-reports.mjs` with the project-scoped CLI token in `SUPABASE_ACCESS_TOKEN`. Database Read-write and Edge Functions Read-write are needed in addition to the existing backup/link permissions. The helper checks access before migration, applies only this batch's new migration, verifies the foundation, asks PostgREST to reload its schema, and deploys only `novori-admin` with its established `--no-verify-jwt` setting. Partial foundations fail closed. Retrying skips a completed migration. It never deploys provider/catalog functions.
+3. After the backend deployment succeeds, fast-forward `phase5-ask-readers` to the approved `beta-updates` head. Cloudflare Pages' admin project is configured to build that production branch. Confirm the Pages deployment is successful and check Book Artwork while signed in.
+4. On the Mac, retain the local EAS/app config and native signing changes. Switch to the updated production branch, then use the existing production EAS build with auto-submit. Uploading a binary does not by itself guarantee availability to the external group: select the processed build for Novori Beta and submit for beta review if Apple requests it.
+5. From the development client, submit a cover report and confirm its grouped admin entry before distributing the new mobile build. Mark it resolved/dismissed with a reason to verify the decision path. Existing testers can stay on the prior build while the next build is processed/reviewed.
+
+The deployment helper has three additional tests for targeted function deployment, safe retries/partial-state rejection, permission failures before SQL, and no false deployment-success message. Those tests use fake transport/processes and do not deploy anything.
