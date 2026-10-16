@@ -252,6 +252,22 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     };
   const page = clampPage(input.page),
     start = page * 50;
+  if (action === 'book_reports') {
+    let query = client.from('novori_book_artwork_report_queue').select('*', { count: 'exact' })
+      .order('pending_count', { ascending: false }).order('updated_at', { ascending: false })
+      .order('work_id', { ascending: true }).range(start, start + 49);
+    if (['pending','resolved','dismissed'].includes(input.status)) query = query.eq('status', input.status);
+    const result = await query;
+    return { rows: check(result), total: result.count, page };
+  }
+  if (action === 'review_book_artwork') {
+    if (!['owner','moderator'].includes(member.role)) throw new AdminError('Moderator access required.',403);
+    if (!['resolved','dismissed'].includes(input.payload?.decision)) throw new AdminError('Choose a valid book report decision.');
+    return check(await client.rpc('novori_admin_review_book_artwork', {
+      p_actor: user.id, p_work: validateId(input.target_id), p_expected: input.expected_updated_at,
+      p_decision: input.payload.decision, p_reason: input.reason, p_request: validateId(input.request_id),
+    }));
+  }
   if (action === "reports") {
     let query = client
       .from("novori_report_priority")

@@ -1,4 +1,5 @@
 import { syncEditionPages } from '../../../lib/edition-page-loader';
+import BookArtworkReportButton from '../../../components/BookArtworkReportButton';
 import { applyEditionPages, subscribeEditionPages, rememberEditionPages } from '../../../lib/edition-pages';
 import { normalizeBookGenres } from '../../../../supabase/functions/_shared/book-genres';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
@@ -3209,6 +3210,8 @@ export default function BookDetailsScreen() {
           <Text style={styles.backText}>{backLabel}</Text>
         </Pressable>
 
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <BookArtworkReportButton key={book.id} bookId={book.id} coverUrl={cover ?? null}/>
         <Pressable
           onPress={() =>
             void shareCurrentBook()
@@ -3228,6 +3231,7 @@ export default function BookDetailsScreen() {
             color={colors.gold}
           />
         </Pressable>
+        </View>
       </View>
 
       <ScrollView

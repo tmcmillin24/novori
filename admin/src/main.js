@@ -12,6 +12,7 @@ let client,
 const labels = {
   overview: "Overview",
   reports: "Reports",
+  book_reports: "Book artwork",
   screenings: "Flagged submissions",
   readers: "Readers",
   clubs: "Clubs",
@@ -405,6 +406,7 @@ async function load() {
     {
       overview: "A clear view of your community.",
       reports: "Review the context, record the decision, and follow up.",
+      book_reports: "Cover issues grouped by book. Reviewing reports never changes artwork automatically.",
       screenings: "Review unpublished submissions flagged by safety checks.",
       readers: "Account support and community moderation.",
       clubs: "Keep reading groups healthy.",
@@ -595,6 +597,38 @@ const screens = {
       ),
     );
     main.append(worker);
+  },
+  book_reports(main, d) {
+    const select = el('select'); select.setAttribute('aria-label','Book report status');
+    for (const value of ['pending','resolved','dismissed','all']) {
+      const option = el('option', pretty(value)); option.value = value; select.append(option);
+    }
+    select.value = status;
+    select.onchange = async () => { status = select.value; page = 0; await load(); };
+    main.append(select);
+    main.append(el('p','Each reader counts once per catalog book, including its linked editions. Covers stay unchanged until a separate, verified correction is made.','hint'));
+    list(main, d.rows, row => [
+      el('strong', `${row.title} · ${row.report_count} ${row.report_count === 1 ? 'report' : 'reports'}`),
+      el('small', `${row.pending_count} pending · ${pretty(row.status)} · ${date(row.updated_at)}`),
+    ], row => {
+      const panel = detail(row.title, `${row.report_count} reports · ${row.pending_count} pending`);
+      panel.append(el('p',Array.isArray(row.authors) ? row.authors.join(', ') : '','hint'));
+      panel.append(el('p',`${row.wrong_cover_count} wrong artwork · ${row.blurry_cover_count} blurry · ${row.missing_cover_count} missing`));
+      const bookLink = el('a','Open reported book'); bookLink.href = `https://novori.link/book/${encodeURIComponent(row.book_id)}`;
+      bookLink.target = '_blank'; bookLink.rel = 'noopener noreferrer'; panel.append(bookLink);
+      if (typeof row.reported_cover_url === 'string' && /^https:\/\//.test(row.reported_cover_url)) {
+        const link = el('a','Open most recently reported cover'); link.href = row.reported_cover_url;
+        link.target = '_blank'; link.rel = 'noopener noreferrer'; panel.append(el('br'),link);
+      }
+      if (row.pending_count && ['owner','moderator'].includes(identity.role)) {
+        for (const [value,label] of [['resolved','Mark resolved'],['dismissed','Dismiss reports']])
+          panel.append(button(label, () => decision('review_book_artwork', { type:'book', id:row.work_id }, {
+            expected: row.revision, payload:{decision:value},
+            description:'Record your review of the pending reports. This action does not replace or delete any book artwork.',
+          })));
+      }
+    });
+    pager(main,d.total);
   },
   reports(main, d) {
     const toolbar = el("div", undefined, "toolbar"),

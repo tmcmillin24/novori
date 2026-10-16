@@ -1,5 +1,19 @@
 import { supabase } from './supabase';
 
+export type BookArtworkReason = 'wrong_cover' | 'blurry_cover' | 'missing_cover';
+
+export async function submitBookArtworkReport(bookId: string, reason: BookArtworkReason, coverUrl: string | null) {
+  const { data, error } = await supabase.rpc('submit_book_artwork_report', {
+    p_book_id: bookId, p_reason: reason, p_cover_url: coverUrl,
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883')
+      throw new Error('Book reporting is not available on this server yet. Please try again after the beta update.');
+    throw new Error(error.message || 'Please try again.');
+  }
+  return data as string;
+}
+
 export type ReportReason =
   | 'explicit_content'
   | 'hate'

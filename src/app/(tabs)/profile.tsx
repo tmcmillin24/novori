@@ -498,12 +498,11 @@ export default function ProfileScreen() {
             profilePrivacy
                 .show_owned_books);
     }));
-    const reviewedBooks = profilePrivacy
-        .show_reviews
-        ? books.filter((book) => book.rating !==
+    const reviewedBooks = books.filter((book) => book.rating !==
             null ||
-            Boolean(book.review_text?.trim()))
-        : [];
+            Boolean(book.review_text?.trim()));
+    const reviewVisibility = !profilePrivacy.show_reviews ? 'Private'
+        : profilePrivacy.is_private ? 'Followers only' : 'Public';
     const profileBookCount = publicBooks.length;
     function handleEditProfile() {
         router.push('/edit-profile');
@@ -592,11 +591,11 @@ export default function ProfileScreen() {
             0) {
             return (<View style={styles.emptyActivity}>
           <Text style={styles.emptyActivityTitle}>
-            Your public reviews preview will show up here.
+            Your ratings and reviews will show up here.
           </Text>
 
           <Text style={styles.emptyActivityText}>
-            Reviews appear here only when Show Reviews Publicly is enabled in Privacy.
+            Rate or review a book to see it here, including reviews you keep private.
           </Text>
         </View>);
         }
@@ -624,6 +623,10 @@ export default function ProfileScreen() {
                   </Text>
 
                   <View style={styles.reviewMetaRow}>
+                    <View accessibilityLabel={`Review visibility: ${reviewVisibility}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name={reviewVisibility === 'Public' ? 'eye-outline' : 'eye-off-outline'} size={14} color={colors.mutedText}/>
+                      <Text style={styles.reviewStatus}>{reviewVisibility}</Text>
+                    </View>
                     {book.rating !==
                     null ? (<>
                         <Ionicons name="star" size={14} color={colors.gold}/>

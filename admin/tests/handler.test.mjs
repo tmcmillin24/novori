@@ -332,3 +332,12 @@ test('report priority ordering is applied in the database before pagination',asy
 test('support cannot approve unpublished submissions',async()=>{
  await assert.rejects(dispatchAdmin({}, {user:{id},member:{role:'support'}},{action:'review_screening',id:target}),/Moderator access required/);
 });
+
+test('book reports use the grouped queue and support cannot resolve them',async()=>{
+ const calls=[];
+ const q={select(...args){calls.push(['select',...args]);return this;},order(...args){calls.push(['order',...args]);return this;},range(...args){calls.push(['range',...args]);return this;},eq(...args){calls.push(['eq',...args]);return this;},then(resolve){resolve({data:[{work_id:target,report_count:3}],count:1});}};
+ const data=await dispatchAdmin({from:table=>{assert.equal(table,'novori_book_artwork_report_queue');return q;}},{user:{id},member:{role:'owner'}},{action:'book_reports',page:1,status:'pending'});
+ assert.equal(data.rows.length,1);assert.equal(data.rows[0].report_count,3);
+ assert.ok(calls.some(c=>c[0]==='range'&&c[1]===50&&c[2]===99));
+ await assert.rejects(dispatchAdmin({}, {user:{id},member:{role:'support'}},{action:'review_book_artwork'}),/Moderator access/);
+});

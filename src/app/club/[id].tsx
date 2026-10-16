@@ -950,7 +950,10 @@ export default function ClubDetailScreen() {
             'question'
             ? splitQuestionPostBody(post.body)
             : null;
-        return (<View key={post.id} style={styles.postCard}>
+        return (<Pressable key={post.id} accessibilityRole="button" accessibilityLabel="Open club post and comments" onPress={() => {
+            preserveClubStateOnNextFocus.current = true;
+            router.push({ pathname: '/post/[id]', params: { id: post.id } });
+        }} style={styles.postCard}>
         <Pressable onPress={() => openReader(post.author_id)} style={({ pressed }) => [
                 styles.postHeader,
                 { paddingRight: club?.membership_role === 'owner' || club?.membership_role === 'admin' ? 66 : 32 },
@@ -994,7 +997,7 @@ export default function ClubDetailScreen() {
           <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold}/>
         </Pressable> : null}
 
-        <PostTypeIdentifier event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+        {!post.club_discussion ? <PostTypeIdentifier event={Boolean(post.club_event)} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/> : null}
 
         <PostSpoilerContent post={post}>
         {questionContent ? (<>
@@ -1152,8 +1155,15 @@ export default function ClubDetailScreen() {
                 ? colors.gold
                 : colors.mutedText}/>
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" onPress={() => {
+              preserveClubStateOnNextFocus.current = true;
+              router.push({ pathname: '/post/[id]', params: { id: post.id } });
+          }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, marginLeft: 'auto', paddingHorizontal: 8 }}>
+            <Ionicons name="chatbubble-outline" size={17} color={colors.mutedText}/>
+            <Text style={{ color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{post.comment_count ?? 0} {(post.comment_count ?? 0) === 1 ? 'comment' : 'comments'}</Text>
+          </Pressable>
         </View>
-      </View>);
+      </Pressable>);
     }
     function renderMember(member: ClubMember) {
         const displayName = member.display_name?.trim() ||
@@ -3310,6 +3320,7 @@ function createStyles(colors: NovoriColors) {
             padding: 14,
         },
         postHeader: {
+            marginBottom: 12,
             flexDirection: 'row',
             alignItems: 'flex-start',
         },

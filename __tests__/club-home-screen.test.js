@@ -231,3 +231,14 @@ test('flagged club edits show the shared warning, preserve the editor, and avoid
   const photo=view.root.findAllByType('Image').find(node=>node.props.source?.uri==='club-photo.jpg');
   expect(photo.props.style.borderRadius).toBe(18);
 });
+
+test('club announcement cards and comment buttons open the existing post conversation',async()=>{
+ getClubPosts.mockResolvedValue([{id:'announcement-1',author_id:'owner',author_display_name:'Founder',body:'Welcome to beta',post_type:'text',is_club_announcement:true,created_at:'2026-10-15T12:00:00Z',viewer_vote:0,vote_score:0,comment_count:3}]);
+ await render();
+ await press('Open club post and comments');
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'announcement-1'}});
+ mockRouter.push.mockClear();
+ await press('Open club post comments');
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'announcement-1'}});
+ expect(text()).toContain('3');expect(text()).toContain('comments');
+});

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
+import { useSheetAction } from '../lib/use-sheet-action';
 type Props = {
     visible: boolean;
     isBlocked: boolean;
@@ -21,10 +22,13 @@ export default function ReaderProfileActionsSheet({ visible, isBlocked, canInvit
     const styles = createStyles(colors);
     const motion = useUiSheetMotion({ visible, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
+    const nextAction = useSheetAction(visible);
     function runAction(action: () => void) {
-        closeSmoothly(action);
+        if (motion.closing.current) return;
+        nextAction.queue(action);
+        closeSmoothly();
     }
-    return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
+    return (<UiSheetModal visible={visible} onDismiss={nextAction.afterDismiss} transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
       <Pressable style={styles.backdrop} onPress={() => closeSmoothly()}>
         <UiSheetBackdrop pointerEvents="none" style={[
             styles.backdropVisual,

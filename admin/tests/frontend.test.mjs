@@ -92,6 +92,7 @@ async function app({
         ],
         total: 1,
       };
+    else if (p.action === "book_reports") data = { rows: [{ work_id: id, title: 'House of Sky and Breath', authors: ['Sarah J. Maas'], book_id:'nv_9781408884430', report_count: 3, pending_count: 3, wrong_cover_count: 1, blurry_cover_count: 2, missing_cover_count:0, status:'pending', revision:'book-revision', updated_at:'2026-10-16T00:00:00Z', reported_cover_url:'https://images.example/book.jpg' }], total:1 };
     else if (p.action === "report_detail")
       data = {
         report: {
@@ -320,4 +321,27 @@ test('flagged submissions reset status, render text safely, validate reasons and
 });
 test('support can inspect flags but cannot approve or reject them',async()=>{
  const {w,dom}=await app({role:'support'});await until(()=>w.document.querySelector('nav'));click(w,'Flagged submissions');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();await until(()=>w.document.querySelector('dialog pre'));assert.doesNotMatch(w.document.querySelector('dialog').textContent,/Approve resubmission/);dom.window.close();
+});
+
+test('book artwork queue displays one grouped book and records an explicit resolution',async()=>{
+ const {w,dom,calls}=await app();await until(()=>w.document.querySelector('nav'));
+ click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));
+ assert.equal(w.document.querySelectorAll('.list button').length,1);
+ assert.ok(w.document.querySelector('.list').textContent.includes('House of Sky and Breath · 3 reports'));
+ w.document.querySelector('.list button').click();
+ assert.ok(w.document.body.textContent.includes('1 wrong artwork · 2 blurry · 0 missing'));
+ click(w,'Mark resolved');
+ const reason=w.document.querySelector('dialog textarea');reason.value='Verified replacement artwork';
+ reason.form.dispatchEvent(new w.Event('submit',{cancelable:true}));
+ await until(()=>calls.some(call=>call.action==='review_book_artwork'));
+ const call=calls.find(call=>call.action==='review_book_artwork');
+ assert.equal(call.target_id,id);assert.equal(call.expected_updated_at,'book-revision');assert.equal(call.payload.decision,'resolved');
+ dom.window.close();
+});
+test('support can inspect grouped book reports without resolving them',async()=>{
+ const {w,dom}=await app({role:'support'});await until(()=>w.document.querySelector('nav'));
+ click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));
+ w.document.querySelector('.list button').click();
+ assert.equal([...w.document.querySelectorAll('button')].some(b=>b.textContent==='Mark resolved'),false);
+ dom.window.close();
 });
