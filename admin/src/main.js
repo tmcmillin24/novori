@@ -615,14 +615,16 @@ const screens = {
       panel.append(el('p',Array.isArray(row.authors) ? row.authors.join(', ') : '','hint'));
       panel.append(el('p',`${row.wrong_cover_count} wrong artwork · ${row.blurry_cover_count} blurry · ${row.missing_cover_count} missing`));
       const bookLink = el('a','Open reported book'); bookLink.href = `https://novori.link/book/${encodeURIComponent(row.book_id)}`;
-      bookLink.target = '_blank'; bookLink.rel = 'noopener noreferrer'; panel.append(bookLink);
+      bookLink.target = '_blank'; bookLink.rel = 'noopener noreferrer';
+      const links = el('div',undefined,'resource-links'); links.append(bookLink); panel.append(links);
       if (typeof row.reported_cover_url === 'string' && /^https:\/\//.test(row.reported_cover_url)) {
         const link = el('a','Open most recently reported cover'); link.href = row.reported_cover_url;
-        link.target = '_blank'; link.rel = 'noopener noreferrer'; panel.append(el('br'),link);
+        link.target = '_blank'; link.rel = 'noopener noreferrer'; links.append(link);
       }
       if (row.pending_count && ['owner','moderator'].includes(identity.role)) {
+        const actions = el('div',undefined,'actions'); panel.append(actions);
         for (const [value,label] of [['resolved','Mark resolved'],['dismissed','Dismiss reports']])
-          panel.append(button(label, () => decision('review_book_artwork', { type:'book', id:row.work_id }, {
+          actions.append(button(label, () => decision('review_book_artwork', { type:'book', id:row.work_id }, {
             expected: row.revision, payload:{decision:value},
             description:'Record your review of the pending reports. This action does not replace or delete any book artwork.',
           })));
@@ -1051,6 +1053,8 @@ async function showReport(id) {
         expected: d.report.updated_at,
         refresh: () => showReport(id),
       };
+    const actionButtons = el("div", undefined, "actions");
+    actions.append(actionButtons);
     for (const [action, label] of [
       ["review_report", "Mark reviewed"],
       ["dismiss_report", "Dismiss report"],
@@ -1066,7 +1070,7 @@ async function showReport(id) {
           ]
         : []),
     ])
-      actions.append(
+      actionButtons.append(
         button(
           label,
           () =>
@@ -1265,8 +1269,7 @@ function announcementEditor(item) {
   b.type = "submit";
   add(
     form,
-    b,
-    button("Cancel", () => dialog.close()),
+    add(el("div", undefined, "actions"), b, button("Cancel", () => dialog.close())),
   );
   form.onsubmit = (e) => {
     e.preventDefault();
