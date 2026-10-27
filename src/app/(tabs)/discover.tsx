@@ -4067,7 +4067,7 @@ export default function DiscoverScreen() {
                   ? searchImmediately
                   : searchReadersImmediately
               }
-              autoCapitalize="none"
+              autoCapitalize={discoverMode === 'books' ? 'sentences' : 'none'}
               autoCorrect={false}
               spellCheck={false}
               blurOnSubmit={false}
@@ -4142,18 +4142,18 @@ export default function DiscoverScreen() {
           {discoverMode === 'books' && discoverSearchFocused && !query.trim() && recentSearches.searches.length > 0 ? (
             <View ref={recentSearchPanelRef} onLayout={() => recentSearchPanelRef.current?.measureInWindow((x,y,width,height) => {recentSearchPanelBounds.current={x,y,width,height};})} style={styles.recentSearches}>
               <View style={styles.recentSearchHeader}>
-                <View style={styles.recentSearchTitle}><Ionicons name="time-outline" size={14} color={colors.mutedText}/><Text style={styles.recentSearchHeading}>RECENT SEARCHES</Text></View>
+                <Text style={styles.recentSearchHeading}>Recent searches</Text>
                 <Pressable onPress={recentSearches.clear} accessibilityRole="button" accessibilityLabel="Clear all recent searches" hitSlop={4} style={styles.recentSearchClearButton}>
-                  <Text style={styles.recentSearchClear}>Clear all</Text>
+                  <Text style={styles.recentSearchClear}>Clear</Text>
                 </Pressable>
               </View>
-              <ScrollView style={styles.recentSearchList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {recentSearches.searches.map((term, index) => (
-                  <View key={term.toLowerCase()} style={[styles.recentSearchChip, index === recentSearches.searches.length - 1 && styles.recentSearchLastRow]}>
-                    <Pressable onPress={() => {setQuery(term); recentSearches.remember(term);}} accessibilityRole="button" accessibilityLabel={`Search again for ${term}`} style={styles.recentSearchTerm}>
+              <ScrollView style={styles.recentSearchList} contentContainerStyle={styles.recentSearchChips} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {recentSearches.searches.map(term => (
+                  <View key={term.toLowerCase()} style={styles.recentSearchChip}>
+                    <Pressable onPress={() => {setQuery(term); recentSearches.remember(term);}} accessibilityRole="button" accessibilityLabel={`Search again for ${term}`} style={({ pressed }) => [styles.recentSearchTerm, pressed && styles.recentSearchPressed]}>
                       <Text style={styles.recentSearchText} numberOfLines={1}>{term}</Text>
                     </Pressable>
-                    <Pressable onPress={() => recentSearches.remove(term)} accessibilityRole="button" accessibilityLabel={`Remove ${term} from recent searches`} hitSlop={6} style={styles.recentSearchRemove}>
+                    <Pressable onPress={() => recentSearches.remove(term)} accessibilityRole="button" accessibilityLabel={`Remove ${term} from recent searches`} hitSlop={2} style={({ pressed }) => [styles.recentSearchRemove, pressed && styles.recentSearchPressed]}>
                       <Ionicons name="close" size={15} color={colors.mutedText} />
                     </Pressable>
                   </View>
@@ -6102,18 +6102,18 @@ function createStyles(
       flexGrow: 1,
     },
 
-    recentSearches: { marginTop: 2, marginBottom: 8, paddingHorizontal: 14, paddingTop: 4, paddingBottom: 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface },
-    recentSearchList: { maxHeight: 192 },
-    recentSearchHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 },
-    recentSearchTitle: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    recentSearchHeading: { color: colors.mutedText, fontSize: 9.5, letterSpacing: 1.1, fontFamily: 'Inter_600SemiBold' },
-    recentSearchClearButton: { minHeight: 36, justifyContent: 'center', paddingLeft: 12 },
+    recentSearches: { marginTop: 6, marginBottom: 10, paddingHorizontal: 12, paddingBottom: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface },
+    recentSearchList: { maxHeight: 156 },
+    recentSearchChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    recentSearchHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingLeft: 2 },
+    recentSearchHeading: { color: colors.secondaryText, fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+    recentSearchClearButton: { minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
     recentSearchClear: { color: colors.gold, fontSize: 11, fontFamily: 'Inter_500Medium' },
-    recentSearchChip: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-    recentSearchLastRow: { borderBottomWidth: 0 },
-    recentSearchTerm: { flex: 1, minHeight: 48, justifyContent: 'center', paddingRight: 8 },
-    recentSearchText: { color: colors.text, fontSize: 14, fontFamily: 'Inter_400Regular' },
-    recentSearchRemove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
+    recentSearchChip: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.elevated, overflow: 'hidden' },
+    recentSearchTerm: { minWidth: 0, flexShrink: 1, minHeight: 44, justifyContent: 'center', paddingLeft: 12, paddingRight: 2 },
+    recentSearchText: { color: colors.text, fontSize: 13, fontFamily: 'Inter_500Medium' },
+    recentSearchRemove: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+    recentSearchPressed: { opacity: 0.6 },
 
     bookCard: {
       flexDirection:
