@@ -1,3 +1,4 @@
+import CachedMediaImage from '../../components/CachedMediaImage';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -455,7 +456,7 @@ export default function NotificationsScreen() {
                     styles.pressed,
             ]}>
           <View style={styles.avatarWrap}>
-            {item.actor_avatar_url ? (<Image source={{
+            {item.actor_avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(item.actor_avatar_url),
                 }} style={styles.avatarImage}/>) : (<View style={styles.avatarFallback}>
                 {item.actor_id ? (<Text style={styles.avatarInitial}>
@@ -490,7 +491,7 @@ export default function NotificationsScreen() {
           </View>
 
           <View style={styles.notificationRight}>
-            {item.image_url ? (<Image source={{
+            {item.image_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(item.image_url),
                 }} style={styles.entityImage}/>) : unread ? (<View style={styles.unreadDot}/>) : null}
           </View>

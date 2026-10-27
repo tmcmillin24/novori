@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
@@ -726,7 +727,7 @@ export default function EditClubScreen() {
               ]}
             >
               {pendingPhoto ? (
-                <Image
+                <CachedMediaImage
                   source={{
                     uri:
                       moderationMediaUrl(pendingPhoto.uri),
@@ -736,7 +737,7 @@ export default function EditClubScreen() {
                   }
                 />
               ) : club.cover_url ? (
-                <Image
+                <CachedMediaImage
                   source={{
                     uri:
                       moderationMediaUrl(club.cover_url),

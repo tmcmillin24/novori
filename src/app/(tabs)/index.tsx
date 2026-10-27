@@ -1,3 +1,4 @@
+import CachedMediaImage from '../../components/CachedMediaImage';
 import { getCommentSheetBounds } from '../../lib/comment-sheet-snap';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
@@ -1308,7 +1309,7 @@ export default function HomeScreen() {
                     pressed &&
                         styles.pressed
                 ]}>
-            {comment.author_avatar_url ? (<Image source={{
+            {comment.author_avatar_url ? (<CachedMediaImage source={{
                         uri: moderationMediaUrl(comment.author_avatar_url),
                     }} style={styles.sheetCommentAvatar}/>) : (<View style={styles.sheetCommentAvatarFallback}>
                 <Text style={styles.sheetCommentAvatarText}>
@@ -1452,7 +1453,7 @@ export default function HomeScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-        {club.cover_url ? (<Image source={{
+        {club.cover_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(club.cover_url),
                 }} style={compact
                     ? styles.compactClubImage
@@ -2601,7 +2602,7 @@ export default function HomeScreen() {
 
                 <View style={styles.commentsComposerRow}>
                   {composerProfile
-            ?.avatar_url ? (<Image source={{
+            ?.avatar_url ? (<CachedMediaImage source={{
                 uri: moderationMediaUrl(composerProfile.avatar_url),
             }} style={styles.commentsComposerAvatar}/>) : (<View style={styles.commentsComposerAvatarFallback}>
                       <Text style={styles.commentsComposerAvatarText}>

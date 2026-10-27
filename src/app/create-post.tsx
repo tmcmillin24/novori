@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import SpoilerToggle from '../components/SpoilerToggle';
@@ -1276,7 +1277,7 @@ export default function CreatePostScreen() {
             >
               {profileSelected ? null : selectedClub
                   ?.cover_url ? (
-                <Image
+                <CachedMediaImage
                   source={{
                     uri:
                       moderationMediaUrl(selectedClub.cover_url),
@@ -1404,7 +1405,7 @@ export default function CreatePostScreen() {
                 >
                   {viewerProfile
                     ?.avatar_url ? (
-                    <Image
+                    <CachedMediaImage
                       source={{
                         uri:
                           moderationMediaUrl(viewerProfile.avatar_url),
@@ -1502,7 +1503,7 @@ export default function CreatePostScreen() {
                         ]}
                       >
                         {club.cover_url ? (
-                          <Image
+                          <CachedMediaImage
                             source={{
                               uri:
                                 moderationMediaUrl(club.cover_url),
@@ -1592,7 +1593,7 @@ export default function CreatePostScreen() {
               >
                 {viewerProfile
                   ?.avatar_url ? (
-                  <Image
+                  <CachedMediaImage
                     source={{
                       uri:
                         moderationMediaUrl(viewerProfile.avatar_url),
@@ -1741,7 +1742,7 @@ export default function CreatePostScreen() {
                       styles.feedPreviewPhotoWrap
                     }
                   >
-                    <Image
+                    <CachedMediaImage
                       source={{
                         uri:
                           moderationMediaUrl(visibleImageUrl),

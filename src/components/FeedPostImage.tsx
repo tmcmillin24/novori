@@ -1,3 +1,5 @@
+import { getMediaAspectRatio, rememberMediaAspectRatio } from '../lib/media-image-cache';
+import CachedMediaImage from './CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import FullScreenImageViewer from './FullScreenImageViewer';
@@ -44,13 +46,8 @@ export default function FeedPostImage({
       ]
     );
 
-  const [
-    naturalAspectRatio,
-    setNaturalAspectRatio,
-  ] =
-    useState<number | null>(
-      null
-    );
+  const [loadedAspect, setLoadedAspect] = useState<{ uri: string; ratio: number } | null>(null);
+  const naturalAspectRatio = loadedAspect?.uri === uri ? loadedAspect.ratio : getMediaAspectRatio(uri);
 
   const [
     fullScreenVisible,
@@ -93,7 +90,7 @@ export default function FeedPostImage({
             styles.pressed,
         ]}
       >
-        <Image
+        <CachedMediaImage
           source={{
             uri: moderationMediaUrl(uri),
           }}
@@ -121,10 +118,9 @@ export default function FeedPostImage({
               height >
                 0
             ) {
-              setNaturalAspectRatio(
-                width /
-                  height
-              );
+              const ratio = width / height;
+              rememberMediaAspectRatio(uri, ratio);
+              setLoadedAspect({ uri, ratio });
             }
           }}
         />

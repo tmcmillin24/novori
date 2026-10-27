@@ -1,3 +1,4 @@
+import CachedMediaImage from './CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { ReactNode, useMemo } from 'react';
@@ -36,7 +37,7 @@ export default function EditablePostCard({
     <View style={styles.card}>
       <View style={styles.header}>
         {author?.avatar_url ? (
-          <Image source={{ uri: moderationMediaUrl(author.avatar_url) }} style={styles.avatar} />
+          <CachedMediaImage source={{ uri: moderationMediaUrl(author.avatar_url) }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, styles.avatarFallback]}>
             <Text style={styles.initial}>{displayName.charAt(0).toUpperCase()}</Text>

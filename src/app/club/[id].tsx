@@ -1,3 +1,4 @@
+import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
 import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
@@ -961,7 +962,7 @@ export default function ClubDetailScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-          {post.author_avatar_url ? (<Image source={{
+          {post.author_avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(post.author_avatar_url),
                 }} style={styles.postAvatar}/>) : (<View style={styles.postAvatarFallback}>
               <Text style={styles.postAvatarText}>
@@ -1194,7 +1195,7 @@ export default function ClubDetailScreen() {
                         opacity: memberActionAccentOpacity,
                     }
                 ]}/>) : null}
-        {member.avatar_url ? (<Image source={{
+        {member.avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(member.avatar_url),
                 }} style={styles.memberAvatar}/>) : (<View style={styles.memberAvatarFallback}>
             <Text style={styles.memberAvatarText}>
@@ -1241,7 +1242,7 @@ export default function ClubDetailScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-          {candidate.avatar_url ? (<Image source={{
+          {candidate.avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(candidate.avatar_url),
                 }} style={styles.inviteReaderAvatar}/>) : (<View style={styles.inviteReaderAvatarFallback}>
               <Text style={styles.inviteReaderAvatarText}>
@@ -1305,7 +1306,7 @@ export default function ClubDetailScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-          {request.avatar_url ? (<Image source={{
+          {request.avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(request.avatar_url),
                 }} style={styles.joinRequestAvatar}/>) : (<View style={styles.joinRequestAvatarFallback}>
               <Text style={styles.joinRequestAvatarText}>
@@ -1365,7 +1366,7 @@ export default function ClubDetailScreen() {
         const busy = cancellingInviteId ===
             invitation.id;
         return (<View key={invitation.id} style={styles.pendingInviteRow}>
-        {invitation.avatar_url ? (<Image source={{
+        {invitation.avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(invitation.avatar_url),
                 }} style={styles.pendingInviteAvatar}/>) : (<View style={styles.pendingInviteAvatarFallback}>
             <Text style={styles.pendingInviteAvatarText}>

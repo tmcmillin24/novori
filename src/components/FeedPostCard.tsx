@@ -1,3 +1,4 @@
+import CachedMediaImage from './CachedMediaImage';
 import { displayBookTitle } from '../lib/book-title';
 import {PostSpoilerNotice,usePostSpoiler} from './PostSpoilerNotice';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -298,7 +299,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
             ]}
           >
             {post.author_avatar_url ? (
-              <Image
+              <CachedMediaImage
                 source={{
                   uri:
                     moderationMediaUrl(post.author_avatar_url),
@@ -394,7 +395,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
                 ]}
               >
                 {post.club_cover_url ? (
-                  <Image
+                  <CachedMediaImage
                     source={{
                       uri:
                         moderationMediaUrl(post.club_cover_url),

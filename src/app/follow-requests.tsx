@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -483,7 +484,7 @@ export default function FollowRequestsScreen() {
                     ]}
                   >
                     {request.avatar_url ? (
-                      <Image
+                      <CachedMediaImage
                         source={{
                           uri:
                             moderationMediaUrl(request.avatar_url),

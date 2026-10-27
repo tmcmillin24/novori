@@ -1,3 +1,4 @@
+import CartShortcut from '../../components/CartShortcut';
 import { displayBookTitle } from '../../lib/book-title';
 import { getBookLayout, getLibraryBookWidth } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
@@ -12,7 +13,7 @@ import { useNovoriTheme } from '../../context/theme-context';
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 import LibrarySortFilterSheet from '../../components/LibrarySortFilterSheet';
 import { getUserBooks, getLibraryMutationVersion, removeUserBook, saveUserBook, updateUserBookOwned, UserBook, UserBookStatus } from '../../lib/user-books';
-import { getBookCart } from '../../lib/book-cart';
+import { refreshBookCartCount, getBookCartCountSnapshot } from '../../lib/book-cart-count';
 import { transitionReadingJourney } from '../../lib/reading-details';
 type LibraryFilter = 'all' | UserBookStatus;
 type OwnershipFilter = 'all' | 'owned' | 'not_owned';
@@ -246,10 +247,10 @@ export default function LibraryScreen() {
                 setError('');
                 const [data, cartItems,] = await Promise.all([
                     getUserBooks(),
-                    getBookCart()
+                    refreshBookCartCount().then(() => getBookCartCountSnapshot() ?? 0)
                 ]);
                 if (active) {
-                    setCartCount(cartItems.length);
+                    setCartCount(cartItems);
                     if (!isFirstLoad) {
                         restoreLibraryScrollRef.current =
                             true;
@@ -264,7 +265,7 @@ export default function LibraryScreen() {
                         refreshedAt;
                     librarySessionCache = {
                         books: data,
-                        cartCount: cartItems.length,
+                        cartCount: cartItems,
                         refreshedAt,
                         mutationVersion: currentLibraryMutationVersion,
                     };
@@ -706,20 +707,7 @@ export default function LibraryScreen() {
                 : 'search-outline'} size={21} color={colors.gold}/>
               </Pressable>
 
-              <Pressable onPress={() => router.push('/book-cart')} hitSlop={8} style={({ pressed }) => [
-                styles.cartButton,
-                pressed &&
-                    styles.pressed
-            ]}>
-                <Ionicons name="cart-outline" size={22} color={colors.gold}/>
-
-                {cartCount >
-                0 ? (<View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>
-                      {cartCount}
-                    </Text>
-                  </View>) : null}
-              </Pressable>
+              <CartShortcut/>
             </View>
           </View>
         </View>

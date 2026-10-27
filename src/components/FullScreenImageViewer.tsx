@@ -1,3 +1,4 @@
+import CachedMediaImage from './CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -122,7 +123,7 @@ export default function FullScreenImageViewer({
                 styles.naturalFrame,
             ]}
           >
-            <Image
+            <CachedMediaImage
               source={{
                 uri: moderationMediaUrl(uri),
               }}

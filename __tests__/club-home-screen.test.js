@@ -1,3 +1,4 @@
+jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 jest.mock('../src/lib/dismiss-keyboard-before-warning',()=>({dismissKeyboardBeforeWarning:jest.fn().mockResolvedValue(undefined)}));
 jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
@@ -122,7 +123,7 @@ test('owner can add missing rules; visitors see no empty rules placeholder',asyn
 });
 test('long descriptions can expand and the existing club photo URL is preserved',async()=>{
   getClub.mockResolvedValue({...base,description:'A welcoming club. '.repeat(30)});await render();await press('Read full club description');expect(button('Show less club description')).toBeDefined();
-  expect(view.root.findAllByType('Image').some(node=>node.props.source?.uri==='club-photo.jpg')).toBe(true);
+  expect(view.root.findAllByType('ExpoImage').some(node=>node.props.source?.uri==='club-photo.jpg')).toBe(true);
 });
 
 test('owner editor loads, edits, and clears saved rules through the existing save',async()=>{
@@ -229,7 +230,7 @@ test('flagged club edits show the shared warning, preserve the editor, and avoid
   expect(text()).toContain('Your club changes need a safety review');
   expect(mockRouter.back).not.toHaveBeenCalled();
   expect(silence).not.toHaveBeenCalled();
-  const photo=view.root.findAllByType('Image').find(node=>node.props.source?.uri==='club-photo.jpg');
+  const photo=view.root.findAllByType('ExpoImage').find(node=>node.props.source?.uri==='club-photo.jpg');
   expect(photo.props.style.borderRadius).toBe(18);
 });
 

@@ -1,3 +1,5 @@
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import CartShortcut from '../../components/CartShortcut';
 import { useRecentBookSearches } from '../../lib/recent-book-searches';
 import { prepareDiscovery, readValidatedDiscovery, discoveryAuthorKey } from '../../lib/validated-discovery';
 import { hasMoreBookSearchResults } from '../../lib/book-search';
@@ -1812,9 +1814,7 @@ const DiscoverReaderCard = memo(
         >
           {item.avatar_url ? (
             <ExpoImage
-              source={
-                item.avatar_url
-              }
+              source={{ uri: moderationMediaUrl(item.avatar_url) }}
               style={
                 styles.readerAvatar
               }
@@ -3911,6 +3911,7 @@ export default function DiscoverScreen() {
             >
               Discover
             </Text>
+            <CartShortcut/>
 
           </View>
 
@@ -5085,6 +5086,9 @@ function createStyles(
     },
 
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingTop:
         22,
       paddingBottom:

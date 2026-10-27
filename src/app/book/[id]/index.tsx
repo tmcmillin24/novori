@@ -1,3 +1,7 @@
+import { subscribeBookCartMutations } from '../../../lib/book-cart-count';
+import CartShortcut from '../../../components/CartShortcut';
+import AmazonBookLink from '../../../components/AmazonBookLink';
+import CachedMediaImage from '../../../components/CachedMediaImage';
 import { syncEditionPages } from '../../../lib/edition-page-loader';
 import BookArtworkReportButton from '../../../components/BookArtworkReportButton';
 import { applyEditionPages, subscribeEditionPages, rememberEditionPages } from '../../../lib/edition-pages';
@@ -1882,6 +1886,10 @@ export default function BookDetailsScreen() {
     });
   }
 
+  useEffect(() => subscribeBookCartMutations(change => {
+    if (change.bookId === book?.id) setInBookCart(change.inCart);
+  }), [book?.id]);
+
   async function toggleBookCart() {
     if (
       !book ||
@@ -3210,7 +3218,8 @@ export default function BookDetailsScreen() {
           <Text style={styles.backText}>{backLabel}</Text>
         </Pressable>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <CartShortcut animateAdditions/>
         <BookArtworkReportButton key={book.id} bookId={book.id} coverUrl={cover ?? null}/>
         <Pressable
           onPress={() =>
@@ -3551,6 +3560,7 @@ export default function BookDetailsScreen() {
                 </Pressable>
               ) : null}
             </View>
+            <AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/>
           </>
         ) : (
           <View
@@ -3831,6 +3841,8 @@ export default function BookDetailsScreen() {
                 </Pressable>
               ) : null}
             </View>
+
+              <AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/>
 
             {series ? (
               <View
@@ -5194,7 +5206,7 @@ export default function BookDetailsScreen() {
                         }
                       >
                         {review.author_avatar_url ? (
-                          <Image
+                          <CachedMediaImage
                             source={{
                               uri:
                                 moderationMediaUrl(review.author_avatar_url),
@@ -5614,6 +5626,7 @@ function createStyles(
   },
 
   topBar: {
+    zIndex: 30,
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,

@@ -1,3 +1,4 @@
+import AmazonBookLink from '../components/AmazonBookLink';
 import { displayBookTitle } from '../lib/book-title';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -210,6 +211,7 @@ export default function BookCartScreen() {
                 <Text style={styles.viewText}>
                   View book →
                 </Text>
+                <AmazonBookLink isbn={item.isbn} title={item.title} authors={item.authors}/>
               </View>
 
               <View style={styles.cardActions}>

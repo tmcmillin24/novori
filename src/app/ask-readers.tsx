@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -556,7 +557,7 @@ export default function AskReadersScreen() {
         <View style={styles.feedPreviewCard}>
           <View style={styles.feedPreviewHeader}>
             {viewerProfile?.avatar_url ? (
-              <Image
+              <CachedMediaImage
                 source={{
                   uri:
                     moderationMediaUrl(viewerProfile.avatar_url),

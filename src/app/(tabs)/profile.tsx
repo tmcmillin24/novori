@@ -804,7 +804,7 @@ export default function ProfileScreen() {
                     pressed &&
                         styles.pressed
                 ]}>
-              {club.cover_url ? (<ExpoImage source={club.cover_url} style={styles.clubCover} contentFit="cover" cachePolicy="memory-disk" transition={0} recyclingKey={club.cover_url}/>) : (<View style={styles.clubCoverFallback}>
+              {club.cover_url ? (<ExpoImage source={{ uri: moderationMediaUrl(club.cover_url) }} style={styles.clubCover} contentFit="cover" cachePolicy="memory-disk" transition={0} recyclingKey={club.cover_url}/>) : (<View style={styles.clubCoverFallback}>
                   <Ionicons name="people-outline" size={20} color={colors.gold}/>
                 </View>)}
 

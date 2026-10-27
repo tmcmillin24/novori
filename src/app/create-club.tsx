@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -377,7 +378,7 @@ export default function CreateClubScreen() {
               ]}
             >
               {pendingPhoto ? (
-                <Image
+                <CachedMediaImage
                   source={{
                     uri:
                       moderationMediaUrl(pendingPhoto.uri),

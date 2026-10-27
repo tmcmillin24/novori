@@ -1,3 +1,4 @@
+import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
@@ -621,7 +622,7 @@ export default function ReaderProfileScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-        {club.cover_url ? (<Image source={{
+        {club.cover_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(club.cover_url),
                 }} style={styles.clubImage}/>) : (<View style={styles.clubImageFallback}>
             <Text style={styles.clubInitial}>
@@ -758,7 +759,7 @@ export default function ReaderProfileScreen() {
                 pressed &&
                     styles.pressed
             ]}>
-              <Image source={{
+              <CachedMediaImage source={{
                 uri: moderationMediaUrl(profile.avatar_url),
             }} style={styles.avatar}/>
             </Pressable>) : (<View style={styles.avatarFallback}>

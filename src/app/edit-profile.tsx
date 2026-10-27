@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
@@ -385,7 +386,7 @@ export default function EditProfileScreen() {
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.photoSection}>
-            {avatarUrl ? (<Image source={{ uri: moderationMediaUrl(avatarUrl) }} style={styles.avatarImage}/>) : (<View style={styles.avatar}>
+            {avatarUrl ? (<CachedMediaImage source={{ uri: moderationMediaUrl(avatarUrl) }} style={styles.avatarImage}/>) : (<View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {avatarInitial}
                 </Text>

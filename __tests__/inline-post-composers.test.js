@@ -298,7 +298,7 @@ test.each([
   await press('Post to Our readers');
   await press('Choose Your feed');
   expect(picker.findAllByType('ExpoImage')).toHaveLength(0);
-  expect(view.root.findAllByType('Image').filter((node) => node.props.source?.uri === 'https://profiles/reader.jpg')).toHaveLength(1);
+  expect(view.root.findAllByType('ExpoImage').filter((node) => node.props.source?.uri === 'https://profiles/reader.jpg')).toHaveLength(1);
 });
 
 test.each(['Save stack to profile without posting', 'Save and publish Book Stack'])('%s uses dismissible animated validation warnings and preserves the draft', async (action) => {

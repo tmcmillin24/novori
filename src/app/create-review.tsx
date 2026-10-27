@@ -1,3 +1,4 @@
+import CachedMediaImage from '../components/CachedMediaImage';
 import { displayBookTitle } from '../lib/book-title';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
@@ -1320,7 +1321,7 @@ export default function CreateReviewScreen() {
                       ]}
                     >
                       {viewerProfile?.avatar_url ? (
-                        <Image
+                        <CachedMediaImage
                           source={{
                             uri:
                               moderationMediaUrl(viewerProfile.avatar_url),
@@ -1471,7 +1472,7 @@ export default function CreateReviewScreen() {
                         ]}
                       >
                         {clubs[0].cover_url ? (
-                          <Image
+                          <CachedMediaImage
                             source={{
                               uri:
                                 moderationMediaUrl(clubs[0].cover_url),
@@ -1578,7 +1579,7 @@ export default function CreateReviewScreen() {
                               club.id ===
                               destination.clubId
                           )?.cover_url ? (
-                            <Image
+                            <CachedMediaImage
                               source={{
                                 uri:
                                   moderationMediaUrl(clubs.find(
@@ -1707,7 +1708,7 @@ export default function CreateReviewScreen() {
                                     ]}
                                   >
                                     {club.cover_url ? (
-                                      <Image
+                                      <CachedMediaImage
                                         source={{
                                           uri:
                                             moderationMediaUrl(club.cover_url),

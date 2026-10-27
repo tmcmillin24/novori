@@ -1,3 +1,4 @@
+jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import FeedPostCard from '../src/components/FeedPostCard';

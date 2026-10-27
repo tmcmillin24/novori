@@ -1,3 +1,4 @@
+import { bookCartDidChange, rememberBookCartCount } from './book-cart-count';
 import { supabase } from './supabase';
 
 export type BookCartItem = {
@@ -64,6 +65,7 @@ export async function getBookCart(): Promise<
     throw error;
   }
 
+  rememberBookCartCount(userId, (data ?? []).length);
   return (
     (data ?? []) as
       BookCartItem[]
@@ -145,6 +147,7 @@ export async function addBookToCart(
     throw error;
   }
 
+  bookCartDidChange(userId, input.googleBookId, { title: input.title, coverUrl: input.coverUrl });
   return data as
     BookCartItem;
 }
@@ -173,4 +176,5 @@ export async function removeBookFromCart(
   if (error) {
     throw error;
   }
+  bookCartDidChange(userId, googleBookId);
 }
