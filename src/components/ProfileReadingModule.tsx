@@ -10,6 +10,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -124,6 +125,7 @@ export default function ProfileReadingModule({
     );
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
+  const checkinMutationVersion = useRef(0);
 
   useEffect(() => {
     let midnightTimer: ReturnType<typeof setTimeout>;
@@ -147,67 +149,40 @@ export default function ProfileReadingModule({
   }, []);
 
   useFocusEffect(
-    useCallback(
-      () => {
-        let active =
-          true;
+    useCallback(() => {
+      let active = true;
+      let latestRequest = 0;
+      let previousAppState = AppState.currentState;
 
-        async function loadCheckin() {
-          try {
-            setLoadingCheckin(
-              true
-            );
-
-            setCheckinError(
-              ''
-            );
-
-            const next =
-              await getDailyReadingCheckinState(localDate);
-
-            if (
-              active
-            ) {
-              setCheckinState(
-                next
-              );
-            }
-          } catch (
-            checkinLoadError
-          ) {
-            if(isAccountUnavailableError(checkinLoadError))return;
-            console.error(
-              'Could not load daily reading check-in:',
-              checkinLoadError
-            );
-
-            if (
-              active
-            ) {
-              setCheckinError(
-                'Daily check-ins are temporarily unavailable.'
-              );
-            }
-          } finally {
-            if (
-              active
-            ) {
-              setLoadingCheckin(
-                false
-              );
-            }
+      async function loadCheckin() {
+        const request = ++latestRequest;
+        const mutationVersion = checkinMutationVersion.current;
+        setLoadingCheckin(true);
+        setCheckinError('');
+        try {
+          const next = await getDailyReadingCheckinState(localDate);
+          if (active && request === latestRequest && mutationVersion === checkinMutationVersion.current && next.localDate === getLocalDateKey()) {
+            setCheckinState(next);
           }
+        } catch (error) {
+          if (!active || request !== latestRequest || mutationVersion !== checkinMutationVersion.current || isAccountUnavailableError(error)) return;
+          console.error('Could not load daily reading check-in:', error);
+          setCheckinError('Daily check-ins are temporarily unavailable.');
+        } finally {
+          if (active && request === latestRequest) setLoadingCheckin(false);
         }
+      }
 
-        void loadCheckin();
-
-        return () => {
-          active =
-            false;
-        };
-      },
-      [localDate]
-    )
+      void loadCheckin();
+      const subscription = AppState.addEventListener('change', state => {
+        const resumed = state === 'active' && previousAppState !== 'active';
+        previousAppState = state;
+        // Midnight is handled by syncLocalDay and the new date's focus effect.
+        // Resuming on the same date still needs a fresh read of saved check-ins.
+        if (resumed && getLocalDateKey() === localDate) void loadCheckin();
+      });
+      return () => { active = false; subscription.remove(); };
+    }, [localDate])
   );
 
   const readingBooks =
@@ -358,15 +333,14 @@ export default function ProfileReadingModule({
         'manual',
         todayCheckinKey
       );
+      checkinMutationVersion.current += 1;
 
       const next =
         await getDailyReadingCheckinState(
           todayCheckinKey
         );
 
-      setCheckinState(
-        next
-      );
+      if (next.localDate === getLocalDateKey()) setCheckinState(next);
 
       setCheckinSheetVisible(
         false
@@ -430,15 +404,14 @@ export default function ProfileReadingModule({
         googleBookIds,
         todayCheckinKey
       );
+      checkinMutationVersion.current += 1;
 
       const next =
         await getDailyReadingCheckinState(
           todayCheckinKey
         );
 
-      setCheckinState(
-        next
-      );
+      if (next.localDate === getLocalDateKey()) setCheckinState(next);
 
       setCheckinSheetVisible(
         false
