@@ -1,3 +1,4 @@
+import { hasLibraryMembership } from '../../lib/library-membership';
 import CartShortcut from '../../components/CartShortcut';
 import { displayBookTitle } from '../../lib/book-title';
 import { getBookLayout, getLibraryBookWidth } from '../../lib/book-layout';
@@ -144,9 +145,7 @@ export default function LibraryScreen() {
     const { width: windowWidth } = useWindowDimensions();
     const { libraryColumns } = getBookLayout(windowWidth);
     const styles = useMemo(() => createStyles(colors, windowWidth), [colors, windowWidth]);
-    const [books, setBooks,] = useState<UserBook[]>(librarySessionCache
-        ?.books ??
-        []);
+    const [books, setBooks,] = useState<UserBook[]>((librarySessionCache?.books ?? []).filter(hasLibraryMembership));
     const [cartCount, setCartCount,] = useState(librarySessionCache
         ?.cartCount ??
         0);
@@ -588,8 +587,8 @@ export default function LibraryScreen() {
             setBooks((current) => current.map((item) => item.id ===
                 book.id
                 ? updatedBook
-                : item));
-            setSelectedBook(updatedBook);
+                : item).filter(hasLibraryMembership));
+            setSelectedBook(hasLibraryMembership(updatedBook) ? updatedBook : null);
         }
         catch (updateError) {
             console.error('Could not update book ownership:', updateError);

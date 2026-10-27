@@ -24,3 +24,7 @@ Automated checks cover confirmed ownership updates across pages, account isolati
 - The Amazon link sits below reading controls, with a smaller gap above the reading-status section. It no longer separates series metadata from status controls.
 - Recent searches remain device-local and appear only while the empty Books search field is focused. A lighter header, consistent rows, subtle dividers, and accessible remove controls replace the cramped presentation; search/clear/remove behavior is unchanged.
 - Apple guideline 3.1.3(e) permits external payment for physical goods consumed outside the app. The link is an ordinary Amazon Books search, not a promise of availability or Apple approval for digital purchase flows.
+
+## Ownership-only library entries
+
+Library lists exclude rows with no ownership, reading status, rating/review, or reading dates. A cart-only book disappears when Owned is cleared, including when toggled directly in Library; tracked/reviewed books remain. Filtering happens before the existing cover lookup and is shared by private library list consumers. The database row and any related history are retained, avoiding destructive cleanup or cascading deletions. Regression coverage reproduces the cart ownership save, subsequent unowning, and library read.

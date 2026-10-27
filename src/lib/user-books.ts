@@ -1,3 +1,4 @@
+import { hasLibraryMembership } from './library-membership';
 import { publishUserBookChange } from './user-book-events';
 import { resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
@@ -192,10 +193,11 @@ export async function getUserBooks(
       data ??
       []
     ) as UserBook[];
+  const libraryBooks = books.filter(hasLibraryMembership);
 
   const verifiedCovers =
     await getLockedVerifiedCoverUrls(
-      books.map(
+      libraryBooks.map(
         (
           book
         ) =>
@@ -207,10 +209,10 @@ export async function getUserBooks(
     verifiedCovers.size ===
     0
   ) {
-    return books;
+    return libraryBooks;
   }
 
-  return books.map(
+  return libraryBooks.map(
     (
       book
     ) => {
