@@ -45,3 +45,18 @@ test('spoiler posts hide text and photos until revealed and hide again after edi
  await act(async()=>view.update(<FeedPostCard post={{...flagged,updated_at:'v2',body:'Edited spoiler'}} onComments={()=>{}} onVote={()=>{}} onShare={()=>{}}/>));
  expect(allText()).not.toContain('Edited spoiler');expect(view.root.findAllByType('FeedPostImage')).toHaveLength(0);
 });
+
+test.each([
+ ['discussion', {club_discussion:{id:'discussion',kind:'discussion'}}, 'BOOK DISCUSSION', 'ClubDiscussionPostAttachment'],
+ ['poll', {club_discussion:{id:'poll',kind:'poll'}}, 'CLUB POLL', 'ClubDiscussionPostAttachment'],
+ ['stack', {post_type:'book_stack',book_stack_id:'stack'}, 'BOOK STACK', 'BookStackPostAttachment'],
+])('%s keeps its attachment without a second outer type label',async(_name,fields,label,attachment)=>{
+ await render({post:{...post,...fields}});
+ expect(view.root.findAllByType(attachment)).toHaveLength(1);
+ expect(allText()).not.toContain(label);
+});
+
+test('a stack without an attachment retains its type label',async()=>{
+ await render({post:{...post,post_type:'book_stack',book_stack_id:null}});
+ expect(allText()).toContain('BOOK STACK');
+});

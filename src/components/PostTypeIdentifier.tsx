@@ -21,6 +21,7 @@ type Props = {
   event?: boolean;
   discussion?: boolean;
   poll?: boolean;
+  attachmentHasLabel?: boolean;
 };
 
 type Identity = {
@@ -81,7 +82,11 @@ export default function PostTypeIdentifier({
   event = false,
   discussion = false,
   poll = false,
+  attachmentHasLabel = false,
 }: Props) {
+  // Discussion and stack attachments already carry their own type heading.
+  if (attachmentHasLabel) return null;
+
   const identity =
     poll ? {label:'CLUB POLL',icon:'stats-chart-outline' as const} : discussion ? {label:'BOOK DISCUSSION',icon:'chatbubbles-outline' as const} : event ? { label: 'CLUB EVENT',icon: 'calendar-outline' as const } : announcement ? { label: 'ANNOUNCEMENT', icon: 'megaphone-outline' as const } : readingRecap ? { label: 'READING RECAP', icon: 'sparkles-outline' as const } : getIdentity(
       postType

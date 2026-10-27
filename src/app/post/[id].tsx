@@ -1144,7 +1144,7 @@ export default function PostDetailScreen() {
               </Pressable>
             </View>
 
-            <PostTypeIdentifier event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+            <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
 
             {postSpoilersHidden ? <PostSpoilerNotice onReveal={revealPostSpoilers}/> : post.post_type ===
                 'question' ? ((() => {

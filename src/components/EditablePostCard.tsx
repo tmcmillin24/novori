@@ -56,7 +56,7 @@ export default function EditablePostCard({
         </View>
       </View>
       <View style={styles.content}>
-        <PostTypeIdentifier postType={postType} colors={colors} readingRecap={readingRecap} />
+        <PostTypeIdentifier attachmentHasLabel={postType === 'book_stack'} postType={postType} colors={colors} readingRecap={readingRecap} />
         {children}
       </View>
       <View style={styles.footer} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

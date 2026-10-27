@@ -22,6 +22,7 @@ import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { getClubMemberExperience, setClubNotificationsEnabled, dismissClubWelcome, type ClubMemberExperience } from '../../lib/club-member-experience';
 import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
 import BookCoverImage from '../../components/BookCoverImage';
+import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import { Ionicons } from '@expo/vector-icons';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -997,7 +998,7 @@ export default function ClubDetailScreen() {
           <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold}/>
         </Pressable> : null}
 
-        {!post.club_discussion ? <PostTypeIdentifier event={Boolean(post.club_event)} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/> : null}
+        <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} event={Boolean(post.club_event)} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
 
         <PostSpoilerContent post={post}>
         {questionContent ? (<>
@@ -1019,6 +1020,7 @@ export default function ClubDetailScreen() {
         {post.post_image_url ? (<FeedPostImage uri={post.post_image_url} colors={colors}/>) : null}
 
         </PostSpoilerContent>
+        {post.post_type === 'book_stack' && post.book_stack_id ? <BookStackPostAttachment stackId={post.book_stack_id} compactTopSpacing={!post.body.trim()}/> : null}
         {post.book_title ? (post.post_image_url ? (<Pressable disabled={!post.google_book_id} onPress={() => {
                     if (!post.google_book_id) {
                         return;

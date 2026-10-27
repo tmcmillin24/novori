@@ -41,6 +41,7 @@ jest.mock('../src/components/FullScreenImageViewer',()=> 'FullScreenImageViewer'
 jest.mock('../src/components/BlockReaderConfirmSheet',()=> 'BlockReaderConfirmSheet');
 jest.mock('../src/components/LeaveClubConfirmSheet',()=> 'LeaveClubConfirmSheet');
 jest.mock('../src/components/PostTypeIdentifier',()=> 'PostTypeIdentifier');
+jest.mock('../src/components/BookStackPostAttachment',()=> 'BookStackPostAttachment');
 jest.mock('../src/components/ReadingReminderSettings',()=> 'ReadingReminderSettings');
 jest.mock('@react-native-async-storage/async-storage',()=>({getItem:async()=>null,setItem:async()=>{}}));
 jest.mock('../src/lib/club-member-experience',()=>({getClubMemberExperience:jest.fn(),setClubNotificationsEnabled:jest.fn(),dismissClubWelcome:jest.fn()}));
@@ -241,4 +242,11 @@ test('club announcement cards and comment buttons open the existing post convers
  await press('Open club post comments');
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'announcement-1'}});
  expect(text()).toContain('3');expect(text()).toContain('comments');
+});
+
+test('club posts show the same stack attachment and suppress its duplicate outer label',async()=>{
+ getClubPosts.mockResolvedValue([{id:'stack-post',author_id:'member',author_display_name:'Member Reader',post_type:'book_stack',book_stack_id:'stack-id',body:'Favorites',created_at:'2026-10-01T12:00:00Z',vote_score:0,viewer_vote:0,comment_count:2}]);
+ await render();
+ expect(view.root.findByType('BookStackPostAttachment').props.stackId).toBe('stack-id');
+ expect(view.root.findByType('PostTypeIdentifier').props.attachmentHasLabel).toBe(true);
 });

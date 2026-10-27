@@ -548,6 +548,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
           }
         >
           <PostTypeIdentifier
+            attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))}
           event={Boolean(post.club_event)}
           discussion={Boolean(post.club_discussion)}
           poll={post.club_discussion?.kind==='poll'}
