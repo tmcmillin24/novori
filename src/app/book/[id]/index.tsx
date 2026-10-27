@@ -1,3 +1,4 @@
+import { useUserBookUpdates } from '../../../lib/use-user-book-updates';
 import { subscribeBookCartMutations } from '../../../lib/book-cart-count';
 import CartShortcut from '../../../components/CartShortcut';
 import AmazonBookLink from '../../../components/AmazonBookLink';
@@ -1886,6 +1887,15 @@ export default function BookDetailsScreen() {
     });
   }
 
+  useUserBookUpdates(book?.id, updated => {
+    savedStatusVersion.current += 1;
+    setSavedBook(updated);
+    setReadingStatus(updated.status);
+    setConfirmedReadingStatus(updated.status ? { bookId: updated.google_book_id, status: updated.status } : null);
+    setReaderStateReady(true);
+    setReaderStateError(false);
+  });
+
   useEffect(() => subscribeBookCartMutations(change => {
     if (change.bookId === book?.id) setInBookCart(change.inCart);
   }), [book?.id]);
@@ -3560,7 +3570,7 @@ export default function BookDetailsScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/>
+
           </>
         ) : (
           <View
@@ -3842,7 +3852,6 @@ export default function BookDetailsScreen() {
               ) : null}
             </View>
 
-              <AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/>
 
             {series ? (
               <View
@@ -4584,6 +4593,8 @@ export default function BookDetailsScreen() {
             </View>
           )
         ) : null}
+
+        <View style={{ marginTop: 10 }}><AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/></View>
 
         {!isSavedBookContext &&
         source !==
@@ -5637,9 +5648,9 @@ function createStyles(
   },
 
   shareBookButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent:
       'center',
@@ -6344,7 +6355,7 @@ function createStyles(
   },
 
   statusSection: {
-    marginTop: 30,
+    marginTop: 18,
   },
 
   statusHeadingRow: {

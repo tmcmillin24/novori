@@ -13,7 +13,7 @@ export default function AmazonBookLink({ isbn, title, authors }: { isbn?: string
       try { await Linking.openURL(amazonBookSearchUrl({ isbn, title, authors })); }
       catch { Alert.alert('Could not open Amazon', 'Please try again.'); }
       finally { setBusy(false); }
-    }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 12, alignSelf: 'flex-start', opacity: busy || pressed ? 0.6 : 1 })}>
+    }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, paddingVertical: 8, alignSelf: 'flex-start', opacity: busy || pressed ? 0.6 : 1 })}>
     <Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Find on Amazon</Text>
     <Ionicons name="open-outline" size={14} color={colors.gold}/>
   </Pressable>;

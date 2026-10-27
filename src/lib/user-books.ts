@@ -1,3 +1,4 @@
+import { publishUserBookChange } from './user-book-events';
 import { resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 
@@ -373,6 +374,7 @@ export async function saveUserBook(
 
     markLibraryChanged();
 
+    publishUserBookChange(data as UserBook);
     return data as UserBook;
   }
 
@@ -423,6 +425,7 @@ export async function saveUserBook(
 
   markLibraryChanged();
 
+  publishUserBookChange(data as UserBook);
   return data as UserBook;
 }
 
@@ -460,6 +463,7 @@ export async function updateUserBookOwned(
 
   markLibraryChanged();
 
+  publishUserBookChange(data as UserBook);
   return data as UserBook;
 }
 
@@ -504,6 +508,7 @@ export async function updateBookReadingDates({
 
   markLibraryChanged();
 
+  publishUserBookChange(data as UserBook);
   return data as UserBook;
 }
 
@@ -544,6 +549,7 @@ export async function updateBookReview({
 
   markLibraryChanged();
 
+  publishUserBookChange(data as UserBook);
   return data as UserBook;
 }
 

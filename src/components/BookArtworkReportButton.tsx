@@ -34,7 +34,7 @@ export default function BookArtworkReportButton({ bookId, coverUrl }: { bookId: 
   }
   const copy = { color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14 };
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Report book cover" onPress={() => { setError(''); setOpen(true); }} hitSlop={6} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Report book cover" onPress={() => { setError(''); setOpen(true); }} hitSlop={6} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
       <Ionicons name="flag-outline" size={20} color={colors.gold}/>
     </Pressable>
     <UiSheetModal visible={open} transparent motion={motion} onDismiss={confirmation.afterDismiss} onRequestClose={() => motion.close()}>

@@ -4142,16 +4142,15 @@ export default function DiscoverScreen() {
           {discoverMode === 'books' && discoverSearchFocused && !query.trim() && recentSearches.searches.length > 0 ? (
             <View ref={recentSearchPanelRef} onLayout={() => recentSearchPanelRef.current?.measureInWindow((x,y,width,height) => {recentSearchPanelBounds.current={x,y,width,height};})} style={styles.recentSearches}>
               <View style={styles.recentSearchHeader}>
-                <Text style={styles.recentSearchHeading}>Recent searches</Text>
-                <Pressable onPress={recentSearches.clear} accessibilityRole="button" accessibilityLabel="Clear all recent searches" hitSlop={8}>
+                <View style={styles.recentSearchTitle}><Ionicons name="time-outline" size={14} color={colors.mutedText}/><Text style={styles.recentSearchHeading}>RECENT SEARCHES</Text></View>
+                <Pressable onPress={recentSearches.clear} accessibilityRole="button" accessibilityLabel="Clear all recent searches" hitSlop={4} style={styles.recentSearchClearButton}>
                   <Text style={styles.recentSearchClear}>Clear all</Text>
                 </Pressable>
               </View>
               <ScrollView style={styles.recentSearchList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {recentSearches.searches.map(term => (
-                  <View key={term.toLowerCase()} style={styles.recentSearchChip}>
+                {recentSearches.searches.map((term, index) => (
+                  <View key={term.toLowerCase()} style={[styles.recentSearchChip, index === recentSearches.searches.length - 1 && styles.recentSearchLastRow]}>
                     <Pressable onPress={() => {setQuery(term); recentSearches.remember(term);}} accessibilityRole="button" accessibilityLabel={`Search again for ${term}`} style={styles.recentSearchTerm}>
-                      <Ionicons name="time-outline" size={14} color={colors.mutedText} />
                       <Text style={styles.recentSearchText} numberOfLines={1}>{term}</Text>
                     </Pressable>
                     <Pressable onPress={() => recentSearches.remove(term)} accessibilityRole="button" accessibilityLabel={`Remove ${term} from recent searches`} hitSlop={6} style={styles.recentSearchRemove}>
@@ -6103,15 +6102,18 @@ function createStyles(
       flexGrow: 1,
     },
 
-    recentSearches: {marginTop: 4, marginBottom: 8, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface},
-    recentSearchList: {maxHeight: 180},
-    recentSearchHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8},
-    recentSearchHeading: {color: colors.mutedText, fontSize: 12, fontFamily: 'Inter_600SemiBold'},
-    recentSearchClear: {color: colors.gold, fontSize: 12, fontFamily: 'Inter_500Medium'},
-    recentSearchChip: {flexDirection: 'row', alignItems: 'center'},
-    recentSearchTerm: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10},
-    recentSearchText: {color: colors.secondaryText, fontSize: 12, flexShrink: 1, fontFamily: 'Inter_400Regular'},
-    recentSearchRemove: {paddingHorizontal: 9, paddingVertical: 9},
+    recentSearches: { marginTop: 2, marginBottom: 8, paddingHorizontal: 14, paddingTop: 4, paddingBottom: 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface },
+    recentSearchList: { maxHeight: 192 },
+    recentSearchHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 },
+    recentSearchTitle: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    recentSearchHeading: { color: colors.mutedText, fontSize: 9.5, letterSpacing: 1.1, fontFamily: 'Inter_600SemiBold' },
+    recentSearchClearButton: { minHeight: 36, justifyContent: 'center', paddingLeft: 12 },
+    recentSearchClear: { color: colors.gold, fontSize: 11, fontFamily: 'Inter_500Medium' },
+    recentSearchChip: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    recentSearchLastRow: { borderBottomWidth: 0 },
+    recentSearchTerm: { flex: 1, minHeight: 48, justifyContent: 'center', paddingRight: 8 },
+    recentSearchText: { color: colors.text, fontSize: 14, fontFamily: 'Inter_400Regular' },
+    recentSearchRemove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
 
     bookCard: {
       flexDirection:
