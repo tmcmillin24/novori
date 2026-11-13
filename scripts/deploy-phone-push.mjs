@@ -47,4 +47,7 @@ $job$);`);
 const checks = await query(`select jobname,active,schedule from cron.job where jobname in ('novori-phone-push','novori-reading-reminders') order by jobname`, true);
 console.log('Phone push backend deployed. Existing book/catalog/cover functions were not deployed or changed.');
 console.table(checks);
-console.log('Next: configure the Apple push key with EAS, rebuild iOS, enable phone notifications, and use Send me a test notification in Novori settings.');
+console.log('Base push worker is ready. Applying current delivery/reminder updates next.');
+// Apply later delivery/reminder features after the worker and Vault exist.
+const followup=spawnSync(process.execPath,[fileURLToPath(new URL('./deploy-notification-delivery.mjs',import.meta.url))],{stdio:'inherit',cwd:fileURLToPath(new URL('../',import.meta.url))});
+if(followup.error||followup.status!==0)throw new Error('Delivery follow-up failed. Rerun scripts/deploy-notification-delivery.mjs.');

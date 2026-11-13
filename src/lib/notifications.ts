@@ -1,3 +1,4 @@
+import { anonymizeVoteNotification } from './anonymous-vote-notification';
 import { supabase } from './supabase';
 
 let suppressAttentionCountWhileMarking = false;
@@ -100,7 +101,7 @@ export async function getNotifications(
   }
 
   const notifications =
-    (data ?? []) as NovoriNotification[];
+    ((data ?? []) as NovoriNotification[]).map(anonymizeVoteNotification);
 
   const actorIds =
     Array.from(

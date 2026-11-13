@@ -128,6 +128,64 @@ const assert = require('node:assert/strict');
  assert.equal(await scalar('select body from public.post_comments where id=$1',[b]),'Keep my reply');
  await db.query('select public.delete_post_comment($1)',[a]);
  await db.exec('set role anon');await assert.rejects(()=>db.query('select public.delete_post_comment($1)',[b]));await db.exec('reset role');
+ // Immediate dispatch uses asynchronous enqueueing, not a synchronous provider call.
+ await db.exec(`truncate public.novori_push_outbox; create schema vault; create schema net;
+ create table vault.decrypted_secrets(name text,decrypted_secret text);insert into vault.decrypted_secrets values('novori_phone_push_worker','TEST-ONLY-SECRET');
+ create table public.test_push_wakes(id bigint generated always as identity);
+ create table public.test_push_fault(enabled boolean);insert into public.test_push_fault values(false);
+ create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$begin
+ if (select enabled from public.test_push_fault) then raise exception 'Network queue unavailable';end if;
+ insert into public.test_push_wakes default values;return 1;end$$;
+ alter table public.reading_reminder_preferences add column timezone text not null default 'UTC';
+ create table public.reading_checkins(user_id uuid,local_date date);
+ create function public.sync_reading_reminder_device(device_timezone text) returns jsonb language plpgsql as $$begin
+ if auth.uid() is null then raise exception 'Sign in';end if;
+ return (select to_jsonb(p) from public.reading_reminder_preferences p where user_id=auth.uid());end$$;
+ create function public.get_year_in_reading_insights(reading_year integer,reader_timezone text) returns jsonb language sql as $$
+ select jsonb_build_object('year',reading_year,'finishedBooks',case when auth.uid()='${a}'::uuid then 2 else 0 end,'daysRead',0)$$;
+ select set_config('request.jwt.claim.sub','${a}',false);`);
+ for(const file of ['20261113070000_anonymous_vote_push.sql','20261113080000_immediate_push.sql','20261113090000_yearly_recap_reminders.sql','20261113100000_push_reminder_eligibility.sql']){
+  const migration=fs.readFileSync('supabase/migrations/'+file,'utf8');await db.exec(migration);await db.exec(migration);
+ }
+ await db.exec(`insert into public.notifications(recipient_id,type,title) values('${a}','comment','Someone commented on your post.');`);
+ assert.equal(await scalar('select count(*)::int from public.test_push_wakes'),1,'new immediate alert must wake delivery');
+ await db.exec(`insert into public.notifications(recipient_id,type,title) values('${a}','comment','Another comment');`);
+ assert.equal(await scalar('select count(*)::int from public.test_push_wakes'),1,'a burst shares one wake');
+ await db.exec(`update public.novori_push_wake_state set last_wake_at='-infinity';
+ insert into public.notifications(recipient_id,actor_id,type,title,entity_type,entity_id,metadata)
+ values('${a}','${b}','post_vote','Tristan upvoted your post','post','${a}','{"vote_value":1}');`);
+ assert.equal(await scalar('select count(*)::int from public.test_push_wakes'),1,'delayed upvote batching must not wake early');
+ const anonPostVote=await scalar("select id from public.notifications where type='post_vote' order by created_at desc limit 1");
+ assert.equal(await scalar('select public.novori_push_preview($1)',[anonPostVote]),'Someone upvoted your post.');
+ await db.exec(`update public.test_push_fault set enabled=true;insert into public.notifications(recipient_id,type,title) values('${a}','follow','Another follow');`);
+ assert.equal(await scalar("select count(*)::int from public.novori_push_outbox where state='pending'")>0,true,'wake failure preserves the outbox and user action');
+ await db.exec('update public.test_push_fault set enabled=false');
+ // A check-in completed after reminder creation must suppress its phone delivery.
+ await db.exec(`update public.reading_reminder_preferences set daily_checkin=true where user_id='${a}';
+ insert into public.reading_checkins values('${a}',current_date);`);
+ const checkedIn=await scalar(`insert into public.notifications(recipient_id,type,title,entity_type,metadata) values('${a}','system','Check in','reading_reminder','{"reading_reminder_kind":"daily_checkin"}') returning id`);
+ assert.equal(await scalar('select public.novori_push_allowed($1)',[checkedIn]),false);
+ // Annual reminders are local-time eligible, data-backed and independently deduplicated.
+ await db.exec(`insert into public.reading_reminder_preferences(user_id,monthly_recap) values('${b}',true);`);
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-01 17:59Z')"),0);
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-01 18:00Z')"),1);
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-01 18:01Z')"),0,'annual reminder must not repeat');
+ const annual=await scalar("select metadata from public.notifications where metadata->>'reading_reminder_kind'='yearly_recap'");
+ assert.equal(annual.reference_date,'2026-12-31');
+ assert.equal(await scalar("select count(*)::int from public.novori_yearly_recap_deliveries where user_id='"+b+"' and notified"),0,'no activity means no annual alert');
+ assert.equal(await scalar("select current_setting('request.jwt.claim.sub')"),a,'annual generator restores auth context');
+ await db.exec(`update public.reading_reminder_preferences set yearly_recap=false where user_id='${a}'`);
+ assert.equal(await scalar("select count(*)::int from public.notifications where recipient_id='"+a+"' and metadata->>'reading_reminder_kind'='yearly_recap'"),0,'annual opt-out clears pending reminder');
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2028-01-01 18:00Z')"),0,'annual opt-out must be respected');
+
+ await db.exec(`delete from public.novori_yearly_recap_deliveries where user_id='${a}' and reading_year=2026;
+ update public.reading_reminder_preferences set yearly_recap=true,timezone='America/Chicago' where user_id='${a}';`);
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-01 23:59Z')"),0,'6 PM is local, not UTC');
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-02 00:00Z')"),1,'local January 1 can be January 2 UTC');
+ await db.exec(`delete from public.notifications where recipient_id='${a}' and metadata->>'reading_reminder_kind'='yearly_recap'`);
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2027-01-02 00:01Z')"),0,'clearing inbox must not resend annual recap');
+ assert.equal(await scalar("select public.novori_generate_yearly_recap_reminders('2026-01-01 18:00Z')"),0,'do not backfill before yearly opt-in');
+ await db.exec('set role authenticated');await assert.rejects(()=>db.query('select public.novori_generate_yearly_recap_reminders()'));await db.exec('reset role');
  console.log('Phone push SQL checks passed: replay safety, RLS, preference/mute checks, account transfer, receipts, logout, self-test rate limit.');
  await db.close();
 })().catch(error=>{console.error(error);process.exitCode=1;});

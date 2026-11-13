@@ -10,6 +10,7 @@ const OPTIONS: { key: ReadingReminderKind; title: string; detail: string; icon: 
   { icon: 'checkmark-circle-outline', key: 'daily_checkin', title: 'Daily Check-in', detail: 'A reminder if you have a book in Reading and haven’t checked in today.' },
   { icon: 'book-outline', key: 'still_reading', title: 'Still Reading?', detail: 'A gentle weekly nudge after seven days without reading activity. Paused journeys are skipped.' },
   { icon: 'calendar-outline', key: 'weekly_recap', title: 'Weekly Recap', detail: 'On Mondays, when the previous week has reading activity.' },
+  { icon: 'sparkles-outline', key: 'yearly_recap', title: 'Yearly Recap', detail: 'On January 1, when the previous year has recorded reading activity.' },
   { icon: 'albums-outline', key: 'monthly_recap', title: 'Monthly Recap', detail: 'On the first of the month, when the previous month has reading activity.' },
 ];
 
@@ -61,6 +62,6 @@ export default function ReadingReminderSettings() {
           <SettingsToggleRow icon={icon} title={title} subtitle={detail} value={preferences[key]} disabled={saving} onValueChange={value => void save({ [key]: value })}/>
         </Fragment>)}
       </>}
-    <View style={styles.note}><Ionicons name="moon-outline" size={16} color={colors.gold}/><Text style={styles.noteText}>Reminders arrive in your Novori inbox at 6 p.m. in your phone’s time zone. Delivery may take up to 15 minutes.</Text></View>
+    <View style={styles.note}><Ionicons name="moon-outline" size={16} color={colors.gold}/><Text style={styles.noteText}>Reminders are scheduled for 6 p.m. in your phone’s time zone and skip daily check-ins you have already completed. Eligible phone alerts are sent as soon as they are queued; delivery can vary.</Text></View>
   </SettingsSection>;
 }

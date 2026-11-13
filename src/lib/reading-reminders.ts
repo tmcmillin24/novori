@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export type ReadingReminderKind = 'daily_checkin' | 'still_reading' | 'weekly_recap' | 'monthly_recap';
+export type ReadingReminderKind = 'daily_checkin' | 'still_reading' | 'weekly_recap' | 'monthly_recap' | 'yearly_recap';
 export type ReadingReminderPreferences = Record<ReadingReminderKind, boolean> & {
   user_id: string;
   reminder_time: string;
@@ -22,18 +22,18 @@ export function parseRecapReferenceDate(value: unknown): Date | null {
 export function getReadingReminderKind(item: { type: string; entity_type: string | null; metadata: Record<string, unknown> }) {
   if (item.type !== 'system' || item.entity_type !== 'reading_reminder') return null;
   const kind = item.metadata?.reading_reminder_kind;
-  return kind === 'daily_checkin' || kind === 'still_reading' || kind === 'weekly_recap' || kind === 'monthly_recap'
+  return kind === 'daily_checkin' || kind === 'still_reading' || kind === 'weekly_recap' || kind === 'monthly_recap' || kind === 'yearly_recap'
     ? kind : null;
 }
 
 export function getReadingReminderDestination(item: Parameters<typeof getReadingReminderKind>[0]) {
   const kind = getReadingReminderKind(item);
   if (!kind) return null;
-  if (kind === 'weekly_recap' || kind === 'monthly_recap') {
+  if (kind === 'weekly_recap' || kind === 'monthly_recap' || kind === 'yearly_recap') {
     const referenceDate = item.metadata.reference_date;
     if (parseRecapReferenceDate(referenceDate)) {
       return { pathname: '/reading-recaps' as const, params: {
-        mode: kind === 'weekly_recap' ? 'week' : 'month', referenceDate: referenceDate as string,
+        mode: kind === 'weekly_recap' ? 'week' : kind === 'yearly_recap' ? 'year' : 'month', referenceDate: referenceDate as string,
       } };
     }
   }
@@ -53,7 +53,7 @@ export async function getReadingReminderPreferences(): Promise<ReadingReminderPr
 }
 
 async function registerReadingReminderDevice(userId: string, timezone: string): Promise<ReadingReminderPreferences> {
-  const { data, error } = await supabase.rpc('sync_reading_reminder_device', { device_timezone: timezone });
+  const { data, error } = await supabase.rpc('novori_sync_reading_reminders', { device_timezone: timezone });
   if (error) throw error;
   if (!data || data.user_id !== userId) throw new Error('Could not synchronize reading reminders. Please try again.');
   return data;
@@ -87,12 +87,12 @@ export async function updateReadingReminderPreferences(
   const userId = await currentUserId();
   // Only explicitly changed values are written; another device's choices are preserved.
   const patch: Record<string, unknown> = { user_id: userId, timezone: getDeviceTimezone() };
-  for (const key of ['daily_checkin', 'still_reading', 'weekly_recap', 'monthly_recap'] as const) {
+  for (const key of ['daily_checkin', 'still_reading', 'weekly_recap', 'monthly_recap', 'yearly_recap'] as const) {
     if (typeof changes[key] === 'boolean') patch[key] = changes[key];
   }
   const { data, error } = await supabase.from('reading_reminder_preferences')
     .upsert(patch, { onConflict: 'user_id', defaultToNull: false })
-    .select('user_id,daily_checkin,still_reading,weekly_recap,monthly_recap,reminder_time,timezone').single();
+    .select('user_id,daily_checkin,still_reading,weekly_recap,monthly_recap,yearly_recap,reminder_time,timezone').single();
   if (error) throw error;
   return data;
 }

@@ -22,7 +22,7 @@ jest.mock('../src/lib/reading-reminders',()=>({getReadingReminderPreferences:jes
 jest.mock('../src/lib/content-filter',()=>({getExplicitLanguagePreference:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:jest.fn(),signOut:jest.fn()}}}));
 const preferences={new_followers:false,reactions_and_replies:true,club_invites:true,club_activity:true,reading_started:false,reading_finished:true};
-const reminders={daily_checkin:true,still_reading:true,weekly_recap:false,monthly_recap:true,reminder_time:'18:00:00',timezone:'America/Chicago'};
+const reminders={daily_checkin:true,still_reading:true,weekly_recap:false,monthly_recap:true,yearly_recap:true,reminder_time:'18:00:00',timezone:'America/Chicago'};
 let view,silence;
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.clearAllMocks();getNotificationPreferences.mockResolvedValue(preferences);updateNotificationPreference.mockImplementation(async(key,value)=>({...preferences,[key]:value}));getReadingReminderPreferences.mockResolvedValue(reminders);updateReadingReminderPreferences.mockImplementation(async(changes)=>({...reminders,...changes}));getExplicitLanguagePreference.mockResolvedValue(false);setExplicitLanguagePreference.mockImplementation(async value=>value);supabase.auth.getUser.mockResolvedValue({data:{user:{id:'me',email:'reader@example.com'}},error:null});supabase.auth.signOut.mockResolvedValue({error:null});silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;silence.mockRestore();});

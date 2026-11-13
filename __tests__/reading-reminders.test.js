@@ -12,7 +12,7 @@ function harness({ user = { id: 'reader-1' }, row = null, error = null, rpcError
     rpc: async (name, args) => {
       calls.push({ rpc: name, args });
       return { data: row ?? { user_id: user?.id, daily_checkin: true, still_reading: true,
-        weekly_recap: true, monthly_recap: true, reminder_time: '18:00:00', timezone: args.device_timezone }, error: nextRpcError };
+        weekly_recap: true, monthly_recap: true, yearly_recap: true, reminder_time: '18:00:00', timezone: args.device_timezone }, error: nextRpcError };
     },
     from(table) {
       calls.push({ table });
@@ -40,8 +40,8 @@ test('reading reminders register defaults on at 6 PM with the phone time zone', 
   const h = harness();
   const preferences = await h.api.getReadingReminderPreferences();
   expect(preferences).toMatchObject({ user_id: 'reader-1', daily_checkin: true, still_reading: true,
-    weekly_recap: true, monthly_recap: true, reminder_time: '18:00:00', timezone: 'America/Chicago' });
-  expect(h.calls).toEqual([{ rpc: 'sync_reading_reminder_device', args: { device_timezone: 'America/Chicago' } }]);
+    weekly_recap: true, monthly_recap: true, yearly_recap: true, reminder_time: '18:00:00', timezone: 'America/Chicago' });
+  expect(h.calls).toEqual([{ rpc: 'novori_sync_reading_reminders', args: { device_timezone: 'America/Chicago' } }]);
 });
 
 test('saving one reminder preserves the other choices and includes the current time zone', async () => {
@@ -89,7 +89,7 @@ test('network failure retries and sign-out clears successful device registration
 
 test('time zone synchronization keeps existing disabled reminders at the fixed time', async () => {
   const saved = { user_id: 'reader-1', daily_checkin: false, still_reading: false,
-    weekly_recap: true, monthly_recap: false, reminder_time: '18:00:00', timezone: 'America/Chicago' };
+    weekly_recap: true, monthly_recap: false, yearly_recap: false, reminder_time: '18:00:00', timezone: 'America/Chicago' };
   const h = harness({ row: saved });
   expect(await h.api.getReadingReminderPreferences()).toEqual(saved);
   expect(h.calls[0].args).toEqual({ device_timezone: 'America/Chicago' });
@@ -128,7 +128,7 @@ test('habit reminders open the reader’s own private profile without Google boo
   expect(h.calls).toEqual([]);
 });
 
-test.each([['weekly_recap', 'week'], ['monthly_recap', 'month']])('%s opens the completed period in Recaps', (kind, mode) => {
+test.each([['weekly_recap', 'week'], ['monthly_recap', 'month'], ['yearly_recap', 'year']])('%s opens the completed period in Recaps', (kind, mode) => {
   const h = harness();
   expect(h.api.getReadingReminderDestination(reminder(kind))).toEqual({ pathname: '/reading-recaps', params: { mode, referenceDate: '2026-09-30' } });
 });
