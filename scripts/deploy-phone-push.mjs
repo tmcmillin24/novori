@@ -13,7 +13,8 @@ async function api(path, body) {
     // Never print a response containing credentials or the submitted SQL/secret.
     throw new Error(`Supabase request ${path} failed (${response.status}). Check Project Read, Database Read/write, Edge Functions Read/write, and Edge Function Secrets Read/write permissions.`);
   }
-  return response.status === 204 ? null : response.json();
+  const text = await response.text();
+  return text.trim() ? JSON.parse(text) : null;
 }
 const query = (sql, readOnly = false) => api('/database/query', { query: sql, read_only: readOnly });
 const [foundation] = await query(`select to_regclass('public.notifications') is not null and to_regclass('public.notification_preferences') is not null and to_regclass('public.reading_reminder_preferences') is not null as ready`, true);

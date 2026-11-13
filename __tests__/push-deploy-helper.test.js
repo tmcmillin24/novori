@@ -9,7 +9,7 @@ it('uses the privileged query role for Vault decryption and never prints the sec
   let data=[];
   if(body.query?.includes('as ready'))data=[{ready:true}];
   if(body.query?.includes('decrypted_secret as value'))data=[{value:secret}];
-  return {ok:true,status:url.endsWith('/secrets')?204:200,json:async()=>data};
+  return {ok:true,status:200,text:async()=>url.endsWith('/secrets')?'':JSON.stringify(data)};
  },()=> 'select 1',()=>{throw Error('Must reuse existing credential');},()=>({status:0}),()=>'/project',{env:{SUPABASE_ACCESS_TOKEN:'fake-token'}},URL,{log:(...args)=>logs.push(args),table:(...args)=>logs.push(args)});
  const vault=calls.find(c=>c.body.query?.includes('decrypted_secret as value'));
  expect(vault.body.read_only).toBe(false);
