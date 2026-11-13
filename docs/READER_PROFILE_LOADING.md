@@ -1,0 +1,11 @@
+# Reader profile loading
+
+Previously the entire screen remained behind one loading flag until profile/block checks, viewer clubs, public books/ownership/reviews, reader posts, a 100-item home feed, public clubs/stacks, and verified cover resolution had finished. A slow secondary query or image hydration therefore delayed the reader's name, avatar and follow actions.
+
+The screen now displays the profile after the existing profile and viewer-block checks. Library, public clubs and stacks load independently with section loading/error states; errors do not masquerade as an empty profile. Activity and its home-feed merge are requested only on opening Activity, once per focused load. The existing shared-club visibility filter and post deduplication remain. The library still waits for the existing verified-cover resolver before applying artwork. No cover-selection, provider ranking or cache TTL rules were changed, and no persistent public-profile cache was introduced.
+
+Focused-load versions discard late results after blur, reader changes or a newer refresh. Refocusing, following or pull-to-refresh performs fresh authorization/visibility reads. Private/blocked content is not requested after a failed visibility gate; server RPC/RLS checks remain authoritative. Ordinary search results are not treated as proof that private profile content is accessible.
+
+Development builds log elapsed milliseconds from the start of each load under `[Novori profile]`: `profile ready`, `library settled`, `clubs settled`, `stacks settled`, and `activity settled` when requested. Timings contain no username or reader ID. Device/network timings still need verification on a signed-in device; automated delays demonstrate load independence, not a guaranteed production latency.
+
+Validation includes deferred secondary requests, verified cover retention, private/blocked readers, one-time Activity loading/shared-club filtering, cancellation and section failure tests, TypeScript and iOS export. This is an app JavaScript change: reload a development client for testing; TestFlight users need a new build. No Supabase migration or function deployment is required.

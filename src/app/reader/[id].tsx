@@ -1,3 +1,4 @@
+import { createReaderProfileLoad } from '../../lib/reader-profile-loader';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
@@ -15,7 +16,7 @@ import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
@@ -27,14 +28,13 @@ import PostTypeIdentifier from '../../components/PostTypeIdentifier';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { BookStack, getPublicBookStacks } from '../../lib/book-stacks';
-import { ClubWithMembership, getMyClubs, inviteReaderToClub } from '../../lib/clubs';
-import { cancelFollowRequest, FeedPost, getHomeFeed, followReader, PostVoteValue, togglePostVote, deletePost, unfollowReader } from '../../lib/feed';
+import { BookStack } from '../../lib/book-stacks';
+import { ClubWithMembership, inviteReaderToClub } from '../../lib/clubs';
+import { cancelFollowRequest, FeedPost, followReader, PostVoteValue, togglePostVote, deletePost, unfollowReader } from '../../lib/feed';
 import { shareProfileLink, sharePostLink } from '../../lib/share-links';
-import { getLockedVerifiedCoverUrls } from '../../lib/user-books';
-import { PROFILE_BOOK_STATUS_LABELS, sortProfileBooks } from '../../lib/profile-book-order';
+import { PROFILE_BOOK_STATUS_LABELS } from '../../lib/profile-book-order';
 import { ReportReason, submitProfileReport, submitPostReport } from '../../lib/reports';
-import { blockReader, getReaderProfile, getReaderProfilePosts, getReaderPublicBooks, getReaderPublicOwnedBooks, getReaderPublicClubs, getReaderPublicReviews, isReaderBlockedByViewer, PublicReaderBook, PublicReaderReview, ReaderSocialProfile, unblockReader } from '../../lib/social';
+import { blockReader, PublicReaderBook, PublicReaderReview, ReaderSocialProfile, unblockReader } from '../../lib/social';
 type ReaderTab = 'library' | 'activity' | 'clubs';
 type ReaderLibraryTab = 'books' | 'reviews' | 'stacks';
 const PROFILE_REPORT_REASONS: Array<{
@@ -121,112 +121,33 @@ export default function ReaderProfileScreen() {
     const [ownPostTarget, setOwnPostTarget] = useState<FeedPost | null>(null);
     const [ownPostDeleting, setOwnPostDeleting] = useState(false);
     const [ownDeleteConfirmation, setOwnDeleteConfirmation] = useState(false);
+    const loadVersion = useRef(0);
+    const focusedReader = useRef(false);
+    const readerLoad = useRef<ReturnType<typeof createReaderProfileLoad> | null>(null);
+    const [sectionLoading,setSectionLoading] = useState({library:true,clubs:true,stacks:true,activity:true});
+    const [sectionErrors,setSectionErrors] = useState<Partial<Record<'library'|'clubs'|'stacks'|'activity',string>>>({});
     const loadReader = useCallback(async () => {
-        if (!readerId) {
-            setError('Reader profile not found.');
-            setLoading(false);
-            return;
-        }
-        try {
-            setError('');
-            const [profileData, blockedByViewer,] = await Promise.all([
-                getReaderProfile(readerId),
-                isReaderBlockedByViewer(readerId)
-            ]);
-            setProfile(profileData);
-            setIsBlocked(blockedByViewer);
-            let viewerClubIds = new Set<string>();
-            try {
-                const myClubData = await getMyClubs();
-                viewerClubIds =
-                    new Set(myClubData.map((club) => club.id));
-                setManagerClubs(myClubData.filter((club) => club.membership_role ===
-                    'owner' ||
-                    club.membership_role ===
-                        'admin'));
-            }
-            catch (clubLoadError) {
-                console.error('Could not load viewer clubs:', clubLoadError);
-                setManagerClubs([]);
-            }
-            if (blockedByViewer) {
-                setBooks([]);
-                setReviews([]);
-                setPosts([]);
-                setClubs([]);
-                setStacks([]);
-                return;
-            }
-            const [bookData, ownedBookData, reviewData, postData, viewerFeed, clubData, stackData,] = await Promise.all([
-                getReaderPublicBooks(readerId),
-                getReaderPublicOwnedBooks(readerId).catch((ownedBooksError) => {
-                    console.warn('Could not load public owned books:', ownedBooksError);
-                    return [];
-                }),
-                getReaderPublicReviews(readerId),
-                getReaderProfilePosts(readerId),
-                getHomeFeed(100).catch((feedError) => {
-                    console.warn('Could not merge shared-club posts into reader activity:', feedError);
-                    return [] as FeedPost[];
-                }),
-                getReaderPublicClubs(readerId),
-                getPublicBookStacks(readerId).catch((stackError) => {
-                    console.warn('Could not load reader Book Stacks:', stackError);
-                    return [];
-                })
-            ]);
-            const verifiedCovers = await getLockedVerifiedCoverUrls([
-                ...bookData,
-                ...ownedBookData,
-                ...reviewData
-            ].map((item) => item.google_book_id));
-            function applyVerifiedCover<T extends {
-                google_book_id: string;
-                cover_url: string | null;
-            }>(item: T): T {
-                const verifiedCover = verifiedCovers.get(item.google_book_id);
-                return verifiedCover
-                    ? {
-                        ...item,
-                        cover_url: verifiedCover,
-                    }
-                    : item;
-            }
-            const mergedBookData = Array.from(new Map([
-                ...bookData.map(item => applyVerifiedCover(item)),
-                ...ownedBookData.map(item => applyVerifiedCover(item))
-            ].map((item) => [
-                item.id,
-                item
-            ])).values());
-            setBooks(sortProfileBooks(mergedBookData));
-            setReviews(reviewData.map(item => applyVerifiedCover(item)));
-            const visibleProfilePosts = postData.filter((post) => !post.club_id ||
-                viewerClubIds.has(post.club_id));
-            const sharedFeedPosts = viewerFeed.filter((post) => post.author_id ===
-                readerId);
-            const mergedPosts = Array.from(new Map([
-                ...visibleProfilePosts,
-                ...sharedFeedPosts
-            ].map((post) => [
-                post.id,
-                post
-            ])).values()).sort((a, b) => new Date(b.created_at).getTime() -
-                new Date(a.created_at).getTime());
-            setPosts(mergedPosts);
-            setClubs(clubData);
-            setStacks(stackData);
-        }
-        catch (loadError) {
-            console.error('Could not load reader profile:', loadError);
-            setError('This reader profile could not be loaded.');
-        }
-        finally {
-            setLoading(false);
-        }
-    }, [
-        readerId
-    ]);
+        const version=++loadVersion.current;
+        const isCurrent=()=>focusedReader.current&&version===loadVersion.current;
+        setError('');setLoading(true);setProfile(null);
+        setBooks([]);setReviews([]);setPosts([]);setClubs([]);setStacks([]);setManagerClubs([]);
+        setSectionErrors({});setSectionLoading({library:true,clubs:true,stacks:true,activity:true});
+        if(!readerId){setError('Reader profile not found.');setLoading(false);return;}
+        const task=createReaderProfileLoad(readerId,{
+            isCurrent,
+            ready:(next,blocked)=>{setProfile(next);setIsBlocked(blocked);setLoading(false);},
+            library:(nextBooks,nextReviews)=>{setBooks(nextBooks);setReviews(nextReviews);},
+            clubs:setClubs,stacks:setStacks,managerClubs:setManagerClubs,activity:setPosts,
+            error:section=>setSectionErrors(previous=>({...previous,[section]:'This section could not be loaded. Pull down to retry.'})),
+            settled:section=>setSectionLoading(previous=>({...previous,[section]:false})),
+        });
+        readerLoad.current=task;
+        try{await task.finished;}
+        catch(loadError){if(isCurrent()){console.error('Could not load reader profile:',loadError);setError('This reader profile could not be loaded.');setLoading(false);}}
+    },[readerId]);
+    useEffect(()=>{
+        if(activeTab==='activity'&&profile?.id===readerId&&!loading) void readerLoad.current?.loadActivity().catch(()=>{});
+    },[activeTab,profile,readerId,loading]);
     const refreshReader = useCallback(async () => {
         if (refreshing) {
             return;
@@ -243,11 +164,10 @@ export default function ReaderProfileScreen() {
         refreshing
     ]);
     useFocusEffect(useCallback(() => {
-        setLoading(true);
-        loadReader();
-    }, [
-        loadReader
-    ]));
+        focusedReader.current=true;
+        void loadReader();
+        return()=>{focusedReader.current=false;loadVersion.current+=1;readerLoad.current=null;};
+    },[loadReader]));
     function openProfileReport(post?: FeedPost) {
         if (!profile ||
             profile.is_self ||
@@ -792,7 +712,7 @@ export default function ReaderProfileScreen() {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={styles.statNumber}>
-              {books.length}
+              {sectionLoading.library ? '…' : sectionErrors.library ? '—' : books.length}
             </Text>
 
             <Text style={styles.statLabel}>
@@ -953,7 +873,7 @@ export default function ReaderProfileScreen() {
               </Pressable>))}
         </View>
 
-        {activeTab ===
+        {(activeTab==='activity'?sectionLoading.activity:activeTab==='clubs'?sectionLoading.clubs:libraryTab==='stacks'?sectionLoading.stacks:sectionLoading.library) ? (<View style={styles.emptyCard}><ActivityIndicator size="small" color={colors.gold}/><Text style={styles.emptyText}>Loading {activeTab==='library'?libraryTab:activeTab}…</Text></View>) : sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':'library'] ? (<View style={styles.emptyCard}><Text style={styles.emptyText}>{sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':'library']}</Text><Pressable onPress={()=>void loadReader()}><Text style={styles.emptyTitle}>Retry</Text></Pressable></View>) : activeTab ===
                 'library' ? (<>
             <View style={styles.libraryTabRow}>
               {([
