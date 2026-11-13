@@ -126,6 +126,8 @@ export default function ProfileReadingModule({
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
   const checkinMutationVersion = useRef(0);
+  const knownCheckinState = useRef(checkinState);
+  knownCheckinState.current = checkinState;
 
   useEffect(() => {
     let midnightTimer: ReturnType<typeof setTimeout>;
@@ -157,7 +159,8 @@ export default function ProfileReadingModule({
       async function loadCheckin() {
         const request = ++latestRequest;
         const mutationVersion = checkinMutationVersion.current;
-        setLoadingCheckin(true);
+        // Keep today’s known state visible and usable during background revalidation.
+        setLoadingCheckin(knownCheckinState.current?.localDate !== localDate);
         setCheckinError('');
         try {
           const next = await getDailyReadingCheckinState(localDate);

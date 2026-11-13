@@ -64,3 +64,15 @@ test('a background refresh cannot undo a check-in saved from the already-open pi
  expect(view.root.findByProps({accessibilityLabel:'Checked in for today’s reading'})).toBeDefined();
  expect(pastDayFilled()).toBe(true);
 });
+
+
+test.each([false,true])('refocus keeps known checkedIn=%s stable while the refresh is pending',async(checkedIn)=>{
+ getDailyReadingCheckinState.mockResolvedValue({...checked,checkedIn});await render();
+ let resolve;getDailyReadingCheckinState.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+ await act(async()=>{mockFocusCleanup();mockFocusCleanup=mockFocus();});
+ expect(view.root.findAllByType('ActivityIndicator')).toHaveLength(0);
+ const label=checkedIn?'Checked in for today’s reading':'Check in for today’s reading';
+ expect(view.root.findByProps({accessibilityLabel:label})).toBeDefined();
+ if(!checkedIn)expect(view.root.findByProps({accessibilityLabel:label}).props.disabled).toBe(false);
+ await act(async()=>resolve({...checked,checkedIn}));
+});
