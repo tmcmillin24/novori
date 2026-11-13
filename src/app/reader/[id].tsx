@@ -1,3 +1,6 @@
+import { useReaderProfileVisit } from '../../lib/use-reader-profile-visit';
+import { getReaderProfile, isReaderBlockedByViewer } from '../../lib/social';
+import { isTransientReadError } from '../../lib/session-read-cache';
 import { createReaderProfileLoad } from '../../lib/reader-profile-loader';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -15,7 +18,7 @@ import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAtt
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,7 +125,8 @@ export default function ReaderProfileScreen() {
     const [ownPostDeleting, setOwnPostDeleting] = useState(false);
     const [ownDeleteConfirmation, setOwnDeleteConfirmation] = useState(false);
     const loadVersion = useRef(0);
-    const focusedReader = useRef(false);
+    const profileRef=useRef(profile);profileRef.current=profile;
+    const blockedRef=useRef(isBlocked);blockedRef.current=isBlocked;
     const readerLoad = useRef<ReturnType<typeof createReaderProfileLoad> | null>(null);
     const [visibleBookCount,setVisibleBookCount]=useState(12);
     const [visibleReviewCount,setVisibleReviewCount]=useState(10);
@@ -130,7 +134,7 @@ export default function ReaderProfileScreen() {
     const [sectionErrors,setSectionErrors] = useState<Partial<Record<'library'|'reviews'|'clubs'|'stacks'|'activity',string>>>({});
     const loadReader = useCallback(async () => {
         const version=++loadVersion.current;
-        const isCurrent=()=>focusedReader.current&&version===loadVersion.current;
+        const isCurrent=()=>version===loadVersion.current;
         setError('');setLoading(true);setProfile(null);
         setBooks([]);setReviews([]);setPosts([]);setClubs([]);setStacks([]);setManagerClubs([]);
         setSectionErrors({});setSectionLoading({library:true,reviews:true,clubs:true,stacks:true,activity:true});setVisibleBookCount(12);setVisibleReviewCount(10);
@@ -167,11 +171,26 @@ export default function ReaderProfileScreen() {
         loadReader,
         refreshing
     ]);
-    useFocusEffect(useCallback(() => {
-        focusedReader.current=true;
-        void loadReader();
-        return()=>{focusedReader.current=false;loadVersion.current+=1;readerLoad.current=null;};
-    },[loadReader]));
+    useReaderProfileVisit(readerId,{
+        load:()=>void loadReader(),
+        hasProfile:()=>profileRef.current?.id===readerId,
+        cancel:()=>{loadVersion.current+=1;readerLoad.current=null;},
+        clear:()=>{setProfile(null);setBooks([]);setReviews([]);setPosts([]);setClubs([]);setStacks([]);setManagerClubs([]);setLoading(false);setError('Sign in to view this profile.');},
+        revalidate:()=>{
+            const version=loadVersion.current;
+            void Promise.all([getReaderProfile(readerId),isReaderBlockedByViewer(readerId)]).then(([next,blocked])=>{
+                if(version!==loadVersion.current||profileRef.current?.id!==readerId)return;
+                const previous=profileRef.current;
+                const permissions=['is_private','can_view_content','can_view_books','can_view_reviews','show_books','show_reviews','show_owned_books','show_tbr_books','show_reading_books','show_read_books','show_dnf_books'] as const;
+                if(blocked!==blockedRef.current||permissions.some(key=>previous[key]!==next[key])){void loadReader();return;}
+                setProfile(next);
+            }).catch(error=>{
+                if(version!==loadVersion.current)return;
+                console.warn('Could not refresh reader permissions:',error);
+                if(!isTransientReadError(error)){loadVersion.current+=1;readerLoad.current=null;setProfile(null);setError('This reader profile could not be loaded.');setLoading(false);}
+            });
+        },
+    });
     function openProfileReport(post?: FeedPost) {
         if (!profile ||
             profile.is_self ||
