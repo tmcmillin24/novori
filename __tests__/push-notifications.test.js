@@ -1,13 +1,14 @@
 const fs=require('fs');const vm=require('vm');const ts=require('typescript');
-function harness({allowed=true,canAskAgain=true,physical=true,user='reader',stored=true,rpcError=null,afterToken}={}){
+function harness({allowed=true,canAskAgain=true,physical=true,user='reader',stored=true,rpcError=null,afterToken,nativePresent=true,onToken}={}){
  let current=user;const calls=[];let permission={granted:allowed,canAskAgain};
  const storage=new Map(stored?[['novori:push-install:v1',JSON.stringify({id:'install',secret:'a'.repeat(64)})]]:[]);
- const native={getPermissionsAsync:async()=>permission,requestPermissionsAsync:async()=>{calls.push('prompt');return permission={granted:true,canAskAgain:true};},getExpoPushTokenAsync:async()=>{calls.push('token');if(afterToken)current=afterToken;return {data:'ExpoPushToken[test]'};},IosAuthorizationStatus:{PROVISIONAL:3}};
+ const native={getPermissionsAsync:async()=>permission,requestPermissionsAsync:async()=>{calls.push('prompt');return permission={granted:true,canAskAgain:true};},getExpoPushTokenAsync:async()=>{calls.push('token');if(onToken)onToken();if(afterToken)current=afterToken;return {data:'ExpoPushToken[test]'};},IosAuthorizationStatus:{PROVISIONAL:3}};
  const supabase={auth:{getSession:async()=>({data:{session:current?{user:{id:current}}:null}})},rpc:async(name,args)=>{calls.push({name,args});return {error:rpcError};}};
  const exports={};const code=ts.transpileModule(fs.readFileSync('src/lib/push-notifications.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  vm.runInNewContext(code,{exports,console,require:name=>{
   if(name==='@react-native-async-storage/async-storage')return {__esModule:true,default:{getItem:async k=>storage.get(k)||null,setItem:async(k,v)=>{storage.set(k,v);}}};
   if(name==='expo-constants')return {__esModule:true,default:{easConfig:{projectId:'project'}}};
+  if(name==='expo-modules-core')return {requireOptionalNativeModule:()=>nativePresent?{}:null};
   if(name==='expo-device')return {isDevice:physical};
   if(name==='react-native')return {Platform:{OS:'ios'}};
   if(name==='./supabase')return {supabase};
@@ -43,4 +44,12 @@ it('keeps the app usable on an unsupported device and does not call its backend'
 });
 it('reports backend failures and allows a later retry rather than false success',async()=>{
  const h=harness({rpcError:{message:'offline'}});await expect(h.api.syncPushDevice()).rejects.toBeDefined();expect(h.api.getPushStatus()).toBe('error');
+});
+
+it('checks native capability before importing the throwing notification entrypoint',async()=>{
+ const h=harness({nativePresent:false});await h.api.syncPushDevice();expect(h.api.getPushStatus()).toBe('unavailable');expect(h.calls).toEqual([]);
+});
+it('marks registration in progress while the native token request can emit a token event',async()=>{
+ let active=false;const h=harness({onToken:()=>{active=h.api.isPushSyncInProgress();}});
+ await h.api.syncPushDevice();expect(active).toBe(true);expect(h.api.isPushSyncInProgress()).toBe(false);
 });

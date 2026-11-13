@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Alert, AppState } from 'react-native';
 import { getNotificationDestination } from '../lib/notification-destination';
 import type { NovoriNotification } from '../lib/notifications';
-import { nativeNotifications, syncPushDevice } from '../lib/push-notifications';
+import { nativeNotifications, syncPushDevice, isPushSyncInProgress } from '../lib/push-notifications';
 import { supabase } from '../lib/supabase';
 
 export default function PushNotificationDeviceSync() {
@@ -39,8 +39,18 @@ export default function PushNotificationDeviceSync() {
         router.push(getNotificationDestination(data as NovoriNotification) ?? '/(tabs)/notifications');
       } finally { handling = false; }
     }
+    let syncRunning = false;
+    let lastWarning = 0;
     function sync() {
-      void syncPushDevice().then(() => explain()).catch(() => console.warn('[Novori push] Device registration failed; retry in notification settings.'));
+      if (!mounted || syncRunning) return;
+      syncRunning = true;
+      void syncPushDevice().then(() => explain()).catch(error => {
+        if (Date.now() - lastWarning > 60000) {
+          lastWarning = Date.now();
+          const code = typeof error?.code === 'string' ? error.code.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60) : 'registration_error';
+          console.warn(`[Novori push] Registration failed (${code}). Automatic retry waits for the next sign-in or foreground; Settings can retry now.`);
+        }
+      }).finally(() => { syncRunning = false; });
       void openPending();
     }
     async function initialize() {
@@ -59,7 +69,14 @@ export default function PushNotificationDeviceSync() {
         void openPending();
       }
       const listener = notifications.addNotificationResponseReceivedListener(accept);
-      const rotated = notifications.addPushTokenListener(() => sync());
+      let lastNativeToken: string | null = null;
+      const rotated = notifications.addPushTokenListener(token => {
+        const value = `${token.type}:${JSON.stringify(token.data)}`;
+        if (value === lastNativeToken) return;
+        lastNativeToken = value;
+        // Our own registration request also emits this event. Do not recurse.
+        if (!isPushSyncInProgress()) sync();
+      });
       cleanup.push(() => listener.remove(), () => rotated.remove());
       const last = await notifications.getLastNotificationResponseAsync();
       if (mounted && last) accept(last);
@@ -87,7 +104,8 @@ export default function PushNotificationDeviceSync() {
 
     void initialize().catch(() => console.warn('[Novori push] Setup unavailable; the inbox remains available.'));
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (!['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(sync, 0);
     });

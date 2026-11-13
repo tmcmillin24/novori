@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
@@ -10,6 +11,8 @@ type Installation = { id: string; secret: string };
 let installation: Promise<Installation> | undefined;
 let native: Promise<typeof import('expo-notifications') | null> | undefined;
 let serial: Promise<unknown> = Promise.resolve();
+let syncing = false;
+export const isPushSyncInProgress = () => syncing;
 let status: PushStatus = 'checking';
 const observers = new Set<() => void>();
 export const getPushStatus = () => status;
@@ -18,7 +21,13 @@ function update(value: PushStatus) { status = value; observers.forEach(fn => fn(
 export function nativeNotifications() {
   if (!native) native = (async () => {
     if (Platform.OS === 'web' || !Device.isDevice) return null;
-    try { return await import('expo-notifications'); }
+    try {
+      if (!requireOptionalNativeModule('ExpoPushTokenManager')) {
+        console.warn('[Novori push] Native capability missing: ExpoPushTokenManager.', JSON.stringify({ environment: Constants.executionEnvironment, build: Constants.nativeBuildVersion, registeredUnderClassName: Boolean(requireOptionalNativeModule('PushTokenModule')), permissionsModule: Boolean(requireOptionalNativeModule('ExpoNotificationPermissionsModule')) }));
+        return null;
+      }
+      return await import('expo-notifications');
+    }
     catch { return null; } // An older installed development binary needs a rebuild.
   })();
   return native;
@@ -69,7 +78,8 @@ export function syncPushDevice(requestPermission = false) {
     if (error) throw error;
     update('enabled');
   };
-  const result = serial.then(work, work).catch(error => { update('error'); throw error; });
+  const run = async () => { syncing = true; try { return await work(); } finally { syncing = false; } };
+  const result = serial.then(run, run).catch(error => { update('error'); throw error; });
   serial = result.catch(() => undefined);
   return result;
 }
