@@ -198,6 +198,7 @@ export default function ProfileScreen() {
         profileFocusedRef.current =
             true;
         let isMounted = true;
+        const profileReadController = new AbortController();
         const currentLibraryMutationVersion = getLibraryMutationVersion();
         const currentPostMutationVersion = getPostMutationVersion();
         const libraryChanged = currentLibraryMutationVersion !==
@@ -214,6 +215,7 @@ export default function ProfileScreen() {
             return () => {
                 isMounted =
                     false;
+                profileReadController.abort();
                 profileFocusedRef.current =
                     false;
             };
@@ -246,6 +248,7 @@ export default function ProfileScreen() {
             return () => {
                 isMounted =
                     false;
+                profileReadController.abort();
                 profileFocusedRef.current =
                     false;
             };
@@ -296,7 +299,9 @@ export default function ProfileScreen() {
                     memoryCache.postMutationVersion;
                 return;
             }
+            if (!isMounted) return;
             const cached = await readProfileCache(user.id);
+            if (!isMounted) return;
             if (isMounted &&
                 cached) {
                 setProfile(cached.profile);
@@ -324,11 +329,12 @@ export default function ProfileScreen() {
                 .from('profiles')
                 .select('id, username, display_name, bio, avatar_url')
                 .eq('id', user.id)
-                .single();
+                .abortSignal(profileReadController.signal).single();
+            if (!isMounted || profileReadController.signal.aborted) return;
             let refreshedProfile: Profile | null = cached?.profile ??
                 null;
             if (error) {
-                console.error('Could not load profile:', error.message);
+                console.warn('Could not refresh profile; keeping the last loaded profile:', error.message);
             }
             else {
                 refreshedProfile =
@@ -432,6 +438,7 @@ export default function ProfileScreen() {
         return () => {
             isMounted =
                 false;
+            profileReadController.abort();
             profileFocusedRef.current =
                 false;
         };
