@@ -13,7 +13,7 @@ import { Image as ExpoImage } from 'expo-image';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import BookStackActionsSheet from '../../components/BookStackActionsSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
 import BookStackVisual from '../../components/BookStackVisual';
@@ -159,6 +159,7 @@ export default function ProfileScreen() {
     const [deletingStackId, setDeletingStackId,] = useState<string | null>(null);
     const [profileHydrated, setProfileHydrated,] = useState(false);
     const [refreshing, setRefreshing,] = useState(false);
+    const [profileRefreshWarning, setProfileRefreshWarning] = useState(false);
     const [refreshRequest, setRefreshRequest,] = useState(0);
     const refreshProfile = useCallback(() => {
         if (refreshing) {
@@ -176,6 +177,12 @@ export default function ProfileScreen() {
     }, [
         refreshing
     ]);
+    useEffect(() => {
+        const listener = AppState.addEventListener('change', state => {
+            if (state === 'active' && profileFocusedRef.current && profileRefreshWarning && !refreshing) refreshProfile();
+        });
+        return () => listener.remove();
+    }, [profileRefreshWarning, refreshing, refreshProfile]);
     useFocusEffect(useCallback(() => {
         let active = true;
         void getProfilePrivacy()
@@ -243,7 +250,7 @@ export default function ProfileScreen() {
                 }
             })
                 .catch((booksError) => {
-                console.warn('Could not refresh Profile books:', booksError);
+                if (isMounted) console.warn('Profile book refresh interrupted; existing books were retained.');
             });
             return () => {
                 isMounted =
@@ -334,7 +341,8 @@ export default function ProfileScreen() {
             let refreshedProfile: Profile | null = cached?.profile ??
                 null;
             if (error) {
-                console.warn('Could not refresh profile; keeping the last loaded profile:', error.message);
+                setProfileRefreshWarning(true);
+                console.warn('Could not refresh profile; keeping the last loaded profile.');
             }
             else {
                 refreshedProfile =
@@ -354,23 +362,30 @@ export default function ProfileScreen() {
                     }
                 })
                     .catch((booksError) => {
-                    console.warn('Could not refresh Profile books:', booksError);
+                    if (isMounted) console.warn('Profile book refresh interrupted; existing books were retained.');
                 });
-                const [savedBooks, socialProfile, profilePosts, homeFeedPosts, publicClubs, savedStacks,] = await Promise.all([
-                    savedBooksPromise,
-                    getReaderProfile(user.id),
-                    getReaderProfilePosts(user.id),
-                    getHomeFeed(100).catch((feedError) => {
-                        console.warn('Could not merge Home posts into Profile Activity:', feedError);
-                        return [] as FeedPost[];
-                    }),
-                    getReaderPublicClubs(user.id),
-                    getMyBookStacks().catch((stackError) => {
-                        console.warn('Could not load Book Stacks:', stackError);
-                        return (cached?.stacks ??
-                            []);
-                    })
+                const [bookResult, socialResult, postsResult, homeResult, clubsResult, stacksResult] = await Promise.allSettled([
+                    savedBooksPromise, getReaderProfile(user.id), getReaderProfilePosts(user.id),
+                    getHomeFeed(100), getReaderPublicClubs(user.id), getMyBookStacks(),
                 ]);
+                if (!isMounted || profileReadController.signal.aborted) return;
+                if (socialResult.status === 'fulfilled') {
+                    setFollowerCount(socialResult.value.follower_count);
+                    setFollowingCount(socialResult.value.following_count);
+                }
+                if (clubsResult.status === 'fulfilled') setClubs(clubsResult.value);
+                if (stacksResult.status === 'fulfilled') setStacks(stacksResult.value);
+                const complete = bookResult.status === 'fulfilled' && socialResult.status === 'fulfilled'
+                    && postsResult.status === 'fulfilled' && homeResult.status === 'fulfilled'
+                    && clubsResult.status === 'fulfilled' && stacksResult.status === 'fulfilled';
+                setProfileRefreshWarning(Boolean(error) || !complete);
+                // Failed sections retain current data; partial reads never become a fresh cache snapshot.
+                if (bookResult.status !== 'fulfilled' || socialResult.status !== 'fulfilled'
+                    || postsResult.status !== 'fulfilled' || homeResult.status !== 'fulfilled'
+                    || clubsResult.status !== 'fulfilled' || stacksResult.status !== 'fulfilled') return;
+                const savedBooks = bookResult.value, socialProfile = socialResult.value;
+                const profilePosts = postsResult.value, homeFeedPosts = homeResult.value;
+                const publicClubs = clubsResult.value, savedStacks = stacksResult.value;
                 const mergedProfilePosts = Array.from(new Map([
                     ...profilePosts,
                     ...homeFeedPosts.filter((post) => post.author_id ===
@@ -398,6 +413,7 @@ export default function ProfileScreen() {
                     setClubs(snapshot.clubs);
                     setStacks(snapshot.stacks);
                 }
+                if (error) return;
                 const refreshedAt = Date.now();
                 hasLoadedProfileRef.current =
                     true;
@@ -417,19 +433,18 @@ export default function ProfileScreen() {
                 void writeProfileCache(user.id, snapshot);
             }
             catch (refreshError) {
-                console.error('Could not refresh profile data:', refreshError);
-                if (!cached &&
-                    isMounted) {
-                    setBooks([]);
-                    setFollowerCount(0);
-                    setFollowingCount(0);
-                    setPosts([]);
-                    setClubs([]);
-                    setStacks([]);
-                }
+                if (!isMounted || profileReadController.signal.aborted) return;
+                setProfileRefreshWarning(true);
+                console.warn('Profile refresh interrupted; existing profile data was retained.');
             }
+
         }
         void loadProfileAndBooks()
+            .catch(() => {
+                if (!isMounted || profileReadController.signal.aborted) return;
+                setProfileRefreshWarning(true);
+                console.warn('Profile refresh temporarily unavailable; retry remains available.');
+            })
             .finally(() => {
             if (isMounted) {
                 setRefreshing(false);
@@ -983,6 +998,10 @@ export default function ProfileScreen() {
                 event.nativeEvent
                     .contentOffset.y;
         }} refreshing={refreshing} onRefresh={refreshProfile} refreshTintColor={colors.gold}>
+      {profileRefreshWarning ? <View style={{paddingHorizontal:20,paddingVertical:10}}>
+        <Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular'}}>Some profile details couldn’t refresh. Your saved data is unchanged.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Retry profile refresh" disabled={refreshing} onPress={refreshProfile}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:8}}>Try again</Text></Pressable>
+      </View> : null}
       <View style={styles.topBar}>
         <View style={styles.topBarSpacer}/>
 
