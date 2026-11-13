@@ -3,7 +3,7 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/book/[id]/index.
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const flush = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
 
-function harness({ canonicalId = 'book', failStatus = false, discoveryId = undefined } = {}) {
+function harness({ canonicalId = 'book', failStatus = false, discoveryId = undefined, cachedExtras = false } = {}) {
   const state = {}, reader = deferred(), cover = deferred(), cart = deferred(), rating = deferred(), reviews = deferred(), work = deferred();
   const book = { id: 'book', volumeInfo: { title: 'Dune', authors: ['Frank Herbert'], industryIdentifiers: [] } };
   const setters = Object.fromEntries([...new Set(source.match(/\bset[A-Z]\w+/g))].map(name => [name, jest.fn(value => { state[name] = value; })]));
@@ -19,6 +19,7 @@ function harness({ canonicalId = 'book', failStatus = false, discoveryId = undef
     getCanonicalBookCover: jest.fn(() => 'https://covers/current'), resolveCanonicalBookCover: jest.fn(() => cover.promise),
     getBookISBN: () => null, loadSeries: jest.fn(), getBookCartItem: jest.fn(() => cart.promise),
     resolveHardcoverRating: jest.fn(() => rating.promise), getCommunityBookReviews: jest.fn(() => reviews.promise),
+    publicBookCache:{peek:jest.fn(async()=>cachedExtras?{series:{id:1,name:'Dune'},books:[]}:null),read:jest.fn(async(_key,load)=>cachedExtras?{value:{rating:4.2,ratingsCount:150,reviewsCount:10,usersCount:200,googleBookId:'book'},fromCache:true}:{value:await load(),fromCache:false})},bookExtraKey:(kind,id)=>kind+id,validSeriesExtras:()=>true,validRatingExtras:()=>true,
     __DEV__: false,
     console: { warn: jest.fn(), error: jest.fn() }, Promise,
   };
@@ -99,4 +100,11 @@ test('verified canonicalized details update the discovery card identity', async 
   const h = harness({ canonicalId: 'canonical', discoveryId: '42' }); h.open(); await flush();
   expect(h.deps.rememberDiscoveryBookId).toHaveBeenCalledWith({ id: 42, title: 'Dune', authors: ['Frank Herbert'] }, 'canonical');
   expect(h.state.setBook.id).toBe('canonical');
+});
+
+test('persisted rating and series hits do not wait for work enrichment after restart',async()=>{
+ const h=harness({cachedExtras:true});h.open();await flush();
+ expect(h.state.setHardcoverRating).toBe(4.2);expect(h.state.setHardcoverRatingsCount).toBe(150);
+ expect(h.deps.resolveHardcoverRating).not.toHaveBeenCalled();
+ expect(h.deps.loadSeries).toHaveBeenCalledWith(h.book,expect.any(Function));
 });

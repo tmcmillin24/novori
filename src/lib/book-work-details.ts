@@ -1,3 +1,4 @@
+import {publicBookCache} from './public-book-cache';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { isEnglishBookLanguage } from '../../supabase/functions/_shared/book-language';
 import type { GoogleBookSearchItem } from './book-search';
@@ -72,5 +73,6 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
 // reader for search payloads; only volume detail payloads enter this resolver.
 export const bookWorkDetails = createBookWorkDetails(async query => {
   const { searchNovoriBooks } = await import('./book-search');
-  return searchNovoriBooks(query);
+  const cached=await publicBookCache.read(`work-representative:v1:${query.trim().toLowerCase()}`,()=>searchNovoriBooks(query),{freshMs:86400000,retainMs:7*86400000,valid:(value):value is GoogleBookSearchItem[]=>Array.isArray(value)&&value.length>0&&value.every(book=>book&&typeof book.id==='string'&&book.volumeInfo&&typeof book.volumeInfo.title==='string')});
+  return cached.value;
 });

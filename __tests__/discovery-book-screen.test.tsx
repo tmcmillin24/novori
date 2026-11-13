@@ -1,3 +1,5 @@
+jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
+jest.mock('../src/components/EnlargeableBookCover',()=>({__esModule:true,default:'EnlargeableBookCover'}));
 import { jest, beforeAll, test, expect, beforeEach } from '@jest/globals';
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
@@ -6,7 +8,7 @@ import Screen from '../src/app/discovery-book';
 import { resolveDiscoveryBook } from '../src/lib/resolve-discovery-book';
 const mockRouter = { replace: jest.fn(), back: jest.fn() };
 let mockPayload: string | undefined;
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => ({ book: mockPayload }) }));
+jest.mock('expo-router', () => ({ Stack:{Screen:()=>null},useRouter: () => mockRouter, useLocalSearchParams: () => ({ book: mockPayload }) }));
 jest.mock('../src/lib/resolve-discovery-book', () => ({ resolveDiscoveryBook: jest.fn() }));
 jest.mock('../src/components/BookCoverImage', () => ({ __esModule: true, default: 'BookCoverImage' }));
 jest.mock('../src/context/theme-context', () => ({ useNovoriTheme: () => ({ colors: { background: '#000', text: '#fff', mutedText: '#aaa', gold: '#ca9' } }) }));

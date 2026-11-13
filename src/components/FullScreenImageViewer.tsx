@@ -1,3 +1,4 @@
+import { Image as ExpoImage } from 'expo-image';
 import CachedMediaImage from './CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,7 @@ type Props = {
   uri: string | null;
   onClose: () => void;
   shape?: ImageViewerShape;
+  bookCover?: boolean;
 };
 
 export default function FullScreenImageViewer({
@@ -30,6 +32,7 @@ export default function FullScreenImageViewer({
   uri,
   onClose,
   shape = 'natural',
+  bookCover = false,
 }: Props) {
   const insets =
     useSafeAreaInsets();
@@ -123,7 +126,7 @@ export default function FullScreenImageViewer({
                 styles.naturalFrame,
             ]}
           >
-            <CachedMediaImage
+            {bookCover ? <ExpoImage source={{uri}} style={styles.image} contentFit="contain" cachePolicy="memory-disk" recyclingKey={uri}/> : <CachedMediaImage
               source={{
                 uri: moderationMediaUrl(uri),
               }}
@@ -131,7 +134,7 @@ export default function FullScreenImageViewer({
                 styles.image
               }
               resizeMode="contain"
-            />
+            />}
           </View>
         </Pressable>
       </SafeAreaView>

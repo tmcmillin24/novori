@@ -1,3 +1,7 @@
+import BookDetailLoading from '../../../components/BookDetailLoading';
+import EnlargeableBookCover from '../../../components/EnlargeableBookCover';
+import {publicBookCache,bookExtraKey} from '../../../lib/public-book-cache';
+import {hasLibraryMembership} from '../../../lib/library-membership';
 import { useUserBookUpdates } from '../../../lib/use-user-book-updates';
 import { subscribeBookCartMutations } from '../../../lib/book-cart-count';
 import CartShortcut from '../../../components/CartShortcut';
@@ -21,6 +25,7 @@ import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
 import { getBookPublication, rememberBookPublications } from '../../../lib/book-publication';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  Stack,
   useFocusEffect,
   useLocalSearchParams,
   useRouter,
@@ -59,6 +64,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
+  type ResolvedHardcoverRating,
   searchNovoriBooks,
 } from '../../../lib/book-search';
 import {
@@ -155,6 +161,15 @@ type HardcoverSeriesResponse = {
   books: HardcoverSeriesBook[];
   error?: string;
   details?: unknown;
+};
+
+const validSeriesExtras=(value:unknown):value is HardcoverSeriesResponse=>{
+ const row=value as HardcoverSeriesResponse|null;
+ return Boolean(row&&!row.error&&row.series&&Number.isFinite(row.series.id)&&typeof row.series.name==='string'&&Array.isArray(row.books)&&row.books.every(book=>book&&Number.isFinite(book.id)&&typeof book.title==='string'&&Array.isArray(book.authors)));
+};
+const validRatingExtras=(value:unknown):value is ResolvedHardcoverRating=>{
+ const row=value as ResolvedHardcoverRating|null;
+ return Boolean(row&&typeof row.rating==='number'&&Number.isFinite(row.rating)&&row.rating>=0&&row.rating<=5&&typeof row.googleBookId==='string'&&(row.ratingsCount===null||(Number.isInteger(row.ratingsCount)&&row.ratingsCount!>=0)));
 };
 
 type GoogleSearchResponse = {
@@ -1038,6 +1053,7 @@ export default function BookDetailsScreen() {
     discoveryId,
     canonicalizeWork,
     trustedCover,
+    detailHandoff,
   } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -1048,6 +1064,7 @@ export default function BookDetailsScreen() {
     discoveryId?: string;
     canonicalizeWork?: string;
     trustedCover?: string;
+    detailHandoff?: string;
   }>();
 
   const discoverClickedAuthors =
@@ -1456,7 +1473,11 @@ export default function BookDetailsScreen() {
 
         const enrichedBook = response.workDetails && resolvedBook.id === id
           ? response.workDetails : Promise.resolve(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
-        void enrichedBook.then(enriched => { if (active) void loadSeries(enriched, () => active); });
+        void publicBookCache.peek(bookExtraKey('series',resolvedBook.id,getBookISBN(resolvedBook)),validSeriesExtras).then(cached=>{
+          if(!active)return;
+          if(cached)void loadSeries(resolvedBook,()=>active);
+          else void enrichedBook.then(enriched=>{if(active)void loadSeries(enriched,()=>active);});
+        });
 
         const cartTask = (async () => {
           try {
@@ -1489,15 +1510,15 @@ export default function BookDetailsScreen() {
         })();
 
         const ratingTask = (async () => {
-          const ratingBook = await enrichedBook;
-          if (!active) return;
           setHardcoverRatingLoading(
             true
           );
 
           try {
-            const resolvedRating =
-              await resolveHardcoverRating({
+            const cachedRating=await publicBookCache.read<ResolvedHardcoverRating|null>(
+              bookExtraKey('rating',resolvedBook.id,getBookISBN(resolvedBook)),async()=>{
+                const ratingBook=await enrichedBook;
+                return resolveHardcoverRating({
                 googleBookId:
                   ratingBook.novoriDetails?.bookId ?? ratingBook.id,
                 title:
@@ -1523,6 +1544,12 @@ export default function BookDetailsScreen() {
                 allowGoogleLookup:
                   false,
               });
+
+              },{freshMs:86400000,retainMs:7*86400000,valid:validRatingExtras,onRefresh:value=>{
+                if(active&&value){setHardcoverRating(value.rating);setHardcoverRatingsCount(value.ratingsCount);}
+              }});
+            const resolvedRating=cachedRating.value;
+            if(__DEV__)console.info(`[Novori cache] book ratings ${cachedRating.fromCache?'HIT':'MISS'}`);
 
             if (!active) return;
             setHardcoverRating(
@@ -2032,50 +2059,16 @@ export default function BookDetailsScreen() {
       setSeries(null);
       setSeriesBooks([]);
 
-      const {
-        data,
-        error:
-          functionError,
-      } =
-        await supabase.functions.invoke(
-          'hardcover-series',
-          {
-            body: {
-              googleBookId:
-                currentBook.id,
-              isbn:
-                exactIsbn ??
-                isbns[0] ??
-                null,
-              isbns,
-              title,
-              authors,
-            },
-          }
-        );
+      const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(bookExtraKey('series',currentBook.id,exactIsbn),async()=>{
+        const result=await supabase.functions.invoke('hardcover-series',{body:{googleBookId:currentBook.id,isbn:exactIsbn??isbns[0]??null,isbns,title,authors}});
+        if(result.error||result.data?.error)throw new Error('Series lookup unavailable.');
+        return result.data as HardcoverSeriesResponse;
+      },{freshMs:86400000,retainMs:7*86400000,valid:validSeriesExtras});
+      if(!isCurrent())return null;
+      const response=cachedSeries.value;
+      if(__DEV__)console.info(`[Novori cache] book series ${cachedSeries.fromCache?'HIT':'MISS'}`);
+      if(!cachedSeries.fromCache)rememberEditionPages(response.pageCounts ?? {});
 
-      if (!isCurrent()) return null;
-      if (
-        functionError
-      ) {
-        setSeries(null);
-        setSeriesBooks([]);
-        return null;
-      }
-
-      const response =
-        data as
-          HardcoverSeriesResponse;
-
-      if (
-        response.error
-      ) {
-        setSeries(null);
-        setSeriesBooks([]);
-        return null;
-      }
-
-      rememberEditionPages(response.pageCounts ?? {});
       const resolvedSeries =
         response.series ??
           null;
@@ -2083,7 +2076,7 @@ export default function BookDetailsScreen() {
       const currentAuthors = (currentBook.volumeInfo.authors ?? []).map(name => normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''));
       const resolvedSeriesBooks = (response.books ?? []).filter(row =>
         !currentAuthors.length || row.authors?.some(name => currentAuthors.includes(normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''))));
-      rememberBookPublications(resolvedSeriesBooks);
+      if(!cachedSeries.fromCache)rememberBookPublications(resolvedSeriesBooks);
 
       setSeries(
         resolvedSeries
@@ -2091,18 +2084,16 @@ export default function BookDetailsScreen() {
       setSeriesBooks(
         resolvedSeriesBooks
       );
-      // Publish the server's shared selection before the dropdown mounts.
-      for (const row of resolvedSeriesBooks) {
+      if(isCurrent())setSeriesLoading(false);
+      // A persisted series snapshot is metadata, never a new cover selection.
+      // Only fresh server responses can publish artwork into the cover cache.
+      if(!cachedSeries.fromCache)for (const row of resolvedSeriesBooks) {
         const key = row.coverBookId ?? (row.coverProvider === 'hardcover' ? `hc_art_${row.id}` : null);
         if (key && row.coverUrl) publishCatalogCovers({[key]: row.coverUrl}, {[key]: {
           provider: row.coverProvider, fallback: row.coverFallback, workId: row.coverWorkId,
           aliases: row.coverAliases, alternatives: row.coverAlternatives?.map(choice => choice.url),
           locked: row.coverAlternatives?.some(choice => choice.url === row.coverUrl && choice.locked),
         }});
-      }
-      // Batch the known catalog IDs before the dropdown's images mount.
-      for (const row of resolvedSeriesBooks) {
-        if (row.coverBookId) void resolveCanonicalBookCover({ googleBookId: row.coverBookId });
       }
 
       const canonicalCover = await resolveCanonicalBookCover({
@@ -2743,6 +2734,7 @@ export default function BookDetailsScreen() {
         book.id
       );
 
+      savedStatusVersion.current+=1;
       setConfirmedReadingStatus(null);
       setSavedBook(null);
       setReadingStatus(null);
@@ -3062,19 +3054,7 @@ export default function BookDetailsScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        {clickedTitle ? (
-          <>
-            <BookCoverImage googleBookId={id} existingCoverUrl={discoverCoverUrl}
-              style={{width:112,height:168,borderRadius:8,marginBottom:20}} resizeMode="contain" />
-            <Text style={[styles.errorTitle,{textAlign:'center',paddingHorizontal:24}]}>{displayBookTitle(clickedTitle)}</Text>
-          </>
-        ) : null}
-        <ActivityIndicator size="small" color={colors.gold} />
-        <Text style={styles.loadingText}>Loading details…</Text>
-      </View>
-    );
+    return <>{detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}<BookDetailLoading title={clickedTitle} authors={discoverClickedAuthors} cover={{googleBookId:id,existingCoverUrl:discoverCoverUrl}} compact={isSavedBookContext} onBack={handleBack} backLabel={backLabel}/></>;
   }
 
   if (error || !book) {
@@ -3215,6 +3195,7 @@ export default function BookDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}
       <View style={styles.topBar}>
         <Pressable
           style={styles.backButton}
@@ -3257,7 +3238,7 @@ export default function BookDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {!readerStateReady ? (
+        {readerStateError ? (
           <Pressable disabled={!readerStateError} onPress={() => {
             const version = savedStatusVersion.current;
             const generation = bookLoadGeneration.current;
@@ -3280,7 +3261,7 @@ export default function BookDetailsScreen() {
               }
             >
             {(book.id || cover) ? (
-              <BookCoverImage
+              <EnlargeableBookCover
                 googleBookId={book.id}
                 imageLinks={
                   info.imageLinks
@@ -3579,7 +3560,7 @@ export default function BookDetailsScreen() {
             }
           >
             {(book.id || cover) ? (
-              <BookCoverImage
+              <EnlargeableBookCover
                 googleBookId={book.id}
                 imageLinks={
                   info.imageLinks
@@ -5451,6 +5432,7 @@ export default function BookDetailsScreen() {
             </View>
           )}
         </View>
+        {savedBook&&hasLibraryMembership(savedBook)?<Pressable accessibilityRole="button" accessibilityLabel="Remove from Library" onPress={confirmRemoveFromLibrary} disabled={removingBook||Boolean(savingStatus)||savingOwned} style={{minHeight:48,marginTop:28,padding:12,borderWidth:1,borderColor:colors.border,borderRadius:12,flexDirection:'row',gap:8,alignItems:'center',justifyContent:'center'}}>{removingBook?<ActivityIndicator color={colors.danger}/>:<Ionicons name="trash-outline" size={18} color={colors.danger}/>}<Text style={{color:colors.danger,fontFamily:'Inter_500Medium'}}>Remove from Library</Text></Pressable>:null}
       </ScrollView>
 
       <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}

@@ -1,3 +1,4 @@
+import {getCanonicalBookCover} from '../../lib/canonical-book-covers';
 import { hasLibraryMembership } from '../../lib/library-membership';
 import CartShortcut from '../../components/CartShortcut';
 import { displayBookTitle } from '../../lib/book-title';
@@ -395,15 +396,19 @@ export default function LibraryScreen() {
             ? 'Author'
             : 'Recently Updated';
     const openBook = useCallback((googleBookId: string) => {
+        const preview=books.find(book=>book.google_book_id===googleBookId);
+        const selectedCover=getCanonicalBookCover({googleBookId});
         router.push({
             pathname: '/book/[id]',
             params: {
                 id: googleBookId,
                 source: 'library',
+                ...(preview?{clickedTitle:preview.title,clickedAuthors:JSON.stringify(preview.authors??[])}:{}),
+                ...(selectedCover?{coverUrl:selectedCover}:{}),
             },
         });
     }, [
-        router
+        router,books
     ]);
     function openSortMenu() {
         setSortFilterSheetVisible(true);
