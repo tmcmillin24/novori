@@ -1,10 +1,10 @@
+import { getNotificationDestination } from '../../lib/notification-destination';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import Reanimated from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useUiSwipeDismiss } from '../../lib/use-ui-swipe-dismiss';
 import { Ionicons } from '@expo/vector-icons';
-import { getClubNotificationDestination } from '../../lib/club-notification-route';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,7 +16,7 @@ import { containsExplicitLanguage, getExplicitLanguagePreference, isExplicitCont
 import { clearAllNotifications, clearNotification, getNotifications, markAllNotificationsRead, markNotificationRead, NovoriNotification } from '../../lib/notifications';
 import { getPendingFollowRequestCount } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
-import { getReadingReminderDestination, getReadingReminderKind } from '../../lib/reading-reminders';
+import { getReadingReminderKind } from '../../lib/reading-reminders';
 function formatRelativeTime(value: string) {
     const difference = Date.now() - new Date(value).getTime();
     const minute = 60 * 1000;
@@ -334,88 +334,10 @@ export default function NotificationsScreen() {
                 console.error('Could not mark notification read:', updateError);
             }
         }
-        const reminderDestination = getReadingReminderDestination(item);
-        if (reminderDestination) {
-            router.push(reminderDestination);
-            return;
-        }
-        const clubDestination = getClubNotificationDestination(item);
-        if (clubDestination) {
-            router.push(clubDestination);
-            return;
-        }
-        if (item.type ===
-            'follow_request') {
-            router.push('/follow-requests');
-            return;
-        }
-        if ((item.type ===
-            'follow' ||
-            item.type ===
-                'follow_request_accepted') &&
-            (item.entity_id ||
-                item.actor_id)) {
-            router.push({
-                pathname: '/reader/[id]',
-                params: {
-                    id: item.entity_id ??
-                        item.actor_id ??
-                        '',
-                },
-            });
-            return;
-        }
-        const postId = typeof item.metadata?.post_id ===
-            'string'
-            ? item.metadata.post_id
-            : item.entity_type ===
-                'post' &&
-                item.entity_id
-                ? item.entity_id
-                : null;
-        if (postId) {
-            const commentId = typeof item.metadata?.comment_id ===
-                'string'
-                ? item.metadata.comment_id
-                : null;
-            router.push({
-                pathname: '/post/[id]',
-                params: {
-                    id: postId,
-                    ...(commentId
-                        ? {
-                            commentId,
-                        }
-                        : {}),
-                },
-            });
-            return;
-        }
-        const googleBookId = typeof item.metadata?.google_book_id ===
-            'string'
-            ? item.metadata.google_book_id
-            : null;
-        if (googleBookId) {
-            router.push({
-                pathname: '/book/[id]',
-                params: {
-                    id: googleBookId,
-                    source: 'notifications',
-                },
-            });
-            return;
-        }
-        if (item.entity_type ===
-            'club' &&
-            item.entity_id) {
-            router.push({
-                pathname: '/club/[id]',
-                params: {
-                    id: item.entity_id,
-                },
-            });
-        }
+        const destination = getNotificationDestination(item);
+        if (destination) router.push(destination);
     }
+
     function renderNotification(item: NovoriNotification) {
         const unread = !item.read_at ||
             Boolean(visitNewNotificationIds[item.id]);

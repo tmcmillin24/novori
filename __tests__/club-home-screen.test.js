@@ -1,3 +1,4 @@
+jest.mock('../src/components/PushNotificationSettings', () => 'PushNotificationSettings');
 jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 jest.mock('../src/lib/dismiss-keyboard-before-warning',()=>({dismissKeyboardBeforeWarning:jest.fn().mockResolvedValue(undefined)}));
 jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));

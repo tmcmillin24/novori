@@ -1,0 +1,71 @@
+// Isolated PostgreSQL verification. No production connections.
+// npm install --prefix /tmp/novori-push-check @electric-sql/pglite@0.5.8
+// NOVORI_PGLITE_MODULE=/tmp/novori-push-check/node_modules/@electric-sql/pglite node scripts/verify-phone-push.cjs
+const { PGlite } = require(process.env.NOVORI_PGLITE_MODULE || '@electric-sql/pglite');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+(async () => {
+ const db = new PGlite();
+ const a='00000000-0000-0000-0000-000000000001', b='00000000-0000-0000-0000-000000000002', install='00000000-0000-0000-0000-000000000003', project='30e6f9f0-79ba-4420-9217-433fa022e460';
+ const secret='a'.repeat(64);
+ await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
+ create table auth.users(id uuid primary key); insert into auth.users values ('${a}'),('${b}');
+ create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ create function public.novori_account_active(uuid) returns boolean language sql as $$select true$$;
+ create function public.novori_reader_restricted(uuid) returns boolean language sql as $$select false$$;
+ create function public.is_reader_blocked_by_viewer(uuid) returns boolean language sql as $$select false$$;
+ create table public.notifications(id uuid primary key default gen_random_uuid(),recipient_id uuid references auth.users(id),actor_id uuid,type text,title text,body text,entity_type text,entity_id uuid,metadata jsonb default '{}',read_at timestamptz,created_at timestamptz default now());
+ create table public.notification_preferences(user_id uuid primary key,new_followers boolean default true,reactions_and_replies boolean default true,club_activity boolean default true,club_invites boolean default true,reading_started boolean default true,reading_finished boolean default true);
+ create table public.reading_reminder_preferences(user_id uuid primary key,daily_checkin boolean,still_reading boolean,weekly_recap boolean,monthly_recap boolean);
+ create function public.get_club_member_experience(target_club_id uuid) returns jsonb language sql as $$select '{"notifications_enabled":false,"global_notifications_enabled":true}'::jsonb$$;
+ select set_config('request.jwt.claim.sub','${a}',false);`);
+ const sql=fs.readFileSync('supabase/migrations/20261113020000_phone_push.sql','utf8');
+ await db.exec(sql); await db.exec(sql);
+ const scalar=async(sql,args)=>Object.values((await db.query(sql,args)).rows[0])[0];
+ const register=()=>db.query('select public.novori_register_push_device($1,$2,$3,$4,$5)',[install,secret,'ExpoPushToken[valid-test]','ios',project]);
+ await register();
+ const generation=await scalar('select generation from public.novori_push_devices');
+ await register(); assert.equal(await scalar('select generation from public.novori_push_devices'),generation,'repeat registration must not invalidate queued messages');
+ await assert.rejects(()=>db.query('select public.novori_register_push_device($1,$2,$3,$4,$5)',[install,'b'.repeat(64),'ExpoPushToken[valid-test]','ios',project]));
+ const notification=await scalar(`insert into public.notifications(recipient_id,type,title) values('${a}','follow','A new follower') returning id`);
+ assert.equal(await scalar('select count(*)::int from public.novori_push_outbox'),1);
+ const claimed=await scalar('select public.novori_claim_push()'); assert.equal(claimed.length,1);
+ assert.equal(await scalar('select public.novori_push_still_valid($1,$2)',[claimed[0].id,claimed[0].lease]),true);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'leases prevent duplicate claiming');
+ // Account transfer rotates generation and makes old queued job invalid.
+ await db.exec(`select set_config('request.jwt.claim.sub','${b}',false)`);await register();
+ assert.equal(await scalar('select public.novori_push_still_valid($1,$2)',[claimed[0].id,claimed[0].lease]),false);
+ await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[claimed[0].id,claimed[0].lease,'failed',null,'DeviceNotRegistered']);
+ assert.equal(await scalar('select enabled from public.novori_push_devices'),true,'old receipt must not disable a newly registered account');
+ await db.exec(`select set_config('request.jwt.claim.sub','${a}',false)`);await register();
+ await db.exec(`insert into public.notification_preferences(user_id,new_followers) values('${a}',false); insert into public.notifications(recipient_id,type,title) values('${a}','follow','Muted follower');`);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'preference opt-out suppresses delivery');
+ await db.exec(`insert into public.reading_reminder_preferences values('${a}',false,false,true,true);
+ insert into public.notifications(recipient_id,type,title,entity_type,metadata) values('${a}','system','Weekly recap','reading_reminder','{"reading_reminder_kind":"weekly_recap"}');`);
+ const recap=await scalar('select public.novori_claim_push()'); assert.equal(recap.length,1);assert.equal(recap[0].title,'Weekly recap');
+ await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[recap[0].id,recap[0].lease,'receipt','ticket-1',null]);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'receipt must wait before polling');
+ await db.exec(`update public.novori_push_outbox set available_at=now()-interval '1 second' where state='receipt'`);
+ const receipt=await scalar('select public.novori_claim_push()');assert.equal(receipt[0].state,'checking');
+ await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[receipt[0].id,receipt[0].lease,'delivered',null,null]);
+ await db.exec(`insert into public.notifications(recipient_id,type,title,entity_type,entity_id) values('${a}','club_post','Muted club','club','${b}');`);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'per-club mute must suppress delivery');
+ assert.equal(await scalar("select current_setting('request.jwt.claim.sub')"),a,'club preference check must restore auth context');
+ await db.query('select public.novori_unregister_push_device($1,$2)',[install,'b'.repeat(64)]);
+ assert.equal(await scalar('select enabled from public.novori_push_devices'),true,'invalid proof cannot unregister');
+ await db.exec("select set_config('request.jwt.claim.sub','',false)");
+ await db.query('select public.novori_unregister_push_device($1,$2)',[install,secret]);
+ assert.equal(await scalar('select enabled from public.novori_push_devices'),false,'logout proof works without a session');
+ await db.exec('set role authenticated');
+ await assert.rejects(()=>db.query('select * from public.novori_push_devices'));
+ await assert.rejects(()=>db.query('select public.novori_claim_push()'));
+ await db.exec('reset role');
+ // Re-enable; test self-notification is rate limited; read items never dispatch.
+ await db.exec(`select set_config('request.jwt.claim.sub','${a}',false)`); await register();
+ await db.exec('select public.novori_test_push(); select public.novori_test_push();');
+ assert.equal(await scalar("select count(*)::int from public.notifications where entity_type='push_test'"),1);
+ await db.exec(`update public.notifications set read_at=now() where entity_type='push_test'`);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[]);
+ console.log('Phone push SQL checks passed: replay safety, RLS, preference/mute checks, account transfer, receipts, logout, self-test rate limit.');
+ await db.close();
+})().catch(error=>{console.error(error);process.exitCode=1;});

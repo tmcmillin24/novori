@@ -1,3 +1,4 @@
+import PushNotificationSettings from '../components/PushNotificationSettings';
 import { Ionicons } from '@expo/vector-icons';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
@@ -69,9 +70,10 @@ export default function NotificationSettingsScreen() {
   return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
     <SettingsHeader title="Notifications"/>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <SettingsIntro icon="notifications-outline" title="Keep your circle close." detail="Choose the moments you want to hear about. These alerts appear in your Novori inbox.">
+      <SettingsIntro icon="notifications-outline" title="Keep your circle close." detail="Choose the moments you want to hear about. See updates in your Novori inbox and choose whether to receive them on your phone.">
         {preferences && !loading ? <View style={styles.statusPill}><Ionicons name="checkmark-circle-outline" size={13} color={colors.gold}/><Text style={styles.statusText}>{enabledCount} of 6 activity alerts on</Text></View> : null}
       </SettingsIntro>
+      <PushNotificationSettings/>
       {loading ? <View style={styles.centered}><ActivityIndicator color={colors.gold}/></View> : failed || !preferences ?
         <View style={styles.centered}><Ionicons name="cloud-offline-outline" size={28} color={colors.gold}/><Text style={styles.errorText}>Your notification preferences couldn’t be loaded.</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <>
           <SettingsSection icon="chatbubbles-outline" title="Your readers">{rows(READERS)}</SettingsSection>

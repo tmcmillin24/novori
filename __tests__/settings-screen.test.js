@@ -1,3 +1,4 @@
+jest.mock('../src/components/PushNotificationSettings', () => 'PushNotificationSettings');
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import {Alert} from 'react-native';

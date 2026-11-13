@@ -1,5 +1,5 @@
 {
-  "lockfileSha256": "bb428a1dbe9d4a41b81d50e002499179beafddd5f9c05ae2042465f9ab83d897",
+  "lockfileSha256": "532dc960b50b0783ad9a752384e03a35459b16d80e906937580ca6d905643155",
   "scope": "Notices for Novori’s production dependency graph, including transitive dependencies and supporting tools, bundled fonts and icons, and the listed native libraries. License terms belong to their respective authors and remain in effect independently of Novori’s service terms.",
   "packages": [
     {
@@ -1083,7 +1083,7 @@
     },
     {
       "name": "@expo/env",
-      "version": "2.4.3",
+      "version": "2.4.4",
       "license": "MIT",
       "notices": [
         {
@@ -1116,7 +1116,7 @@
     },
     {
       "name": "@expo/image-utils",
-      "version": "0.11.6",
+      "version": "0.11.7",
       "license": "MIT",
       "notices": [
         {
@@ -1259,7 +1259,7 @@
     },
     {
       "name": "@expo/require-utils",
-      "version": "57.0.6",
+      "version": "57.0.7",
       "license": "MIT",
       "notices": [
         {
@@ -2703,6 +2703,17 @@
       ]
     },
     {
+      "name": "badgin",
+      "version": "1.2.3",
+      "license": "MIT",
+      "notices": [
+        {
+          "file": "https://raw.githubusercontent.com/jaulz/badgin/master/LICENSE",
+          "text": "MIT License\n\nCopyright (c) 2019 Julian Hundeloh\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+        }
+      ]
+    },
+    {
       "name": "balanced-match",
       "version": "1.0.2",
       "license": "MIT",
@@ -3605,6 +3616,17 @@
       ]
     },
     {
+      "name": "expo-application",
+      "version": "57.0.3",
+      "license": "MIT",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "text": "The MIT License (MIT)\n\nCopyright (c) 2015-present 650 Industries, Inc. (aka Expo)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+        }
+      ]
+    },
+    {
       "name": "expo-asset",
       "version": "57.0.19",
       "license": "MIT",
@@ -3650,7 +3672,18 @@
     },
     {
       "name": "expo-constants",
-      "version": "57.0.21",
+      "version": "57.0.24",
+      "license": "MIT",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "text": "The MIT License (MIT)\n\nCopyright (c) 2015-present 650 Industries, Inc. (aka Expo)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+        }
+      ]
+    },
+    {
+      "name": "expo-crypto",
+      "version": "57.0.4",
       "license": "MIT",
       "notices": [
         {
@@ -3860,6 +3893,17 @@
     {
       "name": "expo-modules-jsi",
       "version": "57.1.1",
+      "license": "MIT",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "text": "The MIT License (MIT)\n\nCopyright (c) 2015-present 650 Industries, Inc. (aka Expo)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+        }
+      ]
+    },
+    {
+      "name": "expo-notifications",
+      "version": "57.0.25",
       "license": "MIT",
       "notices": [
         {

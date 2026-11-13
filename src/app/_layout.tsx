@@ -1,3 +1,4 @@
+import PushNotificationDeviceSync from '../components/PushNotificationDeviceSync';
 import {
   PlayfairDisplay_600SemiBold,
   PlayfairDisplay_700Bold,
@@ -76,6 +77,7 @@ function AppNavigator() {
       >
         <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
       </Stack></TutorialBackground>
+      <PushNotificationDeviceSync />
       <ConversationHandoffOverlay />
       <LegalAcceptanceGate />
       <TutorialGate />

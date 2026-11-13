@@ -353,5 +353,10 @@
     "file": "upstream/bplist-parser-0.3.1-readme.txt",
     "source": "npm:bplist-parser@0.3.1/README.md#license",
     "sha256": "ee3cfbe17c87702b4e1b1ce52be0d0cb923d39de3745a60a2ca09798977566b2"
+  },
+  "badgin@1.2.3": {
+    "file": "upstream/jaulz-badgin-master.txt",
+    "source": "https://raw.githubusercontent.com/jaulz/badgin/master/LICENSE",
+    "sha256": "85a1097da0ce9fd3e1b5a76dd9947730e9393379841421a642dab1cfe33c6434"
   }
 }
