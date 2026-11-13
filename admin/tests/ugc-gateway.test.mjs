@@ -161,3 +161,34 @@ test('single-object club response survives native transport and moderation forwa
  const malicious=setup({state:'passed'});await handler(malicious)(request({...envelope,accept:'application/arbitrary'}));
  assert.equal(malicious.forwards[0].init.headers.Accept,undefined);
 });
+
+test('saving a catalog book as owned does not classify its title or author', async () => {
+ const s=setup({flagged:true});
+ const body={user_id:user,google_book_id:'nv_9781405293181',title:"A Good Girl's Guide to Murder",authors:['Holly Jackson'],cover_url:'https://images.isbndb.com/covers/book.jpg',owned:true,status:null};
+ const response=await handler(s)(request({path:'user_books',method:'POST',body}));
+ assert.equal(response.status,201);
+ assert.equal(s.forwards.some(f=>f.url.includes('api.openai.com')),false);
+ const forwarded=s.forwards.find(f=>f.url.includes('/rest/v1/'));
+ assert.deepEqual(JSON.parse(forwarded.init.body),body);
+ assert.ok(s.calls.some(c=>c.name==='novori_issue_publication_ticket'));
+});
+test('library reviews remain screened even when catalog title is excluded', async () => {
+ const s=setup({flagged:true});
+ const response=await handler(s)(request({path:'user_books',method:'PATCH',query:'?id=eq.book',body:{title:"A Good Girl's Guide to Murder",review_text:'Reader-written review'}}));
+ assert.equal(response.status,422);
+ const classified=JSON.parse(s.forwards[0].init.body).input;
+ assert.match(classified,/Reader-written review/);assert.doesNotMatch(classified,/Murder/);
+ assert.equal(s.calls.some(c=>c.name==='novori_issue_publication_ticket'),false);
+});
+test('library artwork validation still rejects arbitrary image hosts', async () => {
+ const s=setup();
+ const response=await handler(s)(request({path:'user_books',method:'POST',body:{title:'Book',owned:true,cover_url:'https://evil.test/cover.jpg'}}));
+ assert.equal(response.status,400);assert.equal(s.forwards.length,0);
+});
+test('library policy change cannot reuse a previous title-based pending screening key', async () => {
+ const {digest}=await import('../../supabase/functions/_shared/ugc-screening.mjs');
+ const body={user_id:user,google_book_id:'book',title:'Murder',owned:true};
+ const oldKey=await digest(JSON.stringify({user,path:'user_books',method:'POST',binding:[],targets:[{google_book_id:'book',user_id:user}],fields:publicationFields('user_books',body)}));
+ const s=setup();await handler(s)(request({path:'user_books',method:'POST',body}));
+ assert.notEqual(s.calls.find(c=>c.name==='novori_claim_screening').args.p_key,oldKey);
+});

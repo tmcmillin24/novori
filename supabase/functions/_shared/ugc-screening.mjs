@@ -101,10 +101,17 @@ export function createPublicationHandler({ client, supabaseUrl, publishableKey, 
       const binding = [...params.entries()].filter(([key]) => !['select', 'limit', 'offset', 'order'].includes(key)).sort().map(([key, value]) => [key, value]);
       const rows=Array.isArray(body)?body:[body];
       const targets=rows.map(row=>Object.fromEntries(Object.entries(row).filter(([name])=>name==='id'||name==='stack_id'||name==='author_id'||name==='user_id'||name==='club_id'||name==='google_book_id'||name.endsWith('_id')).sort(([a],[b])=>a.localeCompare(b))));
-      const key = await digest(JSON.stringify({ user: user.id, path, method, binding, targets, fields }));
+      // Library catalog labels describe the book, not text written by the
+      // reader. Keep them bound to the ticket and validate artwork above,
+      // but classify only the reader's review. Public post text/labels keep
+      // their existing screening rules.
+      const libraryPolicy = path === 'user_books' ? 'library-review-text-v2' : undefined;
+      const key = await digest(JSON.stringify({ user: user.id, path, method, binding, targets, fields, libraryPolicy }));
       const quota = await client.rpc('novori_claim_screening', { p_user: user.id, p_key: key });
       if (quota.error || !quota.data?.allowed) throw new ScreeningError('Too many publishing attempts. Please wait a minute and retry.', 429);
-      const text = screeningText(fields);
+      const text = screeningText(path === 'user_books'
+        ? fields.map(row => Object.hasOwn(row, 'review_text') ? { review_text: row.review_text } : {})
+        : fields);
       if (text.length > 30000) throw new ScreeningError('This submission is too large.', 413);
       let state = quota.data.state;
       if (!['approved', 'passed'].includes(state)) {
