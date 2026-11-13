@@ -9,8 +9,8 @@ const db=new PGlite();
 await db.exec(`create role anon;create role authenticated;create role service_role;
 create table book_works(id uuid primary key);
 create table book_editions(id uuid primary key,work_id uuid,provider text,provider_book_id text,isbn_13 text,metadata jsonb);
-create table book_cover_candidates(id uuid primary key default gen_random_uuid(),candidate_key text unique,work_id uuid,edition_id uuid,scope text,provider text,source_kind text,source_variant text,external_id text,url text,discovery_source text,source_metadata jsonb,last_seen_at timestamptz);
-create table book_cover_selections(work_id uuid primary key,candidate_id uuid references book_cover_candidates(id),locked boolean default false,status text,selector_version integer,score numeric,decision_json jsonb);
+create table book_cover_candidates(id uuid primary key default gen_random_uuid(),candidate_key text unique,work_id uuid,edition_id uuid,scope text,provider text,source_kind text,source_variant text,external_id text,url text,discovery_source text,source_metadata jsonb,last_seen_at timestamptz,check((scope='work' and edition_id is null) or (scope='edition' and edition_id is not null)));
+create table book_cover_selections(work_id uuid primary key,candidate_id uuid references book_cover_candidates(id),locked boolean default false,status text,selector_version integer,score numeric,decision_json jsonb,selected_at timestamptz,evaluated_at timestamptz not null default now(),check((status='selected' and candidate_id is not null and score is not null and selected_at is not null) or (status<>'selected' and candidate_id is null and selected_at is null)));
 create table novori_admin_members(user_id uuid,enabled boolean,role text);
 create table novori_admin_audit(id uuid primary key default gen_random_uuid(),request_id uuid unique,request_hash text,actor_id uuid,action text,target_type text,target_id uuid,reason text,result jsonb);
 create function novori_account_active(uuid) returns boolean language sql as $$select true$$;
@@ -19,7 +19,7 @@ insert into novori_admin_members values('${id(1)}',true,'owner'),('${id(2)}',tru
 insert into book_works values('${id(10)}'),('${id(11)}');
 insert into book_editions values('${id(20)}','${id(10)}','isbndb','nv_9780008710248','9780008710248','{"volumeInfo":{"title":"When the Moon Hatched"}}');
 insert into book_cover_candidates(id,work_id,provider,url) values('${id(30)}','${id(10)}','isbndb','https://images.isbndb.com/old.jpg');
-insert into book_cover_selections values('${id(10)}','${id(30)}',false,'selected',6,300,'{"mode":"canonical"}');`);
+insert into book_cover_selections(work_id,candidate_id,locked,status,selector_version,score,decision_json,selected_at) values('${id(10)}','${id(30)}',false,'selected',6,300,'{"mode":"canonical"}',now());`);
 await db.exec(await readFile(new URL('../../supabase/migrations/20261113010000_admin_cover_picker.sql',import.meta.url),'utf8'));
 const snapshot=async()=> (await db.query('select novori_admin_book_cover_options($1) value',[id(10)])).rows[0].value;
 async function apply({actor=id(1),expected,url='https://images.isbndb.com/new.jpg',request=id(40),undo=null,reason='Verified the correct cover'}={}) {
@@ -50,6 +50,17 @@ test('correction is locked, audited and idempotent; stale saves and invalid URLs
  assert.equal(restored.history.length,2);
  await assert.rejects(apply({expected:restored.revision,request:id(43),undo:result.change_id,url:null}),/unchanged last correction/);
  assert.equal((await db.query('select count(*) from book_editions')).rows[0].count,1);
+});
+test('missing-cover selections can be corrected and undone under production constraints',async()=>{
+ await db.query("update book_cover_selections set status='no_candidates',candidate_id=null,score=null,selected_at=null,locked=false where work_id=$1",[id(10)]);
+ const before=await snapshot();
+ const result=await apply({expected:before.revision,request:id(44)});
+ const after=await snapshot();
+ assert.equal(after.selection.score,1000);assert.ok(after.selection.selected_at);
+ const candidate=(await db.query('select scope,edition_id from book_cover_candidates where id=$1',[after.selection.candidate_id])).rows[0];
+ assert.deepEqual(candidate,{scope:'work',edition_id:null});
+ await apply({expected:after.revision,request:id(45),undo:result.change_id,url:null});
+ assert.deepEqual((await snapshot()).selection,before.selection);
 });
 test('ordinary readers cannot execute picker writes or read correction history',async()=>{
  await db.exec('set role authenticated');try{

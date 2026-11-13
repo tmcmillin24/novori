@@ -40,7 +40,7 @@ begin
  else
  update public.book_cover_selections s set
  candidate_id=r.candidate_id,locked=r.locked,status=r.status,score=r.score,
- selector_version=r.selector_version,decision_json=r.decision_json
+ selector_version=r.selector_version,decision_json=r.decision_json,selected_at=r.selected_at,evaluated_at=r.evaluated_at
  from jsonb_populate_record(null::public.book_cover_selections,change.previous_selection) r where s.work_id=p_work;
  end if;
  else
@@ -51,10 +51,10 @@ begin
  if edition is null then raise exception using errcode='P0002',message='No cached edition exists.';end if;
  provider_name:=case when p_url like 'https://images.isbndb.com/%' then 'isbndb' when p_url like 'https://assets.hardcover.app/%' then 'hardcover' else 'google_books' end;
  insert into public.book_cover_candidates(candidate_key,work_id,edition_id,scope,provider,source_kind,source_variant,external_id,url,discovery_source,source_metadata,last_seen_at)
- values('manual:admin:'||p_request::text,p_work,edition,'work',provider_name,'image_link','admin_manual',p_work::text,p_url,'admin_manual',jsonb_build_object('manual',true,'actor',p_actor),now()) returning id into candidate;
- insert into public.book_cover_selections(work_id,candidate_id,locked,status,selector_version,decision_json)
- values(p_work,candidate,true,'selected',6,jsonb_build_object('mode','manual','adminRequest',p_request))
- on conflict(work_id) do update set candidate_id=excluded.candidate_id,locked=true,status='selected',decision_json=excluded.decision_json;
+ values('manual:admin:'||p_request::text,p_work,null,'work',provider_name,'image_link','admin_manual',p_work::text,p_url,'admin_manual',jsonb_build_object('manual',true,'actor',p_actor),now()) returning id into candidate;
+ insert into public.book_cover_selections(work_id,candidate_id,locked,status,selector_version,score,selected_at,decision_json)
+ values(p_work,candidate,true,'selected',6,1000,now(),jsonb_build_object('mode','manual','adminRequest',p_request))
+ on conflict(work_id) do update set candidate_id=excluded.candidate_id,locked=true,status='selected',score=excluded.score,selected_at=excluded.selected_at,evaluated_at=now(),decision_json=excluded.decision_json;
  end if;
  select to_jsonb(s) into new_selection from public.book_cover_selections s where work_id=p_work;
  insert into public.novori_admin_cover_changes(work_id,actor_id,previous_selection,next_selection,reason)
