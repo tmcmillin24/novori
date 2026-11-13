@@ -507,7 +507,19 @@ async function showBookCovers(target) {
     function comparison(label,url,caption) {
       const box=el('article',undefined,'cover-comparison-card');box.append(el('h2',label));
       if(safeAdminCover(url)) {const image=el('img',undefined,'cover-preview');image.src=url;image.alt=label;image.referrerPolicy='no-referrer';image.onerror=()=>{image.remove();box.append(el('p','Image no longer loads. The original reported URL is retained.','hint'));};box.append(image);const link=el('a','Open full image');link.href=url;link.target='_blank';link.rel='noopener noreferrer';box.append(link);}else box.append(el('p','No image available.','hint'));
-      box.append(el('p',caption,'hint'));current.append(box);
+      box.append(el('p',caption,'hint'));
+      const safe=safeAdminCover(url);
+      if(safe){
+        const use=button('Use this cover',()=>decision('set_book_cover',{type:'book',id:snapshot.work_id},{
+          expected:snapshot.revision,payload:{url:safe},preview:safe,refresh,
+          description:`Use this cover for ${title} across Novori? This explicitly saves it as your manual choice, even if it is already the stored catalog selection.`,
+        }));
+        use.disabled=true;
+        const image=box.querySelector('img');
+        if(image){image.addEventListener('load',()=>{use.disabled=false;});image.addEventListener('error',()=>{use.disabled=true;});if(image.complete&&image.naturalWidth>0)use.disabled=false;}
+        box.append(use);
+      }
+      current.append(box);
     }
     const reports=snapshot.reports??[];
     const latest=reports[0];

@@ -373,3 +373,16 @@ test('manual preview rejects unsafe URLs without a write or provider lookup',asy
  assert.match(input.form.textContent,/stable HTTPS/);assert.equal(calls.some(call=>['set_book_cover','find_book_covers'].includes(call.action)),false);
  dom.window.close();
 });
+
+test('catalog comparison image can be explicitly pinned without a typed reason',async()=>{
+ const {w,dom,calls}=await app();await until(()=>w.document.querySelector('nav'));click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();
+ click(w,'Choose replacement cover');await until(()=>w.document.querySelectorAll('.cover-comparison-card').length===2);
+ const card=w.document.querySelectorAll('.cover-comparison-card')[1];
+ const use=card.querySelector('button');assert.equal(use.textContent,'Use this cover');assert.equal(use.disabled,true);
+ card.querySelector('img').dispatchEvent(new w.Event('load'));assert.equal(use.disabled,false);use.click();
+ assert.equal(w.document.querySelector('dialog textarea'),null);
+ assert.equal(w.document.querySelector('dialog img').src,'https://images.isbndb.com/old.jpg');
+ w.document.querySelector('dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));
+ await until(()=>calls.some(call=>call.action==='set_book_cover'));
+ const saved=calls.find(call=>call.action==='set_book_cover');assert.equal(saved.payload.url,'https://images.isbndb.com/old.jpg');assert.equal(saved.expected_updated_at,'cover-revision');dom.window.close();
+});
