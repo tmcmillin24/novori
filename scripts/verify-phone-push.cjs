@@ -27,6 +27,7 @@ const assert = require('node:assert/strict');
  await db.exec(repair); await db.exec(repair);
  const previews=fs.readFileSync('supabase/migrations/20261113040000_push_activity_previews.sql','utf8');
  await db.exec(previews); await db.exec(previews);
+ await db.exec(fs.readFileSync('supabase/migrations/20261113060000_push_inbox_wording.sql','utf8'));
  const scalar=async(sql,args)=>Object.values((await db.query(sql,args)).rows[0])[0];
  const register=()=>db.query('select public.novori_register_push_device($1,$2,$3,$4,$5)',[install,secret,'ExpoPushToken[valid-test]','ios',project]);
  await register();
@@ -83,8 +84,11 @@ const assert = require('node:assert/strict');
  // Structured previews must never reuse user-authored comment text.
  await db.exec(`select set_config('request.jwt.claim.sub','${a}',false); truncate public.novori_push_outbox;`);
  const comment=await scalar(`insert into public.notifications(recipient_id,actor_id,type,title,body,entity_type,entity_id)
- values('${a}','${b}','comment','PRIVATE COMMENT','PRIVATE COMMENT','post','${b}') returning id`);
+ values('${a}','${b}','comment','Tristan commented on your post.','PRIVATE COMMENT','post','${b}') returning id`);
  assert.equal(await scalar('select public.novori_push_preview($1)',[comment]),'Tristan commented on your post.');
+ const postVote=await scalar(`insert into public.notifications(recipient_id,actor_id,type,title,body,entity_type,entity_id,metadata) values('${a}','${b}','post_vote','Tristan upvoted your post','PRIVATE BODY','post','${a}','{"vote_value":1}') returning id`);
+ assert.equal(await scalar('select public.novori_push_preview($1)',[postVote]),'Tristan upvoted your post');
+ await db.query('delete from public.notifications where id=$1',[postVote]);
  const commentJobs=await scalar('select public.novori_claim_push()');assert.equal(commentJobs.length,1);assert.equal(commentJobs[0].body,'Tristan commented on your post.');
  await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[commentJobs[0].id,commentJobs[0].lease,'delivered',null,null]);
  await db.exec(`insert into public.notifications(recipient_id,actor_id,type,title,entity_type,entity_id,metadata)
