@@ -1,3 +1,4 @@
+import { pruneDeletedCommentLeaves } from './comment-deletion';
 import {getSessionReadScope,invalidateSessionReads,sessionRead} from './session-read-cache';
 import { markPostMutation } from './feed';
 import { supabase } from './supabase';
@@ -124,7 +125,7 @@ export async function getPostComments(postId:string,limit=500,options:{force?:bo
   return sessionRead(scope.key,`comments:${postId}:${limit}`,async signal=>{
     const {data,error}=await supabase.rpc('get_post_comments',{target_post_id:postId,result_limit:limit}).abortSignal(signal);
     if(error)throw error;
-    return (data??[]).map((row:Record<string,unknown>)=>normalizeComment(row));
+    return pruneDeletedCommentLeaves((data??[]).map((row:Record<string,unknown>)=>normalizeComment(row)));
   },options);
 }
 

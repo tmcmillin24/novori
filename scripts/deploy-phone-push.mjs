@@ -21,6 +21,7 @@ const [foundation] = await query(`select to_regclass('public.notifications') is 
 if (!foundation?.ready) throw new Error('Notification foundation missing. Stopped without applying changes.');
 await query(readFileSync(new URL('../supabase/migrations/20261113020000_phone_push.sql', import.meta.url), 'utf8'));
 await query(readFileSync(new URL('../supabase/migrations/20261113030000_push_registration_reinstall.sql', import.meta.url), 'utf8'));
+await query(readFileSync(new URL('../supabase/migrations/20261113040000_push_activity_previews.sql', import.meta.url), 'utf8'));
 // Reuse the existing worker secret on reruns. Never return it to the terminal.
 const [vault] = await query(`select to_regclass('vault.secrets') is not null as ready`, true);
 if (!vault?.ready) throw new Error('Enable Supabase Vault, then rerun this helper. The queue is installed but no delivery is scheduled.');

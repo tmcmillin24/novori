@@ -7,6 +7,7 @@ import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 type Props = {
     children?: ReactNode;
+    embedded?: boolean;
     icon?: keyof typeof Ionicons.glyphMap;
     title?: string;
     message?: string;
@@ -17,13 +18,13 @@ type Props = {
     onConfirm: () => Promise<void>;
     onDismiss: () => void;
 };
-export default function DeletePostConfirmSheet({ children, icon = 'trash-outline', title = 'Delete post?', message = 'This post and its comments will be permanently deleted. This can’t be undone.', confirmLabel = 'Delete', cancelLabel = 'Cancel', visible, busy = false, onConfirm, onDismiss, }: Props) {
+export default function DeletePostConfirmSheet({ embedded = false, children, icon = 'trash-outline', title = 'Delete post?', message = 'This post and its comments will be permanently deleted. This can’t be undone.', confirmLabel = 'Delete', cancelLabel = 'Cancel', visible, busy = false, onConfirm, onDismiss, }: Props) {
     const { colors, } = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [
         colors,
     ]);
-    const motion = useUiSheetMotion({ visible, busy: busy, onDismiss: onDismiss });
+    const motion = useUiSheetMotion({ visible, busy: busy, embedded, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
     async function confirm() {
         if (busy ||
@@ -38,8 +39,7 @@ export default function DeletePostConfirmSheet({ children, icon = 'trash-outline
             // Parent owns the error alert and keeps this sheet open.
         }
     }
-    return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>
-      <Pressable style={styles.backdrop} onPress={closeSmoothly}>
+    const content = (<Pressable style={styles.backdrop} onPress={closeSmoothly}>
         <UiSheetBackdrop pointerEvents="none" style={[
             styles.backdropVisual,
             {}
@@ -91,8 +91,9 @@ export default function DeletePostConfirmSheet({ children, icon = 'trash-outline
             </View>
           </Pressable>
         </UiSheetSurface>
-      </Pressable>
-    </UiSheetModal>);
+      </Pressable>);
+    if (embedded) return visible ? <View accessibilityViewIsModal style={[StyleSheet.absoluteFill, { zIndex: 200, elevation: 200 }]}>{content}</View> : null;
+    return <UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>{content}</UiSheetModal>;
 }
 function createStyles(colors: NovoriColors) {
     return StyleSheet.create({

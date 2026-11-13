@@ -1,3 +1,4 @@
+import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { getCommentSheetBounds } from '../../lib/comment-sheet-snap';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
@@ -19,7 +20,7 @@ import { isAccountUnavailableError, isAccountRestrictedError } from '../../lib/a
 import { signOutCurrentDevice } from '../../lib/sign-out';
 import FeedPostCard from '../../components/FeedPostCard';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
-import { COMMENT_REPLY_BATCH_SIZE, getCommentBranchIds, buildCommentThreads, countThreadReplies, getCommentDepthLimit } from '../../lib/comment-conversations';
+import { COMMENT_REPLY_BATCH_SIZE, buildCommentThreads, countThreadReplies, getCommentDepthLimit } from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -889,17 +890,16 @@ export default function HomeScreen() {
             return;
         }
         const postId = commentsPost.id;
-        const request = ++commentsReadSequence.current;
-        const deletedIds = getCommentBranchIds(sheetComments, commentId);
+        commentsReadSequence.current += 1;
+        const writeGeneration = commentsViewGeneration.current;
         try {
             setDeletingCommentId(commentId);
             await deletePostComment(commentId);
-            if (request !== commentsReadSequence.current || activeCommentsPostId.current !== postId)
-                return;
-            setSheetComments(current => current.filter(item => !deletedIds.has(item.id)));
-            setFeedPosts(current => current.map(item => item.id === postId ? { ...item, comment_count: Math.max(0, (item.comment_count ?? 0) - deletedIds.size) } : item));
-            setCommentsPost(current => current?.id === postId ? { ...current, comment_count: Math.max(0, (current.comment_count ?? 0) - deletedIds.size) } : current);
-            if (replyTarget && deletedIds.has(replyTarget.id)) {
+            if (commentsViewGeneration.current !== writeGeneration || activeCommentsPostId.current !== postId) return;
+            setSheetComments(current => applyCommentDeletion(current, commentId));
+            setFeedPosts(current => current.map(item => item.id === postId ? { ...item, comment_count: Math.max(0, (item.comment_count ?? 0) - 1) } : item));
+            setCommentsPost(current => current?.id === postId ? { ...current, comment_count: Math.max(0, (current.comment_count ?? 0) - 1) } : current);
+            if (replyTarget?.id === commentId) {
                 setReplyTarget(null);
             }
             await loadCommentsSheet(commentsPost.id, true);
@@ -1040,7 +1040,7 @@ export default function HomeScreen() {
         const target = commentActionTarget;
         beginCommentActionHandoff(() => {
             confirmDeleteComment(target);
-        }, 105);
+        }, 0);
     }
     function confirmBlockSelectedReader() {
         if (!commentActionTarget ||
@@ -2360,10 +2360,7 @@ export default function HomeScreen() {
       </UiSheetModal>
 
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
-      <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
-            if (deleteCommentTarget)
-                await removeSheetComment(deleteCommentTarget.id);
-        }} onDismiss={() => setDeleteCommentTarget(null)}/>
+
       <DeletePostConfirmSheet visible={Boolean(deletePostTarget)} busy={Boolean(deletingPostId)} onConfirm={async () => {
             if (!deletePostTarget) {
                 return;
@@ -2851,6 +2848,10 @@ export default function HomeScreen() {
           </View>
           {commentWarning ? <ValidationWarningSheet embedded visible title={commentWarning.title} message={commentWarning.message} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/> : null}
         </View>
+      <DeletePostConfirmSheet embedded title="Delete comment?" message="Your comment will be permanently removed. Replies from other readers will stay, with a deleted-comment placeholder to keep the conversation together." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
+            if (deleteCommentTarget)
+                await removeSheetComment(deleteCommentTarget.id);
+        }} onDismiss={() => setDeleteCommentTarget(null)}/>
       </CommentsWindowOverlay>
 
     </>);

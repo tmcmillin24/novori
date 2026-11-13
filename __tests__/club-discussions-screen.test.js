@@ -180,13 +180,13 @@ test('refresh keeps an existing conversation visible and offers retry on a tempo
  await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).toContain(comment.body);expect(button('Retry refreshing thread')).toBeDefined();expect(getPostComments).toHaveBeenLastCalledWith('post-1',500,{force:true});
 });
 
-test('a successful deletion removes its entire local branch even if the refresh fails',async()=>{
+test('a successful deletion masks its author text and preserves replies even if refresh fails',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,comment_count:2,club_discussion:null});const own={...comment,is_own:true};getPostComments.mockResolvedValueOnce([own,{...comment,id:'child',parent_comment_id:own.id,body:'Child reply'}]).mockRejectedValueOnce(new Error('Network connection lost'));deletePostComment.mockResolvedValue();await render(<PostDetailScreen/>);
  await act(async()=>button('Comment: comment-1').props.onLongPress());
  const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Delete'));
  expect(action).toBeDefined();await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(210));
  const confirmation=view.root.findByType('DeletePostConfirmSheet');expect(confirmation.props.title).toBe('Delete comment?');expect(confirmation.props.visible).toBe(true);expect(deletePostComment).not.toHaveBeenCalled();await act(async()=>confirmation.props.onConfirm());
- expect(deletePostComment).toHaveBeenCalledWith('comment-1');expect(text()).not.toContain(comment.body);expect(text()).not.toContain('Child reply');expect(button('Retry refreshing thread')).toBeDefined();
+ expect(deletePostComment).toHaveBeenCalledWith('comment-1');expect(text()).not.toContain(comment.body);expect(text()).toContain('Child reply');expect(text()).toContain('This comment was deleted.');expect(button('Retry refreshing thread')).toBeDefined();
 });
 test('editing an own comment uses the correct ID and retains the confirmed text',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([{...comment,is_own:true}]);updatePostComment.mockResolvedValue();await render(<PostDetailScreen/>);

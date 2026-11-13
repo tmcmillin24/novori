@@ -84,7 +84,7 @@ select jobname, active, schedule from cron.job
 where jobname in ('novori-phone-push','novori-reading-reminders');
 ```
 
-429/5xx responses retry with backoff; ambiguous send timeouts are recorded as `uncertain` rather than resent blindly. Worker leases prevent overlapping cron runs from claiming the same delivery. Tokens and queues are service-only, with no client table access. Registration requires an authenticated active account; unregister after logout requires the device's random installation proof. Responses contain only notification/recipient IDs and are resolved from authorized inbox rows, never arbitrary incoming URLs. Lock-screen social content uses a generic preview; recap headings come from the existing reminder generator.
+429/5xx responses retry with backoff; ambiguous send timeouts are recorded as `uncertain` rather than resent blindly. Worker leases prevent overlapping cron runs from claiming the same delivery. Tokens and queues are service-only, with no client table access. Registration requires an authenticated active account; unregister after logout requires the device's random installation proof. Responses contain only notification/recipient IDs and are resolved from authorized inbox rows, never arbitrary incoming URLs. Lock-screen activity uses structured templates with the actor display name for follows, comments, replies and likes. Comment/review text is never included. Votes never expose actor identity. Only explicit positive votes queue; downvotes and unknown directions do not. Vote alerts wait two minutes, coalesce by target in fixed 15-minute windows, and do not resend within a window after dispatch. Recap messages identify weekly/monthly readiness.
 
 Delivery handles up to 25 queued jobs per invocation with five concurrent Expo requests. Large bursts may take multiple cron ticks; this is intentionally bounded for the Edge runtime. Final delivery records expire after 30 days. No stale completed records or entire notification histories are downloaded to the device.
 
@@ -95,3 +95,7 @@ select cron.unschedule(jobid) from cron.job where jobname='novori-phone-push';
 ```
 
 Resume by rerunning the helper. Do not drop the inbox, reminder preferences or book tables. Old pending alerts older than one day are skipped, not sent as a backlog. Local automated tests do not replace the physical-device credential and APNs tests above.
+
+## Preview-only update
+
+After pulling beta-updates, run `node scripts/deploy-push-previews.mjs` with the CLI token exported to apply only the preview/batching migration. This does not recreate credentials, deploy a worker or change the active cron schedule. No native rebuild is required for phone notification text. Use a fresh event after deployment; upvotes intentionally wait longer than comments.

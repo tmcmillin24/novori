@@ -15,6 +15,8 @@ const assert = require('node:assert/strict');
  create function public.novori_reader_restricted(uuid) returns boolean language sql as $$select false$$;
  create function public.is_reader_blocked_by_viewer(uuid) returns boolean language sql as $$select false$$;
  create table public.notifications(id uuid primary key default gen_random_uuid(),recipient_id uuid references auth.users(id),actor_id uuid,type text,title text,body text,entity_type text,entity_id uuid,metadata jsonb default '{}',read_at timestamptz,created_at timestamptz default now());
+ create table public.profiles(id uuid primary key,display_name text);
+ insert into public.profiles values ('${b}','Tristan');
  create table public.notification_preferences(user_id uuid primary key,new_followers boolean default true,reactions_and_replies boolean default true,club_activity boolean default true,club_invites boolean default true,reading_started boolean default true,reading_finished boolean default true);
  create table public.reading_reminder_preferences(user_id uuid primary key,daily_checkin boolean,still_reading boolean,weekly_recap boolean,monthly_recap boolean);
  create function public.get_club_member_experience(target_club_id uuid) returns jsonb language sql as $$select '{"notifications_enabled":false,"global_notifications_enabled":true}'::jsonb$$;
@@ -23,6 +25,8 @@ const assert = require('node:assert/strict');
  await db.exec(sql); await db.exec(sql);
  const repair=fs.readFileSync('supabase/migrations/20261113030000_push_registration_reinstall.sql','utf8');
  await db.exec(repair); await db.exec(repair);
+ const previews=fs.readFileSync('supabase/migrations/20261113040000_push_activity_previews.sql','utf8');
+ await db.exec(previews); await db.exec(previews);
  const scalar=async(sql,args)=>Object.values((await db.query(sql,args)).rows[0])[0];
  const register=()=>db.query('select public.novori_register_push_device($1,$2,$3,$4,$5)',[install,secret,'ExpoPushToken[valid-test]','ios',project]);
  await register();
@@ -76,6 +80,50 @@ const assert = require('node:assert/strict');
  assert.equal(await scalar('select enabled from public.novori_push_devices where install_id=$1',[replacement]),true,'old installation cleanup cannot disable its replacement');
  await db.exec(`select set_config('request.jwt.claim.sub','${b}',false)`);
  await assert.rejects(()=>register(),error=>error.code==='42501','another account cannot take a token from an installation without its proof');
+ // Structured previews must never reuse user-authored comment text.
+ await db.exec(`select set_config('request.jwt.claim.sub','${a}',false); truncate public.novori_push_outbox;`);
+ const comment=await scalar(`insert into public.notifications(recipient_id,actor_id,type,title,body,entity_type,entity_id)
+ values('${a}','${b}','comment','PRIVATE COMMENT','PRIVATE COMMENT','post','${b}') returning id`);
+ assert.equal(await scalar('select public.novori_push_preview($1)',[comment]),'Tristan commented on your post.');
+ const commentJobs=await scalar('select public.novori_claim_push()');assert.equal(commentJobs.length,1);assert.equal(commentJobs[0].body,'Tristan commented on your post.');
+ await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[commentJobs[0].id,commentJobs[0].lease,'delivered',null,null]);
+ await db.exec(`insert into public.notifications(recipient_id,actor_id,type,title,entity_type,entity_id,metadata)
+ values('${a}','${b}','comment_vote','Tristan voted','comment','${b}','{"vote_value":1,"comment_id":"${b}"}'),
+ ('${a}','${b}','comment_vote','Tristan voted again','comment','${b}','{"vote_value":1,"comment_id":"${b}"}'),
+ ('${a}','${b}','comment_vote','Tristan downvoted','comment','${b}','{"vote_value":-1,"comment_id":"${b}"}'),
+ ('${a}','${b}','comment_vote','Unknown vote','comment','${b}','{}');`);
+ assert.equal(await scalar("select count(*)::int from public.novori_push_outbox where vote_group is not null"),1,'same target and window must coalesce');
+ assert.equal(await scalar("select vote_events from public.novori_push_outbox where vote_group is not null"),2,'downvotes and unknown direction must not queue');
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'upvotes must wait for batching delay');
+ await db.exec("update public.novori_push_outbox set available_at=now()-interval '1 second' where vote_group is not null");
+ const votes=await scalar('select public.novori_claim_push()');assert.equal(votes.length,1);assert.equal(votes[0].body,'Your comment received new upvotes.');assert.ok(!JSON.stringify(votes[0]).includes('Tristan'));
+ await db.query('select public.novori_finish_push($1,$2,$3,$4,$5)',[votes[0].id,votes[0].lease,'receipt','vote-ticket',null]);
+ await db.exec(`insert into public.notifications(recipient_id,actor_id,type,title,entity_type,entity_id,metadata)
+ values('${a}','${b}','comment_vote','Another upvote','comment','${b}','{"vote_value":1,"comment_id":"${b}"}');`);
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'already dispatched batch must not send again in same window');
+ const single=await scalar(`insert into public.notifications(recipient_id,actor_id,type,title,entity_type,entity_id,metadata)
+ values('${a}','${b}','comment_vote','An upvote','comment','${a}','{"vote_value":1,"comment_id":"${a}"}') returning id`);
+ assert.equal(await scalar('select public.novori_push_preview($1)',[single]),'Someone upvoted your comment.');
+ await db.query("update public.notifications set metadata=jsonb_set(metadata,'{vote_value}','-1') where id=$1",[single]);
+ await db.exec("update public.novori_push_outbox set available_at=now()-interval '1 second' where state='pending'");
+ assert.deepEqual(await scalar('select public.novori_claim_push()'),[],'a vote changed to down must be suppressed at dispatch');
+ await db.exec('set role authenticated');
+ await assert.rejects(()=>db.query('select public.novori_push_preview($1)',[comment]));
+ await db.exec('reset role');
+ // Author deletion never cascades away another reader's reply.
+ await db.exec(`create table public.post_comments(id uuid primary key,author_id uuid,body text,updated_at timestamptz default now(),parent_comment_id uuid references public.post_comments(id) on delete cascade);
+ create function public.delete_post_comment(target_comment_id uuid) returns void language plpgsql as $$begin delete from public.post_comments where id=target_comment_id; end$$;
+ select set_config('request.jwt.claim.sub','${a}',false);
+ insert into public.post_comments(id,author_id,body) values('${a}','${a}','Remove my text');
+ insert into public.post_comments(id,author_id,body,parent_comment_id) values('${b}','${b}','Keep my reply','${a}');`);
+ const deletion=fs.readFileSync('supabase/migrations/20261113050000_preserve_comment_replies.sql','utf8');await db.exec(deletion);await db.exec(deletion);
+ await assert.rejects(()=>db.query('select public.delete_post_comment($1)',[b]),error=>error.code==='42501');
+ await db.query('select public.delete_post_comment($1)',[a]);
+ assert.equal(await scalar('select author_id from public.post_comments where id=$1',[a]),null);
+ assert.equal(await scalar('select body from public.post_comments where id=$1',[a]),'This comment was deleted.');
+ assert.equal(await scalar('select body from public.post_comments where id=$1',[b]),'Keep my reply');
+ await db.query('select public.delete_post_comment($1)',[a]);
+ await db.exec('set role anon');await assert.rejects(()=>db.query('select public.delete_post_comment($1)',[b]));await db.exec('reset role');
  console.log('Phone push SQL checks passed: replay safety, RLS, preference/mute checks, account transfer, receipts, logout, self-test rate limit.');
  await db.close();
 })().catch(error=>{console.error(error);process.exitCode=1;});

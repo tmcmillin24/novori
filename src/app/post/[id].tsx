@@ -1,3 +1,4 @@
+import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
 import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNotice';
@@ -11,7 +12,7 @@ import CommentBranchGuide from '../../components/CommentBranchGuide';
 import { getSessionReadScope, isTransientReadError } from '../../lib/session-read-cache';
 import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import ReplyComposerContext from '../../components/ReplyComposerContext';
-import { COMMENT_REPLY_BATCH_SIZE, getCommentBranchIds, buildCommentThreads, getCommentDepthLimit, getFocusedConversationId, countThreadReplies, type CommentThread } from '../../lib/comment-conversations';
+import { COMMENT_REPLY_BATCH_SIZE, buildCommentThreads, getCommentDepthLimit, getFocusedConversationId, countThreadReplies, type CommentThread } from '../../lib/comment-conversations';
 import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
 import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
 import { discussionRevealKey } from '../../lib/club-discussion';
@@ -729,7 +730,7 @@ export default function PostDetailScreen() {
         const target = commentActionTarget;
         beginCommentActionHandoff(() => {
             confirmDelete(target);
-        }, 105);
+        }, 0);
     }
     function confirmBlockSelectedReader() {
         if (!commentActionTarget ||
@@ -774,16 +775,15 @@ export default function PostDetailScreen() {
         if (deletingCommentId) {
             return;
         }
-        const request = ++loadSequence.current;
-        const deletedIds = getCommentBranchIds(comments, commentId);
+        loadSequence.current += 1;
+        const writePostId = postId;
         try {
             setDeletingCommentId(commentId);
             await deletePostComment(commentId);
-            if (request !== loadSequence.current)
-                return;
-            setComments(current => current.filter(item => !deletedIds.has(item.id)));
-            setPost(current => current ? { ...current, comment_count: Math.max(0, (current.comment_count ?? 0) - deletedIds.size) } : current);
-            if (replyTo && deletedIds.has(replyTo.id)) {
+            if (!mounted.current || viewPostId.current !== writePostId) return;
+            setComments(current => applyCommentDeletion(current, commentId));
+            setPost(current => current ? { ...current, comment_count: Math.max(0, (current.comment_count ?? 0) - 1) } : current);
+            if (replyTo?.id === commentId) {
                 setReplyTo(null);
             }
             await loadData(false, true);
@@ -1362,10 +1362,7 @@ export default function PostDetailScreen() {
           </View>
         </KeyboardStickyView> : null}
         <ValidationWarningSheet visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
-        <DeletePostConfirmSheet title="Delete comment?" message="This comment and any replies underneath it will be permanently removed. This can’t be undone." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
-            if (deleteCommentTarget)
-                await removeComment(deleteCommentTarget.id);
-        }} onDismiss={() => setDeleteCommentTarget(null)}/>
+
       </View>
 
       {commentActionTarget ? (<View style={styles.commentActionModal}>
@@ -1565,6 +1562,10 @@ export default function PostDetailScreen() {
           </View>
         </View>
       </Modal>
+        <DeletePostConfirmSheet title="Delete comment?" message="Your comment will be permanently removed. Replies from other readers will stay, with a deleted-comment placeholder to keep the conversation together." visible={Boolean(deleteCommentTarget)} busy={Boolean(deletingCommentId)} onConfirm={async () => {
+            if (deleteCommentTarget)
+                await removeComment(deleteCommentTarget.id);
+        }} onDismiss={() => setDeleteCommentTarget(null)}/>
       <BlockReaderConfirmSheet visible={Boolean(blockConfirmTarget)} readerName={blockConfirmTarget?.author_display_name
             ?.trim() ||
             blockConfirmTarget?.author_username

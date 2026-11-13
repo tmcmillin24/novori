@@ -20,3 +20,8 @@ test('a stale opening-animation flag cannot prevent dismissal and duplicate taps
  const close=vm.runInNewContext('(function()'+source.slice(node.body.start,node.body.end)+')',context);
  close();close();expect(context.commentsMotion.close).toHaveBeenCalledTimes(1);expect(context.activeCommentsPostId.current).toBeNull();expect(context.setCommentsModalVisible).not.toHaveBeenCalled();complete();expect(context.setCommentsModalVisible).toHaveBeenCalledWith(false);expect(context.commentsSheetClosing.current).toBe(false);expect(context.commentsSheetAnimating.current).toBe(false);
 });
+test('delete confirmation belongs to the full-window comments layer, not the underlying feed',()=>{
+ const overlay=find(n=>n.type==='JSXElement'&&n.openingElement.name.name==='CommentsWindowOverlay');
+ const confirmation=find(n=>n.type==='JSXOpeningElement'&&n.name.name==='DeletePostConfirmSheet'&&n.attributes.some(a=>a.name?.name==='title'&&a.value?.value==='Delete comment?'),overlay);
+ expect(confirmation).not.toBeNull();expect(confirmation.attributes.some(a=>a.name?.name==='embedded')).toBe(true);
+});
