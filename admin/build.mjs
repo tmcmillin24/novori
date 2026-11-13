@@ -37,6 +37,6 @@ await Promise.all(
 await copyFile("../assets/images/novori_appicon.png", "dist/novori.png");
 await writeFile(
   "dist/_headers",
-  `/*\n  Cache-Control: no-store\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  X-Robots-Tag: noindex, nofollow\n  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ${url}; img-src 'self' data: ${url}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'\n`,
+  `/*\n  Cache-Control: no-store\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  X-Robots-Tag: noindex, nofollow\n  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ${url}; img-src 'self' data: ${url} https://images.isbndb.com https://assets.hardcover.app https://books.google.com https://books.googleusercontent.com https://covers.openlibrary.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'\n`,
 );
 console.log("Built Novori Admin. Public configuration only.");

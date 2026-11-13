@@ -1,3 +1,4 @@
+import { findAdminBookCovers } from '../_shared/admin-cover-providers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 // @ts-ignore -- resolved by the Supabase Edge runtime
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
@@ -69,6 +70,7 @@ if (!url || !key) {
   Deno.serve(
     createAdminHandler({
       client,
+      findBookCovers: (snapshot: any, userId: string, query: unknown) => findAdminBookCovers(client, userId, snapshot, query),
       allowedOrigins: origins,
       requireMfa: true,
       sendAlert,

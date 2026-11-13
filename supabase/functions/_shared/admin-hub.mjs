@@ -1,3 +1,4 @@
+import { safeAdminCover, coverOptions } from './admin-book-covers.mjs';
 /** All admin authorization lives here and in service-only SQL, never in browser visibility. */
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -252,6 +253,41 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     };
   const page = clampPage(input.page),
     start = page * 50;
+  if (['book_cover_options','find_book_covers','set_book_cover','undo_book_cover'].includes(action)) {
+    if (!['owner','moderator'].includes(member.role)) throw new AdminError('Moderator access required.',403);
+    if (['set_book_cover','undo_book_cover'].includes(action)) {
+      const url = action === 'set_book_cover' ? safeAdminCover(input.payload?.url) : null;
+      if (action === 'set_book_cover' && !url) throw new AdminError('Choose a stable provider image URL.');
+      return check(await client.rpc('novori_admin_set_book_cover', {
+        p_actor:user.id,p_work:validateId(input.target_id),p_expected:input.expected_updated_at,
+        p_url:url,p_reason:input.reason,p_request:validateId(input.request_id),
+        p_undo:action === 'undo_book_cover' ? validateId(input.payload?.change_id) : null,
+      }));
+    }
+    let workId = input.work_id;
+    if (!workId) {
+      let bookId = String(input.book_id ?? '').trim();
+      if (bookId.startsWith('https://')) {
+        const url = new URL(bookId);
+        if (url.hostname !== 'novori.link' || !/^\/book\/[A-Za-z0-9_-]+$/.test(url.pathname)) throw new AdminError('Paste a Novori book link or book ID.');
+        bookId = url.pathname.split('/')[2];
+      }
+      if (/^\d{13}$/.test(bookId)) bookId = `nv_${bookId}`;
+      if (!/^[A-Za-z0-9_-]{1,200}$/.test(bookId)) throw new AdminError('Paste a Novori book link or book ID.');
+      const rows = check(await client.from('book_editions').select('work_id').eq('provider_book_id',bookId).order('id').limit(2));
+      if (!rows?.length) throw new AdminError('This book is not in the catalog yet.',404);
+      if (new Set(rows.map(row=>row.work_id)).size !== 1) throw new AdminError('This listing has conflicting catalog identities. Review before correcting.',409);
+      workId = rows[0].work_id;
+    }
+    const snapshot = check(await client.rpc('novori_admin_book_cover_options',{p_work:validateId(workId)}));
+    if (!snapshot?.editions?.length) throw new AdminError('No cached editions found.',404);
+    let extra = {options:[],warnings:[]};
+    if (action === 'find_book_covers') {
+      if (!settings.findBookCovers) throw new AdminError('Provider cover lookup is not configured.',503);
+      extra = await settings.findBookCovers(snapshot,user.id,input.query);
+    }
+    return {...snapshot,options:[...coverOptions(snapshot),...extra.options].filter((row,index,all)=>all.findIndex(other=>other.url===row.url)===index),warnings:extra.warnings};
+  }
   if (action === 'book_reports') {
     let query = client.from('novori_book_artwork_report_queue').select('*', { count: 'exact' })
       .order('pending_count', { ascending: false }).order('updated_at', { ascending: false })
@@ -699,6 +735,7 @@ export function createAdminHandler({
   bookProvider = "unknown",
   isbnDbConfigured = false,
   moderationConfigured = false,
+  findBookCovers,
 }) {
   return async (request) => {
     const origin = request.headers.get("Origin");
@@ -770,6 +807,7 @@ export function createAdminHandler({
           bookProvider,
           isbnDbConfigured,
           moderationConfigured,
+          findBookCovers,
         }),
       });
     } catch (error) {

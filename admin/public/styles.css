@@ -857,3 +857,15 @@ dialog > .panel {
     transition: none !important;
   }
 }
+
+/* Book artwork picker: contained art and aligned actions on phones and desktop. */
+.cover-lookup { display:flex; flex-wrap:wrap; align-items:end; gap:.65rem; margin:1rem 0; }
+.cover-lookup label { flex-basis:100%; }
+.cover-lookup input { flex:1 1 16rem; min-width:0; }
+.cover-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:1rem; margin:1rem 0; }
+.cover-option { display:flex; flex-direction:column; gap:.5rem; padding:1rem; border:1px solid var(--border,#d4c8b4); border-radius:12px; min-width:0; }
+.cover-option img { width:100%; height:230px; object-fit:contain; }
+.cover-option small { overflow-wrap:anywhere; }
+.cover-option button { margin-top:auto; }
+.cover-preview { display:block; width:150px; height:225px; object-fit:contain; margin:.75rem 0; }
+@media(max-width:480px) { .cover-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem;} .cover-option{padding:.6rem;} .cover-option img{height:185px;} .cover-lookup button{width:100%;} }

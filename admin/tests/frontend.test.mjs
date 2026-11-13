@@ -1,3 +1,4 @@
+import {safeAdminCover} from '../../supabase/functions/_shared/admin-book-covers.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -32,6 +33,7 @@ async function app({
     w = dom.window;
   let verified = !mfa;
   const calls = [];
+  w.safeAdminCover = safeAdminCover;
   w.__CONFIG__ = { url: "https://oanpmuiuuwljknwvyzev.supabase.co", key };
   w.AbortSignal = AbortSignal;
   w.HTMLDialogElement.prototype.showModal = function () {
@@ -93,6 +95,7 @@ async function app({
         total: 1,
       };
     else if (p.action === "book_reports") data = { rows: [{ work_id: id, title: 'House of Sky and Breath', authors: ['Sarah J. Maas'], book_id:'nv_9781408884430', report_count: 3, pending_count: 3, wrong_cover_count: 1, blurry_cover_count: 2, missing_cover_count:0, status:'pending', revision:'book-revision', updated_at:'2026-10-16T00:00:00Z', reported_cover_url:'https://images.example/book.jpg' }], total:1 };
+    else if (['book_cover_options','find_book_covers'].includes(p.action)) data={work_id:id,revision:'cover-revision',selection:{url:'https://images.isbndb.com/old.jpg',locked:false},editions:[{metadata:{volumeInfo:{title:'House of Sky and Breath',authors:['Sarah J. Maas']}}}],options:[{url:'https://images.isbndb.com/new.jpg',title:'House of Sky and Breath',provider:'isbndb',isbn:'9781526625472'}],history:[],warnings:[]};
     else if (p.action === "report_detail")
       data = {
         report: {
@@ -118,7 +121,7 @@ async function app({
   };
   w.eval(
     source
-      .replace(/^import .*;\n/, "")
+      .replace(/^import .*;\n/gm, "")
       .replace(/\b__CONFIG__\b/g, "window.__CONFIG__"),
   );
   return { dom, w, calls };
@@ -343,5 +346,27 @@ test('support can inspect grouped book reports without resolving them',async()=>
  click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));
  w.document.querySelector('.list button').click();
  assert.equal([...w.document.querySelectorAll('button')].some(b=>b.textContent==='Mark resolved'),false);
+ dom.window.close();
+});
+
+test('book report picker previews options and requires confirmation before replacing artwork',async()=>{
+ const {w,dom,calls}=await app();await until(()=>w.document.querySelector('nav'));
+ click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();
+ click(w,'Choose replacement cover');await until(()=>w.document.querySelector('.cover-option'));
+ assert.equal(calls.some(call=>call.action==='find_book_covers'),false);
+ const image=w.document.querySelector('.cover-option img'),use=w.document.querySelector('.cover-option button');
+ assert.equal(use.disabled,true);image.dispatchEvent(new w.Event('error'));assert.equal(use.disabled,true);image.dispatchEvent(new w.Event('load'));assert.equal(use.disabled,false);
+ use.click();assert.equal(calls.some(call=>call.action==='set_book_cover'),false);
+ assert.equal(w.document.querySelector('dialog img').src,'https://images.isbndb.com/new.jpg');
+ const reason=w.document.querySelector('dialog textarea');reason.value='Verified publisher artwork';
+ reason.form.dispatchEvent(new w.Event('submit',{cancelable:true}));await until(()=>calls.some(call=>call.action==='set_book_cover'));
+ const saved=calls.find(call=>call.action==='set_book_cover');assert.equal(saved.target_id,id);assert.equal(saved.expected_updated_at,'cover-revision');assert.equal(saved.payload.url,'https://images.isbndb.com/new.jpg');
+ dom.window.close();
+});
+test('manual preview rejects unsafe URLs without a write or provider lookup',async()=>{
+ const {w,dom,calls}=await app();await until(()=>w.document.querySelector('nav'));click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();
+ click(w,'Choose replacement cover');await until(()=>w.document.querySelector('.cover-option'));
+ const input=w.document.querySelector('input[type=url]');input.value='https://evil.test/a';input.form.dispatchEvent(new w.Event('submit',{cancelable:true}));
+ assert.match(input.form.textContent,/stable HTTPS/);assert.equal(calls.some(call=>['set_book_cover','find_book_covers'].includes(call.action)),false);
  dom.window.close();
 });

@@ -1,3 +1,4 @@
+import { safeAdminCover } from '../../supabase/functions/_shared/admin-book-covers.mjs';
 import { createClient } from "@supabase/supabase-js";
 const config = __CONFIG__,
   root = document.querySelector("#app"),
@@ -465,16 +466,72 @@ function restrictionText(r) {
       ? `Suspended until ${date(r.blocked_until)}`
       : "No active restriction";
 }
+async function showBookCovers(target) {
+  const requestGeneration=++generation;
+  let snapshot=await api('book_cover_options',target);
+  if(generation!==requestGeneration)return;
+  const title=snapshot.editions[0]?.metadata?.volumeInfo?.title??'Book artwork';
+  const panel=detail(title,'Manual artwork correction');
+  panel.append(el('p','Changes apply to this catalog book and its linked editions. Automatic selection for other books stays unchanged.','hint'));
+  const current=el('section');panel.append(current);
+  const searchForm=el('form',undefined,'cover-lookup');
+  const query=field(searchForm,'Find more covers',{value:[title,snapshot.editions[0]?.metadata?.volumeInfo?.authors?.[0]].filter(Boolean).join(' ').slice(0,150),max:150});
+  const fetchButton=el('button','Find more covers');fetchButton.type='submit';searchForm.append(fetchButton);panel.append(searchForm);
+  panel.append(el('p','Provider lookups run only when requested and may use API quota. Check the title, author and edition before choosing.','hint'));
+  const manual=el('form',undefined,'cover-lookup');
+  const url=field(manual,'Or paste a replacement image URL',{type:'url',max:2048});
+  const previewButton=el('button','Preview image');previewButton.type='submit';manual.append(previewButton);panel.append(manual);
+  const warnings=el('div'),grid=el('div',undefined,'cover-grid'),history=el('section');panel.append(warnings,grid,history);
+  const refresh=()=>showBookCovers({work_id:snapshot.work_id});
+  function card(option,parent=grid) {
+    const safe=safeAdminCover(option.url);if(!safe)return;
+    const box=el('article',undefined,'cover-option'),image=el('img');image.alt=option.title??title;
+    image.referrerPolicy='no-referrer';image.loading='lazy';
+    const selected=safe===snapshot.selection?.url;
+    const use=button(selected?'Current cover':'Use this cover',()=>decision('set_book_cover',{type:'book',id:snapshot.work_id},{
+      expected:snapshot.revision,payload:{url:safe},preview:safe,refresh,
+      description:`Confirm the replacement artwork for ${title}. This locks your choice until another manual correction or undo. Existing devices refresh their cached selection on their normal refresh cycle.`,
+    }));
+    use.disabled=true;
+    image.onload=()=>{use.disabled=selected;};
+    image.onerror=()=>{use.disabled=true;box.append(el('p','Image unavailable. Choose another option.','hint'));};
+    image.src=safe;
+    box.append(image,el('strong',option.title??title),el('small',Array.isArray(option.authors)?option.authors.join(', '):''),el('small',[option.provider,option.isbn,option.publisher,option.publishedDate,option.language].filter(Boolean).join(' · ')),use);
+    const link=el('a','Open full image');link.href=safe;link.target='_blank';link.rel='noopener noreferrer';box.append(link);parent.append(box);
+  }
+  function render() {
+    current.replaceChildren(el('h3',snapshot.selection?.locked?'Current cover · manually locked':'Current cover'));
+    if(safeAdminCover(snapshot.selection?.url)) {const image=el('img',undefined,'cover-preview');image.src=snapshot.selection.url;image.alt='Current cover';image.referrerPolicy='no-referrer';current.append(image);}else current.append(el('p','No selected cover.'));
+    grid.replaceChildren();for(const option of snapshot.options)card(option);
+    if(!snapshot.options.length)grid.append(el('p','No cached alternatives. Find more covers or paste a provider image URL.'));
+    warnings.replaceChildren();for(const warning of snapshot.warnings??[])warnings.append(el('p',warning,'hint'));
+    history.replaceChildren(el('h3','Cover history'));
+    for(const [index,change] of snapshot.history.entries()) {
+      history.append(el('p',`${date(change.created_at)} · ${change.reason}`));
+      if(index===0)history.append(button('Undo last correction',()=>decision('undo_book_cover',{type:'book',id:snapshot.work_id},{
+        expected:snapshot.revision,payload:{change_id:change.id},refresh,
+        description:'Restore the selection that existed before this correction. The server checks that no newer cover change has replaced it.',
+      })));
+    }
+  }
+  searchForm.onsubmit=async event=>{event.preventDefault();fetchButton.disabled=true;try{
+    const next=await api('find_book_covers',{work_id:snapshot.work_id,query:query.value});if(!searchForm.isConnected)return;snapshot=next;render();
+  }catch(error){showError(error.message,panel);}finally{fetchButton.disabled=false;}};
+  manual.onsubmit=event=>{event.preventDefault();const safe=safeAdminCover(url.value.trim());if(!safe){showError('Use a stable HTTPS image URL from ISBNdb, Hardcover, Google Books or Open Library.',manual);return;}card({url:safe,title,provider:'Manual URL'});};
+  render();
+}
+
 function decision(
   action,
   target,
-  { expected, payload = {}, refresh = load, description } = {},
+  { expected, payload = {}, refresh = load, description, preview } = {},
 ) {
   const d = openDialog(
     pretty(action).replace(/^./, (c) => c.toUpperCase()),
     description ||
       "Record a clear reason. Reader notices include this reason for warnings and account restrictions.",
   );
+  if (preview) { const image = el("img",undefined,"cover-preview"); image.src = preview; image.alt = "Selected replacement cover"; image.referrerPolicy = "no-referrer"; d.append(image); }
   const form = el("form");
   const reason = field(form, "Decision reason", {
     type: "textarea",
@@ -606,6 +663,14 @@ const screens = {
     select.value = status;
     select.onchange = async () => { status = select.value; page = 0; await load(); };
     main.append(select);
+    if (['owner','moderator'].includes(identity.role)) {
+      const lookup=el('form',undefined,'cover-lookup');
+      const input=field(lookup,'Find a book to correct',{max:300});
+      input.placeholder='Paste a Novori book link, book ID or ISBN';
+      const submit=el('button','Open cover picker');submit.type='submit';lookup.append(submit);
+      lookup.onsubmit=async event=>{event.preventDefault();submit.disabled=true;try{await showBookCovers({book_id:input.value});}catch(error){showError(error.message,lookup);}finally{submit.disabled=false;}};
+      main.append(lookup);
+    }
     main.append(el('p','Each reader counts once per catalog book, including its linked editions. Covers stay unchanged until a separate, verified correction is made.','hint'));
     list(main, d.rows, row => [
       el('strong', `${row.title} · ${row.report_count} ${row.report_count === 1 ? 'report' : 'reports'}`),
@@ -621,6 +686,7 @@ const screens = {
         const link = el('a','Open most recently reported cover'); link.href = row.reported_cover_url;
         link.target = '_blank'; link.rel = 'noopener noreferrer'; links.append(link);
       }
+      if (['owner','moderator'].includes(identity.role)) panel.append(button('Choose replacement cover',()=>showBookCovers({work_id:row.work_id})));
       if (row.pending_count && ['owner','moderator'].includes(identity.role)) {
         const actions = el('div',undefined,'actions'); panel.append(actions);
         for (const [value,label] of [['resolved','Mark resolved'],['dismissed','Dismiss reports']])
