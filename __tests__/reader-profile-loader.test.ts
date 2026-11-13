@@ -11,7 +11,7 @@ jest.mock('../src/lib/book-stacks',()=>({getPublicBookStacks:jest.fn()}));
 jest.mock('../src/lib/user-books',()=>({getLockedVerifiedCoverUrls:jest.fn()}));
 const mocked=(fn:any)=>fn as jest.Mock;
 const profile={id:'reader',can_view_content:true};
-function handlers(){return{isCurrent:()=>true,ready:jest.fn(),library:jest.fn(),clubs:jest.fn(),managerClubs:jest.fn(),stacks:jest.fn(),activity:jest.fn(),error:jest.fn(),settled:jest.fn()};}
+function handlers(){return{isCurrent:()=>true,ready:jest.fn(),library:jest.fn(),reviews:jest.fn(),clubs:jest.fn(),managerClubs:jest.fn(),stacks:jest.fn(),activity:jest.fn(),error:jest.fn(),settled:jest.fn()};}
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(done=>{resolve=done;});return{promise,resolve};}
 let quiet:jest.SpyInstance;let info:jest.SpyInstance;
 beforeEach(()=>{
@@ -27,11 +27,20 @@ test('profile becomes ready before slow library sections; opening profile never 
  expect(h.ready).toHaveBeenCalledWith(profile,false);expect(h.library).not.toHaveBeenCalled();expect(getHomeFeed).not.toHaveBeenCalled();expect(social.getReaderProfilePosts).not.toHaveBeenCalled();
  books.resolve([]);await load.finished;expect(h.library).toHaveBeenCalled();
 });
-test('library keeps verified cover corrections without waiting for activity',async()=>{
+test('book rows display without waiting for offscreen cover resolution or reviews',async()=>{
  const book={id:'entry',google_book_id:'book',title:'Book',cover_url:'old',status:'reading'};
- mocked(social.getReaderPublicBooks).mockResolvedValue([book]);mocked(getLockedVerifiedCoverUrls).mockResolvedValue(new Map([['book','verified']]));
+ mocked(social.getReaderPublicBooks).mockResolvedValue([book]);
  const h=handlers();await createReaderProfileLoad('reader',h).finished;
- expect(h.library.mock.calls[0][0][0].cover_url).toBe('verified');expect(getHomeFeed).not.toHaveBeenCalled();
+ expect(h.library.mock.calls[0][0][0].google_book_id).toBe('book');
+ expect(getLockedVerifiedCoverUrls).not.toHaveBeenCalled();
+ expect(social.getReaderPublicReviews).not.toHaveBeenCalled();expect(getHomeFeed).not.toHaveBeenCalled();
+});
+test('reviews load once on demand and cannot hold up books',async()=>{
+ const pending=deferred<any[]>();mocked(social.getReaderPublicReviews).mockReturnValue(pending.promise);
+ const h=handlers(),load=createReaderProfileLoad('reader',h);await load.finished;
+ expect(h.library).toHaveBeenCalled();expect(social.getReaderPublicReviews).not.toHaveBeenCalled();
+ const first=load.loadReviews(),second=load.loadReviews();await Promise.resolve();
+ pending.resolve([]);await Promise.all([first,second]);expect(social.getReaderPublicReviews).toHaveBeenCalledTimes(1);expect(h.reviews).toHaveBeenCalledWith([]);
 });
 test.each([true,false])('blocked/private content stays behind the profile checks (blocked=%s)',async blocked=>{
  mocked(social.isReaderBlockedByViewer).mockResolvedValue(blocked);mocked(social.getReaderProfile).mockResolvedValue({...profile,can_view_content:blocked});
@@ -58,10 +67,10 @@ test('a failed secondary section does not replace the profile with a full-screen
  expect(h.ready).toHaveBeenCalled();expect(h.library).toHaveBeenCalled();expect(h.error).toHaveBeenCalledWith('stacks');expect(h.settled).toHaveBeenCalledWith('stacks');
 });
 
-test('late library and cover responses are discarded after leaving the profile',async()=>{
- const pending=deferred<Map<string,string>>();mocked(getLockedVerifiedCoverUrls).mockReturnValue(pending.promise);
+test('public books appear before slow owned-book enrichment; late results are discarded on navigation',async()=>{
+ const pending=deferred<any[]>();mocked(social.getReaderPublicOwnedBooks).mockReturnValue(pending.promise);
  const h=handlers();let current=true;h.isCurrent=()=>current;
- const load=createReaderProfileLoad('reader',h);await load.ready;await Promise.resolve();await Promise.resolve();current=false;
- pending.resolve(new Map());await load.finished;
- expect(h.library).not.toHaveBeenCalled();
+ const load=createReaderProfileLoad('reader',h);await load.ready;await Promise.resolve();await Promise.resolve();
+ expect(h.library).toHaveBeenCalledTimes(1);current=false;
+ pending.resolve([]);await load.finished;expect(h.library).toHaveBeenCalledTimes(1);
 });

@@ -290,6 +290,7 @@ async function flush() {
   const inputs = requests.map(([, waiters]) => waiters[0].input);
   requests.forEach(([key]) => { const flight = inFlight.get(key); if (flight) flight.started = true; });
   const readRevision = catalogRevision;
+  const batchStarted = Date.now();
   try {
     const { data, error } = await supabase.functions.invoke('book-cover-selection', {
       body: {
@@ -317,6 +318,7 @@ async function flush() {
       if (!entries.has(key)) remember(key, { url: fallback(waiters[0].input), checkedAt: 0, confirmed: false, revision: 0 });
     }
   }
+  if(typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[Novori cache] cover batch settled: ${inputs.length} books, ${Date.now()-batchStarted}ms`);
   notify();
   for (const [key, waiters] of requests) {
     waiters.forEach(waiter => waiter.resolve(entries.get(key)?.url ?? null));

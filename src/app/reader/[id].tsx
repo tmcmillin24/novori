@@ -124,19 +124,21 @@ export default function ReaderProfileScreen() {
     const loadVersion = useRef(0);
     const focusedReader = useRef(false);
     const readerLoad = useRef<ReturnType<typeof createReaderProfileLoad> | null>(null);
-    const [sectionLoading,setSectionLoading] = useState({library:true,clubs:true,stacks:true,activity:true});
-    const [sectionErrors,setSectionErrors] = useState<Partial<Record<'library'|'clubs'|'stacks'|'activity',string>>>({});
+    const [visibleBookCount,setVisibleBookCount]=useState(12);
+    const [visibleReviewCount,setVisibleReviewCount]=useState(10);
+    const [sectionLoading,setSectionLoading] = useState({library:true,reviews:true,clubs:true,stacks:true,activity:true});
+    const [sectionErrors,setSectionErrors] = useState<Partial<Record<'library'|'reviews'|'clubs'|'stacks'|'activity',string>>>({});
     const loadReader = useCallback(async () => {
         const version=++loadVersion.current;
         const isCurrent=()=>focusedReader.current&&version===loadVersion.current;
         setError('');setLoading(true);setProfile(null);
         setBooks([]);setReviews([]);setPosts([]);setClubs([]);setStacks([]);setManagerClubs([]);
-        setSectionErrors({});setSectionLoading({library:true,clubs:true,stacks:true,activity:true});
+        setSectionErrors({});setSectionLoading({library:true,reviews:true,clubs:true,stacks:true,activity:true});setVisibleBookCount(12);setVisibleReviewCount(10);
         if(!readerId){setError('Reader profile not found.');setLoading(false);return;}
         const task=createReaderProfileLoad(readerId,{
             isCurrent,
             ready:(next,blocked)=>{setProfile(next);setIsBlocked(blocked);setLoading(false);},
-            library:(nextBooks,nextReviews)=>{setBooks(nextBooks);setReviews(nextReviews);},
+            library:nextBooks=>{setBooks(nextBooks);setSectionLoading(previous=>({...previous,library:false}));},reviews:setReviews,
             clubs:setClubs,stacks:setStacks,managerClubs:setManagerClubs,activity:setPosts,
             error:section=>setSectionErrors(previous=>({...previous,[section]:'This section could not be loaded. Pull down to retry.'})),
             settled:section=>setSectionLoading(previous=>({...previous,[section]:false})),
@@ -146,8 +148,10 @@ export default function ReaderProfileScreen() {
         catch(loadError){if(isCurrent()){console.error('Could not load reader profile:',loadError);setError('This reader profile could not be loaded.');setLoading(false);}}
     },[readerId]);
     useEffect(()=>{
-        if(activeTab==='activity'&&profile?.id===readerId&&!loading) void readerLoad.current?.loadActivity().catch(()=>{});
-    },[activeTab,profile,readerId,loading]);
+        if(profile?.id!==readerId||loading)return;
+        if(activeTab==='activity')void readerLoad.current?.loadActivity().catch(()=>{});
+        if(activeTab==='library'&&libraryTab==='reviews')void readerLoad.current?.loadReviews().catch(()=>{});
+    },[activeTab,libraryTab,profile,readerId,loading]);
     const refreshReader = useCallback(async () => {
         if (refreshing) {
             return;
@@ -472,7 +476,7 @@ export default function ReaderProfileScreen() {
                     styles.pressed
             ]}>
         <View style={styles.publicBookCoverWrap}>
-          {(book.google_book_id || book.cover_url) ? (<BookCoverImage googleBookId={book.google_book_id} existingCoverUrl={book.cover_url} style={styles.publicBookCover}/>) : (<View style={styles.publicBookCoverFallback}>
+          {(book.google_book_id || book.cover_url) ? (<BookCoverImage googleBookId={book.google_book_id} existingCoverUrl={book.google_book_id ? undefined : book.cover_url} style={styles.publicBookCover}/>) : (<View style={styles.publicBookCoverFallback}>
               <Ionicons name="book-outline" size={24} color={colors.gold}/>
             </View>)}
 
@@ -500,7 +504,7 @@ export default function ReaderProfileScreen() {
                     styles.pressed
             ]}>
         <View style={styles.reviewHeader}>
-          {(review.google_book_id || review.cover_url) ? (<BookCoverImage googleBookId={review.google_book_id} existingCoverUrl={review.cover_url} style={styles.reviewCover}/>) : (<View style={styles.reviewCoverFallback}>
+          {(review.google_book_id || review.cover_url) ? (<BookCoverImage googleBookId={review.google_book_id} existingCoverUrl={review.google_book_id ? undefined : review.cover_url} style={styles.reviewCover}/>) : (<View style={styles.reviewCoverFallback}>
               <Ionicons name="book-outline" size={19} color={colors.gold}/>
             </View>)}
 
@@ -671,7 +675,11 @@ export default function ReaderProfileScreen() {
           </Pressable>)}
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshReader} tintColor={colors.gold} colors={[
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical scrollEventThrottle={120} onScroll={({nativeEvent})=>{
+        if(nativeEvent.contentOffset.y+nativeEvent.layoutMeasurement.height<nativeEvent.contentSize.height-350)return;
+        if(activeTab==='library'&&libraryTab==='books'&&books.length>0)setVisibleBookCount(count=>Math.min(books.length,count+12));
+        if(activeTab==='library'&&libraryTab==='reviews'&&reviews.length>0)setVisibleReviewCount(count=>Math.min(reviews.length,count+10));
+      }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshReader} tintColor={colors.gold} colors={[
                 colors.gold
             ]}/>}>
         <View style={styles.profileHeader}>
@@ -873,9 +881,7 @@ export default function ReaderProfileScreen() {
               </Pressable>))}
         </View>
 
-        {(activeTab==='activity'?sectionLoading.activity:activeTab==='clubs'?sectionLoading.clubs:libraryTab==='stacks'?sectionLoading.stacks:sectionLoading.library) ? (<View style={styles.emptyCard}><ActivityIndicator size="small" color={colors.gold}/><Text style={styles.emptyText}>Loading {activeTab==='library'?libraryTab:activeTab}…</Text></View>) : sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':'library'] ? (<View style={styles.emptyCard}><Text style={styles.emptyText}>{sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':'library']}</Text><Pressable onPress={()=>void loadReader()}><Text style={styles.emptyTitle}>Retry</Text></Pressable></View>) : activeTab ===
-                'library' ? (<>
-            <View style={styles.libraryTabRow}>
+        {activeTab==='library'? (<View style={styles.libraryTabRow}>
               {([
                     {
                         key: 'books',
@@ -907,8 +913,9 @@ export default function ReaderProfileScreen() {
                       {tab.label}
                     </Text>
                   </Pressable>))}
-            </View>
-
+            </View>):null}
+        {(activeTab==='activity'?sectionLoading.activity:activeTab==='clubs'?sectionLoading.clubs:libraryTab==='stacks'?sectionLoading.stacks:libraryTab==='reviews'?sectionLoading.reviews:sectionLoading.library) ? (<View style={styles.emptyCard}><ActivityIndicator size="small" color={colors.gold}/><Text style={styles.emptyText}>Loading {activeTab==='library'?libraryTab:activeTab}…</Text></View>) : sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':libraryTab==='reviews'?'reviews':'library'] ? (<View style={styles.emptyCard}><Text style={styles.emptyText}>{sectionErrors[activeTab==='activity'?'activity':activeTab==='clubs'?'clubs':libraryTab==='stacks'?'stacks':libraryTab==='reviews'?'reviews':'library']}</Text><Pressable onPress={()=>void loadReader()}><Text style={styles.emptyTitle}>Retry</Text></Pressable></View>) : activeTab ===
+                'library' ? (<>
             {libraryTab ===
                     'books' ? (!profile.can_view_books ? (<View style={styles.emptyCard}>
                   <Ionicons name="lock-closed-outline" size={26} color={colors.gold}/>
@@ -922,7 +929,8 @@ export default function ReaderProfileScreen() {
                   </Text>
                 </View>) : books.length >
                     0 ? (<View style={styles.publicBookGrid}>
-                  {books.map(renderBook)}
+                  {books.slice(0,visibleBookCount).map(renderBook)}
+                  {visibleBookCount<books.length?<Pressable accessibilityRole="button" style={{width:'100%',paddingVertical:12,alignItems:'center'}} onPress={()=>setVisibleBookCount(count=>Math.min(books.length,count+12))}><Text style={styles.emptyTitle}>Show more books</Text></Pressable>:null}
                 </View>) : (<View style={styles.emptyCard}>
                   <Ionicons name="library-outline" size={26} color={colors.gold}/>
 
@@ -946,7 +954,8 @@ export default function ReaderProfileScreen() {
                   </Text>
                 </View>) : reviews.length >
                     0 ? (<View style={styles.list}>
-                  {reviews.map(renderReview)}
+                  {reviews.slice(0,visibleReviewCount).map(renderReview)}
+                  {visibleReviewCount<reviews.length?<Pressable accessibilityRole="button" style={{width:'100%',paddingVertical:12,alignItems:'center'}} onPress={()=>setVisibleReviewCount(count=>Math.min(reviews.length,count+10))}><Text style={styles.emptyTitle}>Show more reviews</Text></Pressable>:null}
                 </View>) : (<View style={styles.emptyCard}>
                   <Ionicons name="star-outline" size={26} color={colors.gold}/>
 

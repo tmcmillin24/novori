@@ -6,13 +6,13 @@ import {getPublicBookStacks} from './book-stacks';
 import type {BookStack} from './book-stacks';
 import {getHomeFeed} from './feed';
 import type {FeedPost} from './feed';
-import {getLockedVerifiedCoverUrls} from './user-books';
 import {sortProfileBooks} from './profile-book-order';
-type Section='library'|'clubs'|'stacks'|'activity';
+type Section='library'|'reviews'|'clubs'|'stacks'|'activity';
 type Handlers={
  isCurrent:()=>boolean;
  ready:(profile:ReaderSocialProfile,blocked:boolean)=>void;
- library:(books:PublicReaderBook[],reviews:PublicReaderReview[])=>void;
+ library:(books:PublicReaderBook[])=>void;
+ reviews:(reviews:PublicReaderReview[])=>void;
  clubs:(clubs:ClubWithMembership[])=>void;
  managerClubs:(clubs:ClubWithMembership[])=>void;
  stacks:(stacks:BookStack[])=>void;
@@ -27,6 +27,7 @@ export function createReaderProfileLoad(readerId:string,h:Handlers) {
  let allowed=false;
  let viewerClubs:Promise<ClubWithMembership[]>=Promise.resolve([]);
  let activity:Promise<void>|null=null;
+ let reviews:Promise<void>|null=null;
  async function section(name:Section,load:()=>Promise<void>) {
   try {await load();}catch(error){console.warn(`Could not load reader ${name}:`,error);if(h.isCurrent())h.error(name);}
   finally{if(h.isCurrent()){h.settled(name);timing(`${name} settled`);}}
@@ -35,7 +36,7 @@ export function createReaderProfileLoad(readerId:string,h:Handlers) {
   if(!h.isCurrent())return;
   allowed=!blocked&&profile.can_view_content;
   h.ready(profile,blocked);timing('profile ready');
-  if(!allowed){for(const name of ['library','clubs','stacks','activity'] as Section[])h.settled(name);return;}
+  if(!allowed){for(const name of ['library','reviews','clubs','stacks','activity'] as Section[])h.settled(name);return;}
   viewerClubs=getMyClubs().then(clubs=>{
    if(h.isCurrent())h.managerClubs(clubs.filter(club=>['owner','admin'].includes(club.membership_role??'')));
    return clubs;
@@ -45,12 +46,14 @@ export function createReaderProfileLoad(readerId:string,h:Handlers) {
   if(!allowed||!h.isCurrent())return;
   await Promise.all([
    section('library',async()=>{
-    const [books,owned,reviews]=await Promise.all([getReaderPublicBooks(readerId),getReaderPublicOwnedBooks(readerId).catch(error=>{console.warn('Could not load public owned books:',error);return [];}),getReaderPublicReviews(readerId)]);
+    // Ownership is optional enrichment, never a gate for the public book grid.
+    const ownedPromise=getReaderPublicOwnedBooks(readerId).then(rows=>{timing('owned rows ready');return rows;}).catch(error=>{console.warn('Could not load public owned books:',error);return [];});
+    const books=await getReaderPublicBooks(readerId);timing('book rows ready');
     if(!h.isCurrent())return;
-    const covers=await getLockedVerifiedCoverUrls([...books,...owned,...reviews].map(item=>item.google_book_id));
-    const cover=<T extends {google_book_id:string;cover_url:string|null}>(item:T):T=>covers.has(item.google_book_id)?{...item,cover_url:covers.get(item.google_book_id)!}:item;
-    const merged=Array.from(new Map([...books,...owned].map(item=>[item.id,cover(item)])).values());
-    if(h.isCurrent())h.library(sortProfileBooks(merged),reviews.map(cover));
+    h.library(sortProfileBooks(books));timing('initial library displayed');
+    const owned=await ownedPromise;
+    const merged=Array.from(new Map([...books,...owned].map(item=>[item.id,item])).values());
+    if(h.isCurrent())h.library(sortProfileBooks(merged));
    }),
    section('clubs',async()=>{const clubs=await getReaderPublicClubs(readerId);if(h.isCurrent())h.clubs(clubs);}),
    section('stacks',async()=>{const stacks=await getPublicBookStacks(readerId);if(h.isCurrent())h.stacks(stacks);}),
@@ -70,5 +73,15 @@ export function createReaderProfileLoad(readerId:string,h:Handlers) {
   });
   return activity;
  }
- return {ready,finished,loadActivity};
+ function loadReviews(){
+  reviews??=ready.then(async()=>{
+   if(!allowed||!h.isCurrent())return;
+   await section('reviews',async()=>{
+    const rows=await getReaderPublicReviews(readerId);timing('review rows ready');
+    if(h.isCurrent())h.reviews(rows);
+   });
+  });
+  return reviews;
+ }
+ return {ready,finished,loadActivity,loadReviews};
 }
