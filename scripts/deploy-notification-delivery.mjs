@@ -13,11 +13,12 @@ const [state]=await query(`select to_regprocedure('public.get_year_in_reading_in
  exists(select 1 from cron.job where jobname='novori-phone-push' and active) as delivery_ready,
  exists(select 1 from cron.job where jobname='novori-reading-reminders' and active) as reminders_ready`);
 if(!state?.recap_ready||!state?.worker_ready||!state?.delivery_ready||!state?.reminders_ready)throw new Error('Existing year recap, reminder schedule, or push worker is missing/inactive. Stopped before changes.');
-for(const file of ['20261113040000_push_activity_previews.sql','20261113060000_push_inbox_wording.sql','20261113070000_anonymous_vote_push.sql','20261113080000_immediate_push.sql','20261113090000_yearly_recap_reminders.sql','20261113100000_push_reminder_eligibility.sql']){
+for(const file of ['20261113040000_push_activity_previews.sql','20261113060000_push_inbox_wording.sql','20261113070000_anonymous_vote_push.sql','20261113080000_immediate_push.sql','20261113090000_yearly_recap_reminders.sql','20261113100000_push_reminder_eligibility.sql','20261113110000_fast_vote_batches.sql']){
  await query(readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8'));
 }
 await query(`
 select cron.alter_job(jobid,schedule:='* * * * *') from cron.job where jobname='novori-reading-reminders';
+select cron.schedule('novori-vote-push-ready','5 seconds','select public.novori_dispatch_due_vote_push();');
 select cron.schedule('novori-yearly-reading-recap','* * * * *','select public.novori_generate_yearly_recap_reminders();');`);
-console.table(await query(`select jobname,active,schedule from cron.job where jobname in ('novori-phone-push','novori-reading-reminders','novori-yearly-reading-recap') order by jobname`,true));
+console.table(await query(`select jobname,active,schedule from cron.job where jobname in ('novori-phone-push','novori-reading-reminders','novori-yearly-reading-recap','novori-vote-push-ready') order by jobname`,true));
 console.log('Immediate push wake enabled; minute retry fallback retained. Daily/weekly/monthly eligibility still uses the existing generator; yearly readiness runs January 1 at 6 p.m. local for recorded reading activity. Vote phone previews are anonymous. Reload the updated development app to test yearly settings and inbox anonymity.');

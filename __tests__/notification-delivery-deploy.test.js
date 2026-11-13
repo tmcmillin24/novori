@@ -8,7 +8,7 @@ async function run(ready=true){
 }
 it('checks the foundation and changes the existing reminder job without replacing its command',async()=>{
  const calls=await run();const schedule=calls.find(c=>c.query.includes('cron.alter_job'));
- expect(schedule.query).toContain("jobname='novori-reading-reminders'");expect(schedule.query).not.toContain('command:=');expect(schedule.query).toContain('novori-yearly-reading-recap');
+ expect(schedule.query).toContain("jobname='novori-reading-reminders'");expect(schedule.query).not.toContain('command:=');expect(schedule.query).toContain('novori-yearly-reading-recap');expect(schedule.query).toContain("'novori-vote-push-ready','5 seconds'");
  expect(calls.some(c=>c.query.includes('create_secret'))).toBe(false);
 });
 it('fails before mutations if the year-summary foundation is unavailable',async()=>{await expect(run(false)).rejects.toThrow('Stopped before changes');});
