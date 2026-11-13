@@ -8,7 +8,7 @@ function harness(results) {
  const compiled = ts.transpileModule(source.slice(start, end) + '\nexports.resolve = findGoogleBookForSeries;', { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
  const exports = {};
  const deps = {
-  exports, matchesSeriesCatalogEdition, normalizeSeriesWorkTitle: title => cleanCatalogBookTitle(title ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+  exports, setTimeout, clearTimeout, matchesSeriesCatalogEdition, normalizeSeriesWorkTitle: title => cleanCatalogBookTitle(title ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''),
   normalizeAuthorName: name => (name ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''),
   getValidatedHighResolutionCover: (_, links) => links?.thumbnail,
   searchNovoriBooks: jest.fn(async () => results),
@@ -42,7 +42,7 @@ test('series artwork ID cannot bypass the shared reading-edition result',async()
  const h=harness([novel]);
  const result=await h.resolve({...row,coverBookId:'nv_9781496764898'});
  expect(result).toEqual(novel);
- expect(h.deps.searchNovoriBooks).toHaveBeenCalledWith(row.title);
+ expect(h.deps.searchNovoriBooks).toHaveBeenCalledWith(row.title, 0, expect.objectContaining({onProgress:expect.any(Function)}));
  expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
  expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
 });
@@ -60,4 +60,15 @@ test.each([
  expect(await h.resolve(series)).toEqual(selected);
  expect(h.deps.searchNovoriBooks).toHaveBeenCalledTimes(1);
  expect(series.coverUrl).toBe('https://art/good.jpg');
+});
+
+
+test('series navigation uses verified progressive rows without waiting for ratings enrichment',async()=>{
+ const h=harness([]);
+ h.deps.searchNovoriBooks.mockImplementation((_query,_offset,options)=>{
+   options.onProgress([novel]);
+   return new Promise(()=>{});
+ });
+ expect(await h.resolve(row)).toEqual(novel);
+ expect(h.deps.searchNovoriBooks).toHaveBeenCalledTimes(1);
 });

@@ -2362,10 +2362,23 @@ export default function BookDetailsScreen() {
 
     // Use the same work representative as Discover before trying individual ISBNs.
     try {
-      const results = await searchNovoriBooks(seriesBook.title);
-      // Keep the shared search order: series ISBNs and cover/page availability
-      // must not promote a different edition over Discover's representative.
-      const candidate = results.find(result => matchesSeriesCatalogEdition(seriesBook, { metadata: result }));
+      // Search publishes validated catalog rows before optional ratings enrichment.
+      // Open the same representative immediately instead of waiting for enrichment.
+      const candidate = await new Promise<GoogleBook | null>((resolve, reject) => {
+        let finished = false;
+        const timer = setTimeout(() => finish(null), 12000);
+        function finish(value: GoogleBook | null) {
+          if (finished) return;
+          finished = true; clearTimeout(timer); resolve(value);
+        }
+        const accept = (results: GoogleBook[]) => {
+          const match = results.find(result => matchesSeriesCatalogEdition(seriesBook, { metadata: result }));
+          if (match) finish(match);
+        };
+        void searchNovoriBooks(seriesBook.title, 0, {onProgress: accept})
+          .then(results => { accept(results); finish(null); })
+          .catch(error => { if (!finished) { finished = true; clearTimeout(timer); reject(error); } });
+      });
       if (candidate) return candidate;
     } catch {
       // Keep the verified-English identity/ISBN fallback available when search fails.
@@ -2373,7 +2386,7 @@ export default function BookDetailsScreen() {
 
     const queries =
       [
-        ...wantedIsbns.slice(0,6).map(
+        ...wantedIsbns.slice(0,1).map(
           (
             isbn
           ) => ({
@@ -2428,10 +2441,14 @@ export default function BookDetailsScreen() {
       const {
         kind,
         query,
-      } of queries
+      } of queries.filter(entry => entry.query !== seriesBook.title).slice(0, 2)
     ) {
       try {
-        const results = await searchNovoriBooks(query);
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        const results = await Promise.race([
+          searchNovoriBooks(query),
+          new Promise<GoogleBook[]>((_, reject) => { deadline = setTimeout(() => reject(new Error('Series lookup timed out')), 8000); }),
+        ]).finally(() => clearTimeout(deadline));
         const candidates = rankResults(results);
 
         const best =
