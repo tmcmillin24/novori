@@ -23,7 +23,8 @@ await query(readFileSync(new URL('../supabase/migrations/20261113030000_push_reg
 // Reuse the existing worker secret on reruns. Never return it to the terminal.
 const [vault] = await query(`select to_regclass('vault.secrets') is not null as ready`, true);
 if (!vault?.ready) throw new Error('Enable Supabase Vault, then rerun this helper. The queue is installed but no delivery is scheduled.');
-const [existing] = await query(`select decrypted_secret as value from vault.decrypted_secrets where name='novori_phone_push_worker' limit 1`, true);
+// Vault decryption needs the privileged connection, not the read-only role.
+const [existing] = await query(`select decrypted_secret as value from vault.decrypted_secrets where name='novori_phone_push_worker' limit 1`, false);
 const secret = existing?.value ?? randomBytes(32).toString('hex');
 if (!/^[a-f0-9]{64}$/.test(secret)) throw new Error('Existing push worker credential is invalid.');
 await api('/secrets', [{ name: 'NOVORI_PUSH_WORKER_SECRET', value: secret }]);
