@@ -287,31 +287,32 @@ export async function getDailyReadingCheckinState(
       ? data[0]
       : data;
 
+  // The profile shows a centered seven-day strip, which can cross the
+  // summary RPC's calendar week/month. Read the same saved local dates
+  // as Reading Tracker for the entire visible range.
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error('You must be signed in.');
+  const visibleDates = getCenteredCheckinDates(new Date(`${localDate}T12:00:00`));
+  const { data: checkins, error: checkinsError } = await supabase
+    .from('reading_checkins')
+    .select('local_date')
+    .eq('user_id', user.id)
+    .gte('local_date', visibleDates[0].key)
+    .lte('local_date', visibleDates[visibleDates.length - 1].key);
+  if (checkinsError) throw checkinsError;
+  const checkedDates = Array.from(new Set((checkins ?? []).map(checkin => String(checkin.local_date))));
+
   return {
     localDate,
     checkedIn:
-      Boolean(
-        row?.checked_in
-      ),
+      checkedDates.includes(localDate),
     currentStreak:
       Number(
         row?.current_streak ??
         0
       ),
-    checkedDates:
-      Array.isArray(
-        row?.checked_dates
-      )
-        ? row.checked_dates.map(
-            (
-              value:
-                string
-            ) =>
-              String(
-                value
-              )
-          )
-        : [],
+    checkedDates,
   };
 }
 
