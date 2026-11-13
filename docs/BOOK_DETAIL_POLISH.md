@@ -20,7 +20,7 @@ Both Discover and Library detail heroes use EnlargeableBookCover. It opens the s
 
 ## Remove from Library
 
-A labeled destructive action appears below book details for a saved library member, including ownership-only and rating/review-only entries. It uses the existing confirmation and removeUserBook path. Confirmation describes deletion of saved rating/review and, where applicable, private Reading Details. Cancellation makes no write; successful deletion clears local saved state and invalidates late private reads. The existing library mutation version refreshes Library. Catalog/cover caches remain public and reusable after removing a personal entry.
+A labeled destructive action appears below book details for a saved library member, including ownership-only and rating/review-only entries. It uses the same RemoveBookConfirmSheet shown by the Library’s … menu, with the existing removeUserBook path. A confirmation snapshot keeps the warning stable during its closing animation; failed deletion leaves the sheet open for retry. Confirmation describes deletion of saved rating/review and, where applicable, private Reading Details. Cancellation makes no write; successful deletion clears local saved state and invalidates late private reads. The existing library mutation version refreshes Library. Catalog/cover caches remain public and reusable after removing a personal entry.
 
 ## Validation and rollout
 

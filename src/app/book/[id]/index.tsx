@@ -1,3 +1,4 @@
+import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
 import BookDetailLoading from '../../../components/BookDetailLoading';
 import EnlargeableBookCover from '../../../components/EnlargeableBookCover';
 import {publicBookCache,bookExtraKey} from '../../../lib/public-book-cache';
@@ -1138,6 +1139,7 @@ export default function BookDetailsScreen() {
     useState(false);
   const [savingStatus, setSavingStatus] =
     useState<UserBookStatus | null>(null);
+  const [removeConfirmTarget,setRemoveConfirmTarget]=useState<{title:string;hasReadingDetails:boolean}|null>(null);
   const [removingBook, setRemovingBook] =
     useState(false);
   const [savingOwned, setSavingOwned] =
@@ -1367,6 +1369,7 @@ export default function BookDetailsScreen() {
         setSeriesBooks([]);
         setSeriesLoading(true);
         setSeriesExpanded(false);
+        setRemoveConfirmTarget(null);
 
         // Ignore reads that started before a successful status change.
         const initialStatusVersion = savedStatusVersion.current;
@@ -2690,33 +2693,7 @@ export default function BookDetailsScreen() {
       return;
     }
 
-    const hasReadingDetails =
-      Boolean(
-        savedBook?.status &&
-        savedBook.status !==
-          'want_to_read'
-      );
-
-    const removalMessage =
-      hasReadingDetails
-        ? `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This permanently deletes its private Reading Details — including summary, notes, and checkpoints — along with its saved rating and review.`
-        : `Remove ${book.volumeInfo.title ?? 'this book'} from your Novori library? This will also remove its saved rating and review.`;
-
-    Alert.alert(
-      'Remove from Library?',
-      removalMessage,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: removeFromLibrary,
-        },
-      ]
-    );
+    setRemoveConfirmTarget({title:displayBookTitle(book.volumeInfo.title??'this book'),hasReadingDetails:Boolean(savedBook?.status&&savedBook.status!=='want_to_read')});
   }
 
   async function removeFromLibrary() {
@@ -2748,6 +2725,7 @@ export default function BookDetailsScreen() {
         'Could not remove book',
         'Novori had trouble removing this book from your library. Please try again.'
       );
+      throw removeError;
     } finally {
       setRemovingBook(false);
     }
@@ -5434,6 +5412,7 @@ export default function BookDetailsScreen() {
         </View>
         {savedBook&&hasLibraryMembership(savedBook)?<Pressable accessibilityRole="button" accessibilityLabel="Remove from Library" onPress={confirmRemoveFromLibrary} disabled={removingBook||Boolean(savingStatus)||savingOwned} style={{minHeight:48,marginTop:28,padding:12,borderWidth:1,borderColor:colors.border,borderRadius:12,flexDirection:'row',gap:8,alignItems:'center',justifyContent:'center'}}>{removingBook?<ActivityIndicator color={colors.danger}/>:<Ionicons name="trash-outline" size={18} color={colors.danger}/>}<Text style={{color:colors.danger,fontFamily:'Inter_500Medium'}}>Remove from Library</Text></Pressable>:null}
       </ScrollView>
+      <RemoveBookConfirmSheet visible={removeConfirmTarget!==null} bookTitle={removeConfirmTarget?.title??''} hasReadingDetails={removeConfirmTarget?.hasReadingDetails??false} busy={removingBook} onDismiss={()=>setRemoveConfirmTarget(null)} onConfirm={removeFromLibrary}/>
 
       <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']}
         visible={dateEditorVisible}
