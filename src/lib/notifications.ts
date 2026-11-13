@@ -200,14 +200,15 @@ export async function getNotifications(
   );
 }
 
-export async function getUnreadNotificationCount() {
-  const userId =
-    await getCurrentUserId();
+export async function getUnreadNotificationCount(options: { signal?: AbortSignal; expectedUserId?: string } = {}) {
+  // A count read needs the local session identity, not a separate /auth/user hit.
+  // Database RLS remains authoritative for access.
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const userId = session?.user.id;
+  if (!userId || options.expectedUserId && options.expectedUserId !== userId || options.signal?.aborted) return 0;
 
-  const {
-    count,
-    error,
-  } = await supabase
+  const query = supabase
     .from('notifications')
     .select(
       'id',
@@ -218,23 +219,27 @@ export async function getUnreadNotificationCount() {
     )
     .eq('recipient_id', userId)
     .is('read_at', null);
+  const { count, error } = await (options.signal ? query.abortSignal(options.signal) : query);
 
   if (error) {
     throw error;
   }
 
+  const { data: { session: current }, error: currentError } = await supabase.auth.getSession();
+  if (currentError) throw currentError;
+  if (options.signal?.aborted || current?.user.id !== userId) return 0;
   return count ?? 0;
 }
 
 
-export async function getNotificationAttentionCount() {
+export async function getNotificationAttentionCount(options: { signal?: AbortSignal; expectedUserId?: string } = {}) {
   if (
     suppressAttentionCountWhileMarking
   ) {
     return 0;
   }
 
-  return getUnreadNotificationCount();
+  return getUnreadNotificationCount(options);
 }
 
 

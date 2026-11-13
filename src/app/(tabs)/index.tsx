@@ -1,3 +1,4 @@
+import { useNotificationAttention } from '../../lib/use-notification-attention';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { getCommentSheetBounds } from '../../lib/comment-sheet-snap';
@@ -249,7 +250,7 @@ export default function HomeScreen() {
             setAttentionCount(attentionResult.value);
         }
         else {
-            console.error('Could not load notification attention count:', attentionResult.reason);
+            console.warn('[Novori notifications] Home badge refresh deferred; keeping the last count.');
         }
         if (myClubsResult.status ===
             'fulfilled') {
@@ -431,51 +432,8 @@ export default function HomeScreen() {
         loadComposerProfile,
         loadHomeData
     ]));
-    useEffect(() => {
-        let active = true;
-        let channel: ReturnType<typeof supabase.channel> | null = null;
-        async function subscribeToNotificationCount() {
-            const { data: { user, }, error, } = await supabase.auth.getUser();
-            if (error ||
-                !user ||
-                !active) {
-                return;
-            }
-            const refreshAttentionCount = async () => {
-                try {
-                    const count = await getNotificationAttentionCount();
-                    if (active) {
-                        setAttentionCount(count);
-                    }
-                }
-                catch (attentionError) {
-                    console.error('Could not refresh realtime notification attention count:', attentionError);
-                }
-            };
-            channel =
-                supabase
-                    .channel(`home-notification-count-${user.id}-${Date.now()}-${Math.random()
-                    .toString(36)
-                    .slice(2)}`)
-                    .on('postgres_changes', {
-                    event: '*',
-                    schema: 'public',
-                    table: 'notifications',
-                    filter: `recipient_id=eq.${user.id}`,
-                }, () => {
-                    void refreshAttentionCount();
-                })
-                    .subscribe();
-        }
-        void subscribeToNotificationCount();
-        return () => {
-            active =
-                false;
-            if (channel) {
-                void supabase.removeChannel(channel);
-            }
-        };
-    }, []);
+    useNotificationAttention(setAttentionCount);
+
     async function handleRefresh() {
         try {
             setRefreshing(true);
