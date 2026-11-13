@@ -68,4 +68,20 @@ test('ordinary readers cannot execute picker writes or read correction history',
  await assert.rejects(db.query('select * from novori_admin_cover_changes'),/permission denied/);
  }finally{await db.exec('reset role');}
 });
+test('admin cover actions generate an audit reason without requiring typed text',async()=>{
+ for(const action of ['set_book_cover','undo_book_cover']){
+  let received;
+  const client={rpc:async(name,args)=>{assert.equal(name,'novori_admin_set_book_cover');received=args;return{data:{completed:true}};}};
+  await dispatchAdmin(client,{member:{role:'owner'},user:{id:id(1)}},{action,target_id:id(10),expected_updated_at:'revision',request_id:id(60),payload:{url:'https://images.isbndb.com/new.jpg',change_id:id(61)}});
+  assert.match(received.p_reason,/Administrator/);assert.equal(received.p_actor,id(1));
+ }
+});
+test('picker returns reported image separately from the stored catalog selection without provider calls',async()=>{
+ const stored={editions:[{id:id(20),metadata:{volumeInfo:{title:'Book'}}}],candidates:[],selection:{url:'https://images.isbndb.com/current.jpg'}};
+ const reports=[{cover_url:'https://images.isbndb.com/reported.jpg',reason:'blurry_cover'}];
+ const chain={select:()=>chain,eq:(key,value)=>{assert.equal(key,'work_id');assert.equal(value,id(10));return chain;},order:()=>chain,limit:async()=>({data:reports})};
+ const client={rpc:async()=>({data:stored}),from:table=>{assert.equal(table,'book_artwork_reports');return chain;}};
+ const result=await dispatchAdmin(client,{member:{role:'owner'},user:{id:id(1)}},{action:'book_cover_options',work_id:id(10)},{findBookCovers:()=>assert.fail('No provider lookup on opening a report')});
+ assert.equal(result.selection.url,stored.selection.url);assert.deepEqual(result.reports,reports);
+});
 test('close cover test database',async()=>{await db.close();});

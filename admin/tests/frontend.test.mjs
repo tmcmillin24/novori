@@ -95,7 +95,7 @@ async function app({
         total: 1,
       };
     else if (p.action === "book_reports") data = { rows: [{ work_id: id, title: 'House of Sky and Breath', authors: ['Sarah J. Maas'], book_id:'nv_9781408884430', report_count: 3, pending_count: 3, wrong_cover_count: 1, blurry_cover_count: 2, missing_cover_count:0, status:'pending', revision:'book-revision', updated_at:'2026-10-16T00:00:00Z', reported_cover_url:'https://images.example/book.jpg' }], total:1 };
-    else if (['book_cover_options','find_book_covers'].includes(p.action)) data={work_id:id,revision:'cover-revision',selection:{url:'https://images.isbndb.com/old.jpg',locked:false},editions:[{metadata:{volumeInfo:{title:'House of Sky and Breath',authors:['Sarah J. Maas']}}}],options:[{url:'https://images.isbndb.com/new.jpg',title:'House of Sky and Breath',provider:'isbndb',isbn:'9781526625472'}],history:[],warnings:[]};
+    else if (['book_cover_options','find_book_covers'].includes(p.action)) data={work_id:id,revision:'cover-revision',selection:{url:'https://images.isbndb.com/old.jpg',locked:false},editions:[{metadata:{volumeInfo:{title:'House of Sky and Breath',authors:['Sarah J. Maas']}}}],options:[{url:'https://images.isbndb.com/new.jpg',title:'House of Sky and Breath',provider:'isbndb',isbn:'9781526625472'}],history:[],warnings:[],reports:[{cover_url:'https://images.isbndb.com/reported.jpg',reason:'blurry_cover',updated_at:'2026-11-01T12:00:00Z'}]};
     else if (p.action === "report_detail")
       data = {
         report: {
@@ -354,12 +354,15 @@ test('book report picker previews options and requires confirmation before repla
  click(w,'Book artwork');await until(()=>w.document.querySelector('.list button'));w.document.querySelector('.list button').click();
  click(w,'Choose replacement cover');await until(()=>w.document.querySelector('.cover-option'));
  assert.equal(calls.some(call=>call.action==='find_book_covers'),false);
+ const comparison=w.document.querySelector('.cover-comparison');assert.match(comparison.textContent,/Cover the reader reported/);assert.match(comparison.textContent,/These images differ/);
+ assert.equal(comparison.querySelector('img').src,'https://images.isbndb.com/reported.jpg');
+ assert.equal(comparison.querySelectorAll('img')[1].src,'https://images.isbndb.com/old.jpg');
  const image=w.document.querySelector('.cover-option img'),use=w.document.querySelector('.cover-option button');
  assert.equal(use.disabled,true);image.dispatchEvent(new w.Event('error'));assert.equal(use.disabled,true);image.dispatchEvent(new w.Event('load'));assert.equal(use.disabled,false);
  use.click();assert.equal(calls.some(call=>call.action==='set_book_cover'),false);
  assert.equal(w.document.querySelector('dialog img').src,'https://images.isbndb.com/new.jpg');
- const reason=w.document.querySelector('dialog textarea');reason.value='Verified publisher artwork';
- reason.form.dispatchEvent(new w.Event('submit',{cancelable:true}));await until(()=>calls.some(call=>call.action==='set_book_cover'));
+ assert.equal(w.document.querySelector('dialog textarea'),null);
+ w.document.querySelector('dialog form').dispatchEvent(new w.Event('submit',{cancelable:true}));await until(()=>calls.some(call=>call.action==='set_book_cover'));
  const saved=calls.find(call=>call.action==='set_book_cover');assert.equal(saved.target_id,id);assert.equal(saved.expected_updated_at,'cover-revision');assert.equal(saved.payload.url,'https://images.isbndb.com/new.jpg');
  dom.window.close();
 });

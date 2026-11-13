@@ -471,44 +471,59 @@ async function showBookCovers(target) {
   let snapshot=await api('book_cover_options',target);
   if(generation!==requestGeneration)return;
   const title=snapshot.editions[0]?.metadata?.volumeInfo?.title??'Book artwork';
-  const panel=detail(title,'Manual artwork correction');
-  panel.append(el('p','Changes apply to this catalog book and its linked editions. Automatic selection for other books stays unchanged.','hint'));
-  const current=el('section');panel.append(current);
+  const panel=detail(title,'Compare the reported artwork, then choose the cover readers should see.');
+  panel.append(el('p','Your choice applies to this book across Novori. You can undo it here.','hint'));
+  const current=el('section',undefined,'cover-comparison');panel.append(current);
+  const gridTitle=el('h2','Choose a replacement');panel.append(gridTitle);
+  const warnings=el('div'),grid=el('div',undefined,'cover-grid');panel.append(warnings,grid);
+  const tools=el('details',undefined,'cover-tools');tools.append(el('summary','More options: search providers or paste an image'));panel.append(tools);
   const searchForm=el('form',undefined,'cover-lookup');
   const query=field(searchForm,'Find more covers',{value:[title,snapshot.editions[0]?.metadata?.volumeInfo?.authors?.[0]].filter(Boolean).join(' ').slice(0,150),max:150});
-  const fetchButton=el('button','Find more covers');fetchButton.type='submit';searchForm.append(fetchButton);panel.append(searchForm);
-  panel.append(el('p','Provider lookups run only when requested and may use API quota. Check the title, author and edition before choosing.','hint'));
+  const fetchButton=el('button','Find more covers');fetchButton.type='submit';searchForm.append(fetchButton);tools.append(searchForm);
+  tools.append(el('p','Search only when you need more choices. Check the title, author and edition before choosing.','hint'));
   const manual=el('form',undefined,'cover-lookup');
   const url=field(manual,'Or paste a replacement image URL',{type:'url',max:2048});
-  const previewButton=el('button','Preview image');previewButton.type='submit';manual.append(previewButton);panel.append(manual);
-  const warnings=el('div'),grid=el('div',undefined,'cover-grid'),history=el('section');panel.append(warnings,grid,history);
+  const previewButton=el('button','Preview image');previewButton.type='submit';manual.append(previewButton);tools.append(manual);
+  const history=el('details',undefined,'cover-tools');history.append(el('summary','Previous cover changes'));const historyBody=el('div');history.append(historyBody);panel.append(history);
   const refresh=()=>showBookCovers({work_id:snapshot.work_id});
   function card(option,parent=grid) {
     const safe=safeAdminCover(option.url);if(!safe)return;
     const box=el('article',undefined,'cover-option'),image=el('img');image.alt=option.title??title;
     image.referrerPolicy='no-referrer';image.loading='lazy';
     const selected=safe===snapshot.selection?.url;
-    const use=button(selected?'Current cover':'Use this cover',()=>decision('set_book_cover',{type:'book',id:snapshot.work_id},{
+    const use=button(selected&&snapshot.selection?.locked?'Selected cover':'Use this cover',()=>decision('set_book_cover',{type:'book',id:snapshot.work_id},{
       expected:snapshot.revision,payload:{url:safe},preview:safe,refresh,
-      description:`Confirm the replacement artwork for ${title}. This locks your choice until another manual correction or undo. Existing devices refresh their cached selection on their normal refresh cycle.`,
+      description:`Use this cover for ${title} across Novori? Your choice will be saved until you change or undo it. Devices pick it up on their next cover refresh.`,
     }));
     use.disabled=true;
-    image.onload=()=>{use.disabled=selected;};
+    image.onload=()=>{use.disabled=selected&&snapshot.selection?.locked;};
     image.onerror=()=>{use.disabled=true;box.append(el('p','Image unavailable. Choose another option.','hint'));};
     image.src=safe;
     box.append(image,el('strong',option.title??title),el('small',Array.isArray(option.authors)?option.authors.join(', '):''),el('small',[option.provider,option.isbn,option.publisher,option.publishedDate,option.language].filter(Boolean).join(' · ')),use);
     const link=el('a','Open full image');link.href=safe;link.target='_blank';link.rel='noopener noreferrer';box.append(link);parent.append(box);
   }
   function render() {
-    current.replaceChildren(el('h3',snapshot.selection?.locked?'Current cover · manually locked':'Current cover'));
-    if(safeAdminCover(snapshot.selection?.url)) {const image=el('img',undefined,'cover-preview');image.src=snapshot.selection.url;image.alt='Current cover';image.referrerPolicy='no-referrer';current.append(image);}else current.append(el('p','No selected cover.'));
+    current.replaceChildren();
+    function comparison(label,url,caption) {
+      const box=el('article',undefined,'cover-comparison-card');box.append(el('h2',label));
+      if(safeAdminCover(url)) {const image=el('img',undefined,'cover-preview');image.src=url;image.alt=label;image.referrerPolicy='no-referrer';image.onerror=()=>{image.remove();box.append(el('p','Image no longer loads. The original reported URL is retained.','hint'));};box.append(image);const link=el('a','Open full image');link.href=url;link.target='_blank';link.rel='noopener noreferrer';box.append(link);}else box.append(el('p','No image available.','hint'));
+      box.append(el('p',caption,'hint'));current.append(box);
+    }
+    const reports=snapshot.reports??[];
+    const latest=reports[0];
+    comparison('Cover the reader reported',latest?.cover_url,latest?`${pretty(latest.reason)} · Reported ${date(latest.updated_at)}. This is the image URL saved with their report.`:'No report exists for this book. You can still select a cover below.');
+    comparison('Catalog selection',snapshot.selection?.url,snapshot.selection?.locked?'This selection is manually locked.':'This is the stored catalog selection. A device may display a different cached or resolved image.');
+    if(latest&&latest.cover_url!==snapshot.selection?.url)current.append(el('p','These images differ. Review the reported image first; the stored selection alone does not tell us what the reader saw.','cover-mismatch'));
+    const different=[...new Map(reports.slice(1).filter(report=>report.cover_url&&report.cover_url!==latest?.cover_url).map(report=>[report.cover_url,report])).values()];
+    if(different.length){const more=el('details');more.append(el('summary',`${different.length} other reported image${different.length===1?'':'s'}`));for(const report of different){const link=el('a',`${pretty(report.reason)} · ${date(report.updated_at)}`);if(safeAdminCover(report.cover_url)){link.href=report.cover_url;link.target='_blank';link.rel='noopener noreferrer';more.append(link,el('br'));}}current.append(more);}
     grid.replaceChildren();for(const option of snapshot.options)card(option);
-    if(!snapshot.options.length)grid.append(el('p','No cached alternatives. Find more covers or paste a provider image URL.'));
+    if(!snapshot.options.length){grid.append(el('p','No saved alternatives yet. Search for more covers below.'));tools.open=true;}
+    grid.append(button('Find more covers',async()=>{tools.open=true;await searchForm.onsubmit({preventDefault(){}});},'secondary'));
     warnings.replaceChildren();for(const warning of snapshot.warnings??[])warnings.append(el('p',warning,'hint'));
-    history.replaceChildren(el('h3','Cover history'));
+    historyBody.replaceChildren();if(!snapshot.history.length)historyBody.append(el('p','No manual changes yet.','hint'));
     for(const [index,change] of snapshot.history.entries()) {
-      history.append(el('p',`${date(change.created_at)} · ${change.reason}`));
-      if(index===0)history.append(button('Undo last correction',()=>decision('undo_book_cover',{type:'book',id:snapshot.work_id},{
+      historyBody.append(el('p',`${date(change.created_at)} · ${change.reason}`));
+      if(index===0)historyBody.append(button('Undo last correction',()=>decision('undo_book_cover',{type:'book',id:snapshot.work_id},{
         expected:snapshot.revision,payload:{change_id:change.id},refresh,
         description:'Restore the selection that existed before this correction. The server checks that no newer cover change has replaced it.',
       })));
@@ -533,11 +548,9 @@ function decision(
   );
   if (preview) { const image = el("img",undefined,"cover-preview"); image.src = preview; image.alt = "Selected replacement cover"; image.referrerPolicy = "no-referrer"; d.append(image); }
   const form = el("form");
-  const reason = field(form, "Decision reason", {
-    type: "textarea",
-    max: 1000,
-  });
-  reason.minLength = 5;
+  const coverAction = ["set_book_cover","undo_book_cover"].includes(action);
+  const reason = coverAction ? null : field(form, "Decision reason", {type:"textarea",max:1000});
+  if(reason) reason.minLength = 5;
   let duration;
   if (action === "suspend_reader") {
     const label = el("label", "Suspension duration");
@@ -557,7 +570,7 @@ function decision(
   let submitted;
   const submit = el(
     "button",
-    "Confirm decision",
+    coverAction ? (action === "set_book_cover" ? "Use this cover" : "Undo cover change") : "Confirm decision",
     action === "ban_reader" || action === "remove_content" ? "danger" : "",
   );
   submit.type = "submit";
@@ -578,7 +591,7 @@ function decision(
         target_id: target.id,
         request_id,
         expected_updated_at: expected,
-        reason: reason.value.trim(),
+        reason: reason?.value.trim(),
         payload: {
           ...payload,
           ...(duration ? { hours: Number(duration.value) } : {}),
@@ -591,7 +604,7 @@ function decision(
           ? "Decision saved. Account access is queued for synchronization."
           : action === "publish_announcement"
             ? "Announcement published. Delivery continues in the background."
-            : "Decision saved.",
+            : coverAction ? "Cover change saved. Devices update on their next cover refresh." : "Decision saved.",
       );
       await refresh();
     } catch (err) {
@@ -686,6 +699,7 @@ const screens = {
         const link = el('a','Open most recently reported cover'); link.href = row.reported_cover_url;
         link.target = '_blank'; link.rel = 'noopener noreferrer'; links.append(link);
       }
+      if(safeAdminCover(row.reported_cover_url)){const image=el('img',undefined,'cover-preview');image.src=row.reported_cover_url;image.alt='Cover the reader reported';image.referrerPolicy='no-referrer';panel.append(el('h2','Cover the reader reported'),image);}
       if (['owner','moderator'].includes(identity.role)) panel.append(button('Choose replacement cover',()=>showBookCovers({work_id:row.work_id})));
       if (row.pending_count && ['owner','moderator'].includes(identity.role)) {
         const actions = el('div',undefined,'actions'); panel.append(actions);

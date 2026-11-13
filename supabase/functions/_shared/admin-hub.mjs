@@ -260,7 +260,7 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
       if (action === 'set_book_cover' && !url) throw new AdminError('Choose a stable provider image URL.');
       return check(await client.rpc('novori_admin_set_book_cover', {
         p_actor:user.id,p_work:validateId(input.target_id),p_expected:input.expected_updated_at,
-        p_url:url,p_reason:input.reason,p_request:validateId(input.request_id),
+        p_url:url,p_reason:action === 'set_book_cover' ? 'Administrator selected replacement artwork.' : 'Administrator restored the previous artwork selection.',p_request:validateId(input.request_id),
         p_undo:action === 'undo_book_cover' ? validateId(input.payload?.change_id) : null,
       }));
     }
@@ -281,12 +281,13 @@ export async function dispatchAdmin(client, identity, input, settings = {}) {
     }
     const snapshot = check(await client.rpc('novori_admin_book_cover_options',{p_work:validateId(workId)}));
     if (!snapshot?.editions?.length) throw new AdminError('No cached editions found.',404);
+    const reports = check(await client.from('book_artwork_reports').select('cover_url,reason,book_id,created_at,updated_at,status').eq('work_id',workId).order('updated_at',{ascending:false}).limit(50));
     let extra = {options:[],warnings:[]};
     if (action === 'find_book_covers') {
       if (!settings.findBookCovers) throw new AdminError('Provider cover lookup is not configured.',503);
       extra = await settings.findBookCovers(snapshot,user.id,input.query);
     }
-    return {...snapshot,options:[...coverOptions(snapshot),...extra.options].filter((row,index,all)=>all.findIndex(other=>other.url===row.url)===index),warnings:extra.warnings};
+    return {...snapshot,reports:reports ?? [],options:[...coverOptions(snapshot),...extra.options].filter((row,index,all)=>all.findIndex(other=>other.url===row.url)===index),warnings:extra.warnings};
   }
   if (action === 'book_reports') {
     let query = client.from('novori_book_artwork_report_queue').select('*', { count: 'exact' })
