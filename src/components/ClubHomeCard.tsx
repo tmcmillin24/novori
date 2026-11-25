@@ -10,10 +10,10 @@ import type { ClubWithMembership } from '../lib/clubs';
 type Props = {
   club: ClubWithMembership; canViewMembers: boolean; rulesExpanded: boolean; membersVisible: boolean; managementVisible: boolean;
   pendingRequests: number; pendingInvites: number;
-  onPhoto: () => void; onRules: () => void; onMembers: () => void; onManage: () => void; onEdit: () => void;
+  onPhoto: () => void; onRules: () => void; onMembers: () => void; onBooks: () => void; onManage: () => void; onEdit: () => void;
 };
 
-export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, membersVisible, managementVisible, pendingRequests, pendingInvites, onPhoto, onRules, onMembers, onManage, onEdit }: Props) {
+export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, membersVisible, managementVisible, pendingRequests, pendingInvites, onPhoto, onRules, onMembers, onBooks, onManage, onEdit }: Props) {
   const { colors } = useNovoriTheme();
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const styles = useMemo(() => StyleSheet.create({
@@ -21,15 +21,15 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
     card: { borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: `${colors.gold}45`, overflow: 'hidden' },
     accent: { height: 3, backgroundColor: colors.gold },
     glow: { position: 'absolute', width: 180, height: 180, borderRadius: 90, top: -70, right: -60, backgroundColor: `${colors.gold}08` },
-    identity: { flexDirection: 'row', gap: 14, padding: 16, alignItems: 'center' },
+    identity: { gap: 10, padding: 18, alignItems: 'center' },
     photo: { width: 82, height: 82, borderRadius: 18, borderWidth: 1, borderColor: `${colors.gold}35`, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     image: { width: '100%', height: '100%' }, initial: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 34, color: colors.gold },
-    identityCopy: { flex: 1 }, badges: { flexDirection: 'row', gap: 7, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 },
+    identityCopy: { alignItems: 'center', alignSelf: 'stretch' }, badges: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', marginBottom: 6 },
     badge: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 10 },
-    name: { fontFamily: 'PlayfairDisplay_700Bold', color: colors.text, fontSize: 25, lineHeight: 31 },
-    members: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 6 },
-    body: { paddingHorizontal: 16, paddingBottom: 13 }, description: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19 },
-    genres: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }, genre: { backgroundColor: `${colors.gold}09`, borderWidth: 1, borderColor: `${colors.gold}20`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+    name: { fontFamily: 'PlayfairDisplay_700Bold', color: colors.text, fontSize: 28, lineHeight: 35, textAlign: 'center' },
+    members: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12, textAlign: 'center', marginTop: 6 },
+    body: { paddingHorizontal: 16, paddingBottom: 13 }, description: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 20 },
+    genres: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 11 }, genre: { backgroundColor: `${colors.gold}09`, borderWidth: 1, borderColor: `${colors.gold}20`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
     genreText: { color: colors.gold, fontFamily: 'Inter_500Medium', fontSize: 10 },
     links: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     link: { flex: 1, minHeight: 48, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
@@ -55,16 +55,18 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
           <Text style={styles.badge}>{club.privacy === 'private' ? 'Private club' : 'Public club'}</Text>
           {club.membership_role ? <Text style={styles.badge}>· {owner ? 'Owner' : manager ? 'Admin' : 'Member'}</Text> : null}
         </View>
-        <Text style={styles.name}>{club.name}</Text><Text style={styles.members}>{club.member_count.toLocaleString()} {club.member_count === 1 ? 'member' : 'members'}</Text>
+        <Text style={styles.name}>{club.name}</Text>
+        {!canViewMembers ? <Text style={styles.members}>{club.member_count.toLocaleString()} {club.member_count === 1 ? 'member' : 'members'}</Text> : null}
       </View>
     </View>
     {club.description || club.genres?.length ? <View style={styles.body}>
-      {club.description ? <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 4}>{club.description}</Text> : null}
+      {club.description ? <Text style={[styles.description, { textAlign: 'center' }]} numberOfLines={descriptionExpanded ? undefined : 4}>{club.description}</Text> : null}
       {((club.description ?? '').length > 180 || (club.description ?? '').split('\n').length > 4) ? <Pressable accessibilityRole="button" accessibilityLabel={descriptionExpanded ? 'Show less club description' : 'Read full club description'} onPress={() => setDescriptionExpanded(value => !value)} style={styles.editRules}><Text style={styles.linkText}>{descriptionExpanded ? 'Show less' : 'Read more'}</Text></Pressable> : null}
       {club.genres?.length ? <View style={styles.genres}>{club.genres.map(genre => <View key={genre} style={styles.genre}><Text style={styles.genreText}>{getClubGenreLabel(genre)}</Text></View>)}</View> : null}
     </View> : null}
     {canViewMembers || showRules ? <View style={styles.links}>
-      {canViewMembers ? <Pressable accessibilityRole="button" accessibilityLabel={membersVisible ? 'Hide club members' : 'View club members'} onPress={onMembers} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="people-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>Members</Text></Pressable> : null}
+      {canViewMembers ? <Pressable accessibilityRole="button" accessibilityLabel={`View ${club.member_count} club members`} accessibilityState={{ expanded: membersVisible }} onPress={onMembers} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="people-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>{club.member_count.toLocaleString()} {club.member_count === 1 ? 'member' : 'members'}</Text></Pressable> : null}
+      {canViewMembers ? <Pressable accessibilityRole="button" onPress={onBooks} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="book-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>Books</Text></Pressable> : null}
       {showRules ? <Pressable accessibilityRole="button" accessibilityLabel={rulesExpanded ? 'Hide club rules' : 'View club rules'} onPress={onRules} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="reader-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>{club.rules?.trim() ? 'Club rules' : 'Add rules'}</Text></Pressable> : null}
     </View> : null}
     {rulesExpanded && showRules ? <View style={styles.rules}><Text style={styles.rulesTitle}>CLUB RULES</Text><Text style={styles.description}>{club.rules?.trim() || 'Set a few guidelines to help everyone feel at home in your club.'}</Text>
