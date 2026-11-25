@@ -2,6 +2,7 @@ import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { Text, StyleSheet } from "react-native";
 import BookDetailLoading from "../src/components/BookDetailLoading";
+jest.mock("../src/components/NovoriBottomBar", () => ({ NOVORI_TAB_BAR_HEIGHT: 60 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
 jest.mock("../src/components/BookCoverImage", () => ({
   __esModule: true,

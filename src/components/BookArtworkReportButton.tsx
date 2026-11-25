@@ -14,14 +14,14 @@ const reasons: { value: BookArtworkReason; label: string }[] = [
   { value: 'missing_cover', label: 'Cover is missing' },
 ];
 
-export default function BookArtworkReportButton({ bookId, coverUrl }: { bookId: string; coverUrl: string | null }) {
+export default function BookArtworkReportButton({ bookId, coverUrl }: { bookId?: string; coverUrl: string | null }) {
   const { colors } = useNovoriTheme(), insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const submitting = useRef(false);
   const confirmation = useReportConfirmation(open);
   const motion = useUiSheetMotion({ visible: open, busy, onDismiss: () => setOpen(false) });
   async function report(reason: BookArtworkReason) {
-    if (submitting.current) return;
+    if (!bookId || submitting.current) return;
     submitting.current = true;
     setBusy(true); setError('');
     try {
@@ -34,7 +34,7 @@ export default function BookArtworkReportButton({ bookId, coverUrl }: { bookId: 
   }
   const copy = { color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14 };
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Report book cover" onPress={() => { setError(''); setOpen(true); }} hitSlop={6} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Report book cover" disabled={!bookId} onPress={() => { setError(''); setOpen(true); }} hitSlop={6} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
       <Ionicons name="flag-outline" size={20} color={colors.gold}/>
     </Pressable>
     <UiSheetModal visible={open} transparent motion={motion} onDismiss={confirmation.afterDismiss} onRequestClose={() => motion.close()}>

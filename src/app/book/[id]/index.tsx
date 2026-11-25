@@ -2,6 +2,7 @@ import { useBrowsingNavigationScroll } from '../../../components/BrowsingNavigat
 import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
 import { NOVORI_TAB_BAR_HEIGHT } from '../../../components/NovoriBottomBar';
 import BookDetailLoading from '../../../components/BookDetailLoading';
+import { discoverOpening, openingAuthors, type BookDetailParams } from '../../../lib/discover-book-opening';
 import EnlargeableBookCover from '../../../components/EnlargeableBookCover';
 import {publicBookCache,bookExtraKey} from '../../../lib/public-book-cache';
 import {hasLibraryMembership} from '../../../lib/library-membership';
@@ -36,6 +37,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -1033,7 +1035,13 @@ function getValidatedHighResolutionCover(
   );
 }
 
-export default function BookDetailsScreen() {
+export default function BookDetailsRoute() {
+  const params = useLocalSearchParams<BookDetailParams>();
+  // A reused route must never render the previous book's cover or enabled actions.
+  return <BookDetailsScreen key={JSON.stringify([params.source, params.id])} params={params} />;
+}
+
+function BookDetailsScreen({ params }: { params: BookDetailParams }) {
   const browsingScroll = useBrowsingNavigationScroll();
   const {
     colors,
@@ -1058,46 +1066,10 @@ export default function BookDetailsScreen() {
     canonicalizeWork,
     trustedCover,
     detailHandoff,
-  } = useLocalSearchParams<{
-    id: string;
-    source?: string;
-    coverUrl?: string;
-    clickedTitle?: string;
-    clickedAuthors?: string;
-    clickedIsbn?: string;
-    discoveryId?: string;
-    canonicalizeWork?: string;
-    trustedCover?: string;
-    detailHandoff?: string;
-  }>();
-
-  const discoverClickedAuthors =
-    (() => {
-      if (!clickedAuthors) {
-        return [] as string[];
-      }
-
-      try {
-        const parsed =
-          JSON.parse(
-            clickedAuthors
-          );
-
-        return Array.isArray(
-          parsed
-        )
-          ? parsed.filter(
-              (
-                author
-              ): author is string =>
-                typeof author ===
-                'string'
-            )
-          : [];
-      } catch {
-        return [];
-      }
-    })();
+  } = params;
+  const discoverClickedAuthors = useMemo(() => openingAuthors(clickedAuthors), [clickedAuthors]);
+  const opening = useMemo(() => discoverOpening(params, discoverClickedAuthors), [params, discoverClickedAuthors]);
+  const [detailAttempt, setDetailAttempt] = useState(0);
 
   const [book, setBook] = useState<GoogleBook | null>(null);
   useSyncExternalStore(subscribeCanonicalBookCovers,
@@ -1162,7 +1134,7 @@ export default function BookDetailsScreen() {
     useState<number | null>(null);
 
   const [
-    hardcoverRating,
+    resolvedRating,
     setHardcoverRating,
   ] =
     useState<
@@ -1170,18 +1142,16 @@ export default function BookDetailsScreen() {
     >(null);
 
   const [
-    hardcoverRatingsCount,
+    resolvedRatingsCount,
     setHardcoverRatingsCount,
   ] =
     useState<
       number | null
     >(null);
 
-  const [
-    hardcoverRatingLoading,
-    setHardcoverRatingLoading,
-  ] =
-    useState(false);
+  const hardcoverRating = resolvedRating ?? opening?.rating ?? null;
+  const hardcoverRatingsCount = resolvedRatingsCount ?? opening?.ratingsCount ?? null;
+  const [hardcoverRatingLoading, setHardcoverRatingLoading] = useState(true);
 
   const [
     inBookCart,
@@ -1193,7 +1163,9 @@ export default function BookDetailsScreen() {
     bookCartBusy,
     setBookCartBusy,
   ] =
-    useState(false);
+    useState(true);
+  const [changingCart, setChangingCart] = useState(false);
+  const showCartProgress = source === 'discover' ? changingCart : bookCartBusy;
 
   const [
     communityReviews,
@@ -1247,24 +1219,13 @@ export default function BookDetailsScreen() {
   function openAuthorPage(
     authorName: string
   ) {
-    if (
-      !book
-    ) {
-      return;
-    }
-
     router.push({
       pathname:
         '/author/[name]',
       params: {
         name:
           authorName,
-        currentBookId:
-          book.id,
-        currentTitle:
-          book.volumeInfo
-            .title ??
-          '',
+        ...(book ? { currentBookId: book.id, currentTitle: book.volumeInfo.title ?? '' } : {}),
       },
     });
   }
@@ -1647,6 +1608,9 @@ export default function BookDetailsScreen() {
           setError(
             'Google Books is temporarily unavailable. Please try again shortly.'
           );
+        } else if (source === 'discover' && clickedTitle && message.startsWith('Google Books request failed:')) {
+          console.warn('Could not refresh the selected book:', message);
+          setError(message);
         } else {
           console.error(
             'Book loading error:',
@@ -1672,6 +1636,7 @@ export default function BookDetailsScreen() {
     discoveryId,
     canonicalizeWork,
     trustedCover,
+    detailAttempt,
   ]);
 
   useFocusEffect(
@@ -1955,6 +1920,7 @@ export default function BookDetailsScreen() {
       null;
 
     try {
+      setChangingCart(true);
       setBookCartBusy(
         true
       );
@@ -2004,6 +1970,7 @@ export default function BookDetailsScreen() {
         'Novori could not update your Book Cart. Please try again.'
       );
     } finally {
+      setChangingCart(false);
       setBookCartBusy(
         false
       );
@@ -3048,11 +3015,12 @@ export default function BookDetailsScreen() {
     }
   }
 
-  if (loading) {
-    return <>{detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}<BookDetailLoading placeholdersOnly={source === 'discover'} title={clickedTitle} authors={discoverClickedAuthors} cover={{googleBookId:id,existingCoverUrl:discoverCoverUrl}} compact={isSavedBookContext} onBack={handleBack} backLabel={backLabel}/></>;
+  const displayBook: GoogleBook | null = book ?? opening?.book ?? null;
+  if (loading && !displayBook) {
+    return <>{detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}<BookDetailLoading title={clickedTitle} authors={discoverClickedAuthors} cover={{googleBookId:id,existingCoverUrl:discoverCoverUrl}} compact={isSavedBookContext} onBack={handleBack} backLabel={backLabel}/></>;
   }
 
-  if (error || !book) {
+  if (!displayBook) {
     return (
       <SafeAreaView style={styles.centered}>
         <Text style={styles.errorTitle}>Something went wrong</Text>
@@ -3070,23 +3038,18 @@ export default function BookDetailsScreen() {
     );
   }
 
-  const info = book.volumeInfo;
-  // A background catalog update can add a subtitle or change title wrapping.
-  // Keep the displayed identity stable for this Discover visit.
-  const heroInfo = openingHero ?? info;
+  const info = displayBook.volumeInfo;
+  const heroInfo = opening?.book.volumeInfo ?? openingHero ?? info;
+  const heroAuthors = heroInfo.authors?.length ? heroInfo.authors : info.authors;
 
   const displayExistingCoverUrl = selectedWorkCoverUrl ?? savedBook?.cover_url ??
-    book.novoriWork?.canonicalCoverUrl ?? discoverCoverUrl ?? null;
+    displayBook.novoriWork?.canonicalCoverUrl ?? discoverCoverUrl ?? null;
 
   const coverPlan =
     getBookCoverPlan({
       imageLinks:
         info.imageLinks,
-      isbn:
-        getBookISBN(
-          book
-        ) ??
-        null,
+      isbn: getBookISBN(displayBook),
       existingCoverUrl:
         displayExistingCoverUrl,
     });
@@ -3095,10 +3058,10 @@ export default function BookDetailsScreen() {
     coverPlan.primaryUrl ??
     coverPlan.fallbackUrl;
 
-  const coverGenres = getCanonicalBookCoverMetadata({googleBookId: book.id})?.genres;
+  const coverGenres = getCanonicalBookCoverMetadata({googleBookId: displayBook.id})?.genres;
   const categories = normalizeBookGenres(coverGenres?.length ? coverGenres : info.categories).slice(0,2).join(' • ');
 
-  const publication = getBookPublication(book, seriesBooks, series?.currentPosition);
+  const publication = getBookPublication(displayBook, seriesBooks, series?.currentPosition);
   const publishedDate =
     formatPublishedDate(
       publication.date
@@ -3209,7 +3172,7 @@ export default function BookDetailsScreen() {
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <CartShortcut animateAdditions/>
-        <BookArtworkReportButton key={book.id} bookId={book.id} coverUrl={cover ?? null}/>
+        <BookArtworkReportButton key={displayBook.id} bookId={book?.id} coverUrl={cover ?? null}/>
         <Pressable
           onPress={() =>
             void shareCurrentBook()
@@ -3217,6 +3180,7 @@ export default function BookDetailsScreen() {
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Share book"
+          disabled={!book}
           style={({ pressed }) => [
             styles.shareBookButton,
             pressed &&
@@ -3237,7 +3201,7 @@ export default function BookDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {isSavedBookContext ? (
+        {isSavedBookContext && book ? (
           <>
             <View
               style={
@@ -3543,18 +3507,13 @@ export default function BookDetailsScreen() {
               styles.hero
             }
           >
-            {(book.id || cover) ? (
+            {(displayBook.id || cover) ? (
               <EnlargeableBookCover
-                googleBookId={book.id}
+                googleBookId={displayBook.id}
                 imageLinks={
                   info.imageLinks
                 }
-                isbn={
-                  getBookISBN(
-                    book
-                  ) ??
-                  null
-                }
+                isbn={getBookISBN(displayBook)}
                 existingCoverUrl={
                   displayExistingCoverUrl
                 }
@@ -3609,8 +3568,8 @@ export default function BookDetailsScreen() {
                 styles.author
               }
             >
-              {heroInfo.authors?.length
-                ? heroInfo.authors.map(
+              {heroAuthors?.length
+                ? heroAuthors.map(
                     (
                       author,
                       index
@@ -3644,7 +3603,7 @@ export default function BookDetailsScreen() {
                 styles.externalRatingRow
               }
             >
-              {hardcoverRatingLoading ? (
+              {source !== 'discover' && hardcoverRatingLoading && hardcoverRating === null ? (
                 <ActivityIndicator
                   size="small"
                   color={
@@ -3702,6 +3661,8 @@ export default function BookDetailsScreen() {
                       : ''}
                   </Text>
                 </>
+              ) : hardcoverRatingsCount != null && hardcoverRatingsCount > 0 ? (
+                <Text style={styles.externalRatingText}>{hardcoverRatingsCount.toLocaleString()} ratings</Text>
               ) : null}
             </View>
 
@@ -3776,11 +3737,11 @@ export default function BookDetailsScreen() {
                       styles.bookCartButtonActive,
                     pressed &&
                       styles.bookCartButtonPressed,
-                    bookCartBusy &&
+                    showCartProgress &&
                       styles.bookCartButtonDisabled,
                   ]}
                 >
-                  {bookCartBusy ? (
+                  {showCartProgress ? (
                     <ActivityIndicator
                       size="small"
                       color={
@@ -3818,7 +3779,7 @@ export default function BookDetailsScreen() {
             </View>
 
 
-            {series ? (
+            {series && source !== 'discover' ? (
               <View
                 style={
                   styles.seriesBadge
@@ -4092,7 +4053,15 @@ export default function BookDetailsScreen() {
           </View>
         ) : null}
 
-        {readerStateError ? (
+        {error && !book ? (
+          <View style={styles.detailRetry}>
+            <Text accessibilityRole="alert" style={styles.detailRetryText}>Couldn’t load the rest of this book.</Text>
+            <Pressable accessibilityRole="button" onPress={() => setDetailAttempt(attempt => attempt + 1)} hitSlop={8}>
+              <Text style={styles.readMore}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {readerStateError && book ? (
           <Pressable disabled={!readerStateError} onPress={() => {
             const version = savedStatusVersion.current;
             const generation = bookLoadGeneration.current;
@@ -4574,6 +4543,7 @@ export default function BookDetailsScreen() {
           )
         ) : null}
 
+        {book ? <>
         <View style={{ marginTop: 10 }}><AmazonBookLink isbn={getBookISBN(book)} title={book.volumeInfo.title ?? 'Untitled'} authors={book.volumeInfo.authors}/></View>
 
         {!isSavedBookContext &&
@@ -4742,9 +4712,14 @@ export default function BookDetailsScreen() {
               styles.libraryDetailsSection,
           ]}
         >
-          <Text style={styles.sectionLabel}>
-            BOOK DETAILS
-          </Text>
+          <View style={source === 'discover' ? styles.detailMetadataHeading : undefined}>
+            <Text style={styles.sectionLabel}>BOOK DETAILS</Text>
+            {source === 'discover' && series ? (
+              <Text numberOfLines={1} style={[styles.seriesBadgeText, styles.detailSeriesLabel]}>
+                {series.currentPosition ? `Book ${series.currentPosition}` : series.name}
+              </Text>
+            ) : null}
+          </View>
 
           <View
             style={[
@@ -5015,6 +4990,7 @@ export default function BookDetailsScreen() {
 
         <View style={styles.descriptionSection}>
           <Text style={styles.sectionHeading}>About this book</Text>
+          {opening && !heroInfo.subtitle && info.subtitle ? <Text style={styles.description}>{info.subtitle}</Text> : null}
 
           {description ? (
             <>
@@ -5432,6 +5408,7 @@ export default function BookDetailsScreen() {
           )}
         </View>
         {savedBook&&hasLibraryMembership(savedBook)?<Pressable accessibilityRole="button" accessibilityLabel="Remove from Library" onPress={confirmRemoveFromLibrary} disabled={removingBook||Boolean(savingStatus)||savingOwned} style={{minHeight:48,marginTop:28,padding:12,borderWidth:1,borderColor:colors.border,borderRadius:12,flexDirection:'row',gap:8,alignItems:'center',justifyContent:'center'}}>{removingBook?<ActivityIndicator color={colors.danger}/>:<Ionicons name="trash-outline" size={18} color={colors.danger}/>}<Text style={{color:colors.danger,fontFamily:'Inter_500Medium'}}>Remove from Library</Text></Pressable>:null}
+        </> : null}
       </ScrollView>
       <RemoveBookConfirmSheet visible={removeConfirmTarget!==null} bookTitle={removeConfirmTarget?.title??''} hasReadingDetails={removeConfirmTarget?.hasReadingDetails??false} busy={removingBook} onDismiss={()=>setRemoveConfirmTarget(null)} onConfirm={removeFromLibrary}/>
 
@@ -5667,6 +5644,10 @@ function createStyles(
     paddingHorizontal: 20,
     paddingBottom: 60 + NOVORI_TAB_BAR_HEIGHT,
   },
+  detailRetry: { alignItems: 'center', gap: 4, marginTop: 14 },
+  detailRetryText: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 14 },
+  detailMetadataHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 26 },
+  detailSeriesLabel: { flexShrink: 1, color: colors.softGold },
 
   hero: {
     alignItems: 'center',

@@ -1,4 +1,5 @@
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
+jest.mock('../src/components/NovoriBottomBar',()=>({NOVORI_TAB_BAR_HEIGHT:60}));
 jest.mock('../src/components/EnlargeableBookCover',()=>({__esModule:true,default:'EnlargeableBookCover'}));
 import { jest, beforeAll, test, expect, beforeEach } from '@jest/globals';
 import React from 'react';
