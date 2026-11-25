@@ -19,7 +19,7 @@ let mockFocused=true,mockPostMutation=0;
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn(),setParams:jest.fn(),dismissTo:jest.fn()};
 jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(()=>mockFocused?cb():undefined,[cb,mockFocused])}));
 jest.mock('react-native',()=>({
- useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
+ useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',Switch:'Switch',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
  Modal:p=>p.visible?require('react').createElement('Modal',p,p.children):null,Alert:{alert:jest.fn()},Keyboard:{addListener:()=>({remove:()=>{}}),dismiss:jest.fn()},StyleSheet:{create:v=>v,absoluteFill:{},hairlineWidth:.5},
  Animated:{View:'AnimatedView',Value:class{setValue(){}stopAnimation(){}interpolate(){return 0;}},parallel:()=>({start:f=>f?.({finished:true})}),timing:()=>({start:f=>f?.({finished:true})}),spring:()=>({start:f=>f?.({finished:true})})},
  Easing:{out:v=>v,in:v=>v,inOut:v=>v,cubic:()=>{},quad:()=>{}},PanResponder:{create:()=>({panHandlers:{}})},
@@ -77,7 +77,7 @@ test('member fills the discussion card directly and posts with the stored club r
  expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType(ClubDiscussionPostAttachment).findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).not.toContain('Post preview');
 });
 test('poll editor embeds choices and spoiler limit; save errors retain the whole draft',async()=>{
- mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await press('Discussion contains spoilers');await fill('Discussion spoiler limit','Through chapter 5');await press('Publish club discussion');
+ mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await act(async()=>view.root.findByType('Switch').props.onValueChange(true));await fill('Discussion spoiler limit','Through chapter 5');await press('Publish club discussion');
  expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,kind:'poll',options:['Fantasy','Mystery','Romance'],contains_spoilers:true,spoiler_label:'Through chapter 5'}),undefined,'stable-discussion-request-key');expect(field('Poll choice 3').props.value).toBe('Romance');expect(text()).toContain('Choose unique poll choices.');expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 test('visitors and locked poll editors cannot publish',async()=>{
@@ -299,6 +299,8 @@ test.each([false,true])('create and edit put the fields inside one discussion ca
  expect(preview().props).toMatchObject({detail:true,draft:true,revealed:true});
  expect(preview().findAllByType('TextInput').some(input=>input.props.accessibilityLabel==='Discussion title')).toBe(true);
  expect(text()).not.toContain('Post preview');
+ expect(Boolean(button('Create discussion'))).toBe(!editing);
+ expect(Boolean(button('Create poll'))).toBe(!editing);
  if(editing) expect(preview().props.discussion.title).toBe(topic.title);
  await fill('Discussion title','A new chapter');
  await fill('Discussion prompt','What did you think?');
