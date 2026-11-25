@@ -332,3 +332,14 @@ test('returning to club discussions keeps the active filter and loaded pages unt
  expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1',null,'discussion',20);
  expect(text()).toContain('Older discussion');
 });
+
+test('discussion book removal clears the club read without turning off spoilers',async()=>{
+ mockParams={clubId:'club-1',discussionId:'discussion-1'};
+ await render(<CreateClubDiscussionScreen/>);
+ expect(button('Choose discussion club read').findAllByType('Text')).toHaveLength(0);
+ await act(async()=>button('Remove attached book').props.onPress({stopPropagation:jest.fn()}));
+ expect(button('Remove attached book')).toBeUndefined();
+ expect(view.root.findByType('Switch').props.value).toBe(true);
+ await press('Publish club discussion');
+ expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,contains_spoilers:true}),topic,'stable-discussion-request-key');
+});

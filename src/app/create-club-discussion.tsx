@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import BookCoverImage from '../components/BookCoverImage';
 import ClubDiscussionPostAttachment from '../components/ClubDiscussionPostAttachment';
 import EditablePostCard from '../components/EditablePostCard';
-import SpoilerToggle from '../components/SpoilerToggle';
+import { PostAttachmentControls } from '../components/PostAttachmentControls';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { useNovoriTheme } from '../context/theme-context';
 import usePostComposerProfile from '../hooks/use-post-composer-profile';
@@ -52,16 +52,17 @@ export default function CreateClubDiscussionScreen(){
     {loading?<ActivityIndicator color={colors.gold} style={{margin:25}}/>:loadError||!editable||locked?<View style={{padding:25}}><Text style={{...copy,color:colors.mutedText,lineHeight:20}}>{loadError||(locked?'Polls lock after the first vote. You can close this poll from its post and create a new one.':'Join this club to create discussions. Only the creator or club hosts can edit them.')}</Text></View>:<KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bottomOffset={24} contentContainerStyle={{padding:18,paddingBottom:40,maxWidth: '100%',width:'100%',alignSelf:'center'}}>
       {!discussion ? <View style={{flexDirection:'row',gap:8,marginBottom:14}}>{(['discussion','poll'] as const).map(value=><Pressable key={value} accessibilityRole="button" accessibilityLabel={`Create ${value}`} accessibilityState={{selected:kind===value}} onPress={()=>setKind(value)} style={{flex:1,padding:12,borderRadius:11,borderWidth:1,borderColor:kind===value?colors.gold:colors.border,backgroundColor:kind===value?`${colors.gold}15`:colors.surface}}><Text style={{...copy,textAlign:'center',color:kind===value?colors.gold:colors.mutedText}}>{value==='poll'?'Poll':'Discussion'}</Text></Pressable>)}</View> : null}
       <EditablePostCard postType="post" author={author} clubId={clubId} clubName={club?.name} clubCoverUrl={club?.cover_url} discussionLabel>
-      <ClubDiscussionPostAttachment detail draft revealed discussion={{
+      <ClubDiscussionPostAttachment detail draft revealed onRemoveBook={book && !saving ? () => setReadId(null) : undefined} discussion={{
         id:'draft',club_id:clubId,post_id:'',read_id:readId,created_by:null,kind,title,prompt,book,
         contains_spoilers:spoilers,spoiler_label:null,options:kind==='poll'?options:[],
         closed_at:null,voting_started_at:null,created_at:'',updated_at:'',
       }} editor={<>
-        <Pressable accessibilityRole="button" accessibilityLabel="Choose discussion club read" onPress={()=>setPicker(true)} style={{paddingVertical:13}}><Text style={{...copy,color:colors.gold}}>{book?'Change club read':'Attach a club read (optional)'}</Text></Pressable>
         <TextInput accessibilityLabel="Discussion title" value={title} onChangeText={setTitle} placeholder={kind==='poll'?'What should we vote on?':'Start a conversation…'} placeholderTextColor={colors.mutedText} multiline maxLength={160} style={{...input,fontFamily:'PlayfairDisplay_700Bold',fontSize:23,lineHeight:29,paddingVertical:0}}/>
         <TextInput accessibilityLabel="Discussion prompt" value={prompt} onChangeText={setPrompt} placeholder={kind==='poll'?'Add context (optional)':'Your question or thoughts…'} placeholderTextColor={colors.mutedText} multiline maxLength={3000} style={{...input,color:colors.secondaryText,fontSize:12,lineHeight:19,marginTop:10,paddingVertical:0}}/>
         {kind==='poll'?<View>{options.map((option,index)=><View key={index} style={{flexDirection:'row',alignItems:'center',gap:7,marginBottom:7}}><TextInput accessibilityLabel={`Poll choice ${index+1}`} value={option} onChangeText={value=>setOptions(current=>current.map((old,i)=>i===index?value:old))} placeholder={`Choice ${index+1}`} placeholderTextColor={colors.mutedText} maxLength={140} style={{...input,flex:1,minHeight:45,padding:11,borderWidth:1,borderRadius:10,borderColor:colors.border}}/>{options.length>2?<Pressable accessibilityRole="button" accessibilityLabel={`Remove poll choice ${index+1}`} onPress={()=>setOptions(current=>current.filter((_,i)=>i!==index))} style={{padding:8}}><Ionicons name="close-circle-outline" size={19} color={colors.mutedText}/></Pressable>:null}</View>)}{options.length<6?<Pressable accessibilityRole="button" accessibilityLabel="Add poll choice" onPress={()=>setOptions(current=>[...current,''])} style={{paddingVertical:14}}><Text style={{...copy,color:colors.gold}}>Add choice</Text></Pressable>:null}<Text style={{...copy,color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,lineHeight:16,marginTop:8}}>One vote per member. Choices lock after the first vote; the creator or club hosts can close voting.</Text></View>:null}
-        <SpoilerToggle value={spoilers} onChange={setSpoilers} disabled={saving}/>
+        <PostAttachmentControls disabled={saving}
+          book={{label:'Choose discussion club read', attached:Boolean(book), onPress:()=>setPicker(true)}}
+          spoilers={{value:spoilers,onChange:setSpoilers}}/>
       </>}/>
       </EditablePostCard>
     </KeyboardAwareScrollView>}

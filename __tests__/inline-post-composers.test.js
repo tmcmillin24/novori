@@ -341,3 +341,29 @@ test('editing an announcement preserves stored covers, authors, and the fixed de
   await renderScreen(CreatePostScreen);expect(field('Post text').props.value).toBe('Original');await fill('Post text','Updated');await press('Save post');
   expect(updatePost).toHaveBeenCalledWith('post-1',expect.objectContaining({clubId:'club-1',body:'Updated',bookCoverUrl:'cached-cover',bookAuthors:['Stored author']}));expect(searchNovoriBooks).not.toHaveBeenCalled();
 });
+
+test('post attachments use icons beside the spoiler switch and their X buttons clear the saved attachments',async()=>{
+  mockParams={editPostId:'post-1'};
+  getPostDetail.mockResolvedValue({
+    id:'post-1',author_id:'reader',club_id:null,body:'Original',
+    post_image_url:'https://example.com/post-photo.jpg',
+    google_book_id:'cached-book',book_title:'Attached novel',book_cover_url:'cached-cover',book_authors:['Author'],
+  });
+  await renderScreen(CreatePostScreen);
+  const replace=button('Replace photo');
+  expect(replace.findAllByType('Text')).toHaveLength(0);
+  expect(button('Change attached book').findAllByType('Text')).toHaveLength(0);
+  const toolbar=replace.parent;
+  expect(toolbar.findAllByType('Switch')).toHaveLength(1);
+  await act(async()=>toolbar.findByType('Switch').props.onValueChange(true));
+  for(const label of ['Remove photo','Remove attached book']){
+    await act(async()=>button(label).props.onPress({stopPropagation:jest.fn()}));
+    expect(button(label)).toBeUndefined();
+  }
+  expect(button('Attach photo')).toBeDefined();
+  expect(button('Attach book')).toBeDefined();
+  await press('Save post');
+  expect(updatePost).toHaveBeenCalledWith('post-1',expect.objectContaining({
+    imageUrl:null,googleBookId:null,bookTitle:null,containsSpoilers:true,
+  }));
+});

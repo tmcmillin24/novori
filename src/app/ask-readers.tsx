@@ -1,3 +1,4 @@
+import { PostAttachmentControls, RemovablePostAttachment } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
 import { useEffect,useMemo,useRef,useState } from 'react';
@@ -549,7 +550,8 @@ export default function AskReadersScreen() {
               </Text>
             </View>
             {attachedBook ? (
-              <View style={styles.feedPreviewBookCard}>
+              <RemovablePostAttachment label="Remove attached book" onRemove={() => setAttachedBook(null)} disabled={publishing} style={{marginTop:13}}>
+              <View style={[styles.feedPreviewBookCard, {paddingRight:30}]}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Change attached book: ${displayBookTitle(attachedBook.title)}`}
@@ -616,56 +618,12 @@ export default function AskReadersScreen() {
                     />
                   </View>
 
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color={colors.mutedText}
-                  />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Remove attached book"
-                  disabled={publishing}
-                  onPress={() => setAttachedBook(null)}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.removeBook,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="close"
-                    size={18}
-                    color={colors.secondaryText}
-                  />
                 </Pressable>
               </View>
-            ) : (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add a book (optional)"
-                disabled={publishing}
-                onPress={() => setBookPickerVisible(true)}
-                style={({ pressed }) => [
-                  styles.feedPreviewAddBook,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="book-outline"
-                  size={18}
-                  color={colors.gold}
-                />
-                <Text style={styles.feedPreviewAddBookText}>
-                  Add a book (optional)
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color={colors.mutedText}
-                />
-              </Pressable>
-            )}
+              </RemovablePostAttachment>
+            ) : null}
+            <PostAttachmentControls disabled={publishing}
+              book={{label: attachedBook ? 'Change attached book' : 'Add a book (optional)', attached: Boolean(attachedBook), onPress: () => setBookPickerVisible(true)}}/>
         </EditablePostCard>
 
         <Pressable
@@ -943,14 +901,6 @@ function createStyles(colors: NovoriColors) {
       paddingTop: 18,
       paddingBottom: 40,
     },
-    removeBook: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 8,
-    },
     destinationOptionPressed: {
       backgroundColor: colors.elevated,
     },
@@ -1087,7 +1037,6 @@ function createStyles(colors: NovoriColors) {
       backgroundColor: colors.elevated,
       borderRadius: 13,
       padding: 10,
-      marginTop: 13,
     },
     feedPreviewBookSelect: {
       flex: 1,
@@ -1158,24 +1107,6 @@ function createStyles(colors: NovoriColors) {
       color: colors.mutedText,
       fontFamily: 'Inter_400Regular',
       fontSize: 10,
-    },
-    feedPreviewAddBook: {
-      minHeight: 54,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginTop: 14,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 14,
-      backgroundColor: colors.elevated,
-    },
-    feedPreviewAddBookText: {
-      flex: 1,
-      color: colors.text,
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 12.5,
     },
 
     feedPreviewFooter: {

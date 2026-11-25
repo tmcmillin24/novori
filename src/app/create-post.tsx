@@ -29,7 +29,7 @@ useSafeAreaInsets,
 import BookSearchRatings from '../components/BookSearchRatings';
 import CachedMediaImage from '../components/CachedMediaImage';
 import EditablePostCard from '../components/EditablePostCard';
-import SpoilerToggle from '../components/SpoilerToggle';
+import { PostAttachmentControls, RemovablePostAttachment } from '../components/PostAttachmentControls';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import usePostComposerProfile from '../hooks/use-post-composer-profile';
 import { displayBookTitle } from '../lib/book-title';
@@ -1520,8 +1520,8 @@ export default function CreatePostScreen() {
                   }
                 />
 
-                <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={saving} />
                 {visibleImageUrl ? (
+                  <RemovablePostAttachment label="Remove photo" onRemove={removePhoto} disabled={saving} style={{marginTop:6,marginHorizontal:-16}}>
                   <View
                     style={
                       styles.feedPreviewPhotoWrap
@@ -1538,10 +1538,12 @@ export default function CreatePostScreen() {
                       resizeMode="cover"
                     />
                   </View>
+                  </RemovablePostAttachment>
                 ) : null}
 
                 {attachedBook ? (
-                  visibleImageUrl ? (
+                  <RemovablePostAttachment label="Remove attached book" onRemove={() => setAttachedBook(null)} disabled={saving} style={{marginTop:7}}>
+                  {visibleImageUrl ? (
                     <Pressable
                       disabled={
                         !attachedBook.id
@@ -1565,7 +1567,7 @@ export default function CreatePostScreen() {
                       style={({
                         pressed,
                       }) => [
-                        styles.feedPreviewCompactBook,
+                        styles.feedPreviewCompactBook, {paddingRight:36},
                         pressed &&
                           Boolean(
                             attachedBook.id
@@ -1635,18 +1637,6 @@ export default function CreatePostScreen() {
                           </Text>
                         ) : null}
                       </View>
-
-                      {attachedBook.id ? (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={
-                            15
-                          }
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                      ) : null}
                     </Pressable>
                   ) : (
                     <Pressable
@@ -1672,7 +1662,7 @@ export default function CreatePostScreen() {
                       style={({
                         pressed,
                       }) => [
-                        styles.feedPreviewBookCard,
+                        styles.feedPreviewBookCard, {paddingRight:36},
                         pressed &&
                           Boolean(
                             attachedBook.id
@@ -1764,355 +1754,19 @@ export default function CreatePostScreen() {
                           </Text>
                         ) : null}
                       </View>
-
-                      {attachedBook.id ? (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={
-                            17
-                          }
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                      ) : null}
                     </Pressable>
-                  )
+                  )}
+                  </RemovablePostAttachment>
                 ) : null}
               </View>
 
-              {isEditing ? (
-                <View
-                  style={
-                    styles.editCardToolbar
-                  }
-                >
-                  <Text
-                    style={
-                      styles.editCardCount
-                    }
-                  >
-                    {body.length}/4000
-                  </Text>
-
-                  <View
-                    style={
-                      styles.editCardActions
-                    }
-                  >
-                    <Pressable
-                      onPress={() =>
-                        setPhotoSourceVisible(
-                          true
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.editCardAction,
-                        visibleImageUrl &&
-                          styles.editCardActionActive,
-                        pressed &&
-                          styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          visibleImageUrl
-                            ? 'image'
-                            : 'image-outline'
-                        }
-                        size={18}
-                        color={
-                          colors.gold
-                        }
-                      />
-                      <Text
-                        style={
-                          styles.editCardActionText
-                        }
-                      >
-                        {visibleImageUrl
-                          ? 'Replace'
-                          : 'Photo'}
-                      </Text>
-                    </Pressable>
-
-                    {visibleImageUrl ? (
-                      <Pressable
-                        onPress={
-                          removePhoto
-                        }
-                        style={({ pressed }) => [
-                          styles.editCardAction,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={17}
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                        <Text
-                          style={
-                            styles.editCardActionText
-                          }
-                        >
-                          Remove photo
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    <Pressable
-                      onPress={() =>
-                        setBookPickerVisible(
-                          true
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.editCardAction,
-                        attachedBook &&
-                          styles.editCardActionActive,
-                        pressed &&
-                          styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          attachedBook
-                            ? 'book'
-                            : 'book-outline'
-                        }
-                        size={18}
-                        color={
-                          colors.gold
-                        }
-                      />
-                      <Text
-                        style={
-                          styles.editCardActionText
-                        }
-                      >
-                        {attachedBook
-                          ? 'Change book'
-                          : 'Book'}
-                      </Text>
-                    </Pressable>
-
-                    {attachedBook ? (
-                      <Pressable
-                        onPress={() =>
-                          setAttachedBook(
-                            null
-                          )
-                        }
-                        style={({ pressed }) => [
-                          styles.editCardAction,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={17}
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                        <Text
-                          style={
-                            styles.editCardActionText
-                          }
-                        >
-                          Remove book
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-
+              <PostAttachmentControls
+                disabled={saving}
+                photo={{label: visibleImageUrl ? 'Replace photo' : 'Attach photo', attached: Boolean(visibleImageUrl), onPress: () => setPhotoSourceVisible(true)}}
+                book={{label: attachedBook ? 'Change attached book' : 'Attach book', attached: Boolean(attachedBook), onPress: () => setBookPickerVisible(true)}}
+                spoilers={{value: containsSpoilers, onChange: setContainsSpoilers}}
+              />
             </EditablePostCard>
-
-            {!isEditing ? (
-              <>
-            <View
-              style={
-                styles.previewAttachmentManagement
-              }
-            >
-              <Text
-                style={
-                  styles.previewAttachmentManagementText
-                }
-              >
-                {body.length}/4000
-              </Text>
-
-              {visibleImageUrl ? (
-                <Pressable
-                  onPress={
-                    removePhoto
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.previewManageButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.previewManageButtonText
-                    }
-                  >
-                    Remove photo
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {attachedBook ? (
-                <Pressable
-                  onPress={() =>
-                    setAttachedBook(
-                      null
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.previewManageButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.previewManageButtonText
-                    }
-                  >
-                    Remove book
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View
-              style={
-                styles.attachmentToolbar
-              }
-            >
-              <Text
-                style={
-                  styles.attachmentToolbarTitle
-                }
-              >
-                Add to your post
-              </Text>
-
-              <View
-                style={
-                  styles.attachmentActions
-                }
-              >
-                <Pressable
-                  onPress={() =>
-                    setPhotoSourceVisible(
-                      true
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.attachmentAction,
-                    visibleImageUrl &&
-                      styles.attachmentActionActive,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.attachmentIcon
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        visibleImageUrl
-                          ? 'image'
-                          : 'image-outline'
-                      }
-                      size={
-                        20
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={
-                      styles.attachmentActionText
-                    }
-                  >
-                    {visibleImageUrl
-                      ? 'Replace photo'
-                      : 'Photo'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() =>
-                    setBookPickerVisible(
-                      true
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.attachmentAction,
-                    attachedBook &&
-                      styles.attachmentActionActive,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.attachmentIcon
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        attachedBook
-                          ? 'book'
-                          : 'book-outline'
-                      }
-                      size={
-                        20
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={
-                      styles.attachmentActionText
-                    }
-                  >
-                    {attachedBook
-                      ? 'Change book'
-                      : 'Book'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-              </>
-            ) : null}
 
             {!isEditing ? (
             <View
@@ -3340,10 +2994,6 @@ function createStyles(
         'stretch',
       aspectRatio:
         1,
-      marginTop:
-        6,
-      marginHorizontal:
-        -16,
       borderRadius:
         0,
       overflow:
@@ -3372,8 +3022,6 @@ function createStyles(
         'center',
       gap:
         8,
-      marginTop:
-        7,
       paddingHorizontal:
         2,
       paddingVertical:
@@ -3544,173 +3192,6 @@ function createStyles(
         'Inter_500Medium',
       fontSize:
         10.5,
-    },
-    editCardToolbar: {
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      gap: 10,
-    },
-    editCardCount: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 10,
-      textAlign:
-        'right',
-    },
-    editCardActions: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      gap: 8,
-    },
-    editCardAction: {
-      minHeight: 34,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 6,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
-      borderRadius: 17,
-      paddingHorizontal: 10,
-    },
-    editCardActionActive: {
-      borderColor:
-        colors.gold,
-    },
-    editCardActionText: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 10.5,
-    },
-
-    previewAttachmentManagement: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-end',
-      flexWrap:
-        'wrap',
-      gap:
-        8,
-      marginTop:
-        8,
-    },
-    previewAttachmentManagementText: {
-      marginRight:
-        'auto',
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        10,
-    },
-    previewManageButton: {
-      paddingHorizontal:
-        8,
-      paddingVertical:
-        6,
-      borderRadius:
-        9,
-    },
-    previewManageButtonText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        10.5,
-    },
-
-    attachmentToolbar: {
-      marginTop:
-        22,
-      paddingTop:
-        16,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-    },
-    attachmentToolbarTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12,
-      marginBottom:
-        11,
-    },
-    attachmentActions: {
-      flexDirection:
-        'row',
-      gap:
-        10,
-    },
-    attachmentAction: {
-      flex: 1,
-      minHeight:
-        58,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        16,
-      paddingHorizontal:
-        12,
-      backgroundColor:
-        colors.surface,
-    },
-    attachmentActionActive: {
-      borderColor:
-        colors.gold,
-    },
-    attachmentIcon: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        12,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight:
-        9,
-    },
-    attachmentActionText: {
-      flex: 1,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        11,
     },
     footerNote: {
       flexDirection:

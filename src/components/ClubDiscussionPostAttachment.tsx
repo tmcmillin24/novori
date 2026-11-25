@@ -1,3 +1,4 @@
+import { RemovablePostAttachment } from './PostAttachmentControls';
 import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect,useRouter } from 'expo-router';
@@ -10,7 +11,7 @@ import BookCoverImage from './BookCoverImage';
 import ValidationWarningSheet from './ValidationWarningSheet';
 import DeletePostConfirmSheet from './DeletePostConfirmSheet';
 
-export default function ClubDiscussionPostAttachment({discussion,detail=false,draft=false,editor,revealed,onReveal,onStateChange}:{discussion:ClubDiscussion;detail?:boolean;draft?:boolean;editor?:ReactNode;revealed?:boolean;onReveal?:()=>void;onStateChange?:(row:ClubDiscussion)=>void}) {
+export default function ClubDiscussionPostAttachment({discussion,detail=false,draft=false,editor,onRemoveBook,revealed,onReveal,onStateChange}:{discussion:ClubDiscussion;detail?:boolean;draft?:boolean;editor?:ReactNode;onRemoveBook?:()=>void;revealed?:boolean;onReveal?:()=>void;onStateChange?:(row:ClubDiscussion)=>void}) {
   const router=useRouter(),{colors}=useNovoriTheme();const [serverState,setState]=useState(discussion),[localReveal,setLocalReveal]=useState(''),[busy,setBusy]=useState(false),[warning,setWarning]=useState(''),[closing,setClosing]=useState(false);
   const state=draft?discussion:serverState;
   const active=useRef(true),mutationBusy=useRef(false),stateChange=useRef(onStateChange);stateChange.current=onStateChange;const key=discussionRevealKey(discussion);
@@ -20,9 +21,15 @@ export default function ClubDiscussionPostAttachment({discussion,detail=false,dr
   async function vote(choice:number){if(mutationBusy.current)return;mutationBusy.current=true;setBusy(true);try{const row=await voteClubPoll(state.id,state.viewer_choice===choice?null:choice);if(active.current)setState(row);}catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not save your vote.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
   async function close(){if(mutationBusy.current)return;mutationBusy.current=true;setBusy(true);try{await closeClubPoll(state.id);const row=await getClubDiscussion(state.id);if(active.current){setState(row);setClosing(false);}}catch(error){if(active.current){setClosing(false);setWarning((error as {message?:string})?.message||'Could not close the poll.');}}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
   const copy={color:colors.secondaryText,fontFamily:'Inter_400Regular',fontSize:12,lineHeight:19};
+  function renderBook() {
+    const book = state.book;
+    if (!book) return null;
+    const card = (<View style={{flexDirection:'row',alignItems:'center',gap:11,marginBottom:12,paddingRight:onRemoveBook?36:0}}><BookCoverImage googleBookId={book.googleBookId} isbn={book.isbn} existingCoverUrl={book.coverUrl} style={{width:39,height:59,borderRadius:5}}/><View style={{flex:1}}><Text style={{...copy,color:colors.text,fontFamily:'Inter_600SemiBold'}}>{displayBookTitle(book.title ?? '')}</Text><Text style={{...copy,color:colors.mutedText,fontSize:10}}>{book.authors.join(', ')}</Text></View></View>);
+    return draft && onRemoveBook ? <RemovablePostAttachment label="Remove attached book" onRemove={onRemoveBook}>{card}</RemovablePostAttachment> : card;
+  }
   return <View style={{marginTop:9,borderWidth:1,borderColor:`${colors.gold}40`,borderRadius:17,backgroundColor:colors.surface,overflow:'hidden'}}><View style={{height:3,backgroundColor:colors.gold}}/><View style={{padding:14}}>
     <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:10,letterSpacing:.7,marginBottom:9}}>{state.kind==='poll'?'CLUB POLL':'BOOK DISCUSSION'}{state.closed_at?' · CLOSED':''}</Text>
-    {state.book?<View style={{flexDirection:'row',alignItems:'center',gap:11,marginBottom:12}}><BookCoverImage googleBookId={state.book.googleBookId} isbn={state.book.isbn} existingCoverUrl={state.book.coverUrl} style={{width:39,height:59,borderRadius:5}}/><View style={{flex:1}}><Text style={{...copy,color:colors.text,fontFamily:'Inter_600SemiBold'}}>{displayBookTitle(state.book.title ?? '')}</Text><Text style={{...copy,color:colors.mutedText,fontSize:10}}>{state.book.authors.join(', ')}</Text></View></View>:null}
+    {renderBook()}
     {draft && editor ? editor : hidden?<View><Ionicons name="eye-off-outline" size={22} color={colors.gold}/><Text style={{...copy,color:colors.text,fontFamily:'Inter_600SemiBold',marginTop:6}}>This thread contains spoilers</Text><Text style={{...copy,color:colors.mutedText,marginTop:4}}>{state.spoiler_label}</Text><Text style={{...copy,color:colors.mutedText,fontSize:11,marginTop:4}}>The discussion and its comments stay hidden until you reveal them.</Text><Pressable accessibilityRole="button" accessibilityLabel="Reveal club discussion spoilers" onPress={()=>{setLocalReveal(key);onReveal?.();}} style={{paddingVertical:12}}><Text style={{...copy,color:colors.gold,fontFamily:'Inter_600SemiBold'}}>Reveal discussion</Text></Pressable></View>:<>
       {state.contains_spoilers?<Text style={{...copy,color:colors.gold,fontSize:10,marginBottom:8}}>SPOILERS · {state.spoiler_label}</Text>:null}
       <Text style={{color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:23,lineHeight:29}}>{state.title}</Text>{state.prompt?<Text style={{...copy,marginTop:10}} numberOfLines={detail?undefined:4}>{state.prompt}</Text>:null}

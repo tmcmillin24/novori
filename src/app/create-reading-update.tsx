@@ -17,7 +17,7 @@ import {
 SafeAreaView,
 } from 'react-native-safe-area-context';
 import BookCoverImage from '../components/BookCoverImage';
-import SpoilerToggle from '../components/SpoilerToggle';
+import { PostAttachmentControls } from '../components/PostAttachmentControls';
 import { displayBookTitle } from '../lib/book-title';
 import type { FeedPost } from '../lib/feed';
 
@@ -869,17 +869,7 @@ export default function CreateReadingUpdateScreen() {
                 style={styles.cardThoughtInput}
               />
               <Text style={styles.editCharacterCount}>{thought.length}/500</Text>
-              <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={publishing} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={selectedBook ? `Selected book: ${selectedBook.title}` : 'Choose a currently reading book'}
-                accessibilityHint={!isEditing && books.length > 1 ? 'Choose the book for this Reading Update.' : undefined}
-                disabled={publishing || isEditing || books.length === 1}
-                onPress={() => setBookPickerVisible(true)}
-                style={({ pressed }) => [styles.cardBook, pressed && styles.pressed]}
-              >
-                {selectedBook ? (
-                  <>
+              {selectedBook ? <View style={styles.cardBook}>
                     <BookCoverImage googleBookId={selectedBook.google_book_id} existingCoverUrl={selectedBook.cover_url} style={styles.cardBookCover} />
                     <View style={styles.cardBookCopy}>
                       <View style={styles.cardBookEyebrow}>
@@ -890,15 +880,10 @@ export default function CreateReadingUpdateScreen() {
                       <Text style={styles.cardBookAuthor} numberOfLines={1}>{formatAuthors(selectedBook.authors)}</Text>
                       <CanonicalBookRating googleBookId={selectedBook.google_book_id} title={selectedBook.title} authors={selectedBook.authors} />
                     </View>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="book-outline" size={22} color={colors.gold} />
-                    <Text style={[styles.cardBookTitle, styles.cardBookCopy]}>Choose a currently reading book</Text>
-                  </>
-                )}
-                {!isEditing && books.length > 1 ? <Ionicons name="chevron-down" size={17} color={colors.mutedText} /> : null}
-              </Pressable>
+              </View> : null}
+              <PostAttachmentControls disabled={publishing}
+                book={!isEditing && books.length > 1 ? {label:'Choose a currently reading book',attached:Boolean(selectedBook),onPress:()=>setBookPickerVisible(true)} : undefined}
+                spoilers={{value:containsSpoilers,onChange:setContainsSpoilers}}/>
             </>
           )}
         </EditablePostCard>

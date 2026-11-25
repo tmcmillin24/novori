@@ -1,3 +1,4 @@
+import { PostAttachmentControls } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import {
 useLocalSearchParams,
@@ -1130,17 +1131,11 @@ export default function CreateBookStackScreen() {
             compactTopSpacing
           >
             <View style={styles.cardStackControls} pointerEvents={saving || publishing ? 'none' : 'auto'}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add books to stack"
-                disabled={items.length >= MAX_STACK_BOOKS || saving || publishing}
-                onPress={openBookSearch}
-                style={({ pressed }) => [styles.addBookButton, items.length >= MAX_STACK_BOOKS && styles.disabled, pressed && styles.pressed]}
-              >
-                <Ionicons name="add" size={18} color={colors.gold} />
-                <Text style={styles.addBookText}>Add Books</Text>
+              <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                <PostAttachmentControls disabled={items.length >= MAX_STACK_BOOKS || saving || publishing}
+                  book={{label:'Add books to stack',onPress:openBookSearch}}/>
                 <Text style={styles.cardBookCount}>{items.length}/{MAX_STACK_BOOKS}</Text>
-              </Pressable>
+              </View>
               {items.length > 0 ? (
                 <>
                   <Text style={styles.sectionSubtext}>Hold the grip to rearrange your books.</Text>
@@ -1587,33 +1582,6 @@ function createStyles(
         'Inter_400Regular',
       fontSize: 11,
       marginTop: 4,
-    },
-
-    addBookButton: {
-      minHeight: 45,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 4,
-      paddingHorizontal: 14,
-      marginTop: 14,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      borderRadius: 13,
-      backgroundColor:
-        colors.surface,
-    },
-
-    addBookText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 12,
     },
 
     arrangeList: {
