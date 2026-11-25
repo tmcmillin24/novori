@@ -1,6 +1,6 @@
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import NovoriBottomBar, { NOVORI_TAB_BAR_HEIGHT, novoriTabs as tabs } from './NovoriBottomBar';
-import { type Href, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
+import { type Href, type NativeStackNavigationProp, useGlobalSearchParams, useNavigation, usePathname, useRouter, useSegments } from 'expo-router';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Keyboard, Platform, View } from 'react-native';
 import { useTutorial } from '../context/tutorial-context';
@@ -10,6 +10,19 @@ const detailRoutes = new Set(['book/[id]', 'book/[id]/index', 'author/[name]', '
   'post/[id]', 'club-event/[id]', 'club-discussions', 'book-stack/[id]']);
 const BottomInsetCovered = createContext(false);
 export const useBrowsingBottomInsetCovered = () => useContext(BottomInsetCovered);
+
+const PostFooterTransition = createContext<(path: string, closing: boolean) => void>(() => {});
+
+export function usePostFooterTransition() {
+  const path = usePathname();
+  const report = useContext(PostFooterTransition);
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  useEffect(() => {
+    const start = navigation.addListener('transitionStart', ({ data }) => report(path, data.closing));
+    const cancel = navigation.addListener('gestureCancel', () => report(path, false));
+    return () => { start(); cancel(); };
+  }, [navigation, path, report]);
+}
 
 const ScrollVisibility = createContext<(path: string, hidden: boolean) => void>(() => {});
 
@@ -64,6 +77,10 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const saved = useRef<Partial<Record<Tab, Href>>>({});
   const [active, setActive] = useState<Tab>('discover');
   const [visibility, setVisibility] = useState<{ path: string; hidden: boolean } | null>(null);
+  const [closingPostPath, setClosingPostPath] = useState<string | null>(null);
+  const reportPostTransition = useCallback((path: string, closing: boolean) => {
+    setClosingPostPath(current => closing ? path : current === path ? null : current);
+  }, []);
   const [keyboard, setKeyboard] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(true);
 
@@ -73,6 +90,7 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
       if (tab) { owner.current = tab.segment; setActive(tab.segment); }
     }
     setVisibility(null);
+    setClosingPostPath(current => current === pathname ? current : null);
   }, [route, pathname]);
 
   useEffect(() => {
@@ -93,7 +111,8 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const keepPostFooter = Platform.OS === 'ios' && route === 'post/[id]';
   const showBar = detail && !tutorial?.active && (!keyboard || keepPostFooter);
   const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
-  const barUnavailable = hidden || keyboard;
+  const postLeaving = route === 'post/[id]' && closingPostPath === pathname;
+  const barUnavailable = hidden || keyboard || postLeaving;
   const progress = useSharedValue(1);
   useEffect(() => {
     if (!showBar || reduceMotion) { progress.value = 1; return; }
@@ -118,9 +137,11 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
 
   return <ScrollVisibility.Provider value={report}>
     <BottomInsetCovered.Provider value={(!keepPostFooter && keyboard) || (showBar && !hidden && !overlayBookBar)}>
-      <View style={{ flex: 1 }}>{children}</View>
+      <PostFooterTransition.Provider value={reportPostTransition}>
+        <View style={{ flex: 1 }}>{children}</View>
+      </PostFooterTransition.Provider>
     </BottomInsetCovered.Provider>
-    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace },
+    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace, opacity: postLeaving ? 0 : 1 },
       overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={barUnavailable ? 'none' : 'auto'}
       accessibilityElementsHidden={barUnavailable} importantForAccessibility={barUnavailable ? 'no-hide-descendants' : 'auto'}>
       <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>

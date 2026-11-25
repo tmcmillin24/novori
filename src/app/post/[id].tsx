@@ -1,4 +1,4 @@
-import { useBrowsingBottomInsetCovered, useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
+import { useBrowsingBottomInsetCovered, useBrowsingNavigationScroll, usePostFooterTransition } from '../../components/BrowsingNavigation';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -111,6 +111,7 @@ function formatRelativeTime(value: string) {
 }
 export default function PostDetailScreen() {
   const browsingScroll = useBrowsingNavigationScroll();
+  usePostFooterTransition();
     const router = useRouter();
     const params = useLocalSearchParams<{
         id?: string;
