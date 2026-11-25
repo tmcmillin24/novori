@@ -6,7 +6,8 @@ import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
 const TRACE = require('../../assets/images/novori-launch-trace.png');
 const STILL = require('../../assets/images/novori_loadingscreen.png');
-const TRACE_AND_HOLD_MS = 1750;
+// Allow for native frame pacing, then hold the finished logo briefly.
+const TRACE_AND_HOLD_MS = 2050;
 const IMAGE_LOAD_TIMEOUT_MS = 2400;
 
 if (Platform.OS !== 'web') SplashScreen.setOptions({ fade: false });
