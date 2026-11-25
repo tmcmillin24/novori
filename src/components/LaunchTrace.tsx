@@ -6,8 +6,10 @@ import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
 const TRACE = require('../../assets/images/novori-launch-trace.png');
 const STILL = require('../../assets/images/novori_loadingscreen.png');
-const TRACE_MS = 1500;
-const MAX_INTRO_MS = 2400;
+const TRACE_AND_HOLD_MS = 1750;
+const IMAGE_LOAD_TIMEOUT_MS = 2400;
+
+if (Platform.OS !== 'web') SplashScreen.setOptions({ fade: false });
 
 export default function LaunchTrace({ onFinished }: { onFinished: (finished: true) => void }) {
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
@@ -26,11 +28,9 @@ export default function LaunchTrace({ onFinished }: { onFinished: (finished: tru
       enabled => { if (active && !changed) setReduceMotion(enabled); },
       () => { if (active && !changed) setReduceMotion(true); },
     );
-    const fallback = setTimeout(() => setFinished(true), MAX_INTRO_MS);
     return () => {
       active = false;
       subscription.remove();
-      clearTimeout(fallback);
     };
   }, []);
 
@@ -39,8 +39,10 @@ export default function LaunchTrace({ onFinished }: { onFinished: (finished: tru
       setFinished(true);
       return;
     }
-    if (!displayed) return;
-    const timer = setTimeout(() => setFinished(true), TRACE_MS);
+    const timer = setTimeout(
+      () => setFinished(true),
+      displayed ? TRACE_AND_HOLD_MS : IMAGE_LOAD_TIMEOUT_MS,
+    );
     return () => clearTimeout(timer);
   }, [displayed, reduceMotion]);
 
@@ -60,7 +62,7 @@ export default function LaunchTrace({ onFinished }: { onFinished: (finished: tru
       <StatusBar style="light" />
       {(finished || reduceMotion !== null) && (
         <Image
-          source={finished || reduceMotion ? STILL : TRACE}
+          source={reduceMotion ? STILL : TRACE}
           style={styles.mark}
           contentFit="contain"
           transition={0}
