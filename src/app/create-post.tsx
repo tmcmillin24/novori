@@ -1203,9 +1203,10 @@ export default function CreatePostScreen() {
             showsVerticalScrollIndicator={
               false
             }
-            contentContainerStyle={
-              styles.content
-            }
+            contentContainerStyle={[
+              styles.content,
+              !isEditing && !announcement && styles.destinationAtTop,
+            ]}
           >
             {!announcement && destination.type === 'club' && !loadingClubs && !selectedClub ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>You can’t post to this club right now. Choose another destination to continue.</Text> : null}
             {announcement && !loadingClubs && !clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role)) ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>Only the club owner and admins can publish announcements.</Text> : null}
@@ -2723,6 +2724,7 @@ function createStyles(
       paddingBottom:
         80,
     },
+    destinationAtTop: { paddingTop: 0 },
     destinationBar: {
       minHeight:
         64,
@@ -2733,7 +2735,7 @@ function createStyles(
       paddingHorizontal:
         10,
       paddingVertical:
-        7,
+        10,
       borderBottomWidth:
         StyleSheet.hairlineWidth,
       borderBottomColor:

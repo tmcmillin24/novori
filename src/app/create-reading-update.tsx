@@ -758,7 +758,7 @@ export default function CreateReadingUpdateScreen() {
       </View>
       <KeyboardAwareScrollView
         style={styles.screen}
-        contentContainerStyle={[styles.editCardScroll, tablet && styles.contentTablet]}
+        contentContainerStyle={[styles.editCardScroll, tablet && styles.contentTablet, styles.destinationAtTop]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         bottomOffset={20}
@@ -986,6 +986,7 @@ function createStyles(
       backgroundColor:
         colors.background,
     },
+    destinationAtTop: { paddingTop: 0 },
     header: {
       height:
         54,

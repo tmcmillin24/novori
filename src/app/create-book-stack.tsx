@@ -1090,7 +1090,7 @@ export default function CreateBookStackScreen() {
       </View>
 
       <KeyboardAwareScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, styles.destinationAtTop]}
         scrollEnabled={!draggingBookId}
         keyboardShouldPersistTaps="handled"
         disableScrollOnKeyboardHide
@@ -1535,6 +1535,7 @@ function createStyles(
         colors.background,
     },
 
+    destinationAtTop: { paddingTop: 0 },
     header: {
       height: 54,
       flexDirection:

@@ -106,7 +106,7 @@ export default function PostDestinationPicker({
 function createStyles(colors: NovoriColors) {
   return StyleSheet.create({
     container: { marginBottom: 14 },
-    bar: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    bar: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     barOpen: { borderBottomColor: colors.gold },
     image: { marginRight: 11 },
     copy: { flex: 1, minWidth: 0, justifyContent: 'center' },

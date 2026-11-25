@@ -518,7 +518,7 @@ export default function AskReadersScreen() {
 
       <KeyboardAwareScrollView
         style={styles.screen}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, styles.destinationAtTop]}
         keyboardShouldPersistTaps="handled"
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
@@ -1013,6 +1013,7 @@ function createStyles(colors: NovoriColors) {
       flex: 1,
       backgroundColor: colors.background,
     },
+    destinationAtTop: { paddingTop: 0 },
     header: {
       minHeight: 68,
       flexDirection: 'row',
