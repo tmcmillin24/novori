@@ -29,6 +29,7 @@ jest.mock('../src/components/BrowsingNavigation',()=>({
  useBrowsingBottomInsetCovered:()=>true,
  usePostFooterTransition:jest.fn(),
  PostBrowsingFooterSpace:()=>null,
+ useScreenBrowsingBottomBar:()=>require('react').createElement('DiscussionBottomBar'),
 }));
 jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardAvoidingView:'KeyboardAvoidingView'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
@@ -316,7 +317,9 @@ test('returning to club discussions keeps the active filter and loaded pages unt
  await press('More club discussions');
  expect(text()).toContain('Older discussion');
  const calls=getClubDiscussions.mock.calls.length;
+ const footer=view.root.findByType('DiscussionBottomBar');
  mockFocused=false;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(view.root.findByType('DiscussionBottomBar')).toBe(footer);
  mockFocused=true;await act(async()=>view.update(<ClubDiscussionsScreen/>));
  expect(getClubDiscussions).toHaveBeenCalledTimes(calls);
  expect(text()).toContain('Older discussion');

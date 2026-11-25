@@ -7,9 +7,14 @@ import { useTutorial } from '../context/tutorial-context';
 
 type Tab = (typeof tabs)[number]['segment'];
 const detailRoutes = new Set(['book/[id]', 'book/[id]/index', 'author/[name]', 'reader/[id]', 'club/[id]',
-  'post/[id]', 'club-event/[id]', 'club-discussions', 'book-stack/[id]']);
+  'post/[id]', 'club-event/[id]', 'book-stack/[id]']);
 const BottomInsetCovered = createContext(false);
 export const useBrowsingBottomInsetCovered = () => useContext(BottomInsetCovered);
+
+const ScreenBottomBar = createContext<ReactNode>(null);
+
+// A footer owned by the screen stays visible underneath a native swipe-back.
+export const useScreenBrowsingBottomBar = () => useContext(ScreenBottomBar);
 
 const PostFooterSpace = createContext<ReactNode>(null);
 
@@ -150,7 +155,10 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
         <PostFooterSpace.Provider value={postRoute && showBar
           ? <Animated.View pointerEvents="none" accessible={false} style={postFooterSpace}/>
           : null}>
-          <View style={{ flex: 1 }}>{children}</View>
+          <ScreenBottomBar.Provider value={tutorial?.active ? null :
+            <NovoriBottomBar active={active} onTab={switchTab}/>}>
+            <View style={{ flex: 1 }}>{children}</View>
+          </ScreenBottomBar.Provider>
         </PostFooterSpace.Provider>
       </PostFooterTransition.Provider>
     </BottomInsetCovered.Provider>
