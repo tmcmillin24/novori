@@ -17,7 +17,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -121,15 +121,16 @@ export default function RootLayout() {
 
 function StartupContent({ fontsReady }: { fontsReady: boolean }) {
   const { ready } = useNovoriTheme();
+  const [introFinished, setIntroFinished] = useState(false);
+
+  if (!fontsReady || !ready || !introFinished) {
+    return <LaunchTrace onFinished={setIntroFinished} />;
+  }
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#242321' }}>
-      {fontsReady && (
-        <>
-          <ReadingReminderDeviceSync />
-          <AppNavigator />
-        </>
-      )}
-      <LaunchTrace appReady={fontsReady && ready} />
-    </View>
+    <>
+      <ReadingReminderDeviceSync />
+      <AppNavigator />
+    </>
   );
 }

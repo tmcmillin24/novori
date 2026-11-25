@@ -9,7 +9,7 @@ const STILL = require('../../assets/images/novori_loadingscreen.png');
 const TRACE_MS = 1500;
 const MAX_INTRO_MS = 2400;
 
-export default function LaunchTrace({ appReady }: { appReady: boolean }) {
+export default function LaunchTrace({ onFinished }: { onFinished: (finished: true) => void }) {
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [displayed, setDisplayed] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -44,11 +44,13 @@ export default function LaunchTrace({ appReady }: { appReady: boolean }) {
     return () => clearTimeout(timer);
   }, [displayed, reduceMotion]);
 
-  if (appReady && finished) return null;
+  useEffect(() => {
+    if (finished) onFinished(true);
+  }, [finished, onFinished]);
 
   return (
     <View
-      style={styles.overlay}
+      style={styles.screen}
       onLayout={() => {
         if (didHideNativeSplash.current || Platform.OS === 'web') return;
         didHideNativeSplash.current = true;
@@ -72,12 +74,11 @@ export default function LaunchTrace({ appReady }: { appReady: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
+  screen: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#242321',
-    zIndex: 1000,
   },
   mark: { width: 200, height: 200 },
 });
