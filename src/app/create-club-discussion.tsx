@@ -20,9 +20,9 @@ import { getClub,type ClubWithMembership } from '../lib/clubs';
 import { supabase } from '../lib/supabase';
 
 export default function CreateClubDiscussionScreen(){
-  const router=useRouter(),params=useLocalSearchParams<{clubId?:string;discussionId?:string;readId?:string;kind?:string}>(),{colors}=useNovoriTheme();
+  const router=useRouter(),params=useLocalSearchParams<{clubId?:string;discussionId?:string;readId?:string;kind?:string;previewKey?:string}>(),{colors}=useNovoriTheme();
   const clubId=typeof params.clubId==='string'?params.clubId:'',discussionId=typeof params.discussionId==='string'?params.discussionId:'',initialReadId=typeof params.readId==='string'?params.readId:'';
-  const author=usePostComposerProfile();
+  const author=usePostComposerProfile(params.previewKey);
   const [club,setClub]=useState<ClubWithMembership|null>(null),[discussion,setDiscussion]=useState<ClubDiscussion|undefined>(),[reads,setReads]=useState<ClubRead[]>([]),[readId,setReadId]=useState<string|null>(initialReadId||null);
   const [kind,setKind]=useState<'discussion'|'poll'>(params.kind==='poll'?'poll':'discussion'),[title,setTitle]=useState(''),[prompt,setPrompt]=useState(''),[spoilers,setSpoilers]=useState(false),[options,setOptions]=useState(['','']);
   const [ownsDiscussion,setOwnsDiscussion]=useState(false);

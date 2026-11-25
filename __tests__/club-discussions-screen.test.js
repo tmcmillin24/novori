@@ -10,6 +10,7 @@ import {getClub} from '../src/lib/clubs';
 import {getClubRead,getClubReads} from '../src/lib/club-reads';
 import {getClubDiscussion,getClubDiscussions,saveClubDiscussion,voteClubPoll,closeClubPoll} from '../src/lib/club-discussions';
 import {deletePost,getPostDetail} from '../src/lib/feed';
+import {getFeedComposerPreview} from '../src/lib/club-composer-preview';
 import {getExplicitLanguagePreference} from '../src/lib/content-filter';
 import {supabase} from '../src/lib/supabase';
 import {blockReader} from '../src/lib/social';
@@ -280,12 +281,14 @@ test('standalone post keeps the draft while scrolling and reserves keyboard spac
 
 test('discussion Edit and Delete live in the standalone post menu, and deletion requires confirmation',async()=>{
  mockParams={id:'post-1'};deletePost.mockResolvedValue('post-1');
- getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,viewer_can_manage:false}});
+ getPostDetail.mockResolvedValue({...post,author_avatar_url:'https://example.com/author-avatar.jpg',club_discussion:{...topic,viewer_can_manage:false}});
  await render(<PostDetailScreen/>);
  expect(button('Share post')).toBeDefined();
  expect(button('Edit club discussion')).toBeUndefined();
  await press('More post options');await press('Edit Post');
- expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1'}});
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1',previewKey:expect.any(String)}});
+ const {previewKey}=mockRouter.push.mock.calls.at(-1)[0].params;
+ expect(getFeedComposerPreview(previewKey)?.identity).toEqual({userId:'member-1',profile:{display_name:'A Reader',username:'reader',avatar_url:'https://example.com/author-avatar.jpg'}});
  await press('More post options');await press('Delete Post');
  expect(deletePost).not.toHaveBeenCalled();
  const confirm=view.root.findAllByType('DeletePostConfirmSheet').find(node=>node.props.title==='Delete discussion?');

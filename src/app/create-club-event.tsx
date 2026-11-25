@@ -19,7 +19,7 @@ import { canManageClubPosts } from '../lib/club-posts';
 import { getClub,type ClubWithMembership } from '../lib/clubs';
 
 export default function CreateClubEventScreen() {
-  const router = useRouter();const params = useLocalSearchParams<{clubId?:string;eventId?:string}>();
+  const router = useRouter();const params = useLocalSearchParams<{clubId?:string;eventId?:string;previewKey?:string}>();
   const clubId = typeof params.clubId==='string'?params.clubId:'';const eventId = typeof params.eventId==='string'?params.eventId:'';
   const {colors} = useNovoriTheme();const styles = useMemo(()=>StyleSheet.create({
     safe:{flex:1,backgroundColor:colors.background},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:18,paddingVertical:12},
@@ -31,7 +31,7 @@ export default function CreateClubEventScreen() {
     help:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:11,lineHeight:17,marginTop:14},book:{flexDirection:'row',alignItems:'center',gap:11,marginTop:14},cover:{width:45,height:68,borderRadius:5,backgroundColor:colors.elevated},bookTitle:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:12},bookAuthor:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,marginTop:4},
     addBook:{flexDirection:'row',gap:7,alignItems:'center',paddingVertical:14},addText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12},center:{padding:25,alignItems:'center'},picker:{flex:1,backgroundColor:colors.background},result:{flexDirection:'row',gap:12,padding:13,alignItems:'center',borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},pressed:{opacity:.7},
   }),[colors]);
-  const author=usePostComposerProfile();
+  const author=usePostComposerProfile(params.previewKey);
   const [loading,setLoading] = useState(true),[club,setClub] = useState<ClubWithMembership|null>(null),[event,setEvent] = useState<ClubEvent|undefined>();
   const [title,setTitle] = useState(''),[description,setDescription] = useState(''),[kind,setKind] = useState<'in_person'|'virtual'>('in_person'),[location,setLocation] = useState(''),[meetingUrl,setMeetingUrl] = useState(''),[book,setBook] = useState<ClubEventBook|null>(null);
   const defaults = useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(18,0,0,0);return {start:start.toISOString(),end:new Date(start.getTime()+3600000).toISOString()};},[]);

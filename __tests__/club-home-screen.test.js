@@ -265,7 +265,7 @@ test('club posts show the same stack attachment and suppress its duplicate outer
 test('club announcement owners can edit and delete directly from the feed',async()=>{
  await renderWithPost({...postFixture,is_club_announcement:true,author_id:'owner'});
  await press('More post options');expect(button('Delete Post')).toBeDefined();expect(button('Report Post')).toBeUndefined();
- await press('Edit Post');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{editPostId:'post-1'}});
+ await press('Edit Post');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{editPostId:'post-1',previewKey:expect.any(String)}});
  await press('More post options');await press('Delete Post');
  expect(deletePost).not.toHaveBeenCalled();
  const confirmation=view.root.findAll(node=>node.props.title==='Delete post?'&&typeof node.props.onConfirm==='function')[0];

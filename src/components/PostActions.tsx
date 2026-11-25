@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { prepareEditComposerPreview } from '../lib/club-composer-preview';
 import { deletePost, type FeedPost } from '../lib/feed';
 import { canEditFeedPost, getPostEditRoute } from '../lib/post-edit-route';
 import { submitPostReport, type ReportReason } from '../lib/reports';
@@ -32,6 +33,24 @@ export default function PostActions({post, currentUserId, onDismiss, onDeleted, 
   const [notice, setNotice] = useState('');
   const pending = useRef(false);
   const own = Boolean(currentUserId && post?.author_id === currentUserId);
+
+  function openEditor(target: FeedPost) {
+    const route = getPostEditRoute(target);
+    onEditStart?.();
+    if (!currentUserId || target.author_id !== currentUserId) {
+      router.push(route);
+      return;
+    }
+    const previewKey = prepareEditComposerPreview({
+      userId: currentUserId,
+      profile: {
+        display_name: target.author_display_name ?? null,
+        username: target.author_username ?? null,
+        avatar_url: target.author_avatar_url ?? null,
+      },
+    });
+    router.push({...route, params:{...route.params, previewKey}});
+  }
 
   async function confirmDelete() {
     if (!deleteTarget || pending.current || deleteTarget.author_id !== currentUserId) return;
@@ -66,10 +85,7 @@ export default function PostActions({post, currentUserId, onDismiss, onDeleted, 
   return <>
     <PostOptionsSheet visible={Boolean(post)} onDismiss={onDismiss}
       subtitle={own ? 'Manage your post.' : 'Actions for this post.'}
-      onEdit={post && canEditFeedPost(post, currentUserId) ? () => {
-        onEditStart?.();
-        router.push(getPostEditRoute(post));
-      } : undefined}
+      onEdit={post && canEditFeedPost(post, currentUserId) ? () => openEditor(post) : undefined}
       onDelete={post && own ? () => setDeleteTarget(post) : undefined}
       actions={[
         ...(post && !own && currentUserId ? [{label:'Report Post',description:'Flag this post for review.',icon:'flag-outline' as const,run:()=>setReportTarget(post)}] : []),

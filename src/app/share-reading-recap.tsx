@@ -16,10 +16,10 @@ import { isRecapSharePeriod,type ReadingRecapKind,type ReadingRecapSnapshot } fr
 import { createRecapShareKey,getEditableReadingRecap,getReadingRecapSnapshot,publishReadingRecap,updateReadingRecap } from '../lib/reading-recap-sharing';
 
 export default function ShareReadingRecapScreen() {
-  const params = useLocalSearchParams<{ kind?: string; periodStart?: string; editPostId?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; periodStart?: string; editPostId?: string; previewKey?: string }>();
   const router = useRouter();
   const { colors } = useNovoriTheme();
-  const profile = usePostComposerProfile();
+  const profile = usePostComposerProfile(params.previewKey);
   const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [snapshot, setSnapshot] = useState<ReadingRecapSnapshot | null>(null);
   const [clubs, setClubs] = useState<ClubWithMembership[]>([]);

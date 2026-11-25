@@ -48,6 +48,14 @@ export function getClubComposerPreview(key: string | undefined, clubId: string) 
 export type ComposerIdentity = { userId: string; profile: ComposerProfile | null };
 type FeedPreview = { key: string; identity: ComposerIdentity | null; pending: Promise<ComposerIdentity | null> };
 let feedPreview: FeedPreview | null = null;
+let editPreview: FeedPreview | null = null;
+
+export function prepareEditComposerPreview(identity: ComposerIdentity) {
+  const key = String(++sequence);
+  editPreview = { key, identity, pending: Promise.resolve(identity) };
+  void warmComposerImage(identity.profile?.avatar_url).catch(() => {});
+  return key;
+}
 
 export async function loadSignedInComposerIdentity(): Promise<ComposerIdentity | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -63,6 +71,7 @@ export function prepareFeedComposerPreview(request: Promise<ComposerIdentity | n
 }
 
 export function getFeedComposerPreview(key?: string) {
+  if (editPreview && editPreview.key === key) return editPreview;
   return feedPreview && feedPreview.key === key ? feedPreview : null;
 }
 
@@ -71,6 +80,7 @@ let warmUserId: string | null = null;
 export function syncFeedComposerPreview(userId: string | null) {
   if (userId === warmUserId) return;
   warmUserId = userId;
+  if (editPreview?.identity?.userId !== userId) editPreview = null;
   feedPreview = null;
   if (userId) {
     prepareFeedComposerPreview(loadComposerProfile(userId).then(profile => ({ userId, profile })));
