@@ -1,18 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import NovoriBottomBar, { NOVORI_TAB_BAR_HEIGHT, novoriTabs as tabs } from './NovoriBottomBar';
 import { type Href, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNovoriTheme } from '../context/theme-context';
+import { AccessibilityInfo, Keyboard, View } from 'react-native';
 import { useTutorial } from '../context/tutorial-context';
 
-const tabs = [
-  { name: 'Home', path: '/(tabs)', segment: 'index', icon: 'home' },
-  { name: 'Discover', path: '/(tabs)/discover', segment: 'discover', icon: 'compass' },
-  { name: 'Create', path: '/(tabs)/post', segment: 'post', icon: 'add' },
-  { name: 'Library', path: '/(tabs)/library', segment: 'library', icon: 'library' },
-  { name: 'Profile', path: '/(tabs)/profile', segment: 'profile', icon: 'person' },
-] as const;
 type Tab = (typeof tabs)[number]['segment'];
 const detailRoutes = new Set(['book/[id]', 'book/[id]/index', 'author/[name]', 'reader/[id]', 'club/[id]',
   'post/[id]', 'club-event/[id]', 'club-discussions', 'book-stack/[id]']);
@@ -43,9 +35,7 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const pathname = usePathname();
   const segments = useSegments() as readonly string[];
   const params = useGlobalSearchParams();
-  const { colors } = useNovoriTheme();
   const tutorial = useTutorial();
-  const insets = useSafeAreaInsets();
   const route = segments.join('/');
   const detail = detailRoutes.has(route);
   const owner = useRef<Tab>('discover');
@@ -76,7 +66,14 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
     if (path !== pathname) return;
     setVisibility(current => current?.path === path && current.hidden === hidden ? current : { path, hidden });
   }, [pathname]);
-  const visible = detail && !tutorial?.active && !keyboard && (reduceMotion || visibility?.path !== pathname || !visibility.hidden);
+  const showBar = detail && !tutorial?.active && !keyboard;
+  const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
+  const progress = useSharedValue(1);
+  useEffect(() => {
+    if (!showBar || reduceMotion) { progress.value = 1; return; }
+    progress.value = withTiming(hidden ? 0 : 1, { duration: hidden ? 210 : 240, easing: Easing.out(Easing.cubic) });
+  }, [hidden, progress, reduceMotion, showBar]);
+  const slide = useAnimatedStyle(() => ({ height: NOVORI_TAB_BAR_HEIGHT * progress.value }));
 
   function switchTab(tab: (typeof tabs)[number]) {
     if (tab.segment !== 'post') {
@@ -93,31 +90,12 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   }
 
   return <ScrollVisibility.Provider value={report}>
-    <View style={styles.content}>{children}</View>
-    {visible ? <View accessibilityRole="tablist" style={[styles.bar, { backgroundColor: colors.surface,
-      borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {tabs.map(tab => {
-        const selected = tab.segment === active;
-        const create = tab.segment === 'post';
-        const tint = selected ? colors.gold : colors.mutedText;
-        return <Pressable key={tab.segment} accessibilityRole="tab" accessibilityLabel={tab.name}
-          accessibilityState={{ selected }} onPress={() => switchTab(tab)} style={styles.item}>
-          {create ? <View style={[styles.create, { backgroundColor: colors.gold }]}>
-            <Ionicons name="add" size={27} color={colors.background}/>
-          </View> : <>
-            <Ionicons name={tab.icon} size={22} color={tint}/>
-            <Text numberOfLines={1} style={[styles.label, { color: tint }]}>{tab.name}</Text>
-          </>}
-        </Pressable>;
-      })}
-    </View> : null}
+    <View style={{ flex: 1 }}>{children}</View>
+    {showBar ? <Animated.View style={[{ overflow: 'hidden' }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
+      accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
+        <NovoriBottomBar active={active} onTab={switchTab}/>
+      </View>
+    </Animated.View> : null}
   </ScrollVisibility.Provider>;
 }
-
-const styles = StyleSheet.create({
-  content: { flex: 1 },
-  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 3 },
-  item: { flex: 1, minHeight: 46, justifyContent: 'center', alignItems: 'center', gap: 3 },
-  label: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  create: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-});
