@@ -1191,8 +1191,9 @@ export default function ClubDetailScreen() {
             </Pressable>)) : null}
 
         <View style={styles.postVoteRow}>
+          <View style={styles.postVotePill}>
           <Pressable disabled={votingPostId ===
-                post.id} onPress={() => handlePostVote(post.id, 1)} hitSlop={8} style={({ pressed }) => [
+                post.id} accessibilityRole="button" accessibilityLabel="Upvote post" accessibilityState={{ selected: post.viewer_vote === 1 }} onPress={event => { event.stopPropagation(); void handlePostVote(post.id, 1); }} hitSlop={8} style={({ pressed }) => [
                 styles.postVoteButton,
                 post.viewer_vote ===
                     1 &&
@@ -1223,7 +1224,7 @@ export default function ClubDetailScreen() {
           </Text>
 
           <Pressable disabled={votingPostId ===
-                post.id} onPress={() => handlePostVote(post.id, -1)} hitSlop={8} style={({ pressed }) => [
+                post.id} accessibilityRole="button" accessibilityLabel="Downvote post" accessibilityState={{ selected: post.viewer_vote === -1 }} onPress={event => { event.stopPropagation(); void handlePostVote(post.id, -1); }} hitSlop={8} style={({ pressed }) => [
                 styles.postVoteButton,
                 post.viewer_vote ===
                     -1 &&
@@ -1242,10 +1243,12 @@ export default function ClubDetailScreen() {
                 ? colors.gold
                 : colors.mutedText}/>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" onPress={() => {
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" hitSlop={8} onPress={event => {
+              event.stopPropagation();
               preserveClubStateOnNextFocus.current = true;
               router.push({ pathname: '/post/[id]', params: { id: post.id } });
-          }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, marginLeft: 'auto', paddingHorizontal: 8 }}>
+          }} style={({ pressed }) => [styles.postCommentPill, pressed && styles.pressed]}>
             <Ionicons name="chatbubble-outline" size={17} color={colors.mutedText}/>
             <Text style={{ color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{post.comment_count ?? 0} {(post.comment_count ?? 0) === 1 ? 'comment' : 'comments'}</Text>
           </Pressable>
@@ -3090,25 +3093,52 @@ function createStyles(colors: NovoriColors) {
         postVoteRow: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 3,
-            marginTop: 14,
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginTop: 15,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+        },
+        postVotePill: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            minHeight: 36,
+            backgroundColor: colors.elevated,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 18,
+            paddingHorizontal: 4,
+        },
+        postCommentPill: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            minHeight: 36,
+            paddingHorizontal: 12,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.elevated,
         },
         postVoteButton: {
-            width: 32,
-            height: 32,
-            borderRadius: 16,
+            width: 30,
+            height: 34,
+            borderRadius: 17,
             alignItems: 'center',
             justifyContent: 'center',
         },
         postVoteButtonActive: {
-            backgroundColor: colors.elevated,
+            backgroundColor: colors.surface,
         },
         postVoteButtonDisabled: {
             opacity: 0.55,
         },
         postVoteScore: {
-            minWidth: 24,
-            color: colors.secondaryText,
+            minWidth: 20,
+            color: colors.mutedText,
             fontFamily: 'Inter_600SemiBold',
             fontSize: 12,
             textAlign: 'center',
