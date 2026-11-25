@@ -9,7 +9,7 @@ import PostDetailScreen from '../src/app/post/[id]';
 import {getClub} from '../src/lib/clubs';
 import {getClubRead,getClubReads} from '../src/lib/club-reads';
 import {getClubDiscussion,getClubDiscussions,saveClubDiscussion,voteClubPoll,closeClubPoll} from '../src/lib/club-discussions';
-import {getPostDetail} from '../src/lib/feed';
+import {deletePost,getPostDetail} from '../src/lib/feed';
 import {getExplicitLanguagePreference} from '../src/lib/content-filter';
 import {supabase} from '../src/lib/supabase';
 import {blockReader} from '../src/lib/social';
@@ -44,7 +44,7 @@ jest.mock('../src/components/ClubEventPostAttachment',()=> 'ClubEventPostAttachm
 jest.mock('../src/lib/clubs',()=>({getClub:jest.fn()}));
 jest.mock('../src/lib/club-reads',()=>({getClubRead:jest.fn(),getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-discussions',()=>({CLUB_DISCUSSIONS_PAGE_SIZE:20,getClubDiscussion:jest.fn(),getClubDiscussions:jest.fn(),saveClubDiscussion:jest.fn(),voteClubPoll:jest.fn(),closeClubPoll:jest.fn(),newClubDiscussionRequestKey:()=> 'stable-discussion-request-key'}));
-jest.mock('../src/lib/feed',()=>({getPostDetail:jest.fn(),togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
+jest.mock('../src/lib/feed',()=>({deletePost:jest.fn(),getPostDetail:jest.fn(),togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
 jest.mock('../src/lib/comments',()=>({getPostComments:jest.fn(),createPostComment:jest.fn(),deletePostComment:jest.fn(),toggleCommentVote:jest.fn(),updatePostComment:jest.fn()}));
 jest.mock('../src/lib/content-filter',()=>({containsExplicitLanguage:()=>false,getExplicitLanguagePreference:jest.fn(async()=>false),isExplicitContentRevealed:()=>false,revealExplicitContentOnce:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
 jest.mock('../src/lib/reports',()=>({submitCommentReport:jest.fn()}));
@@ -73,7 +73,7 @@ const text=()=>view.root.findAllByType('Text').map(n=>[n.props.children].flat(In
 test('member fills the discussion card directly and posts with the stored club read',async()=>{
  await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Our reading chat');await fill('Discussion prompt','What did you think?');await press('Publish club discussion');
  expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:'read-1',kind:'discussion',title:'Our reading chat',prompt:'What did you think?'}),undefined,'stable-discussion-request-key');
- expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).not.toContain('Preview');
+ expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType(ClubDiscussionPostAttachment).findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).toContain('Post preview');
 });
 test('poll editor embeds choices and spoiler limit; save errors retain the whole draft',async()=>{
  mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await press('Discussion contains spoilers');await fill('Discussion spoiler limit','Through chapter 5');await press('Publish club discussion');
@@ -274,4 +274,29 @@ test('standalone post keeps the draft while scrolling and reserves keyboard spac
  await act(async()=>scroll.props.onScrollBeginDrag({}));
  expect(input().props.value).toBe('Draft comment');
  expect(view.root.findByType('KeyboardAvoidingView').props).toMatchObject({behavior:'padding',automaticOffset:true});
+});
+
+test('discussion Edit and Delete live in the standalone post menu, and deletion requires confirmation',async()=>{
+ mockParams={id:'post-1'};deletePost.mockResolvedValue('post-1');
+ await render(<PostDetailScreen/>);
+ expect(button('Share post')).toBeDefined();
+ expect(button('Edit club discussion')).toBeUndefined();
+ await press('Discussion options');await press('Edit club discussion');
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1'}});
+ await press('Discussion options');await press('Delete club discussion');
+ expect(deletePost).not.toHaveBeenCalled();
+ const confirm=view.root.findAllByType('DeletePostConfirmSheet').find(node=>node.props.title==='Delete discussion?');
+ await act(async()=>confirm.props.onConfirm());
+ expect(deletePost).toHaveBeenCalledWith('post-1');expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test.each([false,true])('create and edit share the live discussion card (editing: %s)',async editing=>{
+ mockParams={clubId:'club-1',...(editing?{discussionId:'discussion-1'}:{})};
+ await render(<CreateClubDiscussionScreen/>);
+ const preview=()=>view.root.findByType(ClubDiscussionPostAttachment);
+ expect(preview().props).toMatchObject({detail:true,draft:true,revealed:true});
+ if(editing) expect(preview().props.discussion.title).toBe(topic.title);
+ await fill('Discussion title','A new chapter');
+ await fill('Discussion prompt','What did you think?');
+ expect(preview().props.discussion).toMatchObject({title:'A new chapter',prompt:'What did you think?'});
 });

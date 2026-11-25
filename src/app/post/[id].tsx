@@ -1,3 +1,4 @@
+import { getPostEditRoute } from '../../lib/post-edit-route';
 import { PostBrowsingFooterSpace, useBrowsingBottomInsetCovered, useBrowsingNavigationScroll, usePostFooterTransition } from '../../components/BrowsingNavigation';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
@@ -6,7 +7,7 @@ import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNoti
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
+import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import { openCommentConversation } from '../../lib/open-comment-conversation';
 import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
 import CommentBranchGuide from '../../components/CommentBranchGuide';
@@ -34,7 +35,7 @@ import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
 import { CommentVoteValue, createPostComment, deletePostComment, getPostComments, PostComment, toggleCommentVote, updatePostComment } from '../../lib/comments';
 import { containsExplicitLanguage, getExplicitLanguagePreference, isExplicitContentRevealed, revealExplicitContentOnce, setExplicitLanguagePreference } from '../../lib/content-filter';
-import { FeedPost, getPostDetail, PostVoteValue, splitQuestionPostBody, togglePostVote } from '../../lib/feed';
+import { deletePost, FeedPost, getPostDetail, PostVoteValue, splitQuestionPostBody, togglePostVote } from '../../lib/feed';
 import { ReportReason, submitCommentReport } from '../../lib/reports';
 import { blockReader } from '../../lib/social';
 import { sharePostLink } from '../../lib/share-links';
@@ -133,6 +134,13 @@ export default function PostDetailScreen() {
     const [revealedDiscussion, setRevealedDiscussion] = useState('');
     const {hidden:postSpoilersHidden,reveal:revealPostSpoilers}=usePostSpoiler(post);
     const discussionSpoilersHidden = Boolean(post?.club_discussion?.contains_spoilers && revealedDiscussion !== discussionRevealKey(post.club_discussion));
+    const [discussionOptionsOpen, setDiscussionOptionsOpen] = useState(false);
+    const [deleteDiscussionOpen, setDeleteDiscussionOpen] = useState(false);
+    const [deletingDiscussion, setDeletingDiscussion] = useState(false);
+    const discussionOptionsMotion = useUiSheetMotion({
+        visible: discussionOptionsOpen, busy: false, embedded: false,
+        onDismiss: () => setDiscussionOptionsOpen(false),
+    });
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [allowExplicitLanguage, setAllowExplicitLanguage,] = useState(false);
     const [revealedExplicitPosts, setRevealedExplicitPosts,] = useState<Record<string, boolean>>({});
@@ -1014,6 +1022,10 @@ export default function PostDetailScreen() {
         ?.charAt(0)
         .toUpperCase() ||
         'C';
+    const discussion = post.club_discussion;
+    const canEditDiscussion = Boolean(discussion?.viewer_can_manage &&
+        !(discussion.kind === 'poll' && (discussion.voting_started_at || discussion.closed_at)));
+    const canDeleteDiscussion = Boolean(discussion && currentUserId && post.author_id === currentUserId);
     const canSubmit = commentBody
         .trim()
         .length >
@@ -1121,6 +1133,9 @@ export default function PostDetailScreen() {
             ]}>
                 <Ionicons name="share-social-outline" size={19} color={colors.mutedText}/>
               </Pressable>
+              {canEditDiscussion || canDeleteDiscussion ? <Pressable accessibilityRole="button" accessibilityLabel="Discussion options" hitSlop={6} onPress={() => { Keyboard.dismiss(); setDiscussionOptionsOpen(true); }} style={({pressed}) => [styles.postHeaderShare, pressed && styles.pressed]}>
+                <Ionicons name="ellipsis-horizontal" size={21} color={colors.mutedText}/>
+              </Pressable> : null}
             </View>
 
             <View style={post.is_club_announcement ? styles.announcementLabelSpacing : undefined}>
@@ -1545,6 +1560,36 @@ export default function PostDetailScreen() {
             }
         }}/>
 
+      <UiSheetModal visible={discussionOptionsOpen} transparent animationType="none" onRequestClose={discussionOptionsMotion.close} motion={discussionOptionsMotion}>
+        <Pressable style={styles.commentActionModal} onPress={discussionOptionsMotion.close}>
+          <UiSheetBackdrop pointerEvents="none" style={styles.commentActionBackdrop} motion={discussionOptionsMotion}/>
+          <UiSheetSurface style={styles.discussionOptionsSheet} motion={discussionOptionsMotion}>
+            <Pressable onPress={event => event.stopPropagation()}>
+              <Text style={styles.headerTitle}>Discussion options</Text>
+              {canEditDiscussion ? <Pressable accessibilityRole="button" accessibilityLabel="Edit club discussion" style={styles.discussionOption} onPress={() => {
+                discussionOptionsMotion.closeAfterActionWithCallback(() => router.push(getPostEditRoute(post)));
+              }}><Ionicons name="create-outline" size={20} color={colors.gold}/><Text style={styles.discussionOptionText}>Edit</Text></Pressable> : null}
+              {canDeleteDiscussion ? <Pressable accessibilityRole="button" accessibilityLabel="Delete club discussion" style={styles.discussionOption} onPress={() => {
+                discussionOptionsMotion.closeAfterActionWithCallback(() => setDeleteDiscussionOpen(true));
+              }}><Ionicons name="trash-outline" size={20} color={colors.danger}/><Text style={[styles.discussionOptionText, {color: colors.danger}]}>Delete</Text></Pressable> : null}
+            </Pressable>
+          </UiSheetSurface>
+        </Pressable>
+      </UiSheetModal>
+      {deleteDiscussionOpen ? <DeletePostConfirmSheet title="Delete discussion?" visible busy={deletingDiscussion} onDismiss={() => setDeleteDiscussionOpen(false)} onConfirm={async () => {
+        if (!canDeleteDiscussion || deletingDiscussion) return;
+        setDeletingDiscussion(true);
+        try {
+          await deletePost(post.id);
+          setDeleteDiscussionOpen(false);
+          router.back();
+        } catch (error) {
+          Alert.alert('Could not delete discussion', 'Please try again.');
+          throw error;
+        } finally {
+          setDeletingDiscussion(false);
+        }
+      }}/> : null}
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
@@ -1633,6 +1678,12 @@ function createStyles(colors: NovoriColors) {
             flexDirection: 'row',
             alignItems: 'flex-start',
         },
+        discussionOptionsSheet: {
+            backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+            paddingHorizontal: 22, paddingTop: 20, paddingBottom: 36,
+        },
+        discussionOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 12 },
+        discussionOptionText: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 15 },
         postHeaderShare: {
             width: 36,
             height: 36,
