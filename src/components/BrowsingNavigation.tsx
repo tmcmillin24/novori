@@ -2,7 +2,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import NovoriBottomBar, { NOVORI_TAB_BAR_HEIGHT, novoriTabs as tabs } from './NovoriBottomBar';
 import { type Href, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Keyboard, View } from 'react-native';
+import { AccessibilityInfo, Keyboard, Platform, View } from 'react-native';
 import { useTutorial } from '../context/tutorial-context';
 
 type Tab = (typeof tabs)[number]['segment'];
@@ -88,8 +88,12 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
     if (path !== pathname) return;
     setVisibility(current => current?.path === path && current.hidden === hidden ? current : { path, hidden });
   }, [pathname]);
-  const showBar = detail && !tutorial?.active && !keyboard;
+  // On iOS the native keyboard covers the footer. Keep its layout in place
+  // so the post's keyboard avoidance measures the same viewport throughout.
+  const keepPostFooter = Platform.OS === 'ios' && route === 'post/[id]';
+  const showBar = detail && !tutorial?.active && (!keyboard || keepPostFooter);
   const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
+  const barUnavailable = hidden || keyboard;
   const progress = useSharedValue(1);
   useEffect(() => {
     if (!showBar || reduceMotion) { progress.value = 1; return; }
@@ -113,12 +117,12 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   }
 
   return <ScrollVisibility.Provider value={report}>
-    <BottomInsetCovered.Provider value={keyboard || (showBar && !hidden && !overlayBookBar)}>
+    <BottomInsetCovered.Provider value={(!keepPostFooter && keyboard) || (showBar && !hidden && !overlayBookBar)}>
       <View style={{ flex: 1 }}>{children}</View>
     </BottomInsetCovered.Provider>
     {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace },
-      overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
-      accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
+      overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={barUnavailable ? 'none' : 'auto'}
+      accessibilityElementsHidden={barUnavailable} importantForAccessibility={barUnavailable ? 'no-hide-descendants' : 'auto'}>
       <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
         <NovoriBottomBar active={active} onTab={switchTab}/>
       </View>
