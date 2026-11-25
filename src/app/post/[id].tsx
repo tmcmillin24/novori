@@ -1,4 +1,4 @@
-import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
+import { useBrowsingBottomInsetCovered, useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -23,8 +23,8 @@ import { BlurView } from 'expo-blur';
 import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { ActivityIndicator, Alert, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
@@ -141,8 +141,6 @@ export default function PostDetailScreen() {
     const [error, setError,] = useState('');
     const [voting, setVoting,] = useState(false);
     const [commentBody, setCommentBody,] = useState('');
-    const [composerResetting, setComposerResetting,] = useState(false);
-    const [replyResetting, setReplyResetting,] = useState(false);
     const [replyTo, setReplyTo,] = useState<ReplyTarget | null>(null);
     const [commentActionTarget, setCommentActionTarget,] = useState<ThreadComment | null>(null);
     const [blockConfirmTarget, setBlockConfirmTarget,] = useState<ThreadComment | null>(null);
@@ -181,15 +179,6 @@ export default function PostDetailScreen() {
     }, [
         commentActionTarget
     ]);
-    useEffect(() => {
-        const hide = Keyboard.addListener('keyboardDidHide', () => {
-            setComposerResetting(false);
-            setReplyResetting(false);
-        });
-        return () => {
-            hide.remove();
-        };
-    }, []);
     const loadSequence = useRef(0);
     const viewPostId = useRef(postId);
     viewPostId.current = postId;
@@ -278,7 +267,7 @@ export default function PostDetailScreen() {
         commentSort,
         discussionSpoilersHidden
     ]);
-    const { height: windowHeight } = useWindowDimensions();
+    const bottomInsetCovered = useBrowsingBottomInsetCovered();
     const [commentAreaWidth, setCommentAreaWidth] = useState(360);
     const commentDepthLimit = getCommentDepthLimit(commentAreaWidth);
     const requestedThreadId = typeof params.threadId === 'string' ? params.threadId : '';
@@ -600,8 +589,6 @@ export default function PostDetailScreen() {
         uiCommentAction.closeAfterActionWithCallback(afterClose);
     }
     function startComposerWithKeyboard(action: () => void) {
-        setComposerResetting(false);
-        setReplyResetting(false);
         action();
         requestAnimationFrame(() => {
             commentInputRef
@@ -670,14 +657,6 @@ export default function PostDetailScreen() {
             !replyTo) {
             return;
         }
-        setComposerResetting(true);
-        setReplyResetting(Boolean(replyTo));
-        commentInputRef
-            .current
-            ?.clear();
-        commentInputRef
-            .current
-            ?.blur();
         setCommentBody('');
         setEditingComment(null);
         setReplyTo(null);
@@ -685,14 +664,6 @@ export default function PostDetailScreen() {
     }
     function cancelCommentEdit() {
         resetTemporaryCommentComposer();
-    }
-    function handleCommentComposerOutsideTouch() {
-        if (editingComment ||
-            replyTo) {
-            resetTemporaryCommentComposer();
-            return;
-        }
-        Keyboard.dismiss();
     }
     function reportSelectedComment() {
         if (!commentActionTarget ||
@@ -1045,10 +1016,7 @@ export default function PostDetailScreen() {
             .length <=
             2000 &&
         !submitting && Boolean(!focusedThreadId || replyTo || editingComment);
-    return (<SafeAreaView onLayout={() => conversationDestinationLaidOut(postId, requestedThreadId || targetCommentId)} style={styles.safeArea} edges={[
-            'top',
-            'bottom'
-        ]}>
+    return (<SafeAreaView onLayout={() => conversationDestinationLaidOut(postId, requestedThreadId || targetCommentId)} style={styles.safeArea} edges={bottomInsetCovered ? ['top'] : ['top', 'bottom']}>
       <View style={[styles.header, focusedThreadId && styles.conversationHeader]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [
             styles.headerButton,
@@ -1067,13 +1035,13 @@ export default function PostDetailScreen() {
       </View>
 
       {loadWarning ? <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.background }}><Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={() => void loadData(false, true)}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold', paddingVertical: 6 }}>Try again</Text></Pressable></View> : null}
-      <View style={styles.keyboardView}>
-        <ScrollView onScrollBeginDrag={browsingScroll.onScrollBeginDrag} ref={scrollRef} onTouchStart={handleCommentComposerOutsideTouch} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.keyboardView}>
+        <ScrollView onScrollBeginDrag={browsingScroll.onScrollBeginDrag} ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
           browsingScroll.onScroll(event);
             scrollYRef.current =
                 event.nativeEvent
                     .contentOffset.y;
-        }} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" keyboardDismissMode={Platform.OS ===
+        }} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS ===
             'ios'
             ? 'interactive'
             : 'on-drag'} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.gold}/>}>
@@ -1317,12 +1285,7 @@ export default function PostDetailScreen() {
           </> : null}
         </ScrollView>
 
-        {!discussionSpoilersHidden && (!focusedThreadId || (focusedThread && (activeReplyTarget || editingComment))) ? <KeyboardStickyView offset={{
-                closed: 0,
-                opened: 0,
-            }}>
-          <View style={styles.composerWrap}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: windowHeight, backgroundColor: colors.background }}/>
+        {!discussionSpoilersHidden && (!focusedThreadId || (focusedThread && (activeReplyTarget || editingComment))) ? <View testID="post-comment-composer" style={styles.composerWrap}>
           {editingComment ? (<View style={styles.replyingRow}>
               <Text style={styles.replyingText}>
                 Editing comment
@@ -1331,25 +1294,14 @@ export default function PostDetailScreen() {
               <Pressable onPress={cancelCommentEdit} hitSlop={8}>
                 <Ionicons name="close-circle" size={18} color={colors.mutedText}/>
               </Pressable>
-            </View>) : activeReplyTarget ? (<ReplyComposerContext name={activeReplyTarget.name} body={activeReplyComment?.body ?? ''} hideBody={Boolean(activeReplyComment && !activeReplyComment.is_own && !allowExplicitLanguage && containsExplicitLanguage(activeReplyComment.body) && !isExplicitContentRevealed('comment', activeReplyComment.id))} onCancel={replyTo ? resetTemporaryCommentComposer : undefined}/>) : composerResetting ? (<View pointerEvents="none" style={[
-                    styles.replyingRow,
-                    styles.replyingRowSpacer
-                ]}>
-              <Text style={styles.replyingText} numberOfLines={1}>
-                Replying to reader
-              </Text>
-
-              <View style={styles.replyingSpacerIcon}/>
-            </View>) : null}
+            </View>) : activeReplyTarget ? (<ReplyComposerContext name={activeReplyTarget.name} body={activeReplyComment?.body ?? ''} hideBody={Boolean(activeReplyComment && !activeReplyComment.is_own && !allowExplicitLanguage && containsExplicitLanguage(activeReplyComment.body) && !isExplicitContentRevealed('comment', activeReplyComment.id))} onCancel={replyTo ? resetTemporaryCommentComposer : undefined}/>) : null}
 
           <View style={styles.composer}>
-            <TextInput accessibilityLabel="Comment reply text" editable={!submitting && Boolean(!focusedThreadId || activeReplyTarget || editingComment)} ref={commentInputRef} value={commentBody} onChangeText={setCommentBody} placeholder={composerResetting
-                ? ''
-                : editingComment
+            <TextInput accessibilityLabel="Comment reply text" editable={!submitting && Boolean(!focusedThreadId || activeReplyTarget || editingComment)} ref={commentInputRef} value={commentBody} onChangeText={setCommentBody} placeholder={editingComment
                     ? 'Edit your comment…'
                     : activeReplyTarget
                         ? 'Write a reply…'
-                        : 'Add a comment…'} placeholderTextColor={colors.mutedText} multiline maxLength={2000} style={styles.commentInput}/>
+                        : 'Add a comment…'} placeholderTextColor={colors.mutedText} multiline textAlignVertical="top" maxLength={2000} style={styles.commentInput}/>
 
             <Pressable accessibilityRole="button" accessibilityLabel="Send comment" disabled={!canSubmit} onPress={submitComment} style={({ pressed }) => [
                 styles.sendButton,
@@ -1364,11 +1316,10 @@ export default function PostDetailScreen() {
                     : 'arrow-up'} size={19} color={colors.background}/>)}
             </Pressable>
           </View>
-          </View>
-        </KeyboardStickyView> : null}
+        </View> : null}
         <ValidationWarningSheet visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
 
-      </View>
+      </KeyboardAvoidingView>
 
       {commentActionTarget ? (<View style={styles.commentActionModal}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => {
@@ -2103,12 +2054,11 @@ function createStyles(colors: NovoriColors) {
             marginTop: 3,
         },
         composerWrap: {
-            borderTopWidth: 1,
+            borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: colors.border,
             backgroundColor: colors.background,
             paddingHorizontal: 14,
-            paddingTop: 8,
-            paddingBottom: 8,
+            paddingVertical: 6,
         },
         replyingRow: {
             flexDirection: 'row',
@@ -2123,13 +2073,6 @@ function createStyles(colors: NovoriColors) {
             fontFamily: 'Inter_500Medium',
             fontSize: 10,
             marginRight: 8,
-        },
-        replyingRowSpacer: {
-            opacity: 0,
-        },
-        replyingSpacerIcon: {
-            width: 18,
-            height: 18,
         },
         composer: {
             minHeight: 52,

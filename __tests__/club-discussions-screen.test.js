@@ -23,7 +23,11 @@ jest.mock('react-native',()=>({
  Animated:{View:'AnimatedView',Value:class{setValue(){}stopAnimation(){}interpolate(){return 0;}},parallel:()=>({start:f=>f?.({finished:true})}),timing:()=>({start:f=>f?.({finished:true})}),spring:()=>({start:f=>f?.({finished:true})})},
  Easing:{out:v=>v,in:v=>v,inOut:v=>v,cubic:()=>{},quad:()=>{}},PanResponder:{create:()=>({panHandlers:{}})},
 }));
-jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardStickyView:'KeyboardStickyView'}));
+jest.mock('../src/components/BrowsingNavigation',()=>({
+ useBrowsingNavigationScroll:()=>({onScroll:jest.fn(),onScrollBeginDrag:jest.fn()}),
+ useBrowsingBottomInsetCovered:()=>true,
+}));
+jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardAvoidingView:'KeyboardAvoidingView'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
 jest.mock('expo-blur',()=>({BlurView:'BlurView'}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
@@ -90,16 +94,16 @@ test('book-filtered board paginates without per-card API reads and passes select
  mockParams={clubId:'club-1',readId:'read-1'};getClubDiscussions.mockResolvedValueOnce(Array.from({length:20},(_,i)=>({...topic,id:'topic-'+i,post_id:'post-'+i}))).mockResolvedValueOnce([{...topic,id:'topic-20'}]);await render(<ClubDiscussionsScreen/>);expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','all');expect(getClubDiscussion).not.toHaveBeenCalled();await press('More club discussions');expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','all',20);await press('Start club poll');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',readId:'read-1',kind:'poll'}});await press('Show club poll');expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','poll');
 });
 test('full post screen hides spoiler prompt, comments, and composer until explicit reveal',async()=>{
- mockParams={id:'post-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(topic.title);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(topic.prompt);expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(1);
+ mockParams={id:'post-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(topic.title);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(topic.prompt);expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(1);
 });
 test('refreshing a revised spoiler discussion resets reveal for the whole comment thread',async()=>{
- mockParams={id:'post-1'};await render(<PostDetailScreen/>);await press('Reveal club discussion spoilers');const revised={...topic,updated_at:'2026-10-03T11:00:00Z',prompt:'A revised spoiler.'};getPostDetail.mockResolvedValue({...post,club_discussion:revised});getClubDiscussion.mockResolvedValue(revised);await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).not.toContain(revised.prompt);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);
+ mockParams={id:'post-1'};await render(<PostDetailScreen/>);await press('Reveal club discussion spoilers');const revised={...topic,updated_at:'2026-10-03T11:00:00Z',prompt:'A revised spoiler.'};getPostDetail.mockResolvedValue({...post,club_discussion:revised});getClubDiscussion.mockResolvedValue(revised);await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).not.toContain(revised.prompt);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);
 });
 test('newer detail metadata can enable spoiler protection for comments loaded with an older post snapshot',async()=>{
- mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,contains_spoilers:false}});getClubDiscussion.mockResolvedValue({...topic,updated_at:'2026-10-03T11:00:00Z'});await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('Reveal club discussion spoilers')).toBeDefined();
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,contains_spoilers:false}});getClubDiscussion.mockResolvedValue({...topic,updated_at:'2026-10-03T11:00:00Z'});await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(button('Reveal club discussion spoilers')).toBeDefined();
 });
 test('ordinary posts retain their comments and composer',async()=>{
- mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,body:'An ordinary post.',club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('An ordinary post.');expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(1);expect(getClubDiscussion).not.toHaveBeenCalled();
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,body:'An ordinary post.',club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('An ordinary post.');expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(1);expect(getClubDiscussion).not.toHaveBeenCalled();
 });
 
 const chain=()=>Array.from({length:6},(_,i)=>({...comment,id:'chain-'+i,parent_comment_id:i?'chain-'+(i-1):null,body:'Reply at depth '+i}));
@@ -119,10 +123,10 @@ test('deep notification targets open a readable branch automatically',async()=>{
  mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Conversation');expect(text()).toContain('Reply at depth 5');expect(text()).not.toContain('Reply at depth 0');expect(text()).not.toContain('Reply at depth 4');
 });
 test('missing focused comments cannot accidentally publish to the post root',async()=>{
- mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('Back to post')).toBeDefined();
+ mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(button('Back to post')).toBeDefined();
 });
 test('focused routes preserve spoiler protection for the comment branch',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
+ mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
 });
 
 test.each(['name','avatar','empty space'])('notification thread opens comment actions when holding the %s',async area=>{
@@ -137,9 +141,9 @@ test.each(['name','avatar','empty space'])('notification thread opens comment ac
 test('focused notification replies use the Home placeholder and quote the parent comment',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
  expect(field('Comment reply text')).toBeUndefined();expect(text()).not.toContain('Replying to');await chooseReply('comment-1');expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');
- const composer=view.root.findByType('KeyboardStickyView');const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
+ const composer=view.root.findByProps({testID:'post-comment-composer'});const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
  expect(composerText).toContain('Replying to Another Reader');expect(composerText).toContain(comment.body);
- const backdrop=composer.findAllByType('View').find(n=>n.props.pointerEvents==='none'&&n.props.style?.height===844);expect(backdrop).toBeDefined();expect(backdrop.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
+ expect(composer.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
 });
 
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
@@ -239,7 +243,7 @@ test('a root conversation offers no parent action and preserves the reply label 
 });
 
 test('focused reading hides the post and composer until Reply is chosen, then cancellation restores reading mode',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null,body:'Original post only'});await render(<PostDetailScreen/>);expect(text()).not.toContain('Original post only');expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reply to comment: comment-1');expect(field('Comment reply text')).toBeDefined();await press('Cancel reply');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(text()).not.toContain('Choose a comment');
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null,body:'Original post only'});await render(<PostDetailScreen/>);expect(text()).not.toContain('Original post only');expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reply to comment: comment-1');expect(field('Comment reply text')).toBeDefined();await press('Cancel reply');expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(text()).not.toContain('Choose a comment');
 });
 test('comment deletion can be cancelled without issuing a write',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([{...comment,is_own:true}]);await render(<PostDetailScreen/>);await act(async()=>button('Comment: comment-1').props.onLongPress());const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Delete'));await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(210));const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);await act(async()=>sheet.props.onDismiss());expect(view.root.findByType('DeletePostConfirmSheet').props.visible).toBe(false);expect(deletePostComment).not.toHaveBeenCalled();
@@ -255,4 +259,17 @@ test('conversation header uses balanced sides and groups its count with sorting'
 
 test('a loading conversation keeps its header at the top and does not schedule an entrance scroll',async()=>{
  mockParams={id:'post-1',threadId:'comment-1',commentId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const read=deferred();getPostComments.mockReturnValue(read.promise);const timers=jest.spyOn(global,'setTimeout');await render(<PostDetailScreen/>);expect(text()).toContain('Conversation');expect(text()).toContain('Loading conversation…');expect(button('Back to previous screen')).toBeDefined();expect(view.root.findAllByType('ActivityIndicator').map(node=>node.props.size)).toEqual(['small']);await act(async()=>read.resolve([comment]));expect(text()).toContain(comment.body);expect(text()).not.toContain('Loading conversation…');expect(timers.mock.calls.some(call=>call[1]===450)).toBe(false);timers.mockRestore();
+});
+
+test('standalone post keeps the draft while scrolling and reserves keyboard space around the whole thread',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});
+ await render(<PostDetailScreen/>);
+ const input=()=>field('Comment reply text');
+ await act(async()=>input().props.onChangeText('Draft comment'));
+ const scroll=view.root.findByType('ScrollView');
+ expect(scroll.props.onTouchStart).toBeUndefined();
+ expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
+ await act(async()=>scroll.props.onScrollBeginDrag({}));
+ expect(input().props.value).toBe('Draft comment');
+ expect(view.root.findByType('KeyboardAvoidingView').props).toMatchObject({behavior:'padding',automaticOffset:true});
 });

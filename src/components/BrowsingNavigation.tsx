@@ -8,6 +8,9 @@ import { useTutorial } from '../context/tutorial-context';
 type Tab = (typeof tabs)[number]['segment'];
 const detailRoutes = new Set(['book/[id]', 'book/[id]/index', 'author/[name]', 'reader/[id]', 'club/[id]',
   'post/[id]', 'club-event/[id]', 'club-discussions', 'book-stack/[id]']);
+const BottomInsetCovered = createContext(false);
+export const useBrowsingBottomInsetCovered = () => useContext(BottomInsetCovered);
+
 const ScrollVisibility = createContext<(path: string, hidden: boolean) => void>(() => {});
 
 export function useBrowsingNavigationScroll() {
@@ -110,7 +113,9 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   }
 
   return <ScrollVisibility.Provider value={report}>
-    <View style={{ flex: 1 }}>{children}</View>
+    <BottomInsetCovered.Provider value={keyboard || (showBar && !hidden && !overlayBookBar)}>
+      <View style={{ flex: 1 }}>{children}</View>
+    </BottomInsetCovered.Provider>
     {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace },
       overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
       accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
