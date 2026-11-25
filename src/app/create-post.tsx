@@ -1,3 +1,4 @@
+import { getClubComposerPreview, type ComposerProfile as ViewerProfile } from '../lib/club-composer-preview';
 import CachedMediaImage from '../components/CachedMediaImage';
 import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
@@ -67,12 +68,6 @@ import {
 import {
   supabase,
 } from '../lib/supabase';
-
-type ViewerProfile = {
-  display_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
-};
 
 type Destination =
   | {
@@ -181,6 +176,7 @@ export default function CreatePostScreen() {
     useLocalSearchParams<{
       clubId?: string;
       clubName?: string;
+      previewKey?: string;
       announcement?: string;
       editPostId?: string;
     }>();
@@ -258,13 +254,12 @@ export default function CreatePostScreen() {
       )
     );
 
+  const [clubPreview] = useState(() => getClubComposerPreview(params.previewKey, requestedClubId));
   const [
     viewerProfile,
     setViewerProfile,
   ] =
-    useState<ViewerProfile | null>(
-      null
-    );
+    useState<ViewerProfile | null>(clubPreview?.profile ?? null);
 
   const [
     destinationExpanded,
@@ -369,7 +364,9 @@ export default function CreatePostScreen() {
     const authRequest = supabase.auth.getUser();
     // The preview identity doesn't depend on the club list or edit payload.
     void authRequest.then(async ({ data: { user } }) => {
-      if (!active || !user) return;
+      if (!active) return;
+      if (clubPreview && clubPreview.userId !== user?.id) setViewerProfile(null);
+      if (!user || (clubPreview?.userId === user.id && clubPreview.profile)) return;
       const { data, error } = await supabase.from('profiles')
         .select('display_name, username, avatar_url').eq('id', user.id).single();
       if (active && !error) setViewerProfile(data);
@@ -545,6 +542,7 @@ export default function CreatePostScreen() {
         false;
     };
   }, [
+    clubPreview,
     editPostId,
     isEditing,
     requestedClubId,
@@ -678,13 +676,19 @@ export default function CreatePostScreen() {
         null
       : null;
 
+  const selectedClubCover = selectedClub
+    ? selectedClub.cover_url
+    : destination.type === 'club' && destination.clubId === clubPreview?.clubId
+      ? clubPreview.clubCover
+      : null;
+
   const selectedTitle =
     profileSelected
       ? 'Your feed'
       : selectedClub
           ?.name ??
         (destination.type === 'club' && destination.clubId === requestedClubId
-          ? params.clubName?.trim() || 'Club'
+          ? clubPreview?.clubName || params.clubName?.trim() || 'Club'
           : 'Choose destination');
 
   const selectedSubtitle =
@@ -1242,8 +1246,8 @@ export default function CreatePostScreen() {
             >
               {!profileSelected ? (
                 <View style={styles.clubDestinationMedia}>
-                  {selectedClub?.cover_url ? (
-                    <CachedMediaImage source={{ uri: moderationMediaUrl(selectedClub.cover_url) }}
+                  {selectedClubCover ? (
+                    <CachedMediaImage source={{ uri: moderationMediaUrl(selectedClubCover) }}
                       style={styles.clubDestinationImage}/>
                   ) : null}
                 </View>
