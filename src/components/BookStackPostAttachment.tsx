@@ -19,7 +19,8 @@ import {
 } from '../context/theme-context';
 import {
   BookStack,
-  getBookStack,
+  getBookStackAttachment,
+  peekBookStackAttachment,
 } from '../lib/book-stacks';
 import BookStackShowcase from './BookStackShowcase';
 
@@ -47,73 +48,23 @@ export default function BookStackPostAttachment({
       colors
     );
 
-  const [
-    stack,
-    setStack,
-  ] =
-    useState<
-      BookStack | null
-    >(null);
-
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
-
-  const [
-    selectedId,
-    setSelectedId,
-  ] =
-    useState<
-      string | null
-    >(null);
+  const [loaded, setLoaded] = useState<{ id: string; value: BookStack | null } | null>(null);
+  const [selection, setSelection] = useState<{ id: string; item: string | null } | null>(null);
+  const stack = loaded?.id === stackId ? loaded.value : peekBookStackAttachment(stackId);
+  const loading = !stack && loaded?.id !== stackId;
+  const selectedId = selection?.id === stackId ? selection.item : null;
 
   useEffect(() => {
-    let mounted =
-      true;
-
-    async function load() {
-      try {
-        const next =
-          await getBookStack(
-            stackId
-          );
-
-        if (
-          mounted
-        ) {
-          setStack(
-            next
-          );
-        }
-      } catch (
-        error
-      ) {
-        console.error(
-          'Could not load Book Stack attachment:',
-          error
-        );
-      } finally {
-        if (
-          mounted
-        ) {
-          setLoading(
-            false
-          );
-        }
-      }
-    }
-
-    void load();
-
-    return () => {
-      mounted =
-        false;
-    };
-  }, [
-    stackId,
-  ]);
+    let active = true;
+    void getBookStackAttachment(stackId).then(value => {
+      if (active) setLoaded(current => current?.id === stackId && current.value === value ? current : { id: stackId, value });
+    }).catch(error => {
+      if (!active) return;
+      console.warn('Could not load Book Stack attachment:', error);
+      setLoaded({ id: stackId, value: null });
+    });
+    return () => { active = false; };
+  }, [stackId]);
 
   if (
     loading
@@ -149,18 +100,15 @@ export default function BookStackPostAttachment({
         items={
           stack.items
         }
-        variant={
-          variant
-        }
+        variant={variant}
+        animateLayout={variant !== 'feed'}
         interactive={
           interactive
         }
         selectedId={
           selectedId
         }
-        onSelectedIdChange={
-          setSelectedId
-        }
+        onSelectedIdChange={item => setSelection({ id: stackId, item })}
         compactTopSpacing={
           compactTopSpacing
         }
