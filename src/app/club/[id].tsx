@@ -4,7 +4,6 @@ import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
 import { useReportConfirmation } from '../../lib/use-report-confirmation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import ClubEventCard from '../../components/ClubEventCard';
 import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubBooksBoard from '../../components/ClubBooksBoard';
 import ClubTabActions from '../../components/ClubTabActions';
@@ -1549,6 +1548,10 @@ export default function ClubDetailScreen() {
             toggleManagement(true);
             clubScrollRef.current?.scrollTo({ y: 0, animated: true });
         }
+        else if (action === 'announce' && isManager)
+            router.push({ pathname: '/create-post', params: { clubId: club.id, announcement: '1' } });
+        else if (action === 'discussions')
+            router.push({ pathname: '/club-discussions', params: { clubId: club.id } });
         else if (action === 'guide') {
             if (memberExperience)
                 setWelcomeOpen(true);
@@ -1613,7 +1616,7 @@ export default function ClubDetailScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Share club" onPress={() => { Keyboard.dismiss(); void handleShareClub(); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
             <Ionicons name="share-social-outline" size={23} color={colors.text}/>
           </Pressable>
-          {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable> : <View style={styles.headerSpacer}/>}
+          {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel={isManager && managerJoinRequests.length > 0 ? `Open club options, ${managerJoinRequests.length} pending join requests` : "Open club options"} onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/>{isManager && managerJoinRequests.length > 0 ? <View pointerEvents="none" style={styles.clubOptionsDot}/> : null}</Pressable> : <View style={styles.headerSpacer}/>}
         </View>
       </View>
 
@@ -1658,7 +1661,10 @@ export default function ClubDetailScreen() {
       <ScrollView nestedScrollEnabled ref={clubScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshClub} tintColor={colors.gold} colors={[
                 colors.gold
             ]} progressBackgroundColor={colors.surface}/>}>
-        <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} managementVisible={managementVisible} pendingRequests={managerJoinRequests.length} pendingInvites={managerInvites.length} onPhoto={() => setClubImageOpen(true)} onRules={() => setRulesExpanded(value => !value)} onMembers={() => handleClubAction('members')} onBooks={() => setClubTab('books')} onManage={() => toggleManagement()} onEdit={editClub}/>
+        <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} onPhoto={() => setClubImageOpen(true)} onMembers={() => {
+            if (membersVisible && !managementVisible) setMembersVisible(false);
+            else handleClubAction('members');
+        }} onCloseRules={() => setRulesExpanded(false)} onEdit={editClub}/>
         {isManager ? (
           <Pressable accessibilityRole="button" onPress={() => {
             setInviteQuery('');
@@ -1667,9 +1673,8 @@ export default function ClubDetailScreen() {
             setInviteSearchLoading(true);
             setInvitePanelOpen(true);
           }} style={({ pressed }) => [styles.inviteToggleButton, pressed && styles.pressed]}>
-            <View style={styles.inviteToggleIcon}><Ionicons name="person-add-outline" size={18} color={colors.gold}/></View>
-            <Text style={[styles.inviteToggleTitle, styles.inviteToggleCopy]}>Invite readers</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
+            <Ionicons name="person-add-outline" size={16} color={colors.gold}/>
+            <Text style={styles.inviteToggleTitle}>Invite readers</Text>
           </Pressable>
         ) : null}
         {isMember && welcomeOpen && memberExperience ? <ClubWelcomeCard name={club.name} experience={memberExperience} eventTitle={nextEvent?.title} hasRules={Boolean(club.rules?.trim())} busy={experienceBusy} onBooks={() => setClubTab('books')} onDiscussion={() => router.push({ pathname: '/club-discussions', params: { clubId: club.id } })} onEvents={() => setClubTab('events')} onRules={() => { setRulesExpanded(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }} onDismiss={() => void updateClubExperience('welcome')}/> : null}
@@ -1762,6 +1767,12 @@ export default function ClubDetailScreen() {
               </>)}
           </Pressable>)}
 
+        {isManager && managementVisible ? <View style={styles.clubManagementHeader}>
+          <Text style={styles.sectionTitle}>Manage club</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close club management" onPress={() => toggleManagement(false)} style={styles.headerButton}>
+            <Ionicons name="close" size={22} color={colors.text}/>
+          </Pressable>
+        </View> : null}
         {isManager && managementVisible &&
             managerJoinRequests.length >
                 0 ? (<View style={styles.joinRequestsSection}>
@@ -1859,11 +1870,9 @@ export default function ClubDetailScreen() {
         <View style={styles.clubTabBar}>{(['posts', 'books', 'events'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Ionicons name={tab === 'posts' ? 'chatbubbles-outline' : tab === 'events' ? 'calendar-outline' : 'book-outline'} size={16} color={clubTab === tab ? colors.gold : colors.mutedText}/><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
         <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager}/>
         {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open club discussions and polls" onPress={() => router.push({ pathname: '/club-discussions', params: { clubId: club.id } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginBottom: 12, paddingHorizontal: 13, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}><Ionicons name="chatbubbles-outline" size={17} color={colors.gold}/><Text style={{ flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Discussions & polls</Text><Ionicons name="chevron-forward" size={16} color={colors.mutedText}/></Pressable>
-        {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={() => router.push({ pathname: '/club-event/[id]', params: { id: nextEvent.id } })}/> : null}
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
 
-        <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && !nextEvent && styles.conversationAfterMembers]}>
+        <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
             Club conversation
           </Text>
@@ -2559,36 +2568,22 @@ function createStyles(colors: NovoriColors) {
         inviteSection: {
             marginTop: 12,
         },
+        clubOptionsDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
+        clubManagementHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
         inviteToggleButton: {
-            marginBottom: 12,
-            minHeight: 64,
+            alignSelf: 'flex-start',
+            marginBottom: 10,
+            minHeight: 44,
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 11,
-            paddingHorizontal: 13,
-            paddingVertical: 10,
-            borderRadius: 14,
+            gap: 7,
+            paddingHorizontal: 12,
+            borderRadius: 12,
             backgroundColor: colors.surface,
             borderWidth: 1,
             borderColor: colors.border,
         },
-        inviteToggleIcon: {
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        inviteToggleCopy: {
-            flex: 1,
-            minWidth: 0,
-        },
-        inviteToggleTitle: {
-            color: colors.text,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 13,
-        },
+        inviteToggleTitle: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
         inviteScreenBody: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
         inviteResultsLabel: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 18 },
         inviteSearchWrap: {

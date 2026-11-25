@@ -2,18 +2,23 @@ import CachedMediaImage from './CachedMediaImage';
 import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
 import { getClubGenreLabel } from '../constants/club-genres';
 import type { ClubWithMembership } from '../lib/clubs';
 
 type Props = {
-  club: ClubWithMembership; canViewMembers: boolean; rulesExpanded: boolean; membersVisible: boolean; managementVisible: boolean;
-  pendingRequests: number; pendingInvites: number;
-  onPhoto: () => void; onRules: () => void; onMembers: () => void; onBooks: () => void; onManage: () => void; onEdit: () => void;
+  club: ClubWithMembership;
+  canViewMembers: boolean;
+  rulesExpanded: boolean;
+  membersVisible: boolean;
+  onPhoto: () => void;
+  onMembers: () => void;
+  onCloseRules: () => void;
+  onEdit: () => void;
 };
 
-export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, membersVisible, managementVisible, pendingRequests, pendingInvites, onPhoto, onRules, onMembers, onBooks, onManage, onEdit }: Props) {
+export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, membersVisible, onPhoto, onMembers, onCloseRules, onEdit }: Props) {
   const { colors } = useNovoriTheme();
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const styles = useMemo(() => StyleSheet.create({
@@ -34,11 +39,9 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
     links: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     link: { flex: 1, minHeight: 48, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
     linkText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-    manage: { minHeight: 46, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, flexDirection: 'row', gap: 9, alignItems: 'center' },
-    manageCopy: { flex: 1 }, manageTitle: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-    manageNote: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 3 },
     rules: { marginHorizontal: 16, marginBottom: 14, padding: 12, borderRadius: 12, backgroundColor: `${colors.gold}06`, borderWidth: 1, borderColor: `${colors.gold}25` },
-    rulesTitle: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: .8, marginBottom: 6 },
+    rulesHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    rulesTitle: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: .8 },
     editRules: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' }, pressed: { opacity: .75 },
   }), [colors]);
   const owner = club.membership_role === 'owner';
@@ -64,18 +67,11 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
       {((club.description ?? '').length > 180 || (club.description ?? '').split('\n').length > 4) ? <Pressable accessibilityRole="button" accessibilityLabel={descriptionExpanded ? 'Show less club description' : 'Read full club description'} onPress={() => setDescriptionExpanded(value => !value)} style={styles.editRules}><Text style={styles.linkText}>{descriptionExpanded ? 'Show less' : 'Read more'}</Text></Pressable> : null}
       {club.genres?.length ? <View style={styles.genres}>{club.genres.map(genre => <View key={genre} style={styles.genre}><Text style={styles.genreText}>{getClubGenreLabel(genre)}</Text></View>)}</View> : null}
     </View> : null}
-    {canViewMembers || showRules ? <View style={styles.links}>
+    {canViewMembers ? <View style={styles.links}>
       {canViewMembers ? <Pressable accessibilityRole="button" accessibilityLabel={`View ${club.member_count} club members`} accessibilityState={{ expanded: membersVisible }} onPress={onMembers} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="people-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>{club.member_count.toLocaleString()} {club.member_count === 1 ? 'member' : 'members'}</Text></Pressable> : null}
-      {canViewMembers ? <Pressable accessibilityRole="button" onPress={onBooks} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="book-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>Books</Text></Pressable> : null}
-      {showRules ? <Pressable accessibilityRole="button" accessibilityLabel={rulesExpanded ? 'Hide club rules' : 'View club rules'} onPress={onRules} style={({ pressed }) => [styles.link, pressed && styles.pressed]}><Ionicons name="reader-outline" size={16} color={colors.gold} /><Text style={styles.linkText}>{club.rules?.trim() ? 'Club rules' : 'Add rules'}</Text></Pressable> : null}
     </View> : null}
-    {rulesExpanded && showRules ? <View style={styles.rules}><Text style={styles.rulesTitle}>CLUB RULES</Text><Text style={styles.description}>{club.rules?.trim() || 'Set a few guidelines to help everyone feel at home in your club.'}</Text>
+    {rulesExpanded && showRules ? <View style={styles.rules}><View style={styles.rulesHeader}><Text style={styles.rulesTitle}>CLUB RULES</Text><Pressable accessibilityRole="button" accessibilityLabel="Close club rules" onPress={onCloseRules} hitSlop={10}><Ionicons name="close" size={20} color={colors.mutedText}/></Pressable></View><Text style={styles.description}>{club.rules?.trim() || 'Set a few guidelines to help everyone feel at home in your club.'}</Text>
       {owner ? <Pressable accessibilityRole="button" accessibilityLabel="Edit club rules" onPress={onEdit} style={styles.editRules}><Text style={styles.linkText}>{club.rules?.trim() ? 'Edit rules' : 'Add rules'}</Text></Pressable> : null}
     </View> : null}
-    {manager ? <Pressable accessibilityRole="button" accessibilityLabel={managementVisible ? 'Hide club management' : 'Manage club members and invitations'} onPress={onManage} style={({ pressed }) => [styles.manage, pressed && styles.pressed]}>
-      <Ionicons name="shield-checkmark-outline" size={17} color={colors.gold} /><View style={styles.manageCopy}><Text style={styles.manageTitle}>Manage club</Text>
-        <Text style={styles.manageNote}>{pendingRequests || pendingInvites ? `${pendingRequests} join ${pendingRequests === 1 ? 'request' : 'requests'} · ${pendingInvites} pending ${pendingInvites === 1 ? 'invite' : 'invites'}` : 'Members, invitations, and join requests'}</Text></View>
-      <Ionicons name={managementVisible ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedText} />
-    </Pressable> : null}
   </View></View>;
 }

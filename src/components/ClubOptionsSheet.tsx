@@ -1,7 +1,7 @@
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ClubRole } from '../lib/clubs';
 import { getClubHomeActions, type ClubHomeAction } from '../lib/club-home';
@@ -26,6 +26,8 @@ const actionDetails: Record<ClubHomeAction, {
 }> = {
     edit: { label: 'Edit club', icon: 'create-outline' }, rules: { label: 'Club rules', icon: 'reader-outline' },
     members: { label: 'Members', icon: 'people-outline' }, manage: { label: 'Manage members & invitations', icon: 'shield-checkmark-outline' },
+    discussions: { label: 'Discussions & polls', icon: 'chatbubbles-outline' },
+    announce: { label: 'Create announcement', icon: 'megaphone-outline' },
     leave: { label: 'Leave club', icon: 'exit-outline' },
     guide: { label: 'Club guide', icon: 'sparkles-outline' }, notifications: { label: 'Mute club notifications', icon: 'notifications-off-outline' },
     notification_settings: { label: 'Notification settings', icon: 'settings-outline' },
@@ -45,11 +47,13 @@ export default function ClubOptionsSheet({ visible, clubName, role, canViewMembe
             <View style={styles.handle}/>
             <Text style={styles.title} accessibilityRole="header">{clubName}</Text>
             <Text style={styles.period}>Club options</Text>
+            <ScrollView style={styles.actionList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {getClubHomeActions(role, canViewMembers, hasRules).map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={action === 'notifications' ? (notificationsEnabled ? 'Mute club notifications' : 'Unmute club notifications') : actionDetails[action].label} disabled={(busy && action === 'leave') || (notificationsBusy && action === 'notifications')} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
               <View style={styles.actionIcon}><Ionicons name={action === 'notifications' && !notificationsEnabled ? 'notifications-outline' : actionDetails[action].icon} size={20} color={action === 'leave' ? colors.danger : colors.gold}/></View>
               <Text style={[styles.actionText, action === 'leave' && { color: colors.danger }]}>{action === 'notifications' ? (notificationsEnabled ? 'Mute club notifications' : 'Unmute club notifications') : actionDetails[action].label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
             </Pressable>)}
+            </ScrollView>
             {role ? <Text style={styles.note}>{!globalNotificationsEnabled ? 'Club notifications are off in Settings.' : notificationsEnabled ? 'Notifications are on for this club.' : 'This club is muted. Other clubs can still notify you.'}</Text> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Close club options" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>
@@ -65,6 +69,7 @@ function createStyles(colors: NovoriColors) {
         handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 13 },
         title: { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 21, textAlign: 'center' },
         period: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 14 },
+        actionList: { maxHeight: 340, flexGrow: 0 },
         action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 12,
             backgroundColor: colors.elevated, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
         actionIcon: { width: 28, alignItems: 'center' }, actionText: { flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
