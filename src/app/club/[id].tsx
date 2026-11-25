@@ -1664,19 +1664,13 @@ export default function ClubDetailScreen() {
         <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} onPhoto={() => setClubImageOpen(true)} onMembers={() => {
             if (membersVisible && !managementVisible) setMembersVisible(false);
             else handleClubAction('members');
-        }} onCloseRules={() => setRulesExpanded(false)} onEdit={editClub}/>
-        {isManager ? (
-          <Pressable accessibilityRole="button" onPress={() => {
+        }} onCloseRules={() => setRulesExpanded(false)} onEdit={editClub} onInvite={isManager ? () => {
             setInviteQuery('');
             setInviteResults([]);
             setInviteSearchError(false);
             setInviteSearchLoading(true);
             setInvitePanelOpen(true);
-          }} style={({ pressed }) => [styles.inviteToggleButton, pressed && styles.pressed]}>
-            <Ionicons name="person-add-outline" size={16} color={colors.gold}/>
-            <Text style={styles.inviteToggleTitle}>Invite readers</Text>
-          </Pressable>
-        ) : null}
+        } : undefined}/>
         {isMember && welcomeOpen && memberExperience ? <ClubWelcomeCard name={club.name} experience={memberExperience} eventTitle={nextEvent?.title} hasRules={Boolean(club.rules?.trim())} busy={experienceBusy} onBooks={() => setClubTab('books')} onDiscussion={() => router.push({ pathname: '/club-discussions', params: { clubId: club.id } })} onEvents={() => setClubTab('events')} onRules={() => { setRulesExpanded(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }} onDismiss={() => void updateClubExperience('welcome')}/> : null}
 
         {pendingInvite &&
@@ -1867,8 +1861,10 @@ export default function ClubDetailScreen() {
 
         </View> : null}
 
-        <View style={styles.clubTabBar}>{(['posts', 'books', 'events'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Ionicons name={tab === 'posts' ? 'chatbubbles-outline' : tab === 'events' ? 'calendar-outline' : 'book-outline'} size={16} color={clubTab === tab ? colors.gold : colors.mutedText}/><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
-        <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager}/>
+        <View style={styles.clubToolsRow}>
+        <View style={styles.clubTabBar} accessibilityRole="tablist">{(['posts', 'books', 'events'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
+        <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager} compact/>
+        </View>
         {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
 
@@ -2570,20 +2566,6 @@ function createStyles(colors: NovoriColors) {
         },
         clubOptionsDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
         clubManagementHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
-        inviteToggleButton: {
-            alignSelf: 'flex-start',
-            marginBottom: 10,
-            minHeight: 44,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 7,
-            paddingHorizontal: 12,
-            borderRadius: 12,
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-        },
-        inviteToggleTitle: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
         inviteScreenBody: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
         inviteResultsLabel: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 18 },
         inviteSearchWrap: {
@@ -2967,7 +2949,8 @@ function createStyles(colors: NovoriColors) {
             marginBottom: 10,
             paddingHorizontal: 2,
         },
-        clubTabBar: { flexDirection: 'row', gap: 4, marginBottom: 14, marginTop: 4, backgroundColor: colors.surface, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: colors.border },
+        clubToolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 },
+        clubTabBar: { flex: 1, flexDirection: 'row', gap: 4, backgroundColor: colors.surface, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: colors.border },
         clubTab: { flex: 1, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', minHeight: 40, borderRadius: 10 },
         clubTabSelected: { backgroundColor: colors.elevated },
         clubTabText: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
