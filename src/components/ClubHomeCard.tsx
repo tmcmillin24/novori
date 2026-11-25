@@ -25,7 +25,7 @@ export default function ClubHomeCard({ club, canViewMembers, rulesExpanded, memb
   const styles = useMemo(() => StyleSheet.create({
     card: { borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 12 },
     identity: { gap: 7, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, alignItems: 'center' },
-    photo: { width: 60, height: 60, borderRadius: 30, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    photo: { width: 60, height: 60, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     image: { width: '100%', height: '100%' }, initial: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 26, color: colors.gold },
     identityCopy: { alignItems: 'center', alignSelf: 'stretch' }, badges: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', marginTop: 5 },
     badge: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 11 },
