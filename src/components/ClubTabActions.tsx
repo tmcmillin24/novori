@@ -3,12 +3,12 @@ import { useRouter } from 'expo-router';
 import { Pressable,Text } from 'react-native';
 import { useNovoriTheme } from '../context/theme-context';
 
-type Props = { clubId: string; tab: 'posts'|'events'|'books'; isMember: boolean; canManage: boolean; compact?: boolean };
-export default function ClubTabActions({clubId,tab,isMember,canManage,compact = false}: Props) {
+type Props = { clubId: string; clubName?: string; tab: 'posts'|'events'|'books'; isMember: boolean; canManage: boolean; compact?: boolean };
+export default function ClubTabActions({clubId,clubName,tab,isMember,canManage,compact = false}: Props) {
   const router=useRouter(),{colors}=useNovoriTheme();
   if (!isMember || (tab !== 'posts' && !canManage)) return null;
   const action=tab==='posts'
-    ? {label:'New post',accessibilityLabel:'New post',icon:'create-outline' as const,route:{pathname:'/create-post' as const,params:{clubId}}}
+    ? {label:'New post',accessibilityLabel:'New post',icon:'create-outline' as const,route:{pathname:'/create-post' as const,params:{clubId,clubName}}}
     : tab==='events'
     ? {label:'Create an event',accessibilityLabel:'Create club event',icon:'calendar-outline' as const,route:{pathname:'/create-club-event' as const,params:{clubId}}}
     : {label:'Add book',accessibilityLabel:'Add club read',icon:'book-outline' as const,route:{pathname:'/edit-club-read' as const,params:{clubId,status:'upcoming'}}};

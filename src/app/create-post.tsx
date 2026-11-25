@@ -180,6 +180,7 @@ export default function CreatePostScreen() {
   const params =
     useLocalSearchParams<{
       clubId?: string;
+      clubName?: string;
       announcement?: string;
       editPostId?: string;
     }>();
@@ -275,12 +276,9 @@ export default function CreatePostScreen() {
     destination,
     setDestination,
   ] =
-    useState<Destination>({
-      type:
-        'profile',
-      clubId:
-        null,
-    });
+    useState<Destination>(() => requestedClubId && !isEditing
+      ? { type: 'club', clubId: requestedClubId }
+      : { type: 'profile', clubId: null });
 
   const [
     photoSourceVisible,
@@ -508,20 +506,6 @@ export default function CreatePostScreen() {
                 null,
             });
           }
-        } else if (
-          requestedClubId &&
-          myClubs.some(
-            (club) =>
-              club.id ===
-              requestedClubId
-          )
-        ) {
-          setDestination({
-            type:
-              'club',
-            clubId:
-              requestedClubId,
-          });
         }
       } catch (
         error
@@ -688,6 +672,7 @@ export default function CreatePostScreen() {
       4000 &&
     !saving &&
     !loadingEditPost &&
+    (destination.type !== 'club' || (!loadingClubs && clubs.some(club => club.id === destination.clubId))) &&
     (!announcement || (!loadingClubs && destination.type === 'club' && clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role))));
 
   const profileSelected =
@@ -721,7 +706,9 @@ export default function CreatePostScreen() {
       ? 'Your feed'
       : selectedClub
           ?.name ??
-        'Choose destination';
+        (destination.type === 'club' && destination.clubId === requestedClubId
+          ? params.clubName?.trim() || 'Club'
+          : 'Choose destination');
 
   const selectedSubtitle =
     profileSelected
@@ -1253,6 +1240,7 @@ export default function CreatePostScreen() {
               styles.content
             }
           >
+            {!announcement && destination.type === 'club' && !loadingClubs && !selectedClub ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>You can’t post to this club right now. Choose another destination to continue.</Text> : null}
             {announcement && !loadingClubs && !clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role)) ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>Only the club owner and admins can publish announcements.</Text> : null}
             {!isEditing && !announcement ? (
               <>

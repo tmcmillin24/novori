@@ -28,7 +28,7 @@ import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachm
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Image, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import FeedPostImage from '../../components/FeedPostImage';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
@@ -146,6 +146,7 @@ export default function ClubDetailScreen() {
     const [joinRequestLoading, setJoinRequestLoading,] = useState(false);
     const clubScrollRef = useRef<ScrollView | null>(null);
     const [clubTab, setClubTab] = useState<'posts' | 'events' | 'books'>('posts');
+    const [visitedTabs, setVisitedTabs] = useState<{ clubId: string; books?: boolean; events?: boolean }>({ clubId: '' });
     const [booksRefreshVersion, setBooksRefreshVersion] = useState(0);
     const [upcomingEvents, setUpcomingEvents] = useState<ClubEvent[]>([]);
     const [pinnedPosts, setPinnedPosts] = useState<FeedPost[]>([]);
@@ -167,6 +168,12 @@ export default function ClubDetailScreen() {
     const clubId = typeof params.id === 'string'
         ? params.id
         : '';
+    useEffect(() => {
+        if (clubTab === 'posts') return;
+        setVisitedTabs(current => current.clubId === clubId && current[clubTab]
+            ? current
+            : { ...(current.clubId === clubId ? current : {}), clubId, [clubTab]: true });
+    }, [clubId, clubTab]);
     const pinClubIdRef = useRef(clubId);
     pinClubIdRef.current = clubId;
     useEffect(() => {
@@ -241,7 +248,7 @@ export default function ClubDetailScreen() {
             setMembers(memberData);
             setClubPosts(postData);
             setPinnedPosts(pinnedData);
-            setUpcomingEvents(eventData);
+            setUpcomingEvents(current => JSON.stringify(current) === JSON.stringify(eventData) ? current : eventData);
             setBooksRefreshVersion(version => version + 1);
             setPendingInvite(pendingInviteData);
             setPendingJoinRequest(pendingJoinRequestData);
@@ -1549,7 +1556,7 @@ export default function ClubDetailScreen() {
             clubScrollRef.current?.scrollTo({ y: 0, animated: true });
         }
         else if (action === 'announce' && isManager)
-            router.push({ pathname: '/create-post', params: { clubId: club.id, announcement: '1' } });
+            router.push({ pathname: '/create-post', params: { clubId: club.id, clubName: club.name, announcement: '1' } });
         else if (action === 'discussions')
             router.push({ pathname: '/club-discussions', params: { clubId: club.id } });
         else if (action === 'guide') {
@@ -1622,9 +1629,10 @@ export default function ClubDetailScreen() {
 
       {isManager && invitePanelOpen ? (
         <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setInvitePanelOpen(false)}>
-          <SafeAreaView style={styles.safeArea}>
+          <SafeAreaProvider style={styles.safeArea}>
+          <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
             <View style={styles.header}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Back to club" onPress={() => setInvitePanelOpen(false)} style={styles.headerButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Back to club" hitSlop={8} onPress={() => { Keyboard.dismiss(); setInvitePanelOpen(false); }} style={styles.headerButton}>
                 <Ionicons name="chevron-back" size={24} color={colors.text}/>
               </Pressable>
               <Text style={styles.headerTitle}>Invite readers</Text>
@@ -1655,6 +1663,7 @@ export default function ClubDetailScreen() {
                   </ScrollView>}
             </View>
           </SafeAreaView>
+          </SafeAreaProvider>
         </Modal>
       ) : null}
 
@@ -1863,9 +1872,15 @@ export default function ClubDetailScreen() {
 
         <View style={styles.clubToolsRow}>
         <View style={styles.clubTabBar} accessibilityRole="tablist">{(['posts', 'books', 'events'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
-        <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager} compact/>
+        <ClubTabActions clubId={club.id} clubName={club.name} tab={clubTab} isMember={isMember} canManage={isManager} compact/>
         </View>
-        {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
+        {(clubTab === 'books' || (visitedTabs.clubId === club.id && visitedTabs.books)) ? (
+          <View style={clubTab !== 'books' ? styles.hiddenClubTab : undefined}><ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/></View>
+        ) : null}
+        {(clubTab === 'events' || (visitedTabs.clubId === club.id && visitedTabs.events)) ? (
+          <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}><ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/></View>
+        ) : null}
+        <View style={clubTab !== 'posts' ? styles.hiddenClubTab : undefined}>
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
 
         <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && styles.conversationAfterMembers]}>
@@ -1897,6 +1912,7 @@ export default function ClubDetailScreen() {
                             pathname: '/create-post',
                             params: {
                                 clubId: club.id,
+                                clubName: club.name,
                             },
                         })} style={({ pressed }) => [
                             styles.emptyPostButton,
@@ -1909,7 +1925,7 @@ export default function ClubDetailScreen() {
                 </Text>
               </Pressable>) : null}
           </View>)}
-        </>}
+        </View>
           </>)}
       </ScrollView>
 
@@ -2949,6 +2965,7 @@ function createStyles(colors: NovoriColors) {
             marginBottom: 10,
             paddingHorizontal: 2,
         },
+        hiddenClubTab: { display: 'none' },
         clubToolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 },
         clubTabBar: { flex: 1, flexDirection: 'row', gap: 4, backgroundColor: colors.surface, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: colors.border },
         clubTab: { flex: 1, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', minHeight: 40, borderRadius: 10 },
