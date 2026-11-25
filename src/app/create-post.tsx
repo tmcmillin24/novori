@@ -682,13 +682,13 @@ export default function CreatePostScreen() {
   const profileName =
     viewerProfile?.display_name?.trim() ||
     viewerProfile?.username?.trim() ||
-    'Your feed';
+    '';
 
   const profileInitial =
     profileName
       .charAt(0)
       .toUpperCase() ||
-    'N';
+    '';
 
   const selectedClub =
     destination.type ===
@@ -1263,39 +1263,11 @@ export default function CreatePostScreen() {
                   styles.pressed,
               ]}
             >
-              {profileSelected ? null : selectedClub
-                  ?.cover_url ? (
-                <CachedMediaImage
-                  source={{
-                    uri:
-                      moderationMediaUrl(selectedClub.cover_url),
-                  }}
-                  style={[
-                    styles.destinationAvatar,
-                    styles.clubDestinationAvatar,
-                  ]}
-                />
-              ) : (
-                <View
-                  style={
-                    styles.clubAvatarFallback
-                  }
-                >
-                  <Text
-                    style={
-                      styles.clubAvatarText
-                    }
-                  >
-                    {selectedClub
-                      ?.name
-                      .charAt(
-                        0
-                      )
-                      .toUpperCase() ??
-                      'C'}
-                  </Text>
+              {!profileSelected ? (
+                <View style={styles.clubAvatarFallback}>
+                  <Ionicons name="people-outline" size={20} color={colors.gold}/>
                 </View>
-              )}
+              ) : null}
 
               <View
                 style={
@@ -1333,34 +1305,9 @@ export default function CreatePostScreen() {
                 </Text>
               </View>
 
-              {loadingClubs ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    colors.gold
-                  }
-                />
-              ) : (
-                <View
-                  style={
-                    styles.destinationChevron
-                  }
-                >
-                  <Ionicons
-                    name={
-                      destinationExpanded
-                        ? 'chevron-up'
-                        : 'chevron-down'
-                    }
-                    size={
-                      18
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                </View>
-              )}
+              <View style={styles.destinationChevron}>
+                <Ionicons name={destinationExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.gold}/>
+              </View>
             </Pressable>
 
             {destinationExpanded ? (
@@ -1596,13 +1543,9 @@ export default function CreatePostScreen() {
                       styles.feedPreviewAvatarFallback
                     }
                   >
-                    <Text
-                      style={
-                        styles.feedPreviewAvatarText
-                      }
-                    >
-                      {profileInitial}
-                    </Text>
+                    {profileInitial ? <Text style={styles.feedPreviewAvatarText}>{profileInitial}</Text>
+                      : <Ionicons name="person-outline" size={19} color={colors.mutedText}/>}
+
                   </View>
                 )}
 
@@ -1616,16 +1559,8 @@ export default function CreatePostScreen() {
                       styles.feedPreviewIdentity
                     }
                   >
-                    <Text
-                      style={
-                        styles.feedPreviewAuthorName
-                      }
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      {profileName}
-                    </Text>
+                    {profileName ? <Text style={styles.feedPreviewAuthorName} numberOfLines={1}>{profileName}</Text>
+                      : <View style={{ width: 86, height: 10, borderRadius: 5, backgroundColor: colors.border, marginVertical: 4 }} />}
 
                     {viewerProfile
                       ?.username
@@ -1643,9 +1578,7 @@ export default function CreatePostScreen() {
                     ) : null}
                   </View>
 
-                  {destination.type ===
-                    'club' &&
-                  selectedClub ? (
+                  {destination.type === 'club' ? (
                     <Text
                       style={
                         styles.feedPreviewAudienceText
@@ -1654,7 +1587,7 @@ export default function CreatePostScreen() {
                         1
                       }
                     >
-                      in {selectedClub.name}{' '}
+                      in {selectedTitle}{' '}
                       <Text
                         style={
                           styles.feedPreviewTime
@@ -2339,7 +2272,7 @@ export default function CreatePostScreen() {
               >
                 {profileSelected
                   ? 'This will appear to readers who follow you.'
-                  : `This will be shared with ${selectedClub?.name ?? 'this club'}.`}
+                  : `This will be shared with ${selectedTitle}.`}
               </Text>
             </View>
             ) : null}
