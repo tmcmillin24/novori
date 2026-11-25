@@ -1118,6 +1118,7 @@ export default function BookDetailsScreen() {
       null
     );
   const [loading, setLoading] = useState(true);
+  const [openingHero, setOpeningHero] = useState<GoogleBook['volumeInfo'] | null>(null);
   const [error, setError] = useState('');
   const [readerStateReady, setReaderStateReady] = useState(false);
   const [readerStateError, setReaderStateError] = useState(false);
@@ -1344,6 +1345,7 @@ export default function BookDetailsScreen() {
         setLoading(true);
         setError('');
         setBook(null);
+        setOpeningHero(null);
         setSavedBook(null);
         setReadingStatus(null);
         setReaderStateReady(false);
@@ -1435,7 +1437,9 @@ export default function BookDetailsScreen() {
         void syncEditionPages(resolvedBook).catch(() => {});
         openingBookId = resolvedBook.id;
         coreReady = true;
-        setBook(applyEditionPages(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook));
+        const initialDetails = applyEditionPages(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
+        if (source === 'discover') setOpeningHero(initialDetails.volumeInfo);
+        setBook(initialDetails);
         const coverInput = {
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
@@ -3045,7 +3049,7 @@ export default function BookDetailsScreen() {
   }
 
   if (loading) {
-    return <>{detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}<BookDetailLoading title={clickedTitle} authors={discoverClickedAuthors} cover={{googleBookId:id,existingCoverUrl:discoverCoverUrl}} compact={isSavedBookContext} onBack={handleBack} backLabel={backLabel}/></>;
+    return <>{detailHandoff==='1'?<Stack.Screen options={{animation:'none'}}/>:null}<BookDetailLoading placeholdersOnly={source === 'discover'} title={clickedTitle} authors={discoverClickedAuthors} cover={{googleBookId:id,existingCoverUrl:discoverCoverUrl}} compact={isSavedBookContext} onBack={handleBack} backLabel={backLabel}/></>;
   }
 
   if (error || !book) {
@@ -3067,6 +3071,9 @@ export default function BookDetailsScreen() {
   }
 
   const info = book.volumeInfo;
+  // A background catalog update can add a subtitle or change title wrapping.
+  // Keep the displayed identity stable for this Discover visit.
+  const heroInfo = openingHero ?? info;
 
   const displayExistingCoverUrl = selectedWorkCoverUrl ?? savedBook?.cover_url ??
     book.novoriWork?.canonicalCoverUrl ?? discoverCoverUrl ?? null;
@@ -3584,16 +3591,16 @@ export default function BookDetailsScreen() {
                 styles.title
               }
             >
-              {info.title ? displayBookTitle(info.title) : 'Untitled'}
+              {heroInfo.title ? displayBookTitle(heroInfo.title) : 'Untitled'}
             </Text>
 
-            {info.subtitle ? (
+            {heroInfo.subtitle ? (
               <Text
                 style={
                   styles.subtitle
                 }
               >
-                {info.subtitle}
+                {heroInfo.subtitle}
               </Text>
             ) : null}
 
@@ -3602,8 +3609,8 @@ export default function BookDetailsScreen() {
                 styles.author
               }
             >
-              {info.authors?.length
-                ? info.authors.map(
+              {heroInfo.authors?.length
+                ? heroInfo.authors.map(
                     (
                       author,
                       index

@@ -65,6 +65,7 @@ export default function DiscoveryBookScreen() {
       <>
         <Stack.Screen options={{ animation: "none" }} />
         <BookDetailLoading
+          placeholdersOnly
           title={book.title}
           authors={book.authors}
           cover={discoveryCoverInput(book)}

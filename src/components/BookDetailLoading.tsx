@@ -20,6 +20,7 @@ type Props = {
   onBack: () => void;
   backLabel?: string;
   compact?: boolean;
+  placeholdersOnly?: boolean;
 };
 /** Same hero geometry in both resolving routes; no separate splash-sized cover. */
 export default function BookDetailLoading({
@@ -29,6 +30,7 @@ export default function BookDetailLoading({
   onBack,
   backLabel = "Back",
   compact = false,
+  placeholdersOnly = false,
 }: Props) {
   const { colors } = useNovoriTheme();
   const block = (width: number | string, height: number) => ({
@@ -75,7 +77,9 @@ export default function BookDetailLoading({
       </View>
       <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.content}>
         <View style={[styles.hero, compact && styles.compactHero]}>
-          <BookCoverImage
+          {placeholdersOnly ? (
+            <View style={[styles.cover, compact && styles.compactCover, { backgroundColor: colors.elevated }]} />
+          ) : <BookCoverImage
             {...cover}
             resizeMode="cover"
             style={[
@@ -83,9 +87,9 @@ export default function BookDetailLoading({
               compact && styles.compactCover,
               { backgroundColor: colors.elevated ?? colors.surface },
             ]}
-          />
+          />}
           <View style={compact ? styles.compactCopy : styles.copy}>
-            {title ? (
+            {!placeholdersOnly && title ? (
               <Text
                 style={[
                   styles.title,
@@ -103,7 +107,7 @@ export default function BookDetailLoading({
                 ]}
               />
             )}
-            {authors.length ? (
+            {!placeholdersOnly && authors.length ? (
               <Text
                 style={[
                   styles.author,
