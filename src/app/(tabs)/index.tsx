@@ -1,16 +1,13 @@
-import PostOptionsSheet from '../../components/PostOptionsSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useFocusEffect,useNavigation,useRouter } from 'expo-router';
 import { useCallback,useEffect,useRef,useState } from 'react';
-import { ActivityIndicator,Alert,Keyboard,Platform,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,useWindowDimensions,View } from 'react-native';
+import { ActivityIndicator,Alert,Keyboard,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,useWindowDimensions,View } from 'react-native';
 import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
 import CachedMediaImage from '../../components/CachedMediaImage';
-import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
 import FeedPostCard from '../../components/FeedPostCard';
-import { UiSheetBackdrop,UiSheetModal,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import PostActions from '../../components/PostActions';
 import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { CLUB_GENRES,ClubGenreKey,getClubGenreLabel } from '../../constants/club-genres';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -21,59 +18,20 @@ import { isAccountRestrictedError,isAccountUnavailableError } from '../../lib/ac
 import { currentFeedComposerPreviewKey } from '../../lib/club-composer-preview';
 import { ClubWithMembership,getDiscoverClubs,getMyClubs,searchClubs } from '../../lib/clubs';
 import { containsExplicitLanguage,getExplicitLanguagePreference,isExplicitContentRevealed,revealExplicitContentOnce,setExplicitLanguagePreference } from '../../lib/content-filter';
-import { deletePost,FeedPost,getHomeFeed,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
+import { FeedPost,getHomeFeed,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { getNotificationAttentionCount } from '../../lib/notifications';
-import { getPostEditRoute } from '../../lib/post-edit-route';
-import { ReportReason,submitPostReport } from '../../lib/reports';
 import { isTransientReadError } from '../../lib/session-read-cache';
 import { sharePostLink } from '../../lib/share-links';
 import { signOutCurrentDevice } from '../../lib/sign-out';
 import { supabase } from '../../lib/supabase';
 import { useNotificationAttention } from '../../lib/use-notification-attention';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
 type HomeSection = 'feed' | 'clubs';
 type ComposerProfile = {
     display_name: string | null;
     username: string | null;
     avatar_url: string | null;
 };
-const POST_REPORT_REASONS: Array<{
-    value: ReportReason;
-    label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-}> = [
-    {
-        value: 'explicit_content',
-        label: 'Graphic or inappropriate content',
-        icon: 'eye-off-outline',
-    },
-    {
-        value: 'hate',
-        label: 'Violence, hate, or discrimination',
-        icon: 'warning-outline',
-    },
-    {
-        value: 'harassment',
-        label: 'Bullying or unwanted contact',
-        icon: 'person-remove-outline',
-    },
-    {
-        value: 'spam',
-        label: 'Scam, fraud, or spam',
-        icon: 'megaphone-outline',
-    },
-    {
-        value: 'impersonation',
-        label: 'Impersonation',
-        icon: 'people-outline',
-    },
-    {
-        value: 'other',
-        label: 'Other',
-        icon: 'ellipsis-horizontal-circle-outline',
-    }
-];
 const HOME_FOCUS_REFRESH_MS = 60 * 1000;
 export default function HomeScreen() {
     const { colors, } = useNovoriTheme();
@@ -96,16 +54,6 @@ export default function HomeScreen() {
     },[tutorial?.active,tutorial?.step.anchor]);
     const [attentionCount, setAttentionCount,] = useState(0);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
-    const [reportTargetPost, setReportTargetPost,] = useState<FeedPost | null>(null);
-    const [reportSubmitting, setReportSubmitting,] = useState(false);
-    // Keep the sheet fully offscreen until the native modal is presented.
-    const reportEntranceOffset = windowHeight + 80;
-    const reportSheetAnimating = useRef(false);
-    const reportSheetHeight = useRef(0);
-    const reportModalShown = useRef(false);
-    const reportEntranceStarted = useRef(false);
-    const reportSheetClosing = useRef(false);
-    const reportSubmitted = useRef(false);
     const [composerProfile, setComposerProfile,] = useState<ComposerProfile | null>(null);
     const [myClubs, setMyClubs,] = useState<ClubWithMembership[]>([]);
     const [discoverClubs, setDiscoverClubs,] = useState<ClubWithMembership[]>([]);
@@ -119,8 +67,6 @@ export default function HomeScreen() {
     const [revealedExplicitPosts, setRevealedExplicitPosts,] = useState<Record<string, boolean>>({});
     const [revealedExplicitComments, setRevealedExplicitComments,] = useState<Record<string, boolean>>({});
     const [votingPostId, setVotingPostId,] = useState<string | null>(null);
-    const [deletingPostId, setDeletingPostId,] = useState<string | null>(null);
-    const [deletePostTarget, setDeletePostTarget,] = useState<FeedPost | null>(null);
     const [ownPostOptionsTarget, setOwnPostOptionsTarget,] = useState<FeedPost | null>(null);
     const preserveHomeStateOnNextBlur = useRef(false);
     const hasLoadedHomeData = useRef(false);
@@ -492,130 +438,6 @@ export default function HomeScreen() {
         </View>
       </View>);
     }
-    function formatFeedTime(createdAt: string) {
-        const created = new Date(createdAt);
-        const diffMs = Date.now() -
-            created.getTime();
-        const minutes = Math.max(0, Math.floor(diffMs /
-            60000));
-        if (minutes < 1) {
-            return 'now';
-        }
-        if (minutes < 60) {
-            return `${minutes}m`;
-        }
-        const hours = Math.floor(minutes /
-            60);
-        if (hours < 24) {
-            return `${hours}h`;
-        }
-        const days = Math.floor(hours /
-            24);
-        if (days < 7) {
-            return `${days}d`;
-        }
-        return created.toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-        });
-    }
-    function openPostReport(post: FeedPost) {
-        if (!currentUserId ||
-            post.author_id ===
-                currentUserId) {
-            return;
-        }
-        if (reportTargetPost || reportSheetClosing.current) {
-            return;
-        }
-        reportSubmitted.current = false;
-        reportModalShown.current = false;
-        reportEntranceStarted.current = false;
-        reportSheetHeight.current = 0;
-        reportSheetAnimating.current =
-            false;
-        setReportTargetPost(post);
-    }
-    const reportConfirmation = useReportConfirmation(Boolean(reportTargetPost));
-    function handleReportDismiss() {
-        reportModalShown.current = false;
-        reportSheetClosing.current = false;
-        if (reportSubmitted.current) {
-            reportSubmitted.current = false;
-            reportConfirmation.present();
-        }
-    }
-    function closePostReport() {
-        if (reportSubmitting) {
-            return;
-        }
-        dismissPostReport();
-    }
-    function dismissPostReport() {
-        if (reportSheetClosing.current) {
-            return;
-        }
-        reportSheetClosing.current =
-            true;
-        reportSheetAnimating.current =
-            true;
-        uiReport.closeAfterActionWithCallback();
-    }
-    async function handlePostReport(reason: ReportReason) {
-        if (!reportTargetPost ||
-            reportSubmitting) {
-            return;
-        }
-        try {
-            setReportSubmitting(true);
-            await submitPostReport(reportTargetPost.id, reason);
-            reportSubmitted.current = true;
-            dismissPostReport();
-        }
-        catch (error) {
-            console.error('Could not report post:', error);
-            Alert.alert('Could not submit report', 'Please try again.');
-        }
-        finally {
-            setReportSubmitting(false);
-        }
-    }
-    function editOwnPost(post: FeedPost) {
-        router.push(getPostEditRoute(post));
-    }
-    function confirmDeleteOwnPost(post: FeedPost) {
-        setDeletePostTarget(post);
-    }
-    async function removeOwnPost(post: FeedPost) {
-        if (deletingPostId) {
-            return;
-        }
-        try {
-            setDeletingPostId(post.id);
-            await deletePost(post.id);
-            setFeedPosts((current) => current.filter((item) => item.id !==
-                post.id));
-            lastSeenPostMutationRef.current =
-                getPostMutationVersion();
-        }
-        catch (error) {
-            console.error('Could not delete post:', error);
-            Alert.alert('Could not delete post', error instanceof Error
-                ? error.message
-                : 'Please try again.');
-            throw error;
-        }
-        finally {
-            setDeletingPostId(null);
-        }
-    }
-    function openOwnPostOptions(post: FeedPost) {
-        if (deletingPostId ||
-            ownPostOptionsTarget) {
-            return;
-        }
-        setOwnPostOptionsTarget(post);
-    }
     async function shareFeedPost(post: FeedPost) {
         try {
             await sharePostLink(post.id);
@@ -651,7 +473,7 @@ export default function HomeScreen() {
         }
     }
     function renderFeedPost(post: FeedPost) {
-        return <FeedPostCard key={post.id} post={post} currentUserId={currentUserId} votingPostId={votingPostId} deletingPostId={deletingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handlePostVote} onMore={post => post.author_id === currentUserId ? openOwnPostOptions(post) : openPostReport(post)} onShare={shareFeedPost} onReader={openReader} onClub={openClub} renderText={renderExplicitContentWarning}/>;
+        return <FeedPostCard key={post.id} post={post} currentUserId={currentUserId} votingPostId={votingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handlePostVote} onMore={setOwnPostOptionsTarget} onShare={shareFeedPost} onReader={openReader} onClub={openClub} renderText={renderExplicitContentWarning}/>;
     }
     function renderFeed() {
         if (feedLoading) {
@@ -908,18 +730,6 @@ export default function HomeScreen() {
           </>)}
       </View>);
     }
-    const uiReport = useUiSheetMotion({ visible: Boolean(reportTargetPost), busy: reportSubmitting, embedded: false, onDismiss: () => {
-            const finished = true;
-            reportSheetAnimating.current =
-                false;
-            if (finished) {
-                setReportTargetPost(null);
-                if (Platform.OS !==
-                    'ios') {
-                    handleReportDismiss();
-                }
-            }
-        } });
     return (<>
       <SafeAreaView pointerEvents={commentsModalVisible ? "none" : "auto"} accessibilityElementsHidden={commentsModalVisible} importantForAccessibility={commentsModalVisible ? "no-hide-descendants" : "auto"} style={styles.safeArea} edges={[
             'top'
@@ -1023,86 +833,12 @@ export default function HomeScreen() {
             }} style={styles.stickyHomeHeader}/>) : null}
       </SafeAreaView>
 
-      <PostOptionsSheet visible={Boolean(ownPostOptionsTarget)} onDismiss={() => setOwnPostOptionsTarget(null)}
-        onEdit={ownPostOptionsTarget ? () => editOwnPost(ownPostOptionsTarget) : undefined}
-        onDelete={ownPostOptionsTarget ? () => confirmDeleteOwnPost(ownPostOptionsTarget) : undefined}/>
-
-      <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
-
-      <DeletePostConfirmSheet visible={Boolean(deletePostTarget)} busy={Boolean(deletingPostId)} onConfirm={async () => {
-            if (!deletePostTarget) {
-                return;
-            }
-            await removeOwnPost(deletePostTarget);
-        }} onDismiss={() => setDeletePostTarget(null)}/>
-
-      <UiSheetModal visible={Boolean(reportTargetPost)} transparent animationType="none" onDismiss={handleReportDismiss} onRequestClose={closePostReport} motion={uiReport}>
-        <Pressable style={styles.reportBackdrop} onPress={closePostReport}>
-          <UiSheetBackdrop pointerEvents="none" style={[
-            styles.reportBackdropVisual,
-            {}
-        ]} motion={uiReport}/>
-
-          <UiSheetSurface style={[
-            styles.reportSheet,
-            {
-                paddingBottom: Math.max(18, insets.bottom + 12)
-            }
-        ]} motion={uiReport}>
-            <Pressable onPress={(event) => event.stopPropagation()}>
-            <View style={styles.reportHandle}/>
-
-            <View style={styles.reportHeadingRow}>
-              <View style={styles.reportHeadingCopy}>
-                <Text style={styles.reportTitle}>
-                  Report post
-                </Text>
-
-                <Text style={styles.reportSubtitle}>
-                  Why are you reporting this post?
-                </Text>
-              </View>
-
-              <Pressable onPress={closePostReport} hitSlop={10} style={({ pressed }) => [
-            styles.reportCloseButton,
-            pressed &&
-                styles.pressed
-        ]}>
-                <Ionicons name="close" size={21} color={colors.text}/>
-              </Pressable>
-            </View>
-
-            <View style={styles.reportReasonList}>
-              {POST_REPORT_REASONS.map((reason) => (<Pressable key={reason.value} disabled={reportSubmitting} onPress={() => handlePostReport(reason.value)} style={({ pressed }) => [
-                styles.reportReasonButton,
-                pressed &&
-                    styles.reportReasonButtonPressed
-            ]}>
-                    <View style={styles.reportReasonIcon}>
-                      <Ionicons name={reason.icon} size={18} color={colors.gold}/>
-                    </View>
-
-                    <Text style={styles.reportReasonText}>
-                      {reason.label}
-                    </Text>
-
-                    <Ionicons name="chevron-forward" size={17} color={colors.mutedText}/>
-                  </Pressable>))}
-            </View>
-
-            <Text style={styles.reportPrivacyText}>
-              Reports are private. The post author won’t be told who reported them.
-            </Text>
-
-            {reportSubmitting ? (<View style={styles.reportSubmitting}>
-                <ActivityIndicator size="small" color={colors.gold}/>
-              </View>) : null}
-            </Pressable>
-          </UiSheetSurface>
-        </Pressable>
-      </UiSheetModal>
-
-
+      <PostActions post={ownPostOptionsTarget} currentUserId={currentUserId}
+        onDismiss={() => setOwnPostOptionsTarget(null)}
+        onDeleted={post => {
+          setFeedPosts(current => current.filter(item => item.id !== post.id));
+          lastSeenPostMutationRef.current = getPostMutationVersion();
+        }}/>
     {sheet}
     </>);
 }

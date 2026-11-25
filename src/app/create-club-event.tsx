@@ -1,5 +1,3 @@
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
 import { useEffect,useMemo,useRef,useState } from 'react';
@@ -7,14 +5,18 @@ import { ActivityIndicator,Modal,Pressable,ScrollView,StyleSheet,Text,TextInput,
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BookCoverImage from '../components/BookCoverImage';
+import BookSearchRatings from '../components/BookSearchRatings';
+import EditablePostCard from '../components/EditablePostCard';
 import EventDateTimeField from '../components/EventDateTimeField';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { useNovoriTheme } from '../context/theme-context';
-import { getClub,type ClubWithMembership } from '../lib/clubs';
-import { canManageClubPosts } from '../lib/club-posts';
-import { getClubEvent,newClubEventRequestKey,saveClubEvent } from '../lib/club-events';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { getNovoriSearchBookCover,getNovoriSearchBookIsbn,resolveNovoriSearchBookCover,searchNovoriBooks,type GoogleBookSearchItem } from '../lib/book-search';
+import { displayBookTitle } from '../lib/book-title';
 import { isUpcomingClubEvent,localClubEventFields,localClubEventInstant,type ClubEvent,type ClubEventBook } from '../lib/club-event';
-import { searchNovoriBooks,getNovoriSearchBookCover,getNovoriSearchBookIsbn,resolveNovoriSearchBookCover,type GoogleBookSearchItem } from '../lib/book-search';
+import { getClubEvent,newClubEventRequestKey,saveClubEvent } from '../lib/club-events';
+import { canManageClubPosts } from '../lib/club-posts';
+import { getClub,type ClubWithMembership } from '../lib/clubs';
 
 export default function CreateClubEventScreen() {
   const router = useRouter();const params = useLocalSearchParams<{clubId?:string;eventId?:string}>();
@@ -29,6 +31,7 @@ export default function CreateClubEventScreen() {
     help:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:11,lineHeight:17,marginTop:14},book:{flexDirection:'row',alignItems:'center',gap:11,marginTop:14},cover:{width:45,height:68,borderRadius:5,backgroundColor:colors.elevated},bookTitle:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:12},bookAuthor:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,marginTop:4},
     addBook:{flexDirection:'row',gap:7,alignItems:'center',paddingVertical:14},addText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12},center:{padding:25,alignItems:'center'},picker:{flex:1,backgroundColor:colors.background},result:{flexDirection:'row',gap:12,padding:13,alignItems:'center',borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},pressed:{opacity:.7},
   }),[colors]);
+  const author=usePostComposerProfile();
   const [loading,setLoading] = useState(true),[club,setClub] = useState<ClubWithMembership|null>(null),[event,setEvent] = useState<ClubEvent|undefined>();
   const [title,setTitle] = useState(''),[description,setDescription] = useState(''),[kind,setKind] = useState<'in_person'|'virtual'>('in_person'),[location,setLocation] = useState(''),[meetingUrl,setMeetingUrl] = useState(''),[book,setBook] = useState<ClubEventBook|null>(null);
   const defaults = useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(18,0,0,0);return {start:start.toISOString(),end:new Date(start.getTime()+3600000).toISOString()};},[]);
@@ -70,7 +73,7 @@ export default function CreateClubEventScreen() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Close event editor" onPress={()=>router.back()} style={styles.close}><Ionicons name="close" size={24} color={colors.text}/></Pressable><Text style={styles.heading}>{eventId?'Edit event':'Create event'}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Save club event" disabled={saving||loading||!editable} onPress={()=>void save()} style={[styles.save,(saving||loading||!editable)&&{opacity:.45}]}>{saving?<ActivityIndicator color={colors.background}/>:<Text style={styles.saveText}>{eventId?'Save':'Create'}</Text>}</Pressable></View>
     {loading?<View style={styles.center}><ActivityIndicator color={colors.gold}/></View>:loadError||!editable?<View style={styles.center}><Text style={styles.help}>{loadError||'Only owners and admins can edit upcoming club events.'}</Text></View>:<KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bottomOffset={24} contentContainerStyle={styles.content}>
-      <View style={styles.card}><Text style={styles.eyebrow}>CLUB EVENT</Text><Text style={styles.club}>in {club?.name}</Text>
+      <EditablePostCard postType="post" author={author} clubId={clubId} clubName={club?.name} clubCoverUrl={club?.cover_url} event={event} eventLabel>
         <TextInput accessibilityLabel="Event title" value={title} onChangeText={setTitle} placeholder="Name your event…" placeholderTextColor={colors.mutedText} maxLength={120} style={styles.title}/>
         <TextInput accessibilityLabel="Event description" value={description} onChangeText={setDescription} placeholder="What are we getting together for? (optional)" placeholderTextColor={colors.mutedText} multiline maxLength={2000} style={styles.input}/>
         <EventDateTimeField label="Start" value={start} onChange={changeStart}/><EventDateTimeField label="End" value={end} onChange={setEnd}/>
@@ -79,7 +82,7 @@ export default function CreateClubEventScreen() {
         {kind==='in_person'?<TextInput accessibilityLabel="Event location" value={location} onChangeText={setLocation} placeholder="Where are we meeting?" placeholderTextColor={colors.mutedText} maxLength={300} style={styles.input}/>:<TextInput accessibilityLabel="Event meeting link" value={meetingUrl} onChangeText={setMeetingUrl} placeholder="https://…" placeholderTextColor={colors.mutedText} autoCapitalize="none" autoCorrect={false} keyboardType="url" maxLength={2048} style={styles.input}/>}
         {book?<View style={styles.book}><BookCoverImage googleBookId={book.googleBookId} isbn={book.isbn} existingCoverUrl={book.coverUrl} style={styles.cover}/><View style={{flex:1}}><Text style={styles.bookTitle}>{displayBookTitle(book.title ?? '')}</Text><Text style={styles.bookAuthor}>{book.authors.join(', ')}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Remove event book" onPress={()=>{selectionVersion.current++;setBook(null);}} style={{padding:8}}><Ionicons name="close" size={20} color={colors.mutedText}/></Pressable></View>:null}
         <Pressable accessibilityRole="button" accessibilityLabel="Choose event book" onPress={()=>setPicker(true)} style={styles.addBook}><Ionicons name="book-outline" size={17} color={colors.gold}/><Text style={styles.addText}>{book?'Change book':'Add a book (optional)'}</Text></Pressable>
-      </View>
+      </EditablePostCard>
     </KeyboardAwareScrollView>}
     <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" onRequestClose={()=>setPicker(false)}><SafeAreaView style={styles.picker}><View style={styles.header}><Text style={styles.heading}>Choose a book</Text><Pressable accessibilityRole="button" accessibilityLabel="Close event book search" onPress={()=>setPicker(false)}><Ionicons name="close" size={25} color={colors.text}/></Pressable></View>
       <TextInput accessibilityLabel="Event book search" value={query} onChangeText={setQuery} placeholder="Search title or author" placeholderTextColor={colors.mutedText} autoFocus style={[styles.input,{marginHorizontal:18}]}/>

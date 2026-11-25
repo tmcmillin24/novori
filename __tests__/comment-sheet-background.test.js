@@ -34,6 +34,8 @@ test.each(['(tabs)/profile.tsx','reader/[id].tsx'])('%s keeps post navigation se
 });
 test('club comment presses stop the parent post tap and open the shared sheet',()=>{
  const club=fs.readFileSync(require('path').join(__dirname,'../src/app/club/[id].tsx'),'utf8');
- expect(club).toMatch(/accessibilityLabel="Open club post comments"[\s\S]*?event\.stopPropagation\(\);\s*openCommentsSheet\(post\)/);
+ expect(club).toMatch(/commentsLabel="Open club post comments"[\s\S]*?onComments=\{openCommentsSheet\}/);
+ const card=fs.readFileSync(require('path').join(__dirname,'../src/components/FeedPostCard.tsx'),'utf8');
+ expect(card).toMatch(/accessibilityLabel=\{commentsLabel[^\n]*[\s\S]*?event\.stopPropagation\(\);\s*openCommentsSheet\(/);
  expect(club).toContain('{sheet}');
 });

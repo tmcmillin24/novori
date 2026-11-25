@@ -5,9 +5,10 @@ import { useNovoriTheme } from '../context/theme-context';
 import type { NovoriColors } from '../constants/novori-theme';
 import { UiSheetBackdrop, UiSheetModal, UiSheetSurface, useUiSheetMotion } from './UiSheet';
 
-type Props = { visible: boolean; onDismiss: () => void; onEdit?: () => void; onDelete?: () => void };
+type ExtraAction = { label: string; description: string; icon: keyof typeof Ionicons.glyphMap; run: () => void };
+type Props = { visible: boolean; onDismiss: () => void; onEdit?: () => void; onDelete?: () => void; title?: string; subtitle?: string; actions?: ExtraAction[] };
 
-export default function PostOptionsSheet({visible, onDismiss, onEdit, onDelete}: Props) {
+export default function PostOptionsSheet({visible, onDismiss, onEdit, onDelete, title = 'Post options', subtitle = 'Manage your post.', actions = []}: Props) {
     const {colors} = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = createStyles(colors);
@@ -37,11 +38,11 @@ export default function PostOptionsSheet({visible, onDismiss, onEdit, onDelete}:
 
                 <View style={styles.ownPostOptionsHeaderCopy}>
                   <Text style={styles.ownPostOptionsTitle}>
-                    Post options
+                    {title}
                   </Text>
 
                   <Text style={styles.ownPostOptionsSubtitle}>
-                    Manage your post.
+                    {subtitle}
                   </Text>
                 </View>
               </View>
@@ -93,6 +94,20 @@ export default function PostOptionsSheet({visible, onDismiss, onEdit, onDelete}:
                     </Text>
                   </View>
                 </Pressable> : null}
+                {actions.map((action, index) => <View key={action.label}>
+                  {onEdit || onDelete || index > 0 ? <View style={styles.ownPostOptionsDivider}/> : null}
+                  <Pressable accessibilityRole="button" accessibilityLabel={action.label}
+                    onPress={() => motion.closeAfterActionWithCallback(action.run)}
+                    style={({pressed}) => [styles.ownPostOptionsRow, pressed && styles.ownPostOptionsRowPressed]}>
+                    <View style={styles.ownPostOptionsRowIcon}><Ionicons name={action.icon} size={20} color={colors.gold}/></View>
+                    <View style={styles.ownPostOptionsRowCopy}>
+                      <Text style={styles.ownPostOptionsRowTitle}>{action.label}</Text>
+                      <Text style={styles.ownPostOptionsRowSubtitle}>{action.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
+                  </Pressable>
+                </View>)}
+
               </View>
 
               <Text style={styles.ownPostOptionsHint}>

@@ -1,45 +1,44 @@
-import PostOptionsSheet from '../../components/PostOptionsSheet';
-import { getPostEditRoute } from '../../lib/post-edit-route';
-import { PostBrowsingFooterSpace, useBrowsingBottomInsetCovered, useBrowsingNavigationScroll, usePostFooterTransition } from '../../components/BrowsingNavigation';
-import { applyCommentDeletion } from '../../lib/comment-deletion';
-import CachedMediaImage from '../../components/CachedMediaImage';
-import { displayBookTitle } from '../../lib/book-title';
-import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNotice';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import { openCommentConversation } from '../../lib/open-comment-conversation';
-import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
-import CommentBranchGuide from '../../components/CommentBranchGuide';
-import { getSessionReadScope, isTransientReadError } from '../../lib/session-read-cache';
-import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
-import ReplyComposerContext from '../../components/ReplyComposerContext';
-import { COMMENT_REPLY_BATCH_SIZE, buildCommentThreads, getCommentDepthLimit, getFocusedConversationId, countThreadReplies, type CommentThread } from '../../lib/comment-conversations';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import { discussionRevealKey } from '../../lib/club-discussion';
-import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useFocusEffect,useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,Animated,Easing,Keyboard,Modal,Platform,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import BookCoverImage from '../../components/BookCoverImage';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
+import { PostBrowsingFooterSpace,useBrowsingBottomInsetCovered,useBrowsingNavigationScroll,usePostFooterTransition } from '../../components/BrowsingNavigation';
+import CachedMediaImage from '../../components/CachedMediaImage';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import CommentBranchGuide from '../../components/CommentBranchGuide';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
+import PostActions from '../../components/PostActions';
+import { PostSpoilerNotice,usePostSpoiler } from '../../components/PostSpoilerNotice';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
+import ReplyComposerContext from '../../components/ReplyComposerContext';
+import { UiSheetBackdrop,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { CommentVoteValue, createPostComment, deletePostComment, getPostComments, PostComment, toggleCommentVote, updatePostComment } from '../../lib/comments';
-import { containsExplicitLanguage, getExplicitLanguagePreference, isExplicitContentRevealed, revealExplicitContentOnce, setExplicitLanguagePreference } from '../../lib/content-filter';
-import { deletePost, FeedPost, getPostDetail, PostVoteValue, splitQuestionPostBody, togglePostVote } from '../../lib/feed';
-import { ReportReason, submitCommentReport } from '../../lib/reports';
-import { blockReader } from '../../lib/social';
+import { displayBookTitle } from '../../lib/book-title';
+import { discussionRevealKey } from '../../lib/club-discussion';
+import { buildCommentThreads,COMMENT_REPLY_BATCH_SIZE,countThreadReplies,getCommentDepthLimit,getFocusedConversationId,type CommentThread } from '../../lib/comment-conversations';
+import { applyCommentDeletion } from '../../lib/comment-deletion';
+import { CommentVoteValue,createPostComment,deletePostComment,getPostComments,PostComment,toggleCommentVote,updatePostComment } from '../../lib/comments';
+import { containsExplicitLanguage,getExplicitLanguagePreference,isExplicitContentRevealed,revealExplicitContentOnce,setExplicitLanguagePreference } from '../../lib/content-filter';
+import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
+import { FeedPost,getPostDetail,PostVoteValue,splitQuestionPostBody,togglePostVote } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import { openCommentConversation } from '../../lib/open-comment-conversation';
+import { ReportReason,submitCommentReport } from '../../lib/reports';
+import { getSessionReadScope,isTransientReadError } from '../../lib/session-read-cache';
 import { sharePostLink } from '../../lib/share-links';
+import { blockReader } from '../../lib/social';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 type ThreadComment = CommentThread;
 type ReplyTarget = {
     id: string;
@@ -135,9 +134,7 @@ export default function PostDetailScreen() {
     const [revealedDiscussion, setRevealedDiscussion] = useState('');
     const {hidden:postSpoilersHidden,reveal:revealPostSpoilers}=usePostSpoiler(post);
     const discussionSpoilersHidden = Boolean(post?.club_discussion?.contains_spoilers && revealedDiscussion !== discussionRevealKey(post.club_discussion));
-    const [discussionOptionsOpen, setDiscussionOptionsOpen] = useState(false);
-    const [deleteDiscussionOpen, setDeleteDiscussionOpen] = useState(false);
-    const [deletingDiscussion, setDeletingDiscussion] = useState(false);
+    const [postOptionsOpen, setPostOptionsOpen] = useState(false);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [allowExplicitLanguage, setAllowExplicitLanguage,] = useState(false);
     const [revealedExplicitPosts, setRevealedExplicitPosts,] = useState<Record<string, boolean>>({});
@@ -1019,10 +1016,6 @@ export default function PostDetailScreen() {
         ?.charAt(0)
         .toUpperCase() ||
         'C';
-    const discussion = post.club_discussion;
-    const canDeleteDiscussion = Boolean(discussion && currentUserId && post.author_id === currentUserId);
-    const canEditDiscussion = Boolean(discussion && (canDeleteDiscussion || discussion.viewer_can_manage) &&
-        !(discussion.kind === 'poll' && (discussion.voting_started_at || discussion.closed_at)));
     const canSubmit = commentBody
         .trim()
         .length >
@@ -1130,7 +1123,7 @@ export default function PostDetailScreen() {
             ]}>
                 <Ionicons name="share-social-outline" size={19} color={colors.mutedText}/>
               </Pressable>
-              {canEditDiscussion || canDeleteDiscussion ? <Pressable accessibilityRole="button" accessibilityLabel="Discussion options" hitSlop={6} onPress={() => { Keyboard.dismiss(); setDiscussionOptionsOpen(true); }} style={({pressed}) => [styles.postHeaderShare, pressed && styles.pressed]}>
+              {currentUserId ? <Pressable accessibilityRole="button" accessibilityLabel="More post options" hitSlop={6} onPress={() => { Keyboard.dismiss(); setPostOptionsOpen(true); }} style={({pressed}) => [styles.postHeaderShare, pressed && styles.pressed]}>
                 <Ionicons name="ellipsis-horizontal" size={21} color={colors.mutedText}/>
               </Pressable> : null}
             </View>
@@ -1557,23 +1550,8 @@ export default function PostDetailScreen() {
             }
         }}/>
 
-      <PostOptionsSheet visible={discussionOptionsOpen} onDismiss={() => setDiscussionOptionsOpen(false)}
-        onEdit={canEditDiscussion ? () => router.push(getPostEditRoute(post)) : undefined}
-        onDelete={canDeleteDiscussion ? () => setDeleteDiscussionOpen(true) : undefined}/>
-      {deleteDiscussionOpen ? <DeletePostConfirmSheet title="Delete discussion?" visible busy={deletingDiscussion} onDismiss={() => setDeleteDiscussionOpen(false)} onConfirm={async () => {
-        if (!canDeleteDiscussion || deletingDiscussion) return;
-        setDeletingDiscussion(true);
-        try {
-          await deletePost(post.id);
-          setDeleteDiscussionOpen(false);
-          router.back();
-        } catch (error) {
-          Alert.alert('Could not delete discussion', 'Please try again.');
-          throw error;
-        } finally {
-          setDeletingDiscussion(false);
-        }
-      }}/> : null}
+      <PostActions post={postOptionsOpen ? post : null} currentUserId={currentUserId}
+        onDismiss={() => setPostOptionsOpen(false)} onDeleted={() => router.back()}/>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }

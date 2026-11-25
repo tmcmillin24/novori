@@ -178,7 +178,7 @@ test('stack Save & Post uses inline text, destination and reordered books withou
   await act(async () => clubOption.props.onPress());
   const card = view.root.findByType(EditablePostCard);
   expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
-  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(card.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(getMyClubs).toHaveBeenCalledTimes(1);
   const firstRow = view.root.findAllByType('SortableBookStackRow')[0];
   await act(async () => firstRow.props.onDragStart('book-a', 0));
@@ -262,7 +262,7 @@ test('Reading Update can choose a joined club and shows its cached photo', async
   await act(async () => club.props.onPress());
   const card = view.root.findByType(EditablePostCard);
   expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
-  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(card.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(getMyClubs).toHaveBeenCalledTimes(1);
   await fill('Current page', '123');
   await press('Publish Reading Update');
@@ -274,7 +274,7 @@ test('Ask Readers chooses a destination above the card and publishes the display
   await fill('Your question', 'What should I read next?');
   await press('Post to Your feed');
   await press('Choose Our readers');
-  expect(view.root.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(view.root.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(button('Post to Our readers')).toBeDefined();
   await press('Publish Ask Readers post');
   expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: 'What should I read next?', clubId: 'club-1', postType: 'question' }));

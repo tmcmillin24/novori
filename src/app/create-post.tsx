@@ -1,73 +1,73 @@
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import { getClubComposerPreview } from '../lib/club-composer-preview';
-import CachedMediaImage from '../components/CachedMediaImage';
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
-import SpoilerToggle from '../components/SpoilerToggle';
-import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
-import ValidationWarningSheet from '../components/ValidationWarningSheet';
-import { moderationMediaUrl } from '../lib/moderation-media-url';
-import PostTypeIdentifier from '../components/PostTypeIdentifier';
-import { canManageClubPosts } from '../lib/club-posts';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  useLocalSearchParams,
-  useRouter,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useEffect,
-  useMemo,
-  useState,
+useEffect,
+useMemo,
+useState,
 } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+ActivityIndicator,
+Alert,
+Modal,
+Platform,
+Pressable,
+ScrollView,
+StyleSheet,
+Text,
+TextInput,
+View
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+SafeAreaView,
+useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import BookSearchRatings from '../components/BookSearchRatings';
+import CachedMediaImage from '../components/CachedMediaImage';
+import EditablePostCard from '../components/EditablePostCard';
+import SpoilerToggle from '../components/SpoilerToggle';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { displayBookTitle } from '../lib/book-title';
+import { getClubComposerPreview } from '../lib/club-composer-preview';
+import { canManageClubPosts } from '../lib/club-posts';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
+import type { FeedPost } from '../lib/feed';
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 
 import BookCoverImage from '../components/BookCoverImage';
 import PhotoSourceSheet from '../components/PhotoSourceSheet';
-import PostPhotoCropper, { PostCropAsset } from '../components/PostPhotoCropper';
+import PostPhotoCropper,{ PostCropAsset } from '../components/PostPhotoCropper';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
 import {
-  ClubWithMembership,
-  getMyClubs,
-} from '../lib/clubs';
-import {
-  createPost,
-  getPostDetail,
-  PostImageUpload,
-  updatePost,
-  uploadPostImage,
-} from '../lib/feed';
-import {
-  getNovoriSearchBookCover,
-  getNovoriSearchBookIsbn,
-  GoogleBookSearchItem,
-  resolveNovoriSearchBookCover,
-  searchNovoriBooks,
+getNovoriSearchBookCover,
+getNovoriSearchBookIsbn,
+GoogleBookSearchItem,
+resolveNovoriSearchBookCover,
+searchNovoriBooks,
 } from '../lib/book-search';
 import {
-  supabase,
+ClubWithMembership,
+getMyClubs,
+} from '../lib/clubs';
+import {
+createPost,
+getPostDetail,
+PostImageUpload,
+updatePost,
+uploadPostImage,
+} from '../lib/feed';
+import {
+supabase,
 } from '../lib/supabase';
 
 type Destination =
@@ -183,6 +183,7 @@ export default function CreatePostScreen() {
     }>();
 
   const requestedAnnouncement = params.announcement === '1';
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [containsSpoilers, setContainsSpoilers] = useState(false);
   const [announcement, setAnnouncement] = useState(requestedAnnouncement);
 
@@ -415,6 +416,7 @@ export default function CreatePostScreen() {
             return;
           }
 
+          setEditSource(editingPost);
           setContainsSpoilers(editingPost.contains_spoilers === true);
           setAnnouncement(editingPost.is_club_announcement === true);
 
@@ -1017,9 +1019,7 @@ export default function CreatePostScreen() {
       if (
         isEditing
       ) {
-        router.replace(
-          '/(tabs)'
-        );
+        router.back();
       } else if (
         destination.type ===
           'club' &&
@@ -1487,103 +1487,14 @@ export default function CreatePostScreen() {
               </>
             ) : null}
 
-            <View
-              style={
-                styles.feedPreviewCard
-              }
-            >
-              <View
-                style={
-                  styles.feedPreviewHeader
-                }
-              >
-                {viewerProfile
-                  ?.avatar_url ? (
-                  <CachedMediaImage
-                    source={{
-                      uri:
-                        moderationMediaUrl(viewerProfile.avatar_url),
-                    }}
-                    style={
-                      styles.feedPreviewAvatar
-                    }
-                  />
-                ) : (
-                  <View
-                    style={viewerProfile ? styles.feedPreviewAvatarFallback : styles.previewAvatarSpace}
-                  >
-                    {viewerProfile && profileInitial ? <Text style={styles.feedPreviewAvatarText}>{profileInitial}</Text> : null}
-
-                  </View>
-                )}
-
-                <View
-                  style={
-                    styles.feedPreviewAuthorCopy
-                  }
-                >
-                  <View
-                    style={
-                      styles.feedPreviewIdentity
-                    }
-                  >
-                    {profileName ? <Text style={styles.feedPreviewAuthorName} numberOfLines={1}>{profileName}</Text>
-                      : null}
-
-                    {viewerProfile
-                      ?.username
-                      ?.trim() ? (
-                      <Text
-                        style={
-                          styles.feedPreviewUsername
-                        }
-                        numberOfLines={
-                          1
-                        }
-                      >
-                        @{viewerProfile.username.trim()}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  {destination.type === 'club' ? (
-                    <Text
-                      style={
-                        styles.feedPreviewAudienceText
-                      }
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      in {selectedTitle}{' '}
-                      <Text
-                        style={
-                          styles.feedPreviewTime
-                        }
-                      >
-                        · now
-                      </Text>
-                    </Text>
-                  ) : null}
-                </View>
-
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={
-                    20
-                  }
-                  color={
-                    colors.mutedText
-                  }
-                />
-              </View>
-
+            <EditablePostCard postType="post" author={viewerProfile} source={editSource}
+              announcement={announcement} clubId={destination.type === 'club' ? destination.clubId : null}
+              clubName={destination.type === 'club' ? selectedTitle : null} clubCoverUrl={selectedClub?.cover_url}>
               <View
                 style={
                   styles.feedPreviewContent
                 }
               >
-                {announcement ? <PostTypeIdentifier postType="post" announcement colors={colors} /> : null}
                 <TextInput
                   value={
                     body
@@ -2022,7 +1933,7 @@ export default function CreatePostScreen() {
                 </View>
               ) : null}
 
-            </View>
+            </EditablePostCard>
 
             {!isEditing ? (
               <>

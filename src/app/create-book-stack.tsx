@@ -1,67 +1,65 @@
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
-import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
-import {resolveStackDragTarget} from '../lib/stack-drag-target';
-import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useLocalSearchParams,
-  useRouter,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useEffect,
-  useRef,
-  useState,
+useEffect,
+useRef,
+useState,
 } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+ActivityIndicator,
+Alert,
+Keyboard,
+Modal,
+Pressable,
+ScrollView,
+StyleSheet,
+Text,
+TextInput,
+View,
 } from 'react-native';
 import {
-  SafeAreaView,
+SafeAreaView,
 } from 'react-native-safe-area-context';
+import BookSearchRatings from '../components/BookSearchRatings';
+import { displayBookTitle } from '../lib/book-title';
+import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
+import type { FeedPost } from '../lib/feed';
+import { resolveStackDragTarget } from '../lib/stack-drag-target';
 
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
-import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import ValidationWarningSheet from '../components/ValidationWarningSheet';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import SortableBookStackRow, {
-  StackDropEdge,
+import SortableBookStackRow,{
+StackDropEdge,
 } from '../components/SortableBookStackRow';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import {
-  getNovoriSearchBookCover,
-  GoogleBookSearchItem,
-  searchNovoriBooks,
+getNovoriSearchBookCover,
+GoogleBookSearchItem,
+searchNovoriBooks,
 } from '../lib/book-search';
 import {
-  BookStackDraftItem,
-  saveBookStackSubmission,
-  getBookStack,
+BookStackDraftItem,
+getBookStack,
+saveBookStackSubmission,
 } from '../lib/book-stacks';
 import {
-  getPostDetail,
+getPostDetail,
 } from '../lib/feed';
-import {
-  supabase,
-} from '../lib/supabase';
 
 const MAX_STACK_BOOKS = 10;
 const MIN_STACK_BOOKS = 2;
@@ -209,6 +207,7 @@ export default function CreateBookStackScreen() {
   const [clubName, setClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
   const viewerProfile = usePostComposerProfile(params.previewKey);
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [stackWarning, setStackWarning] = useState<{ title: string; message: string } | null>(null);
   async function showStackFailure(error: unknown, operation: 'save' | 'publish') {
     const details = error && typeof error === 'object'
@@ -331,6 +330,7 @@ export default function CreateBookStackScreen() {
           return;
         }
 
+        setEditSource(post);
         setName(
           stack.name
         );
@@ -908,7 +908,8 @@ export default function CreateBookStackScreen() {
 
       await saveBookStackSubmission({ name, items, stackId: isEditing ? editStackId : null,
         publish: Boolean(editPostId), body: postText, clubId, postId: editPostId || null });
-      router.replace(editPostId ? '/(tabs)' : '/(tabs)/profile');
+      if (editPostId) router.back();
+      else router.replace('/(tabs)/profile');
     } catch (
       error
     ) {
@@ -1099,7 +1100,7 @@ export default function CreateBookStackScreen() {
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={saving || publishing}
           clubId={clubId} clubName={clubName} onClubIdChange={setClubId} profile={viewerProfile} />
-        <EditablePostCard
+        <EditablePostCard source={editSource}
           postType="book_stack"
           author={viewerProfile}
           clubId={clubId}

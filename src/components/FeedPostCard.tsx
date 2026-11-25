@@ -21,10 +21,10 @@ import PostTypeIdentifier from './PostTypeIdentifier';
 import ReadingRecapPostAttachment from './ReadingRecapPostAttachment';
 import ValidationWarningSheet from './ValidationWarningSheet';
 
-type Props={post:FeedPost;currentUserId?:string|null;votingPostId?:string|null;deletingPostId?:string|null;allowExplicitLanguage?:boolean;onAlwaysShow?:()=>Promise<void>;onOpen?:(post:FeedPost)=>void;onComments:(post:FeedPost)=>void;onVote:(id:string,vote:PostVoteValue)=>void;onMore?:(post:FeedPost)=>void;onShare:(post:FeedPost)=>void;onReader?:(id:string)=>void;onClub?:(id:string)=>void;renderText?:(content:string,targetType:'post'|'comment',targetId:string,textStyle:any,isOwnContent?:boolean)=>ReactNode};
+type Props={post:FeedPost;openLabel?:string;commentsLabel?:string;headerAction?:ReactNode;editor?:ReactNode;editorReadingRecap?:boolean;editorEvent?:boolean;editorDiscussion?:boolean;currentUserId?:string|null;votingPostId?:string|null;deletingPostId?:string|null;allowExplicitLanguage?:boolean;onAlwaysShow?:()=>Promise<void>;onOpen?:(post:FeedPost)=>void;onComments:(post:FeedPost)=>void;onVote:(id:string,vote:PostVoteValue)=>void;onMore?:(post:FeedPost)=>void;onShare:(post:FeedPost)=>void;onReader?:(id:string)=>void;onClub?:(id:string)=>void;renderText?:(content:string,targetType:'post'|'comment',targetId:string,textStyle:any,isOwnContent?:boolean)=>ReactNode};
 
 // The same post markup and styles serve Home and both Profile Activity views.
-export default function FeedPostCard({post,currentUserId,votingPostId,deletingPostId,allowExplicitLanguage=false,onAlwaysShow,onOpen,onComments:openCommentsSheet,onVote:handlePostVote,onMore,onShare:shareFeedPost,onReader,onClub,renderText}:Props){
+export default function FeedPostCard({post,openLabel,commentsLabel,headerAction,editor,editorReadingRecap,editorEvent,editorDiscussion,currentUserId,votingPostId,deletingPostId,allowExplicitLanguage=false,onAlwaysShow,onOpen,onComments:openCommentsSheet,onVote:handlePostVote,onMore,onShare:shareFeedPost,onReader,onClub,renderText}:Props){
  const {hidden:spoilersHidden,reveal:revealSpoilers}=usePostSpoiler(post);
  const {colors}=useNovoriTheme();const router=useRouter();const styles=useMemo(()=>createStyles(colors),[colors]);
  const [revealedExplicitPosts,setRevealedExplicitPosts]=useState<Record<string,boolean>>({});
@@ -239,7 +239,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
         ?.trim() ||
       post.author_username
         ?.trim() ||
-      'Novori Reader';
+      (editor ? '' : 'Novori Reader');
 
     const username =
       post.author_username
@@ -259,32 +259,19 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
       'C';
 
     const questionContent =
-      post.post_type ===
+      !editor && post.post_type ===
         'question'
         ? splitQuestionPostBody(
             post.body
           )
         : null;
 
-    return (
-      <>
-      <Pressable
-        key={
-          post.id
-        }
-        onPress={() =>
-          (onOpen ?? openCommentsSheet)(post)
-        }
-        style={({ pressed }) => [
-          styles.feedPostCard,
-          pressed &&
-            styles.feedPostCardPressed,
-        ]}
-      >
+    const content = <>
         <View
           style={
             styles.feedPostHeader
           }
+          pointerEvents={editor ? "none" : "auto"} accessibilityElementsHidden={Boolean(editor)} importantForAccessibility={editor ? "no-hide-descendants" : "auto"}
         >
           <Pressable
             onPress={(event) => {
@@ -452,7 +439,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
                   styles.feedAudienceText
                 }
               >
-                posted to their profile{' '}
+                {editor && !post.author_display_name && !post.author_username ? null : 'posted to their profile '}
                 <Text
                   style={
                     styles.feedTime
@@ -497,6 +484,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
               />
             </Pressable>
 
+            {headerAction}
             {onMore ? (
               <Pressable
                 disabled={
@@ -549,12 +537,12 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
           }
         >
           <PostTypeIdentifier
-            attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))}
-          event={Boolean(post.club_event)}
+            attachmentHasLabel={Boolean(editorDiscussion || post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))}
+          event={editorEvent || Boolean(post.club_event)}
           discussion={Boolean(post.club_discussion)}
           poll={post.club_discussion?.kind==='poll'}
           announcement={post.is_club_announcement}
-            readingRecap={Boolean(post.reading_recap)}
+            readingRecap={editorReadingRecap || Boolean(post.reading_recap)}
             postType={
               post.post_type
             }
@@ -566,6 +554,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
             }
           />
 
+          {editor ?? <>
           {spoilersHidden ? <PostSpoilerNotice onReveal={revealSpoilers}/> : questionContent ? (
             <>
               {renderExplicitContentWarning(
@@ -950,12 +939,14 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
               </Pressable>
             )
           ) : null}
+          </>}
         </View>
 
         <View
           style={
             styles.feedPostFooter
           }
+          pointerEvents={editor ? "none" : "auto"} accessibilityElementsHidden={Boolean(editor)} importantForAccessibility={editor ? "no-hide-descendants" : "auto"}
         >
           <View
             style={
@@ -1067,7 +1058,7 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
             </Pressable>
           </View>
 
-          <Pressable
+          <Pressable accessibilityRole="button" accessibilityLabel={commentsLabel ?? "Open post comments"}
             onPress={(event) => {
               event.stopPropagation();
               openCommentsSheet(
@@ -1110,11 +1101,16 @@ const renderExplicitContentWarning=renderText??renderDefaultText;
 
 
         </View>
-      </Pressable>
-      <ValidationWarningSheet visible={!!warning} title="Could not save preference" message={warning} onDismiss={()=>setWarning('')}/>
-      </>
-    );
-  
+    </>;
+    return <>
+      {editor ? <View style={styles.feedPostCard}>{content}</View> : <Pressable
+        accessibilityRole="button" accessibilityLabel={openLabel}
+        onPress={() => (onOpen ?? openCommentsSheet)(post)}
+        style={({pressed})=>[styles.feedPostCard,pressed && styles.feedPostCardPressed]}>
+        {content}
+      </Pressable>}
+      {!editor ? <ValidationWarningSheet visible={!!warning} title="Could not save preference" message={warning} onDismiss={()=>setWarning('')}/> : null}
+    </>;
 }
 function formatFeedTime(
     createdAt: string

@@ -284,9 +284,9 @@ test('discussion Edit and Delete live in the standalone post menu, and deletion 
  await render(<PostDetailScreen/>);
  expect(button('Share post')).toBeDefined();
  expect(button('Edit club discussion')).toBeUndefined();
- await press('Discussion options');await press('Edit Post');
+ await press('More post options');await press('Edit Post');
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1'}});
- await press('Discussion options');await press('Delete Post');
+ await press('More post options');await press('Delete Post');
  expect(deletePost).not.toHaveBeenCalled();
  const confirm=view.root.findAllByType('DeletePostConfirmSheet').find(node=>node.props.title==='Delete discussion?');
  await act(async()=>confirm.props.onConfirm());

@@ -1,25 +1,28 @@
-import { displayBookTitle } from '../lib/book-title';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
 import { useEffect,useRef,useState } from 'react';
 import { ActivityIndicator,Modal,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNovoriTheme } from '../context/theme-context';
-import { supabase } from '../lib/supabase';
-import { getClub,type ClubWithMembership } from '../lib/clubs';
-import { getClubRead,getClubReads } from '../lib/club-reads';
-import type { ClubRead } from '../lib/club-read';
-import { getClubDiscussion,saveClubDiscussion,newClubDiscussionRequestKey } from '../lib/club-discussions';
-import type { ClubDiscussion } from '../lib/club-discussion';
-import ClubDiscussionPostAttachment from '../components/ClubDiscussionPostAttachment';
-import SpoilerToggle from '../components/SpoilerToggle';
 import BookCoverImage from '../components/BookCoverImage';
+import ClubDiscussionPostAttachment from '../components/ClubDiscussionPostAttachment';
+import EditablePostCard from '../components/EditablePostCard';
+import SpoilerToggle from '../components/SpoilerToggle';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import { useNovoriTheme } from '../context/theme-context';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { displayBookTitle } from '../lib/book-title';
+import type { ClubDiscussion } from '../lib/club-discussion';
+import { getClubDiscussion,newClubDiscussionRequestKey,saveClubDiscussion } from '../lib/club-discussions';
+import type { ClubRead } from '../lib/club-read';
+import { getClubRead,getClubReads } from '../lib/club-reads';
+import { getClub,type ClubWithMembership } from '../lib/clubs';
+import { supabase } from '../lib/supabase';
 
 export default function CreateClubDiscussionScreen(){
   const router=useRouter(),params=useLocalSearchParams<{clubId?:string;discussionId?:string;readId?:string;kind?:string}>(),{colors}=useNovoriTheme();
   const clubId=typeof params.clubId==='string'?params.clubId:'',discussionId=typeof params.discussionId==='string'?params.discussionId:'',initialReadId=typeof params.readId==='string'?params.readId:'';
+  const author=usePostComposerProfile();
   const [club,setClub]=useState<ClubWithMembership|null>(null),[discussion,setDiscussion]=useState<ClubDiscussion|undefined>(),[reads,setReads]=useState<ClubRead[]>([]),[readId,setReadId]=useState<string|null>(initialReadId||null);
   const [kind,setKind]=useState<'discussion'|'poll'>(params.kind==='poll'?'poll':'discussion'),[title,setTitle]=useState(''),[prompt,setPrompt]=useState(''),[spoilers,setSpoilers]=useState(false),[options,setOptions]=useState(['','']);
   const [ownsDiscussion,setOwnsDiscussion]=useState(false);
@@ -48,6 +51,7 @@ export default function CreateClubDiscussionScreen(){
     <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',padding:16}}><Pressable disabled={saving} accessibilityRole="button" accessibilityLabel="Close discussion editor" onPress={()=>router.back()} style={{padding:8}}><Ionicons name="close" size={24} color={colors.text}/></Pressable><Text style={{...copy,fontFamily:'PlayfairDisplay_700Bold',fontSize:21}}>{kind==='poll'?'Club poll':'Club discussion'}</Text><Pressable disabled={loading||saving||!editable||locked||Boolean(loadError)} accessibilityRole="button" accessibilityLabel="Publish club discussion" onPress={()=>void save()} style={{padding:11,borderRadius:11,backgroundColor:colors.gold,opacity:(loading||saving||!editable||locked) ? .6 : 1}}><Text style={{...copy,color:colors.background}}>{saving?'Saving…':discussion?'Save':'Post'}</Text></Pressable></View>
     {loading?<ActivityIndicator color={colors.gold} style={{margin:25}}/>:loadError||!editable||locked?<View style={{padding:25}}><Text style={{...copy,color:colors.mutedText,lineHeight:20}}>{loadError||(locked?'Polls lock after the first vote. You can close this poll from its post and create a new one.':'Join this club to create discussions. Only the creator or club hosts can edit them.')}</Text></View>:<KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bottomOffset={24} contentContainerStyle={{padding:18,paddingBottom:40,maxWidth: '100%',width:'100%',alignSelf:'center'}}>
       {!discussion ? <View style={{flexDirection:'row',gap:8,marginBottom:14}}>{(['discussion','poll'] as const).map(value=><Pressable key={value} accessibilityRole="button" accessibilityLabel={`Create ${value}`} accessibilityState={{selected:kind===value}} onPress={()=>setKind(value)} style={{flex:1,padding:12,borderRadius:11,borderWidth:1,borderColor:kind===value?colors.gold:colors.border,backgroundColor:kind===value?`${colors.gold}15`:colors.surface}}><Text style={{...copy,textAlign:'center',color:kind===value?colors.gold:colors.mutedText}}>{value==='poll'?'Poll':'Discussion'}</Text></Pressable>)}</View> : null}
+      <EditablePostCard postType="post" author={author} clubId={clubId} clubName={club?.name} clubCoverUrl={club?.cover_url} discussionLabel>
       <ClubDiscussionPostAttachment detail draft revealed discussion={{
         id:'draft',club_id:clubId,post_id:'',read_id:readId,created_by:null,kind,title,prompt,book,
         contains_spoilers:spoilers,spoiler_label:null,options:kind==='poll'?options:[],
@@ -59,6 +63,7 @@ export default function CreateClubDiscussionScreen(){
         {kind==='poll'?<View>{options.map((option,index)=><View key={index} style={{flexDirection:'row',alignItems:'center',gap:7,marginBottom:7}}><TextInput accessibilityLabel={`Poll choice ${index+1}`} value={option} onChangeText={value=>setOptions(current=>current.map((old,i)=>i===index?value:old))} placeholder={`Choice ${index+1}`} placeholderTextColor={colors.mutedText} maxLength={140} style={{...input,flex:1,minHeight:45,padding:11,borderWidth:1,borderRadius:10,borderColor:colors.border}}/>{options.length>2?<Pressable accessibilityRole="button" accessibilityLabel={`Remove poll choice ${index+1}`} onPress={()=>setOptions(current=>current.filter((_,i)=>i!==index))} style={{padding:8}}><Ionicons name="close-circle-outline" size={19} color={colors.mutedText}/></Pressable>:null}</View>)}{options.length<6?<Pressable accessibilityRole="button" accessibilityLabel="Add poll choice" onPress={()=>setOptions(current=>[...current,''])} style={{paddingVertical:14}}><Text style={{...copy,color:colors.gold}}>Add choice</Text></Pressable>:null}<Text style={{...copy,color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:10,lineHeight:16,marginTop:8}}>One vote per member. Choices lock after the first vote; the creator or club hosts can close voting.</Text></View>:null}
         <SpoilerToggle value={spoilers} onChange={setSpoilers} disabled={saving}/>
       </>}/>
+      </EditablePostCard>
     </KeyboardAwareScrollView>}
     <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" onRequestClose={()=>setPicker(false)}><SafeAreaView style={{flex:1,backgroundColor:colors.background}}><View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:18}}><Text style={{...copy,fontFamily:'PlayfairDisplay_700Bold',fontSize:22}}>Your club’s reads</Text><Pressable accessibilityRole="button" accessibilityLabel="Close club read picker" onPress={()=>setPicker(false)} style={{padding:8}}><Ionicons name="close" size={24} color={colors.text}/></Pressable></View><ScrollView contentContainerStyle={{padding:18}}>
       <Pressable accessibilityRole="button" accessibilityLabel="No discussion book" onPress={()=>{setReadId(null);setPicker(false);}} style={{paddingVertical:15}}><Text style={{...copy,color:colors.gold}}>General club conversation</Text></Pressable>

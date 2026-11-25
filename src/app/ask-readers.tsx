@@ -1,45 +1,43 @@
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import CachedMediaImage from '../components/CachedMediaImage';
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
-import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams,useRouter } from 'expo-router';
+import { useEffect,useMemo,useRef,useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+ActivityIndicator,
+Alert,
+Modal,
+Pressable,
+ScrollView,
+StyleSheet,
+Text,
+TextInput,
+View
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BookSearchRatings from '../components/BookSearchRatings';
+import EditablePostCard from '../components/EditablePostCard';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { displayBookTitle } from '../lib/book-title';
+import type { FeedPost } from '../lib/feed';
 
 import BookCoverImage from '../components/BookCoverImage';
-import ClubDestinationImage from '../components/ClubDestinationImage';
-import PostDestinationPicker from '../components/PostDestinationPicker';
 import CanonicalBookRating from '../components/CanonicalBookRating';
+import PostDestinationPicker from '../components/PostDestinationPicker';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
 import {
-  getNovoriSearchBookCover,
-  getNovoriSearchBookIsbn,
-  GoogleBookSearchItem,
-  resolveNovoriSearchBookCover,
-  searchNovoriBooks,
+getNovoriSearchBookCover,
+getNovoriSearchBookIsbn,
+GoogleBookSearchItem,
+resolveNovoriSearchBookCover,
+searchNovoriBooks,
 } from '../lib/book-search';
-import { ClubWithMembership, getMyClubs } from '../lib/clubs';
+import { ClubWithMembership,getMyClubs } from '../lib/clubs';
 import {
-  createPost,
-  getPostDetail,
-  splitQuestionPostBody,
-  updatePost,
+createPost,
+getPostDetail,
+splitQuestionPostBody,
+updatePost,
 } from '../lib/feed';
 import { supabase } from '../lib/supabase';
 
@@ -81,6 +79,7 @@ export default function AskReadersScreen() {
     [colors]
   );
 
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [question, setQuestion] = useState('');
   const [context, setContext] = useState('');
   const viewerProfile = usePostComposerProfile(params.previewKey);
@@ -142,6 +141,7 @@ export default function AskReadersScreen() {
             );
           }
 
+          setEditSource(editingPost);
           const parsed =
             splitQuestionPostBody(
               editingPost.body
@@ -219,21 +219,6 @@ export default function AskReadersScreen() {
     destination.type === 'club'
       ? clubs.find((club) => club.id === destination.clubId) ?? null
       : null;
-
-  const previewDisplayName =
-    viewerProfile?.display_name?.trim() ||
-    viewerProfile?.username?.trim() ||
-    '';
-
-  const previewUsername =
-    viewerProfile?.username?.trim()
-      ? `@${viewerProfile.username.trim()}`
-      : '';
-
-  const previewInitial =
-    previewDisplayName
-      .charAt(0)
-      .toUpperCase();
 
   const canPublish =
     question.trim().length >= 4 &&
@@ -467,7 +452,8 @@ export default function AskReadersScreen() {
         });
       }
 
-      router.replace('/(tabs)');
+      if (isEditing) router.back();
+      else router.replace('/(tabs)');
     } catch (error) {
       console.error('Could not publish Ask Readers question:', error);
 
@@ -525,74 +511,8 @@ export default function AskReadersScreen() {
       >
         <PostDestinationPicker clubs={clubs} clubId={destination.clubId} clubName={clubName} loading={loadingClubs} disabled={publishing} profile={viewerProfile}
           onClubIdChange={(clubId) => setDestination(clubId ? { type: 'club', clubId } : { type: 'profile', clubId: null })} />
-        <View style={styles.feedPreviewCard}>
-          <View style={styles.feedPreviewHeader}>
-            {viewerProfile?.avatar_url ? (
-              <CachedMediaImage
-                source={{
-                  uri:
-                    moderationMediaUrl(viewerProfile.avatar_url),
-                }}
-                style={styles.feedPreviewAvatar}
-              />
-            ) : (
-              <View style={viewerProfile ? styles.feedPreviewAvatarFallback : { width: 46, height: 46, marginRight: 12 }}>
-                <Text style={styles.feedPreviewAvatarText}>
-                  {viewerProfile ? previewInitial : null}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.feedPreviewAuthorCopy}>
-              <View style={styles.feedPreviewIdentity}>
-                {previewDisplayName ? <Text
-                  style={styles.feedPreviewAuthorName}
-                  numberOfLines={1}
-                >
-                  {previewDisplayName}
-                </Text> : null}
-
-                {previewUsername ? (
-                  <Text
-                    style={styles.feedPreviewUsername}
-                    numberOfLines={1}
-                  >
-                    {previewUsername}
-                  </Text>
-                ) : null}
-              </View>
-
-              <View style={styles.feedPreviewAudienceRow}>
-                {destination.clubId ? <ClubDestinationImage club={selectedClub ?? { name: clubName || 'Your club', cover_url: null }} size={18} /> : (
-                  <Ionicons name="person-outline" size={13} color={colors.gold} />
-                )}
-                <Text
-                  style={
-                    destination.clubId
-                      ? styles.feedPreviewClubText
-                      : styles.feedPreviewAudienceText
-                  }
-                  numberOfLines={1}
-                >
-                  {destination.clubId ? `in ${selectedClub?.name || clubName || 'Your club'}` : 'Your feed'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.feedPreviewContent}>
-            <View style={styles.askReadersBadge}>
-              <Ionicons
-                name="help-circle-outline"
-                size={13}
-                color={colors.gold}
-              />
-
-              <Text style={styles.askReadersBadgeText}>
-                ASK READERS
-              </Text>
-            </View>
-
+        <EditablePostCard postType="question" author={viewerProfile} source={editSource}
+          clubId={destination.clubId} clubName={selectedClub?.name ?? clubName} clubCoverUrl={selectedClub?.cover_url}>
             <TextInput
               accessibilityLabel="Your question"
               editable={!publishing}
@@ -746,40 +666,7 @@ export default function AskReadersScreen() {
                 />
               </Pressable>
             )}
-          </View>
-
-          <View style={styles.feedPreviewFooter}>
-            <View style={styles.feedPreviewVoteControl}>
-              <Ionicons
-                name="arrow-up-circle-outline"
-                size={20}
-                color={colors.mutedText}
-              />
-
-              <Text style={styles.feedPreviewVoteScore}>
-                0
-              </Text>
-
-              <Ionicons
-                name="arrow-down-circle-outline"
-                size={20}
-                color={colors.mutedText}
-              />
-            </View>
-
-            <View style={styles.feedPreviewCommentCount}>
-              <Ionicons
-                name="chatbubble-outline"
-                size={17}
-                color={colors.mutedText}
-              />
-
-              <Text style={styles.feedPreviewCommentCountText}>
-                0
-              </Text>
-            </View>
-          </View>
-        </View>
+        </EditablePostCard>
 
         <Pressable
           accessibilityRole="button"

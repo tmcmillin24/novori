@@ -1,46 +1,47 @@
-import { displayBookTitle } from '../lib/book-title';
-import SpoilerToggle from '../components/SpoilerToggle';
-import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
+useFocusEffect,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+useCallback,
+useEffect,
+useMemo,
+useRef,
+useState,
 } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator,Alert,Modal,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,useWindowDimensions,View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
-  SafeAreaView,
+SafeAreaView,
 } from 'react-native-safe-area-context';
+import BookCoverImage from '../components/BookCoverImage';
+import SpoilerToggle from '../components/SpoilerToggle';
+import { displayBookTitle } from '../lib/book-title';
+import type { FeedPost } from '../lib/feed';
 
 import CanonicalBookRating from '../components/CanonicalBookRating';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
-import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import {
-  getPostDetail,
+getPostDetail,
 } from '../lib/feed';
 import {
-  publishReadingUpdate,
-  updateReadingUpdate,
+publishReadingUpdate,
+updateReadingUpdate,
 } from '../lib/reading-updates';
 import {
-  getUserBooks,
-  UserBook,
+getUserBooks,
+UserBook,
 } from '../lib/user-books';
 
 function formatAuthors(
@@ -157,6 +158,7 @@ function parseReadingUpdateBody(
 }
 
 export default function CreateReadingUpdateScreen() {
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [containsSpoilers, setContainsSpoilers] = useState(false);
   const router =
     useRouter();
@@ -549,6 +551,7 @@ export default function CreateReadingUpdateScreen() {
             );
           }
 
+        setEditSource(post);
           setContainsSpoilers(post.contains_spoilers === true);
           setPostClubId(post.club_id);
           setPostClubName(post.club_name);
@@ -766,7 +769,7 @@ export default function CreateReadingUpdateScreen() {
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={publishing || loadingEditPost}
           clubId={postClubId} clubName={postClubName} onClubIdChange={setPostClubId} profile={viewerProfile} />
-        <EditablePostCard postType="reading_update" clubId={postClubId} author={viewerProfile}
+        <EditablePostCard postType="reading_update" source={editSource} clubId={postClubId} author={viewerProfile}
           clubName={selectedClub?.name ?? postClubName} clubCoverUrl={selectedClub?.cover_url}>
           {loading || loadingEditPost ? (
             <View style={styles.stateCard}>

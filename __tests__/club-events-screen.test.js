@@ -1,3 +1,7 @@
+jest.mock('../src/components/BookStackPostAttachment',()=> 'BookStackPostAttachment');
+jest.mock('../src/lib/supabase',()=>({supabase:{}}));
+jest.mock('../src/hooks/use-post-composer-profile',()=>()=>({display_name:'Reader'}));
+jest.mock('expo-image',()=>({Image:'ExpoImage'}));
 jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';

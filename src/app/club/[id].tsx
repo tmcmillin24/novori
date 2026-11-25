@@ -1,50 +1,44 @@
-import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect,useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,Animated,Keyboard,Modal,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
+import { SafeAreaProvider,SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
+import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import CachedMediaImage from '../../components/CachedMediaImage';
-import { displayBookTitle } from '../../lib/book-title';
-import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubBooksBoard from '../../components/ClubBooksBoard';
-import ClubTabActions from '../../components/ClubTabActions';
-import useEventClock from '../../hooks/use-event-clock';
-import { getClubEvents } from '../../lib/club-events';
-import { isUpcomingClubEvent, type ClubEvent } from '../../lib/club-event';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import ClubPinnedPosts from '../../components/ClubPinnedPosts';
-import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
-import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
+import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubHomeCard from '../../components/ClubHomeCard';
 import ClubOptionsSheet from '../../components/ClubOptionsSheet';
+import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
+import ClubPinnedPosts from '../../components/ClubPinnedPosts';
+import ClubTabActions from '../../components/ClubTabActions';
 import ClubWelcomeCard from '../../components/ClubWelcomeCard';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
-import { getClubMemberExperience, setClubNotificationsEnabled, dismissClubWelcome, type ClubMemberExperience } from '../../lib/club-member-experience';
-import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
-import BookCoverImage from '../../components/BookCoverImage';
-import BookStackPostAttachment from '../../components/BookStackPostAttachment';
-import { Ionicons } from '@expo/vector-icons';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import FeedPostImage from '../../components/FeedPostImage';
+import FeedPostCard from '../../components/FeedPostCard';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
-import PostTypeIdentifier from '../../components/PostTypeIdentifier';
-import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import LeaveClubConfirmSheet from '../../components/LeaveClubConfirmSheet';
+import PostActions from '../../components/PostActions';
+import { UiSheetBackdrop,UiSheetModal,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { acceptClubInvite, approveClubJoinRequest, cancelClubInvite, cancelPrivateClubRequest, ClubInvitation, ClubInviteCandidate, ClubJoinRequest, ClubMember, ClubWithMembership, declineClubInvite, declineClubJoinRequest, demoteClubAdmin, getClub, getClubMembers, getPendingClubInvite, getPendingClubInvitesForManager, getPendingClubJoinRequestsForManager, getPendingPrivateClubRequest, inviteReaderToClub, joinClub, kickClubMember, leaveClub, promoteClubMember, requestPrivateClubAccess, searchClubInviteCandidates } from '../../lib/clubs';
-import { FeedPost, PostVoteValue, splitQuestionPostBody, togglePostVote, getPostMutationVersion } from '../../lib/feed';
-import { ReportReason, submitProfileReport } from '../../lib/reports';
-import { blockReader, getReaderConnections } from '../../lib/social';
-import { loadComposerProfile, prepareClubComposerPreview, warmComposerImage } from '../../lib/club-composer-preview';
+import useEventClock from '../../hooks/use-event-clock';
+import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
+import { loadComposerProfile,prepareClubComposerPreview,warmComposerImage } from '../../lib/club-composer-preview';
+import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
+import { getClubEvents } from '../../lib/club-events';
+import { getClubHomeActions,type ClubHomeAction } from '../../lib/club-home';
+import { dismissClubWelcome,getClubMemberExperience,setClubNotificationsEnabled,type ClubMemberExperience } from '../../lib/club-member-experience';
+import { getClubConversation,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
+import { acceptClubInvite,approveClubJoinRequest,cancelClubInvite,cancelPrivateClubRequest,ClubInvitation,ClubInviteCandidate,ClubJoinRequest,ClubMember,ClubWithMembership,declineClubInvite,declineClubJoinRequest,demoteClubAdmin,getClub,getClubMembers,getPendingClubInvite,getPendingClubInvitesForManager,getPendingClubJoinRequestsForManager,getPendingPrivateClubRequest,inviteReaderToClub,joinClub,kickClubMember,leaveClub,promoteClubMember,requestPrivateClubAccess,searchClubInviteCandidates } from '../../lib/clubs';
+import { FeedPost,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import { ReportReason,submitProfileReport } from '../../lib/reports';
+import { shareClubLink,sharePostLink } from '../../lib/share-links';
+import { blockReader,getReaderConnections } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
-import { shareClubLink, sharePostLink } from '../../lib/share-links';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 function roleLabel(role: ClubMember['role']) {
     if (role === 'owner')
         return 'Owner';
@@ -114,6 +108,8 @@ export default function ClubDetailScreen() {
     const [error, setError] = useState('');
     const composerWarm = useRef<{ userId: string; clubId: string; profile: ReturnType<typeof loadComposerProfile>; cover: Promise<void> } | null>(null);
     const openingComposer = useRef(false);
+    const feedLanguage = useFeedLanguagePreference();
+    const [postOptions, setPostOptions] = useState<FeedPost | null>(null);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [memberActionTarget, setMemberActionTarget,] = useState<ClubMember | null>(null);
     const [memberReportTarget, setMemberReportTarget,] = useState<ClubMember | null>(null);
@@ -947,30 +943,6 @@ export default function ClubDetailScreen() {
             },
         });
     }
-    function formatPostTime(createdAt: string) {
-        const created = new Date(createdAt);
-        const diffMs = Date.now() -
-            created.getTime();
-        const minutes = Math.max(0, Math.floor(diffMs / 60000));
-        if (minutes < 1) {
-            return 'now';
-        }
-        if (minutes < 60) {
-            return `${minutes}m`;
-        }
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) {
-            return `${hours}h`;
-        }
-        const days = Math.floor(hours / 24);
-        if (days < 7) {
-            return `${days}d`;
-        }
-        return created.toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-        });
-    }
     async function shareRenderedPost(postId: string) {
         try {
             await sharePostLink(postId);
@@ -1025,238 +997,15 @@ export default function ClubDetailScreen() {
         }
     }
     function renderClubPost(post: FeedPost) {
-        const plainPost = post.post_type === 'post' && !post.is_club_announcement && !post.club_discussion
-            && !post.club_event && !post.reading_recap && !post.book_stack_id && !post.post_image_url && !post.book_title;
-        const displayName = post.author_display_name?.trim() ||
-            post.author_username?.trim() ||
-            'Novori Reader';
-        const username = post.author_username?.trim()
-            ? `@${post.author_username.trim()}`
-            : '';
-        const authorInitial = displayName
-            .charAt(0)
-            .toUpperCase();
-        const questionContent = post.post_type ===
-            'question'
-            ? splitQuestionPostBody(post.body)
-            : null;
-        return (<Pressable key={post.id} accessibilityRole="button" accessibilityLabel="Open club post and comments" onPress={() => {
-            preserveClubStateOnNextFocus.current = true;
-            router.push({ pathname: '/post/[id]', params: { id: post.id } });
-        }} style={styles.postCard}>
-        <Pressable onPress={() => openReader(post.author_id)} style={({ pressed }) => [
-                styles.postHeader,
-                { paddingRight: club?.membership_role === 'owner' || club?.membership_role === 'admin' ? 66 : 32 },
-                pressed &&
-                    styles.pressed
-            ]}>
-          {post.author_avatar_url ? (<CachedMediaImage source={{
-                    uri: moderationMediaUrl(post.author_avatar_url),
-                }} style={styles.postAvatar}/>) : (<View style={styles.postAvatarFallback}>
-              <Text style={styles.postAvatarText}>
-                {authorInitial}
-              </Text>
-            </View>)}
-
-          <View style={styles.postAuthorCopy}>
-            <View style={styles.postAuthorRow}>
-              <Text style={styles.postAuthorName} numberOfLines={1}>
-                {displayName}
-              </Text>
-
-              <Text style={styles.postTime}>
-                · {formatPostTime(post.created_at)}
-              </Text>
-            </View>
-
-            {username ? (<Text style={styles.postUsername} numberOfLines={1}>
-                {username}
-              </Text>) : null}
-          </View>
-        </Pressable>
-
-        <Pressable onPress={() => void shareRenderedPost(post.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share post" style={({ pressed }) => [
-                styles.postHeaderShare,
-                pressed &&
-                    styles.pressed
-            ]}>
-          <Ionicons name="share-social-outline" size={18} color={colors.mutedText}/>
-        </Pressable>
-
-        {(club?.membership_role === 'owner' || club?.membership_role === 'admin') && (!post.club_event || isUpcomingClubEvent(post.club_event, eventNow)) ? <Pressable disabled={pinBusy} accessibilityRole="button" accessibilityLabel={`Pin options: ${post.id}`} hitSlop={8} onPress={() => { Keyboard.dismiss(); setPinTarget(post); }} style={({ pressed }) => [styles.postPinButton, pressed && styles.pressed]}>
-          <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold}/>
-        </Pressable> : null}
-
-        <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} event={Boolean(post.club_event)} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
-
-        <PostSpoilerContent post={post}>
-        {questionContent ? (<>
-            <Text style={styles.questionPostTitle}>
-              {questionContent.question}
-            </Text>
-
-            {questionContent.context ? (<Text style={styles.questionPostContext}>
-                {questionContent.context}
-              </Text>) : null}
-          </>) : post.body.trim() && !post.club_discussion ? (<Text style={[styles.postBody, plainPost && styles.plainPostBody]}>
-            {post.body}
-          </Text>) : null}
-
-        {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
-        {post.club_event ? <ClubEventPostAttachment event={post.club_event}/> : null}
-        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap}/> : null}
-
-        {post.post_image_url ? (<FeedPostImage uri={post.post_image_url} colors={colors}/>) : null}
-
-        </PostSpoilerContent>
-        {post.post_type === 'book_stack' && post.book_stack_id ? <BookStackPostAttachment stackId={post.book_stack_id} compactTopSpacing={!post.body.trim()}/> : null}
-        {post.book_title ? (post.post_image_url ? (<Pressable disabled={!post.google_book_id} onPress={() => {
-                    if (!post.google_book_id) {
-                        return;
-                    }
-                    router.push({
-                        pathname: '/book/[id]',
-                        params: {
-                            id: post.google_book_id,
-                        },
-                    });
-                }} style={({ pressed, }) => [
-                    styles.postCompactBookLink,
-                    pressed &&
-                        Boolean(post.google_book_id) &&
-                        styles.pressed
-                ]}>
-              <Ionicons name="book-outline" size={14} color={colors.gold}/>
-
-              <View style={styles.postCompactBookCopy}>
-                <Text style={styles.postCompactBookTitle} numberOfLines={1}>
-                  {displayBookTitle(post.book_title ?? '')}
-                </Text>
-
-                {(post.book_authors &&
-                    post.book_authors.length >
-                        0) ||
-                    post.book_series_name ? (<Text style={styles.postCompactBookMeta} numberOfLines={1}>
-                    {post.book_authors &&
-                        post.book_authors.length >
-                            0
-                        ? post.book_authors.join(', ')
-                        : ''}
-                    {post.book_authors &&
-                        post.book_authors.length >
-                            0 &&
-                        post.book_series_name
-                        ? ' · '
-                        : ''}
-                    {post.book_series_name
-                        ? `${post.book_series_name}${post.book_series_position !== null
-                            ? ` #${post.book_series_position}`
-                            : ''}`
-                        : ''}
-                  </Text>) : null}
-              </View>
-
-              {post.google_book_id ? (<Ionicons name="chevron-forward" size={15} color={colors.mutedText}/>) : null}
-            </Pressable>) : (<Pressable disabled={!post.google_book_id} onPress={() => {
-                    if (!post.google_book_id) {
-                        return;
-                    }
-                    router.push({
-                        pathname: '/book/[id]',
-                        params: {
-                            id: post.google_book_id,
-                        },
-                    });
-                }} style={({ pressed, }) => [
-                    styles.postBookCard,
-                    pressed &&
-                        Boolean(post.google_book_id) &&
-                        styles.pressed
-                ]}>
-              {(post.google_book_id || post.book_cover_url) ? (<BookCoverImage googleBookId={post.google_book_id} existingCoverUrl={post.book_cover_url} style={styles.postBookCover}/>) : (<View style={styles.postBookCoverFallback}>
-                  <Ionicons name="book-outline" size={18} color={colors.gold}/>
-                </View>)}
-
-              <View style={styles.postBookCopy}>
-                <Text style={styles.postBookTitle} numberOfLines={2}>
-                  {displayBookTitle(post.book_title ?? '')}
-                </Text>
-
-                {post.book_authors &&
-                    post.book_authors.length >
-                        0 ? (<Text style={styles.postBookAuthor} numberOfLines={1}>
-                    {post.book_authors.join(', ')}
-                  </Text>) : null}
-
-                {post.rating ? (<Text style={styles.postBookRating}>
-                    ★ {post.rating}
-                  </Text>) : null}
-              </View>
-            </Pressable>)) : null}
-
-        <View style={styles.postVoteRow}>
-          <View style={styles.postVotePill}>
-          <Pressable disabled={votingPostId ===
-                post.id} accessibilityRole="button" accessibilityLabel="Upvote post" accessibilityState={{ selected: post.viewer_vote === 1 }} onPress={event => { event.stopPropagation(); void handlePostVote(post.id, 1); }} hitSlop={8} style={({ pressed }) => [
-                styles.postVoteButton,
-                post.viewer_vote ===
-                    1 &&
-                    styles.postVoteButtonActive,
-                pressed &&
-                    styles.pressed,
-                votingPostId ===
-                    post.id &&
-                    styles.postVoteButtonDisabled
-            ]}>
-            <Ionicons name={post.viewer_vote ===
-                1
-                ? 'arrow-up-circle'
-                : 'arrow-up-circle-outline'} size={20} color={post.viewer_vote ===
-                1
-                ? colors.gold
-                : colors.mutedText}/>
-          </Pressable>
-
-          <Text style={[
-                styles.postVoteScore,
-                post.viewer_vote !==
-                    0 &&
-                    styles.postVoteScoreActive
-            ]}>
-            {post.vote_score ??
-                0}
-          </Text>
-
-          <Pressable disabled={votingPostId ===
-                post.id} accessibilityRole="button" accessibilityLabel="Downvote post" accessibilityState={{ selected: post.viewer_vote === -1 }} onPress={event => { event.stopPropagation(); void handlePostVote(post.id, -1); }} hitSlop={8} style={({ pressed }) => [
-                styles.postVoteButton,
-                post.viewer_vote ===
-                    -1 &&
-                    styles.postVoteButtonActive,
-                pressed &&
-                    styles.pressed,
-                votingPostId ===
-                    post.id &&
-                    styles.postVoteButtonDisabled
-            ]}>
-            <Ionicons name={post.viewer_vote ===
-                -1
-                ? 'arrow-down-circle'
-                : 'arrow-down-circle-outline'} size={20} color={post.viewer_vote ===
-                -1
-                ? colors.gold
-                : colors.mutedText}/>
-          </Pressable>
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" hitSlop={8} onPress={event => {
-              event.stopPropagation();
-              openCommentsSheet(post);
-          }} style={({ pressed }) => [styles.postCommentPill, pressed && styles.pressed]}>
-            <Ionicons name="chatbubble-outline" size={17} color={colors.mutedText}/>
-            <Text style={{ color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{post.comment_count ?? 0} {(post.comment_count ?? 0) === 1 ? 'comment' : 'comments'}</Text>
-          </Pressable>
-        </View>
-      </Pressable>);
+        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={currentUserId}
+            openLabel="Open club post and comments" commentsLabel="Open club post comments"
+            votingPostId={votingPostId} onVote={handlePostVote} onReader={openReader} onClub={() => {}}
+            onOpen={item => {
+                preserveClubStateOnNextFocus.current = true;
+                router.push({pathname:'/post/[id]',params:{id:item.id}});
+            }}
+            onComments={openCommentsSheet} onShare={item => void shareRenderedPost(item.id)}
+            onMore={setPostOptions}/>;
     }
     function renderMember(member: ClubMember) {
         const displayName = member.display_name?.trim() ||
@@ -1961,7 +1710,7 @@ export default function ClubDetailScreen() {
           <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}>{eventsLoading ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/> : <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/>}</View>
         ) : null}
         <View style={clubTab !== 'posts' ? styles.hiddenClubTab : undefined}>
-        <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
+        <ClubPinnedPosts onMore={setPostOptions} posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
 
         <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
@@ -2007,6 +1756,12 @@ export default function ClubDetailScreen() {
           </>)}
       </ScrollView>
 
+      <PostActions post={postOptions} currentUserId={currentUserId} onDismiss={() => setPostOptions(null)}
+        onPin={isManager && postOptions && (!postOptions.club_event || isUpcomingClubEvent(postOptions.club_event,eventNow)) ? setPinTarget : undefined}
+        onDeleted={post => {
+          setClubPosts(current => current.filter(item => item.id !== post.id));
+          setPinnedPosts(current => current.filter(item => item.id !== post.id));
+        }}/>
       <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={visiblePinnedPosts} busy={pinBusy} onPin={(postId, pinned, replacePostId) => void handleClubPin(postId, pinned, replacePostId)} onDismiss={() => setPinTarget(null)}/>
 
       <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers} notificationsEnabled={memberExperience?.notifications_enabled} globalNotificationsEnabled={memberExperience?.global_notifications_enabled} notificationsBusy={experienceBusy} hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)}/>

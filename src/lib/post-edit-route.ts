@@ -2,6 +2,12 @@ import {
   FeedPost,
 } from './feed';
 
+export function canEditFeedPost(post: FeedPost, userId?: string | null) {
+  const discussion = post.club_discussion;
+  if (discussion?.kind === 'poll' && (discussion.voting_started_at || discussion.closed_at)) return false;
+  return Boolean(userId && (post.author_id === userId || discussion?.viewer_can_manage));
+}
+
 export function getPostEditRoute(
   post: FeedPost
 ) {

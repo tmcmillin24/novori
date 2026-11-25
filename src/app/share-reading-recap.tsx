@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { ActivityIndicator,Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EditablePostCard from '../components/EditablePostCard';
@@ -10,15 +10,17 @@ import ReadingRecapPostAttachment from '../components/ReadingRecapPostAttachment
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { useNovoriTheme } from '../context/theme-context';
 import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import { getMyClubs, type ClubWithMembership } from '../lib/clubs';
-import { isRecapSharePeriod, type ReadingRecapKind, type ReadingRecapSnapshot } from '../lib/reading-recap-card';
-import { createRecapShareKey, getEditableReadingRecap, getReadingRecapSnapshot, publishReadingRecap, updateReadingRecap } from '../lib/reading-recap-sharing';
+import { getMyClubs,type ClubWithMembership } from '../lib/clubs';
+import type { FeedPost } from '../lib/feed';
+import { isRecapSharePeriod,type ReadingRecapKind,type ReadingRecapSnapshot } from '../lib/reading-recap-card';
+import { createRecapShareKey,getEditableReadingRecap,getReadingRecapSnapshot,publishReadingRecap,updateReadingRecap } from '../lib/reading-recap-sharing';
 
 export default function ShareReadingRecapScreen() {
   const params = useLocalSearchParams<{ kind?: string; periodStart?: string; editPostId?: string }>();
   const router = useRouter();
   const { colors } = useNovoriTheme();
   const profile = usePostComposerProfile();
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [snapshot, setSnapshot] = useState<ReadingRecapSnapshot | null>(null);
   const [clubs, setClubs] = useState<ClubWithMembership[]>([]);
   const [clubId, setClubId] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export default function ShareReadingRecapScreen() {
         if (!active) return;
         setClubs(joined);
         if ('reading_recap' in source) {
+        setEditSource(source);
           setSnapshot(source.reading_recap!); setCaption(source.body); setClubId(source.club_id);
         } else setSnapshot(source as ReadingRecapSnapshot);
       } catch (error) { if (active) setLoadError(error instanceof Error ? error.message : 'Could not load this recap. Please try again.'); }
@@ -68,7 +71,8 @@ export default function ShareReadingRecapScreen() {
     try {
       if (editing) await updateReadingRecap(params.editPostId!,caption,clubId);
       else await publishReadingRecap(snapshot,caption,clubId,requestKey.current);
-      router.replace('/(tabs)');
+      if (editing) router.back();
+      else router.replace('/(tabs)');
     } catch (error) { setWarning(error instanceof Error ? error.message : 'Could not publish your recap. Please try again.'); }
     finally { publishing.current = false; setBusy(false); }
   }, [snapshot,loading,editing,params.editPostId,caption,clubId,router]);
@@ -81,7 +85,7 @@ export default function ShareReadingRecapScreen() {
         <Text style={styles.error}>{loadError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry recap draft" onPress={() => setRetry(value => value + 1)} style={styles.retry}><Text style={styles.link}>Try again</Text></Pressable>
       </View> : snapshot ? <>
         <PostDestinationPicker clubs={clubs} clubId={clubId} profile={profile} clubName={selectedClub?.name} disabled={busy} onClubIdChange={setClubId} />
-        <EditablePostCard postType="post" readingRecap author={profile} clubId={clubId} clubName={selectedClub?.name} clubCoverUrl={selectedClub?.cover_url}>
+        <EditablePostCard postType="post" source={editSource} readingRecap author={profile} clubId={clubId} clubName={selectedClub?.name} clubCoverUrl={selectedClub?.cover_url}>
           <TextInput accessibilityLabel="Reading recap caption" value={caption} onChangeText={setCaption} multiline maxLength={1200} editable={!busy}
             placeholder="Say something about your reading… (optional)" placeholderTextColor={colors.mutedText} style={styles.caption} />
           <ReadingRecapPostAttachment snapshot={snapshot} />
