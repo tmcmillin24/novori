@@ -1,3 +1,4 @@
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { displayBookTitle } from '../../lib/book-title';
 import { getProfileBookWidth } from '../../lib/book-layout';
@@ -148,6 +149,7 @@ export default function ProfileScreen() {
     const [followerCount, setFollowerCount,] = useState(0);
     const [followingCount, setFollowingCount,] = useState(0);
     const [posts, setPosts,] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: setPosts});
     const [clubs, setClubs,] = useState<ClubWithMembership[]>([]);
     const [stacks, setStacks,] = useState<BookStack[]>([]);
     const [deletePostTarget, setDeletePostTarget,] = useState<FeedPost | null>(null);
@@ -799,7 +801,7 @@ export default function ProfileScreen() {
         </View>);
         }
         return (<View style={styles.activityList}>
-        {posts.map(post => <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.id} votingPostId={votingPostId} deletingPostId={deletingPostId} onComments={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onVote={handleActivityPostVote} onMore={openActivityPostOptions} onShare={post => { void sharePostLink(post.id).catch(() => Alert.alert('Could not share post', 'Please try again.')); }}/>)}
+        {posts.map(post => <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.id} votingPostId={votingPostId} deletingPostId={deletingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handleActivityPostVote} onMore={openActivityPostOptions} onShare={post => { void sharePostLink(post.id).catch(() => Alert.alert('Could not share post', 'Please try again.')); }}/>)}
       </View>);
     }
     function renderClubsTab() {
@@ -1306,6 +1308,7 @@ export default function ProfileScreen() {
 
       <FullScreenImageViewer visible={profileImageOpen} uri={profile?.avatar_url ??
             null} onClose={() => setProfileImageOpen(false)} shape="circle"/>
+    {sheet}
     </TabScreen>);
 }
 function ProfileTabButton({ label, icon, active, onPress, }: {

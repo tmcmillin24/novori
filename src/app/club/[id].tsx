@@ -1,3 +1,4 @@
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
 import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -160,6 +161,7 @@ export default function ClubDetailScreen() {
     const [booksRefreshVersion, setBooksRefreshVersion] = useState(0);
     const [upcomingEvents, setUpcomingEvents] = useState<ClubEvent[]>([]);
     const [pinnedPosts, setPinnedPosts] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: update => { setClubPosts(update); setPinnedPosts(update); }, onNavigate: () => { preserveClubStateOnNextFocus.current = true; }});
     const [pinTarget, setPinTarget] = useState<FeedPost | null>(null);
     const [pinBusy, setPinBusy] = useState(false);
     const [clubMenuVisible, setClubMenuVisible] = useState(false);
@@ -1248,8 +1250,7 @@ export default function ClubDetailScreen() {
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" hitSlop={8} onPress={event => {
               event.stopPropagation();
-              preserveClubStateOnNextFocus.current = true;
-              router.push({ pathname: '/post/[id]', params: { id: post.id } });
+              openCommentsSheet(post);
           }} style={({ pressed }) => [styles.postCommentPill, pressed && styles.pressed]}>
             <Ionicons name="chatbubble-outline" size={17} color={colors.mutedText}/>
             <Text style={{ color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{post.comment_count ?? 0} {(post.comment_count ?? 0) === 1 ? 'comment' : 'comments'}</Text>
@@ -1640,7 +1641,7 @@ export default function ClubDetailScreen() {
         }
         else if (action === 'announce' && isManager)
             void openClubComposer(true);
-        else if (action === 'discussions')
+        else if (action === 'discussions' && club)
             router.push({ pathname: '/club-discussions', params: { clubId: club.id } });
         else if (action === 'notification_settings')
             router.push('/notification-settings');
@@ -2377,6 +2378,7 @@ export default function ClubDetailScreen() {
 
       <FullScreenImageViewer visible={clubImageOpen} uri={club.cover_url} onClose={() => setClubImageOpen(false)} shape="rounded-square"/>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
+    {sheet}
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors) {

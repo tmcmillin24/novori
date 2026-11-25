@@ -1,3 +1,4 @@
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
 import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { useReaderProfileVisit } from '../../lib/use-reader-profile-visit';
 import { getReaderProfile, isReaderBlockedByViewer } from '../../lib/social';
@@ -97,6 +98,7 @@ export default function ReaderProfileScreen() {
     const [books, setBooks,] = useState<PublicReaderBook[]>([]);
     const [reviews, setReviews,] = useState<PublicReaderReview[]>([]);
     const [posts, setPosts,] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: setPosts});
     const [clubs, setClubs,] = useState<ClubWithMembership[]>([]);
     const [stacks, setStacks,] = useState<BookStack[]>([]);
     const [votingPostId, setVotingPostId,] = useState<string | null>(null);
@@ -478,7 +480,7 @@ export default function ReaderProfileScreen() {
         }
     }
     function renderPost(post: FeedPost) {
-        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.is_self ? profile.id : null} votingPostId={votingPostId} onComments={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onVote={handlePostVote} onMore={post => {
+        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.is_self ? profile.id : null} votingPostId={votingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handlePostVote} onMore={post => {
                 if (profile?.is_self)
                     setOwnPostTarget(post);
                 else
@@ -1251,6 +1253,7 @@ export default function ReaderProfileScreen() {
         {!ownDeleteConfirmation && ownPostTarget ? <Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={() => { const route = getPostEditRoute(ownPostTarget); setOwnPostTarget(null); router.push(route); }} style={{ paddingVertical: 14, alignItems: 'center' }}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold' }}>Edit post</Text></Pressable> : null}
       </DeletePostConfirmSheet>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
+    {sheet}
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors, windowWidth = 390) {
