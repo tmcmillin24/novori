@@ -11,6 +11,12 @@ const detailRoutes = new Set(['book/[id]', 'book/[id]/index', 'author/[name]', '
 const BottomInsetCovered = createContext(false);
 export const useBrowsingBottomInsetCovered = () => useContext(BottomInsetCovered);
 
+const PostFooterSpace = createContext<ReactNode>(null);
+
+export function PostBrowsingFooterSpace() {
+  return useContext(PostFooterSpace);
+}
+
 const PostFooterTransition = createContext<(path: string, closing: boolean) => void>(() => {});
 
 export function usePostFooterTransition() {
@@ -108,10 +114,11 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   }, [pathname]);
   // On iOS the native keyboard covers the footer. Keep its layout in place
   // so the post's keyboard avoidance measures the same viewport throughout.
-  const keepPostFooter = Platform.OS === 'ios' && route === 'post/[id]';
+  const postRoute = route === 'post/[id]';
+  const keepPostFooter = Platform.OS === 'ios' && postRoute;
   const showBar = detail && !tutorial?.active && (!keyboard || keepPostFooter);
   const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
-  const postLeaving = route === 'post/[id]' && closingPostPath === pathname;
+  const postLeaving = postRoute && closingPostPath === pathname;
   const barUnavailable = hidden || keyboard || postLeaving;
   const progress = useSharedValue(1);
   useEffect(() => {
@@ -120,6 +127,8 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   }, [hidden, progress, reduceMotion, showBar]);
   const raisedButtonSpace = 18;
   const slide = useAnimatedStyle(() => ({ height: raisedButtonSpace + NOVORI_TAB_BAR_HEIGHT * progress.value }));
+
+  const postFooterSpace = useAnimatedStyle(() => ({ height: NOVORI_TAB_BAR_HEIGHT * progress.value }));
 
   function switchTab(tab: (typeof tabs)[number]) {
     if (tab.segment !== 'post') {
@@ -138,11 +147,15 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   return <ScrollVisibility.Provider value={report}>
     <BottomInsetCovered.Provider value={(!keepPostFooter && keyboard) || (showBar && !hidden && !overlayBookBar)}>
       <PostFooterTransition.Provider value={reportPostTransition}>
-        <View style={{ flex: 1 }}>{children}</View>
+        <PostFooterSpace.Provider value={postRoute && showBar
+          ? <Animated.View pointerEvents="none" accessible={false} style={postFooterSpace}/>
+          : null}>
+          <View style={{ flex: 1 }}>{children}</View>
+        </PostFooterSpace.Provider>
       </PostFooterTransition.Provider>
     </BottomInsetCovered.Provider>
     {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace, opacity: postLeaving ? 0 : 1 },
-      overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={barUnavailable ? 'none' : 'auto'}
+      (overlayBookBar || postRoute) && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={barUnavailable ? 'none' : 'auto'}
       accessibilityElementsHidden={barUnavailable} importantForAccessibility={barUnavailable ? 'no-hide-descendants' : 'auto'}>
       <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
         <NovoriBottomBar active={active} onTab={switchTab}/>

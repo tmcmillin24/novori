@@ -1,4 +1,4 @@
-import { useBrowsingBottomInsetCovered, useBrowsingNavigationScroll, usePostFooterTransition } from '../../components/BrowsingNavigation';
+import { PostBrowsingFooterSpace, useBrowsingBottomInsetCovered, useBrowsingNavigationScroll, usePostFooterTransition } from '../../components/BrowsingNavigation';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -1327,6 +1327,7 @@ export default function PostDetailScreen() {
         <ValidationWarningSheet visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
 
       </KeyboardAvoidingView>
+      <PostBrowsingFooterSpace/>
 
       {commentActionTarget ? (<View style={styles.commentActionModal}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => {

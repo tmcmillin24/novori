@@ -27,6 +27,7 @@ jest.mock('../src/components/BrowsingNavigation',()=>({
  useBrowsingNavigationScroll:()=>({onScroll:jest.fn(),onScrollBeginDrag:jest.fn()}),
  useBrowsingBottomInsetCovered:()=>true,
  usePostFooterTransition:jest.fn(),
+ PostBrowsingFooterSpace:()=>null,
 }));
 jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardAvoidingView:'KeyboardAvoidingView'}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
