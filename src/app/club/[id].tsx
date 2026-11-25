@@ -1,3 +1,4 @@
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
 import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
@@ -87,6 +88,7 @@ const MEMBER_REPORT_REASONS: Array<{
     }
 ];
 export default function ClubDetailScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams<{
@@ -1744,7 +1746,7 @@ export default function ClubDetailScreen() {
         </Modal>
       ) : null}
 
-      <ScrollView nestedScrollEnabled ref={clubScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshClub} tintColor={colors.gold} colors={[
+      <ScrollView {...browsingScroll} nestedScrollEnabled ref={clubScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshClub} tintColor={colors.gold} colors={[
                 colors.gold
             ]} progressBackgroundColor={colors.surface}/>}>
         <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} onPhoto={() => setClubImageOpen(true)} onMembers={() => {

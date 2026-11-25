@@ -1,3 +1,4 @@
+import { useBrowsingNavigationScroll } from '../../../components/BrowsingNavigation';
 import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
 import BookDetailLoading from '../../../components/BookDetailLoading';
 import EnlargeableBookCover from '../../../components/EnlargeableBookCover';
@@ -1032,6 +1033,7 @@ function getValidatedHighResolutionCover(
 }
 
 export default function BookDetailsScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
   const {
     colors,
   } =
@@ -3229,7 +3231,7 @@ export default function BookDetailsScreen() {
         </View>
       </View>
 
-      <ScrollView
+      <ScrollView {...browsingScroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >

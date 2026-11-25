@@ -1,3 +1,4 @@
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { useReaderProfileVisit } from '../../lib/use-reader-profile-visit';
 import { getReaderProfile, isReaderBlockedByViewer } from '../../lib/social';
 import { isTransientReadError } from '../../lib/session-read-cache';
@@ -77,6 +78,7 @@ const PROFILE_REPORT_REASONS: Array<{
     }
 ];
 export default function ReaderProfileScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
     const feedLanguage = useFeedLanguagePreference();
     const router = useRouter();
     const params = useLocalSearchParams<{
@@ -694,7 +696,8 @@ export default function ReaderProfileScreen() {
           </Pressable>)}
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical scrollEventThrottle={120} onScroll={({nativeEvent})=>{
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical scrollEventThrottle={32} onScrollBeginDrag={browsingScroll.onScrollBeginDrag} onScroll={({nativeEvent})=>{
+          browsingScroll.onScroll({nativeEvent});
         if(nativeEvent.contentOffset.y+nativeEvent.layoutMeasurement.height<nativeEvent.contentSize.height-350)return;
         if(activeTab==='library'&&libraryTab==='books'&&books.length>0)setVisibleBookCount(count=>Math.min(books.length,count+12));
         if(activeTab==='library'&&libraryTab==='reviews'&&reviews.length>0)setVisibleReviewCount(count=>Math.min(reviews.length,count+10));

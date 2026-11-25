@@ -1,3 +1,4 @@
+import BrowsingNavigation from '../components/BrowsingNavigation';
 import PushNotificationDeviceSync from '../components/PushNotificationDeviceSync';
 import {
   PlayfairDisplay_600SemiBold,
@@ -66,7 +67,7 @@ function AppNavigator() {
     >
       <AccountDeletionGate />
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      <TutorialBackground><Stack
+      <BrowsingNavigation><TutorialBackground><Stack
         screenOptions={{
           headerShown: false,
           animation: 'none',
@@ -76,7 +77,7 @@ function AppNavigator() {
         }}
       >
         <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
-      </Stack></TutorialBackground>
+      </Stack></TutorialBackground></BrowsingNavigation>
       <PushNotificationDeviceSync />
       <ConversationHandoffOverlay />
       <LegalAcceptanceGate />

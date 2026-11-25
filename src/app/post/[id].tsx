@@ -1,3 +1,4 @@
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
 import { displayBookTitle } from '../../lib/book-title';
@@ -109,6 +110,7 @@ function formatRelativeTime(value: string) {
     });
 }
 export default function PostDetailScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
     const router = useRouter();
     const params = useLocalSearchParams<{
         id?: string;
@@ -1066,7 +1068,8 @@ export default function PostDetailScreen() {
 
       {loadWarning ? <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.background }}><Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={() => void loadData(false, true)}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold', paddingVertical: 6 }}>Try again</Text></Pressable></View> : null}
       <View style={styles.keyboardView}>
-        <ScrollView ref={scrollRef} onTouchStart={handleCommentComposerOutsideTouch} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+        <ScrollView onScrollBeginDrag={browsingScroll.onScrollBeginDrag} ref={scrollRef} onTouchStart={handleCommentComposerOutsideTouch} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+          browsingScroll.onScroll(event);
             scrollYRef.current =
                 event.nativeEvent
                     .contentOffset.y;

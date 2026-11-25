@@ -1,3 +1,4 @@
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { displayBookTitle } from '../../lib/book-title';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BookCoverImage from '../../components/BookCoverImage';
@@ -60,6 +61,7 @@ function formatCount(
 }
 
 export default function AuthorScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
   const {
     colors,
   } =
@@ -611,7 +613,7 @@ export default function AuthorScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <FlatList {...browsingScroll}
           data={
             sortedBooks
           }
