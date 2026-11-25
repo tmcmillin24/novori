@@ -15,8 +15,9 @@ import {supabase} from '../src/lib/supabase';
 import {blockReader} from '../src/lib/social';
 import {getPostComments,createPostComment,deletePostComment,toggleCommentVote,updatePostComment} from '../src/lib/comments';
 
+let mockFocused=true,mockPostMutation=0;
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn(),setParams:jest.fn(),dismissTo:jest.fn()};
-jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
+jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(()=>mockFocused?cb():undefined,[cb,mockFocused])}));
 jest.mock('react-native',()=>({
  useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
  Modal:p=>p.visible?require('react').createElement('Modal',p,p.children):null,Alert:{alert:jest.fn()},Keyboard:{addListener:()=>({remove:()=>{}}),dismiss:jest.fn()},StyleSheet:{create:v=>v,absoluteFill:{},hairlineWidth:.5},
@@ -44,7 +45,7 @@ jest.mock('../src/components/ClubEventPostAttachment',()=> 'ClubEventPostAttachm
 jest.mock('../src/lib/clubs',()=>({getClub:jest.fn()}));
 jest.mock('../src/lib/club-reads',()=>({getClubRead:jest.fn(),getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-discussions',()=>({CLUB_DISCUSSIONS_PAGE_SIZE:20,getClubDiscussion:jest.fn(),getClubDiscussions:jest.fn(),saveClubDiscussion:jest.fn(),voteClubPoll:jest.fn(),closeClubPoll:jest.fn(),newClubDiscussionRequestKey:()=> 'stable-discussion-request-key'}));
-jest.mock('../src/lib/feed',()=>({deletePost:jest.fn(),getPostDetail:jest.fn(),togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
+jest.mock('../src/lib/feed',()=>({deletePost:jest.fn(),getPostDetail:jest.fn(),getPostMutationVersion:()=>mockPostMutation,togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
 jest.mock('../src/lib/comments',()=>({getPostComments:jest.fn(),createPostComment:jest.fn(),deletePostComment:jest.fn(),toggleCommentVote:jest.fn(),updatePostComment:jest.fn()}));
 jest.mock('../src/lib/content-filter',()=>({containsExplicitLanguage:()=>false,getExplicitLanguagePreference:jest.fn(async()=>false),isExplicitContentRevealed:()=>false,revealExplicitContentOnce:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
 jest.mock('../src/lib/reports',()=>({submitCommentReport:jest.fn()}));
@@ -60,7 +61,7 @@ const club={id:'club-1',name:'Readers Club',membership_role:'member'};
 const post={id:'post-1',club_id:'club-1',author_id:'member-1',author_display_name:'A Reader',author_username:'reader',body:'Join this club discussion.',post_type:'post',created_at:topic.created_at,updated_at:topic.updated_at,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0,comment_count:1,club_discussion:topic};
 const comment={id:'comment-1',post_id:'post-1',author_id:'member-2',parent_comment_id:null,body:'Spoiler reply from a reader.',author_display_name:'Another Reader',author_username:'another',created_at:topic.created_at,updated_at:topic.updated_at,is_own:false,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0};
 let view,silence;
-beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();getPostComments.mockReset();getPostDetail.mockReset();getExplicitLanguagePreference.mockReset();createPostComment.mockReset();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getExplicitLanguagePreference.mockResolvedValue(false);getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
+beforeEach(()=>{mockFocused=true;mockPostMutation=0;globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();getPostComments.mockReset();getPostDetail.mockReset();getExplicitLanguagePreference.mockReset();createPostComment.mockReset();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getExplicitLanguagePreference.mockResolvedValue(false);getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;jest.useRealTimers();silence.mockRestore();});
 async function render(el){await act(async()=>{view=renderer.create(el);});}
 const button=label=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel===label);
@@ -278,12 +279,13 @@ test('standalone post keeps the draft while scrolling and reserves keyboard spac
 
 test('discussion Edit and Delete live in the standalone post menu, and deletion requires confirmation',async()=>{
  mockParams={id:'post-1'};deletePost.mockResolvedValue('post-1');
+ getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,viewer_can_manage:false}});
  await render(<PostDetailScreen/>);
  expect(button('Share post')).toBeDefined();
  expect(button('Edit club discussion')).toBeUndefined();
- await press('Discussion options');await press('Edit club discussion');
+ await press('Discussion options');await press('Edit Post');
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1'}});
- await press('Discussion options');await press('Delete club discussion');
+ await press('Discussion options');await press('Delete Post');
  expect(deletePost).not.toHaveBeenCalled();
  const confirm=view.root.findAllByType('DeletePostConfirmSheet').find(node=>node.props.title==='Delete discussion?');
  await act(async()=>confirm.props.onConfirm());
@@ -299,4 +301,24 @@ test.each([false,true])('create and edit share the live discussion card (editing
  await fill('Discussion title','A new chapter');
  await fill('Discussion prompt','What did you think?');
  expect(preview().props.discussion).toMatchObject({title:'A new chapter',prompt:'What did you think?'});
+});
+
+test('returning to club discussions keeps the active filter and loaded pages until posts change',async()=>{
+ mockParams={clubId:'club-1'};
+ const first=Array.from({length:20},(_,i)=>({...topic,id:'topic-'+i,post_id:'post-'+i,title:'Topic '+i,contains_spoilers:false}));
+ getClubDiscussions.mockImplementation(async(_club,_read,_scope,offset)=>offset?[{...first[0],id:'extra',title:'Older discussion'}]:first);
+ await render(<ClubDiscussionsScreen/>);
+ await press('Show club discussion');
+ await press('More club discussions');
+ expect(text()).toContain('Older discussion');
+ const calls=getClubDiscussions.mock.calls.length;
+ mockFocused=false;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ mockFocused=true;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(getClubDiscussions).toHaveBeenCalledTimes(calls);
+ expect(text()).toContain('Older discussion');
+ expect(button('Show club discussion').props.accessibilityState.selected).toBe(true);
+ mockFocused=false;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ mockFocused=true;mockPostMutation++;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1',null,'discussion',20);
+ expect(text()).toContain('Older discussion');
 });

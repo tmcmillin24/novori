@@ -6,6 +6,7 @@ import { ActivityIndicator,Modal,Pressable,ScrollView,Text,TextInput,View } from
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNovoriTheme } from '../context/theme-context';
+import { supabase } from '../lib/supabase';
 import { getClub,type ClubWithMembership } from '../lib/clubs';
 import { getClubRead,getClubReads } from '../lib/club-reads';
 import type { ClubRead } from '../lib/club-read';
@@ -20,11 +21,17 @@ export default function CreateClubDiscussionScreen(){
   const clubId=typeof params.clubId==='string'?params.clubId:'',discussionId=typeof params.discussionId==='string'?params.discussionId:'',initialReadId=typeof params.readId==='string'?params.readId:'';
   const [club,setClub]=useState<ClubWithMembership|null>(null),[discussion,setDiscussion]=useState<ClubDiscussion|undefined>(),[reads,setReads]=useState<ClubRead[]>([]),[readId,setReadId]=useState<string|null>(initialReadId||null);
   const [kind,setKind]=useState<'discussion'|'poll'>(params.kind==='poll'?'poll':'discussion'),[title,setTitle]=useState(''),[prompt,setPrompt]=useState(''),[spoilers,setSpoilers]=useState(false),[limit,setLimit]=useState('Whole book'),[options,setOptions]=useState(['','']);
+  const [ownsDiscussion,setOwnsDiscussion]=useState(false);
   const [loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[saving,setSaving]=useState(false),[warning,setWarning]=useState(''),[picker,setPicker]=useState(false),[pageBusy,setPageBusy]=useState(false),[more,setMore]=useState({upcoming:false,past:false});
   const offsets=useRef({upcoming:0,past:0}),active=useRef(true),busy=useRef(false),requestKey=useRef(newClubDiscussionRequestKey());
   useEffect(()=>{let current=true;active.current=true;(async()=>{
     try{const [group,item,lineup,selected]=await Promise.all([getClub(clubId),discussionId?getClubDiscussion(discussionId):Promise.resolve(undefined),getClubReads(clubId),initialReadId?getClubRead(initialReadId):Promise.resolve(null)]);
-      if(!current)return;if(item&&item.club_id!==clubId||selected&&selected.club_id!==clubId)throw Error('Choose a discussion and read from this club.');
+      if(discussionId&&!item)throw Error('This discussion is unavailable.');
+      const session=item&&!item.viewer_can_manage&&item.created_by
+        ? (await supabase.auth.getSession()).data.session : null;
+      if(!current)return;
+      setOwnsDiscussion(Boolean(session?.user.id && session.user.id===item?.created_by));
+      if(item&&item.club_id!==clubId||selected&&selected.club_id!==clubId)throw Error('Choose a discussion and read from this club.');
       const all=[...(lineup.current?[lineup.current]:[]),...lineup.upcoming,...lineup.past,...(selected?[selected]:[])];
       setClub(group);setDiscussion(item);setReads([...new Map(all.map(read=>[read.id,read])).values()]);setMore({upcoming:lineup.upcoming_more,past:lineup.past_more});offsets.current={upcoming:lineup.upcoming.length,past:lineup.past.length};
       if(item){setReadId(item.read_id);setKind(item.kind);setTitle(item.title);setPrompt(item.prompt);setSpoilers(item.contains_spoilers);setLimit(item.spoiler_label??'Whole book');setOptions(item.options.length?item.options:['','']);}
@@ -32,7 +39,7 @@ export default function CreateClubDiscussionScreen(){
     }catch(error){if(current)setLoadError((error as {message?:string})?.message||'Could not load this club.');}finally{if(current)setLoading(false);}
   })();return()=>{current=false;active.current=false;};},[clubId,discussionId,initialReadId]);
   async function loadMore(scope:'upcoming'|'past'){if(pageBusy)return;setPageBusy(true);try{const page=await getClubReads(clubId,scope,offsets.current[scope]);if(active.current){offsets.current[scope]+=page[scope].length;setReads(current=>[...new Map([...current,...page[scope]].map(read=>[read.id,read])).values()]);setMore(current=>({...current,[scope]:page[`${scope}_more`]}));}}catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not load more club reads.');}finally{if(active.current)setPageBusy(false);}}
-  const editable=Boolean(club?.membership_role)&&(!discussion||discussion.viewer_can_manage),locked=Boolean(discussion?.kind==='poll'&&(discussion.voting_started_at||discussion.closed_at));
+  const editable=Boolean(club?.membership_role)&&(!discussion||discussion.viewer_can_manage||ownsDiscussion),locked=Boolean(discussion?.kind==='poll'&&(discussion.voting_started_at||discussion.closed_at));
   const selected=reads.find(read=>read.id===readId),book=selected?.book??(discussion&&readId===discussion.read_id?discussion.book:null);
   async function save(){if(!editable||locked||busy.current)return;busy.current=true;setSaving(true);try{const postId=await saveClubDiscussion(clubId,{read_id:readId,kind,title,prompt,contains_spoilers:spoilers,spoiler_label:limit,options},discussion,requestKey.current);if(active.current){if(discussion)router.back();else router.replace({pathname:'/post/[id]',params:{id:postId}});}}catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not publish this discussion.');}finally{busy.current=false;if(active.current)setSaving(false);}}
   const copy={color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:12},input={color:colors.text,fontFamily:'Inter_400Regular',fontSize:13,lineHeight:20,paddingVertical:12};
