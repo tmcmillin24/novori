@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNovoriTheme } from "../context/theme-context";
+import { NOVORI_TAB_BAR_HEIGHT } from "./NovoriBottomBar";
 import BookCoverImage from "./BookCoverImage";
 import type { CanonicalCoverInput } from "../lib/canonical-book-covers";
 import { displayBookTitle } from "../lib/book-title";
@@ -72,7 +73,7 @@ export default function BookDetailLoading({
           ))}
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.content}>
         <View style={[styles.hero, compact && styles.compactHero]}>
           <BookCoverImage
             {...cover}
@@ -163,6 +164,7 @@ export default function BookDetailLoading({
 }
 const styles = StyleSheet.create({
   topBar: {
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,
@@ -170,10 +172,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  back: { flexDirection: "row", alignItems: "center", minHeight: 44 },
+  back: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingRight: 10, alignSelf: 'flex-start' },
   actions: { flexDirection: "row", gap: 6 },
   circle: { width: 44, height: 44, borderRadius: 22, borderWidth: 1 },
-  content: { paddingHorizontal: 20, paddingBottom: 60 },
+  content: { paddingHorizontal: 20, paddingBottom: 60 + NOVORI_TAB_BAR_HEIGHT },
   hero: { alignItems: "center", paddingTop: 12 },
   cover: { width: 155, height: 232, borderRadius: 10 },
   copy: { alignSelf: "stretch", alignItems: "center" },

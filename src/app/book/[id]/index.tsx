@@ -1,5 +1,6 @@
 import { useBrowsingNavigationScroll } from '../../../components/BrowsingNavigation';
 import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
+import { NOVORI_TAB_BAR_HEIGHT } from '../../../components/NovoriBottomBar';
 import BookDetailLoading from '../../../components/BookDetailLoading';
 import EnlargeableBookCover from '../../../components/EnlargeableBookCover';
 import {publicBookCache,bookExtraKey} from '../../../lib/public-book-cache';
@@ -1220,15 +1221,8 @@ export default function BookDetailsScreen() {
   const isSharedBookContext =
     source === 'shared';
 
-  const isSavedBookContext =
-    source === 'library' ||
-    source === 'profile' ||
-    (
-      isSharedBookContext &&
-      Boolean(
-        savedBook
-      )
-    );
+  // Pick the layout from the entry route so loading personal library data cannot swap the hero.
+  const isSavedBookContext = source === 'library' || source === 'profile';
 
   const backLabel =
     source === 'library'
@@ -3232,24 +3226,10 @@ export default function BookDetailsScreen() {
       </View>
 
       <ScrollView {...browsingScroll}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {readerStateError ? (
-          <Pressable disabled={!readerStateError} onPress={() => {
-            const version = savedStatusVersion.current;
-            const generation = bookLoadGeneration.current;
-            setReaderStateError(false);
-            void getUserBook(book.id).then(row => {
-              if (generation !== bookLoadGeneration.current || version !== savedStatusVersion.current) return;
-              setSavedBook(row);
-              setReadingStatus(row?.status ?? null);
-              setReaderStateReady(true);
-            }).catch(() => { if (generation === bookLoadGeneration.current) setReaderStateError(true); });
-          }}>
-            <Text style={styles.loadingText}>{readerStateError ? 'Couldn’t load your library status. Tap to retry.' : 'Loading your library status…'}</Text>
-          </Pressable>
-        ) : null}
         {isSavedBookContext ? (
           <>
             <View
@@ -4105,6 +4085,21 @@ export default function BookDetailsScreen() {
           </View>
         ) : null}
 
+        {readerStateError ? (
+          <Pressable disabled={!readerStateError} onPress={() => {
+            const version = savedStatusVersion.current;
+            const generation = bookLoadGeneration.current;
+            setReaderStateError(false);
+            void getUserBook(book.id).then(row => {
+              if (generation !== bookLoadGeneration.current || version !== savedStatusVersion.current) return;
+              setSavedBook(row);
+              setReadingStatus(row?.status ?? null);
+              setReaderStateReady(true);
+            }).catch(() => { if (generation === bookLoadGeneration.current) setReaderStateError(true); });
+          }}>
+            <Text style={styles.loadingText}>{readerStateError ? 'Couldn’t load your library status. Tap to retry.' : 'Loading your library status…'}</Text>
+          </Pressable>
+        ) : null}
         {isSavedBookContext &&
         savedBook ? (
           <View
@@ -5618,6 +5613,7 @@ function createStyles(
 
   topBar: {
     zIndex: 30,
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,
@@ -5662,7 +5658,7 @@ function createStyles(
 
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 60,
+    paddingBottom: 60 + NOVORI_TAB_BAR_HEIGHT,
   },
 
   hero: {

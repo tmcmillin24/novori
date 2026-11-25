@@ -55,6 +55,8 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const tutorial = useTutorial();
   const route = segments.join('/');
   const detail = detailRoutes.has(route);
+  // Keep the book viewport the same size before and after the bar mounts.
+  const overlayBookBar = route === 'book/[id]' || route === 'book/[id]/index';
   const owner = useRef<Tab>('discover');
   const saved = useRef<Partial<Record<Tab, Href>>>({});
   const [active, setActive] = useState<Tab>('discover');
@@ -109,7 +111,8 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
 
   return <ScrollVisibility.Provider value={report}>
     <View style={{ flex: 1 }}>{children}</View>
-    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
+    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace },
+      overlayBookBar && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
       accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
       <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
         <NovoriBottomBar active={active} onTab={switchTab}/>
