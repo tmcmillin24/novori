@@ -1023,6 +1023,8 @@ export default function ClubDetailScreen() {
         }
     }
     function renderClubPost(post: FeedPost) {
+        const plainPost = post.post_type === 'post' && !post.is_club_announcement && !post.club_discussion
+            && !post.club_event && !post.reading_recap && !post.book_stack_id && !post.post_image_url && !post.book_title;
         const displayName = post.author_display_name?.trim() ||
             post.author_username?.trim() ||
             'Novori Reader';
@@ -1094,7 +1096,7 @@ export default function ClubDetailScreen() {
             {questionContent.context ? (<Text style={styles.questionPostContext}>
                 {questionContent.context}
               </Text>) : null}
-          </>) : post.body.trim() && !post.club_discussion ? (<Text style={styles.postBody}>
+          </>) : post.body.trim() && !post.club_discussion ? (<Text style={[styles.postBody, plainPost && styles.plainPostBody]}>
             {post.body}
           </Text>) : null}
 
@@ -3483,6 +3485,7 @@ function createStyles(colors: NovoriColors) {
             lineHeight: 20,
             marginTop: 7,
         },
+        plainPostBody: { marginTop: 0 },
         postBody: {
             color: colors.text,
             fontFamily: 'Inter_400Regular',
