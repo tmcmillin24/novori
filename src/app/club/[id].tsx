@@ -1641,9 +1641,14 @@ export default function ClubDetailScreen() {
             <View style={styles.inviteScreenBody}>
               <View style={styles.inviteSearchWrap}>
                 <Ionicons name="search-outline" size={18} color={colors.mutedText}/>
-                <TextInput accessibilityLabel="Search readers" value={inviteQuery} onChangeText={setInviteQuery}
-                  placeholder="Search by name or @username" placeholderTextColor={colors.mutedText}
-                  autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.inviteSearchInput}/>
+                <View style={styles.inviteSearchField}>
+                  {!inviteQuery ? <View pointerEvents="none" accessible={false}
+                    accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.inviteSearchPlaceholder}>
+                    <Text numberOfLines={1} style={styles.inviteSearchPlaceholderText}>Search by name or @username</Text>
+                  </View> : null}
+                  <TextInput accessibilityLabel="Search by name or username" value={inviteQuery} onChangeText={setInviteQuery}
+                    autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.inviteSearchInput}/>
+                </View>
                 {inviteQuery ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={() => setInviteQuery('')}>
                   <Ionicons name="close-circle" size={20} color={colors.mutedText}/>
                 </Pressable> : null}
@@ -2594,6 +2599,14 @@ function createStyles(colors: NovoriColors) {
             borderColor: colors.border,
             borderRadius: 12,
             paddingHorizontal: 11,
+        },
+        inviteSearchField: { flex: 1, minWidth: 0, minHeight: 42, justifyContent: 'center' },
+        inviteSearchPlaceholder: { ...StyleSheet.absoluteFillObject, justifyContent: 'center' },
+        inviteSearchPlaceholderText: {
+            color: colors.mutedText,
+            fontFamily: 'Inter_400Regular',
+            fontSize: 13,
+            includeFontPadding: false,
         },
         inviteSearchInput: {
             flex: 1,
