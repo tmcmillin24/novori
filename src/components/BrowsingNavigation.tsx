@@ -73,7 +73,8 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
     if (!showBar || reduceMotion) { progress.value = 1; return; }
     progress.value = withTiming(hidden ? 0 : 1, { duration: hidden ? 210 : 240, easing: Easing.out(Easing.cubic) });
   }, [hidden, progress, reduceMotion, showBar]);
-  const slide = useAnimatedStyle(() => ({ height: NOVORI_TAB_BAR_HEIGHT * progress.value }));
+  const raisedButtonSpace = 18;
+  const slide = useAnimatedStyle(() => ({ height: raisedButtonSpace + NOVORI_TAB_BAR_HEIGHT * progress.value }));
 
   function switchTab(tab: (typeof tabs)[number]) {
     if (tab.segment !== 'post') {
@@ -91,9 +92,9 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
 
   return <ScrollVisibility.Provider value={report}>
     <View style={{ flex: 1 }}>{children}</View>
-    {showBar ? <Animated.View style={[{ overflow: 'hidden' }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
+    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace }, slide]} pointerEvents={hidden ? 'none' : 'auto'}
       accessibilityElementsHidden={hidden} importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
+      <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
         <NovoriBottomBar active={active} onTab={switchTab}/>
       </View>
     </Animated.View> : null}
