@@ -211,81 +211,72 @@ export default function HomeScreen() {
         }
         setComposerProfile(data);
     }, []);
+    const homeLoadSequence = useRef(0);
     const loadHomeData = useCallback(async (showClubLoader = false) => {
+        const request = ++homeLoadSequence.current;
+        const mutationAtStart = getPostMutationVersion();
+        let redirecting = false;
+        const isCurrent = () => request === homeLoadSequence.current && !redirecting;
         if (showClubLoader) {
             setClubsLoading(true);
             setFeedLoading(true);
         }
-        // Choose an account route before requesting normal activity data.
         const accountRoute = await getAccountEntryRoute().catch(() => null);
+        if (!isCurrent()) return;
         if (accountRoute) {
             setFeedLoading(false);
             setClubsLoading(false);
             router.replace(accountRoute);
             return;
         }
-        const results = await Promise.allSettled([
-            getNotificationAttentionCount(),
-            getMyClubs(),
-            getDiscoverClubs(),
-            getHomeFeed()
-        ]);
-        const [attentionResult, myClubsResult, discoverResult, feedResult,] = results;
-        if (results.some(result => result.status === 'rejected' && isAccountUnavailableError(result.reason))) {
-            const restricted = results.some(result => result.status === 'rejected' && isAccountRestrictedError(result.reason));
+
+        async function redirectIfUnavailable(error: unknown) {
+            if (!isCurrent() || !isAccountUnavailableError(error)) return;
+            redirecting = true;
+            const restricted = isAccountRestrictedError(error);
             if (restricted) rememberAccountRestriction();
-            const accountRoute = restricted ? restrictedAccountRoute : await getAccountEntryRoute().catch(() => null);
             setFeedLoading(false);
             setClubsLoading(false);
-            if (accountRoute) {
-                if (restricted) await signOutCurrentDevice().catch(() => {});
-                router.replace(accountRoute);
-                return;
+            const route = restricted ? restrictedAccountRoute : await getAccountEntryRoute().catch(() => null);
+            if (request !== homeLoadSequence.current) return;
+            if (!route || restricted) await signOutCurrentDevice().catch(() => {});
+            if (request === homeLoadSequence.current) router.replace(route ?? '/auth');
+        }
+
+        async function section<T>(promise: Promise<T>, apply: (data: T) => void, onError: (error: unknown) => void) {
+            try {
+                const data = await promise;
+                if (isCurrent()) apply(data);
+            } catch (error) {
+                if (!isCurrent()) return;
+                if (isAccountUnavailableError(error)) await redirectIfUnavailable(error);
+                else onError(error);
             }
-            await signOutCurrentDevice().catch(() => { });
-            router.replace('/auth');
-            return;
         }
-        if (attentionResult.status ===
-            'fulfilled') {
-            setAttentionCount(attentionResult.value);
-        }
-        else {
-            console.warn('[Novori notifications] Home badge refresh deferred; keeping the last count.');
-        }
-        if (myClubsResult.status ===
-            'fulfilled') {
-            setMyClubs(myClubsResult.value);
-        }
-        else {
-            console.error('Could not load your clubs:', myClubsResult.reason);
-        }
-        if (discoverResult.status ===
-            'fulfilled') {
-            setDiscoverClubs(discoverResult.value);
-        }
-        else {
-            console.error('Could not load discover clubs:', discoverResult.reason);
-        }
-        if (feedResult.status ===
-            'fulfilled') {
-            setFeedPosts(feedResult.value);
+
+        // Feed readiness is independent from the club directory and the bell.
+        const feed = section(getHomeFeed(), posts => {
+            setFeedPosts(posts);
             setFeedError('');
-        }
-        else {
-            console.error('Could not load Home feed:', feedResult.reason);
-            setFeedError('Could not load your feed.');
-        }
-        if (showClubLoader) {
-            setClubsLoading(false);
-            setFeedLoading(false);
-        }
-        hasLoadedHomeData.current =
-            true;
-        lastHomeDataLoadAt.current =
-            Date.now();
-        lastSeenPostMutationRef.current =
-            getPostMutationVersion();
+            hasLoadedHomeData.current = true;
+            lastHomeDataLoadAt.current = Date.now();
+            lastSeenPostMutationRef.current = mutationAtStart;
+        }, error => {
+            console.warn('Could not load Home feed:', error);
+            if (!hasLoadedHomeData.current) setFeedError('Could not load your feed.');
+        });
+
+        void section(getNotificationAttentionCount(), setAttentionCount, () => {
+            console.warn('[Novori notifications] Home badge refresh deferred; keeping the last count.');
+        });
+        void Promise.all([
+            section(getMyClubs(), setMyClubs, error => console.warn('Could not load your clubs:', error)),
+            section(getDiscoverClubs(), setDiscoverClubs, error => console.warn('Could not load discover clubs:', error)),
+        ]).then(() => {
+            if (isCurrent()) setClubsLoading(false);
+        });
+        await feed;
+        if (isCurrent()) setFeedLoading(false);
     }, []);
     useEffect(() => {
         if (commentActionTarget ||
