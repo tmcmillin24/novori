@@ -27,6 +27,7 @@ import TutorialGate from '../components/TutorialGate';
 import TutorialOverlay from '../components/TutorialOverlay';
 import {TutorialProvider,TutorialBackground} from '../context/tutorial-context';
 import ConversationHandoffOverlay from '../components/ConversationHandoffOverlay';
+import LaunchTrace from '../components/LaunchTrace';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
 import {
@@ -42,7 +43,6 @@ function AppNavigator() {
   useEffect(() => {
     if (ready) {
       void SystemUI.setBackgroundColorAsync(colors.background);
-      void SplashScreen.hideAsync();
     }
   }, [ready, colors.background]);
 
@@ -87,12 +87,12 @@ function AppNavigator() {
 }
 
 export default function RootLayout() {
-  const [playfairLoaded] = usePlayfairFonts({
+  const [playfairLoaded, playfairError] = usePlayfairFonts({
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_700Bold,
   });
 
-  const [interLoaded] = useInterFonts({
+  const [interLoaded, interError] = useInterFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -100,12 +100,9 @@ export default function RootLayout() {
   });
 
   const appReady =
-    playfairLoaded &&
-    interLoaded;
+    (playfairLoaded || !!playfairError) &&
+    (interLoaded || !!interError);
 
-  if (!appReady) {
-    return null;
-  }
 
   return (
     <GestureHandlerRootView
@@ -115,10 +112,24 @@ export default function RootLayout() {
     >
       <KeyboardProvider>
         <NovoriThemeProvider>
-          <ReadingReminderDeviceSync />
-          <AppNavigator />
+          <StartupContent fontsReady={appReady} />
         </NovoriThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function StartupContent({ fontsReady }: { fontsReady: boolean }) {
+  const { ready } = useNovoriTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: '#242321' }}>
+      {fontsReady && (
+        <>
+          <ReadingReminderDeviceSync />
+          <AppNavigator />
+        </>
+      )}
+      <LaunchTrace appReady={fontsReady && ready} />
+    </View>
   );
 }

@@ -13,7 +13,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#242321",
-          "image": "./assets/images/novori_loadingscreen.png",
+          "image": "./assets/images/novori-launch-background.png",
           "imageWidth": 200
         }
       ],
