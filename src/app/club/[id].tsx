@@ -2600,7 +2600,10 @@ function createStyles(colors: NovoriColors) {
             color: colors.text,
             fontFamily: 'Inter_400Regular',
             fontSize: 13,
-            paddingVertical: 9,
+            minHeight: 42,
+            paddingVertical: 0,
+            textAlignVertical: 'center',
+            includeFontPadding: false,
         },
         inviteSearchHint: {
             color: colors.mutedText,
