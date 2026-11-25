@@ -169,7 +169,7 @@ export default function ClubDetailScreen() {
     const [experienceBusy, setExperienceBusy] = useState(false);
     const [experienceWarning, setExperienceWarning] = useState('');
     const experienceMutation = useRef(false), experienceVersion = useRef(0);
-    const experienceMounted = useRef(true), requestedGuideShown = useRef(false);
+    const experienceMounted = useRef(true);
     useEffect(() => { experienceMounted.current = true; return () => { experienceMounted.current = false; experienceVersion.current++; }; }, []);
     const pendingMemberScroll = useRef(false);
     const membersSectionY = useRef(0);
@@ -199,7 +199,6 @@ export default function ClubDetailScreen() {
         setMemberExperience(null);
         setWelcomeOpen(false);
         setExperienceWarning('');
-        requestedGuideShown.current = false;
         experienceVersion.current++;
         setInvitePanelOpen(false);
         setSentInviteIds(new Set());
@@ -302,8 +301,7 @@ export default function ClubDetailScreen() {
                 section('preferences', getClubMemberExperience(clubId), data => {
                     if (experienceRequest !== experienceVersion.current) return;
                     setMemberExperience(data);
-                    setWelcomeOpen(Boolean(data && (!data.welcome_seen_at || ((params as { guide?: string }).guide === '1' && !requestedGuideShown.current))));
-                    requestedGuideShown.current = true;
+                    setWelcomeOpen(Boolean(data && !data.welcome_seen_at));
                 }, () => {
                     if (experienceRequest === experienceVersion.current) setExperienceWarning('Could not load your club preferences.');
                 }),
@@ -321,11 +319,11 @@ export default function ClubDetailScreen() {
             setError('This club is unavailable or private.');
             setLoading(false);
         }
-    }, [clubId, (params as { guide?: string }).guide]);
+    }, [clubId]);
     const loadedClub = useRef<{ id: string; version: number } | null>(null);
     useFocusEffect(useCallback(() => {
         const unchanged = loadedClub.current?.id === clubId && loadedClub.current.version === getPostMutationVersion();
-        if (unchanged && !((params as { guide?: string }).guide === '1' && !requestedGuideShown.current)) {
+        if (unchanged) {
             preserveClubStateOnNextFocus.current = false;
             return;
         }
@@ -1642,13 +1640,6 @@ export default function ClubDetailScreen() {
             void openClubComposer(true);
         else if (action === 'discussions')
             router.push({ pathname: '/club-discussions', params: { clubId: club.id } });
-        else if (action === 'guide') {
-            if (memberExperience)
-                setWelcomeOpen(true);
-            else
-                void updateClubExperience('guide');
-            clubScrollRef.current?.scrollTo({ y: 0, animated: true });
-        }
         else if (action === 'notification_settings')
             router.push('/notification-settings');
         else if (action === 'notifications')
@@ -1656,7 +1647,7 @@ export default function ClubDetailScreen() {
         else if (action === 'leave')
             confirmLeave();
     }
-    async function updateClubExperience(action: 'notifications' | 'welcome' | 'guide') {
+    async function updateClubExperience(action: 'notifications' | 'welcome') {
         if (!club?.membership_role || experienceMutation.current)
             return;
         const target = club.id;
@@ -1664,15 +1655,13 @@ export default function ClubDetailScreen() {
         setExperienceBusy(true);
         try {
             const previous = memberExperience ?? await getClubMemberExperience(target);
-            const next = action === 'notifications' ? await setClubNotificationsEnabled(target, !previous.notifications_enabled) : action === 'welcome' ? await dismissClubWelcome(target) : previous;
+            const next = action === 'notifications' ? await setClubNotificationsEnabled(target, !previous.notifications_enabled) : await dismissClubWelcome(target);
             if (experienceMounted.current && pinClubIdRef.current === target) {
                 experienceVersion.current++;
                 setMemberExperience(next);
                 setExperienceWarning('');
                 if (action === 'welcome')
                     setWelcomeOpen(false);
-                else if (action === 'guide')
-                    setWelcomeOpen(true);
             }
         }
         catch (error) {

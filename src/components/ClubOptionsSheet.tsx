@@ -20,9 +20,9 @@ type Props = {
     globalNotificationsEnabled?: boolean;
     notificationsBusy?: boolean;
 };
-type MenuAction = Exclude<ClubHomeAction, 'members' | 'notification_settings'>;
+type MenuAction = Exclude<ClubHomeAction, 'members' | 'notification_settings' | 'guide'>;
 const menuOrder: readonly MenuAction[] = [
-    'discussions', 'announce', 'rules', 'guide', 'manage', 'edit', 'notifications', 'leave',
+    'discussions', 'announce', 'rules', 'manage', 'edit', 'notifications', 'leave',
 ];
 
 const actionDetails: Record<MenuAction, {
@@ -34,7 +34,7 @@ const actionDetails: Record<MenuAction, {
     discussions: { label: 'Discussions & polls', icon: 'chatbubbles-outline' },
     announce: { label: 'Create announcement', icon: 'megaphone-outline' },
     leave: { label: 'Leave club', icon: 'exit-outline' },
-    guide: { label: 'Club guide', icon: 'sparkles-outline' }, notifications: { label: 'Mute club notifications', icon: 'notifications-off-outline' },
+    notifications: { label: 'Mute club notifications', icon: 'notifications-off-outline' },
 
 };
 export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, notificationsEnabled = true, notificationsBusy = false, onAction, onDismiss }: Props) {
