@@ -20,24 +20,31 @@ type Props = {
     globalNotificationsEnabled?: boolean;
     notificationsBusy?: boolean;
 };
-const actionDetails: Record<ClubHomeAction, {
+type MenuAction = Exclude<ClubHomeAction, 'members' | 'notification_settings'>;
+const menuOrder: readonly MenuAction[] = [
+    'discussions', 'announce', 'rules', 'guide', 'manage', 'edit', 'notifications', 'leave',
+];
+
+const actionDetails: Record<MenuAction, {
     label: string;
     icon: keyof typeof Ionicons.glyphMap;
 }> = {
     edit: { label: 'Edit club', icon: 'create-outline' }, rules: { label: 'Club rules', icon: 'reader-outline' },
-    members: { label: 'Members', icon: 'people-outline' }, manage: { label: 'Manage members & invitations', icon: 'shield-checkmark-outline' },
+    manage: { label: 'Manage members & invitations', icon: 'shield-checkmark-outline' },
     discussions: { label: 'Discussions & polls', icon: 'chatbubbles-outline' },
     announce: { label: 'Create announcement', icon: 'megaphone-outline' },
     leave: { label: 'Leave club', icon: 'exit-outline' },
     guide: { label: 'Club guide', icon: 'sparkles-outline' }, notifications: { label: 'Mute club notifications', icon: 'notifications-off-outline' },
-    notification_settings: { label: 'Notification settings', icon: 'settings-outline' },
+
 };
-export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, notificationsEnabled = true, globalNotificationsEnabled = true, notificationsBusy = false, onAction, onDismiss }: Props) {
+export default function ClubOptionsSheet({ visible, clubName, role, canViewMembers, hasRules, busy, notificationsEnabled = true, notificationsBusy = false, onAction, onDismiss }: Props) {
     const { colors } = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const motion = useUiSheetMotion({ visible, busy: busy, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
+    const allowed = getClubHomeActions(role, canViewMembers, hasRules);
+    const actions = menuOrder.filter(action => allowed.includes(action));
     // Match Novori's existing fade, slide, and drag dismissal behavior.
     return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
       <Pressable style={styles.backdrop} onPress={() => closeSmoothly()}>
@@ -48,13 +55,13 @@ export default function ClubOptionsSheet({ visible, clubName, role, canViewMembe
             <Text style={styles.title} accessibilityRole="header">{clubName}</Text>
             <Text style={styles.period}>Club options</Text>
             <ScrollView style={styles.actionList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {getClubHomeActions(role, canViewMembers, hasRules).map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={action === 'notifications' ? (notificationsEnabled ? 'Mute club notifications' : 'Unmute club notifications') : actionDetails[action].label} disabled={(busy && action === 'leave') || (notificationsBusy && action === 'notifications')} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            {actions.map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={action === 'notifications' ? (notificationsEnabled ? 'Mute club notifications' : 'Unmute club notifications') : actionDetails[action].label} disabled={(busy && action === 'leave') || (notificationsBusy && action === 'notifications')} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
               <View style={styles.actionIcon}><Ionicons name={action === 'notifications' && !notificationsEnabled ? 'notifications-outline' : actionDetails[action].icon} size={20} color={action === 'leave' ? colors.danger : colors.gold}/></View>
               <Text style={[styles.actionText, action === 'leave' && { color: colors.danger }]}>{action === 'notifications' ? (notificationsEnabled ? 'Mute club notifications' : 'Unmute club notifications') : actionDetails[action].label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
             </Pressable>)}
             </ScrollView>
-            {role ? <Text style={styles.note}>{!globalNotificationsEnabled ? 'Club notifications are off in Settings.' : notificationsEnabled ? 'Notifications are on for this club.' : 'This club is muted. Other clubs can still notify you.'}</Text> : null}
+
             <Pressable accessibilityRole="button" accessibilityLabel="Close club options" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>
         </UiSheetSurface>
@@ -70,10 +77,10 @@ function createStyles(colors: NovoriColors) {
         title: { color: colors.text, fontFamily: 'PlayfairDisplay_600SemiBold', fontSize: 21, textAlign: 'center' },
         period: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 14 },
         actionList: { maxHeight: 340, flexGrow: 0 },
-        action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 12,
-            backgroundColor: colors.elevated, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+        action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, paddingHorizontal: 12,
+            backgroundColor: colors.elevated, borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: colors.border },
         actionIcon: { width: 28, alignItems: 'center' }, actionText: { flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-        note: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', marginTop: 4 },
+
         cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
         cancelText: { color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
         pressed: { opacity: 0.76 },
