@@ -1,8 +1,9 @@
+import { loadSignedInComposerIdentity, prepareFeedComposerPreview } from '../../lib/club-composer-preview';
 import { Ionicons } from '@expo/vector-icons';
-import {useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {tutorialRevealOffset} from '../../lib/tutorial';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Pressable,
   ScrollView,
@@ -48,6 +49,26 @@ export default function PostScreen() {
   },[tutorial?.active,tutorial?.step.anchor,positions,gridY,screenHeight,screenWidth,insets.top,insets.bottom]);
   const router =
     useRouter();
+
+  const warmedIdentity = useRef<ReturnType<typeof loadSignedInComposerIdentity> | null>(null);
+  const opening = useRef(false);
+  useFocusEffect(useCallback(() => {
+    warmedIdentity.current = loadSignedInComposerIdentity().catch(() => null);
+    return () => { warmedIdentity.current = null; };
+  }, []));
+
+  async function openComposer(pathname: '/create-post' | '/create-reading-update' | '/ask-readers' | '/create-book-stack') {
+    if (opening.current) return;
+    opening.current = true;
+    const pending = warmedIdentity.current;
+    try {
+      const identity = await (pending ?? loadSignedInComposerIdentity().catch(() => null));
+      if (warmedIdentity.current !== pending) return;
+      router.push({ pathname, params: { previewKey: identity ? prepareFeedComposerPreview(identity) : undefined } });
+    } finally {
+      opening.current = false;
+    }
+  }
 
   const { width } =
     useWindowDimensions();
@@ -148,11 +169,7 @@ export default function PostScreen() {
             accessibilityLabel="Post"
             ref={postTarget.ref} onLayout={event=>{postTarget.onLayout();recordPosition('create-post',event.nativeEvent.layout.y);}}
             accessibilityHint="Create a new social post."
-            onPress={() =>
-              router.push(
-                '/create-post'
-              )
-            }
+            onPress={() => void openComposer('/create-post')}
             style={({ pressed }) => [
               styles.featureCard,
               pressed &&
@@ -242,11 +259,7 @@ export default function PostScreen() {
             accessibilityLabel="Reading Update"
               ref={readingTarget.ref} onLayout={event=>{readingTarget.onLayout();recordPosition('create-reading-update',event.nativeEvent.layout.y);}}
             accessibilityHint="Share your reading progress."
-            onPress={() =>
-              router.push(
-                '/create-reading-update'
-              )
-            }
+            onPress={() => void openComposer('/create-reading-update')}
             style={({ pressed }) => [
               styles.readingCard,
               pressed &&
@@ -403,11 +416,7 @@ export default function PostScreen() {
               accessibilityLabel="Ask Readers"
               ref={askTarget.ref} onLayout={event=>{askTarget.onLayout();recordPosition('create-ask-readers',event.nativeEvent.layout.y);}}
               accessibilityHint="Ask readers a question."
-              onPress={() =>
-                router.push(
-                  '/ask-readers'
-                )
-              }
+              onPress={() => void openComposer('/ask-readers')}
               style={({ pressed }) => [
                 styles.smallCard,
                 styles.askReadersCard,
@@ -506,11 +515,7 @@ export default function PostScreen() {
               accessibilityLabel="Book Stack"
               ref={stackTarget.ref} onLayout={event=>{stackTarget.onLayout();recordPosition('create-book-stack',event.nativeEvent.layout.y);}}
               accessibilityHint="Build and save a book stack."
-              onPress={() =>
-                router.push(
-                  '/create-book-stack'
-                )
-              }
+              onPress={() => void openComposer('/create-book-stack')}
               style={({ pressed }) => [
                 styles.smallCard,
                 styles.stackCard,

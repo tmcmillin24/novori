@@ -163,6 +163,7 @@ export default function CreateReadingUpdateScreen() {
 
   const params =
     useLocalSearchParams<{
+      previewKey?: string;
       bookId?: string;
       progress?: string;
       chapter?: string;
@@ -296,7 +297,7 @@ export default function CreateReadingUpdateScreen() {
   const [postClubId, setPostClubId] = useState<string | null>(null);
   const [postClubName, setPostClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
-  const viewerProfile = usePostComposerProfile();
+  const viewerProfile = usePostComposerProfile(params.previewKey);
   const selectedClub = clubs.find((club) => club.id === postClubId);
 
   const [

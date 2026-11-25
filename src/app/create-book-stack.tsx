@@ -113,6 +113,7 @@ export default function CreateBookStackScreen() {
 
   const params =
     useLocalSearchParams<{
+      previewKey?: string;
       editPostId?: string;
       stackId?: string;
     }>();
@@ -207,7 +208,7 @@ export default function CreateBookStackScreen() {
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubName, setClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
-  const viewerProfile = usePostComposerProfile();
+  const viewerProfile = usePostComposerProfile(params.previewKey);
   const [stackWarning, setStackWarning] = useState<{ title: string; message: string } | null>(null);
   async function showStackFailure(error: unknown, operation: 'save' | 'publish') {
     const details = error && typeof error === 'object'

@@ -28,7 +28,7 @@ export default function EditablePostCard({
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const displayName = author?.display_name?.trim() || author?.username?.trim() || 'You';
+  const displayName = author?.display_name?.trim() || author?.username?.trim() || '';
   const audience = clubId
     ? clubName || 'Your club'
     : 'Your feed';
@@ -39,13 +39,13 @@ export default function EditablePostCard({
         {author?.avatar_url ? (
           <CachedMediaImage source={{ uri: moderationMediaUrl(author.avatar_url) }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
+          <View style={author ? [styles.avatar, styles.avatarFallback] : { width: 46, height: 46, marginRight: 12 }}>
             <Text style={styles.initial}>{displayName.charAt(0).toUpperCase()}</Text>
           </View>
         )}
         <View style={styles.authorCopy}>
           <View style={styles.identity}>
-            <Text style={styles.authorName} numberOfLines={1}>{displayName}</Text>
+            {displayName ? <Text style={styles.authorName} numberOfLines={1}>{displayName}</Text> : null}
             {author?.username ? (
               <Text style={styles.username} numberOfLines={1}>@{author.username}</Text>
             ) : null}

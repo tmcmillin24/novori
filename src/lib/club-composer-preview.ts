@@ -44,3 +44,22 @@ export function prepareClubComposerPreview(preview: ClubComposerPreview) {
 export function getClubComposerPreview(key: string | undefined, clubId: string) {
   return latest && latest.key === key && latest.preview.clubId === clubId ? latest.preview : null;
 }
+
+export type ComposerIdentity = { userId: string; profile: ComposerProfile | null };
+let feedPreview: { key: string; identity: ComposerIdentity } | null = null;
+
+export async function loadSignedInComposerIdentity(): Promise<ComposerIdentity | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  return { userId: user.id, profile: await loadComposerProfile(user.id) };
+}
+
+export function prepareFeedComposerPreview(identity: ComposerIdentity) {
+  const key = String(++sequence);
+  feedPreview = { key, identity };
+  return key;
+}
+
+export function getFeedComposerPreview(key?: string) {
+  return feedPreview && feedPreview.key === key ? feedPreview.identity : null;
+}

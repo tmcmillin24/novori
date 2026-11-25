@@ -1,3 +1,4 @@
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
 import CachedMediaImage from '../components/CachedMediaImage';
 import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
@@ -42,12 +43,6 @@ import {
 } from '../lib/feed';
 import { supabase } from '../lib/supabase';
 
-type ViewerProfile = {
-  display_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
-};
-
 type Destination =
   | { type: 'profile'; clubId: null }
   | { type: 'club'; clubId: string };
@@ -63,6 +58,7 @@ export default function AskReadersScreen() {
   const router = useRouter();
 
   const params = useLocalSearchParams<{
+    previewKey?: string;
     clubId?: string;
     editPostId?: string;
   }>();
@@ -87,8 +83,7 @@ export default function AskReadersScreen() {
 
   const [question, setQuestion] = useState('');
   const [context, setContext] = useState('');
-  const [viewerProfile, setViewerProfile] =
-    useState<ViewerProfile | null>(null);
+  const viewerProfile = usePostComposerProfile(params.previewKey);
   const [clubs, setClubs] = useState<ClubWithMembership[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(true);
   const [clubName, setClubName] = useState<string | null>(null);
@@ -198,30 +193,6 @@ export default function AskReadersScreen() {
           });
         }
 
-        if (user) {
-          const {
-            data: profileData,
-            error: profileError,
-          } = await supabase
-            .from('profiles')
-            .select(
-              'display_name, username, avatar_url'
-            )
-            .eq(
-              'id',
-              user.id
-            )
-            .single();
-
-          if (
-            !profileError &&
-            active
-          ) {
-            setViewerProfile(
-              profileData
-            );
-          }
-        }
       } catch (error) {
         console.warn(
           'Could not load Ask Readers composer data:',
@@ -252,7 +223,7 @@ export default function AskReadersScreen() {
   const previewDisplayName =
     viewerProfile?.display_name?.trim() ||
     viewerProfile?.username?.trim() ||
-    'You';
+    '';
 
   const previewUsername =
     viewerProfile?.username?.trim()
@@ -565,21 +536,21 @@ export default function AskReadersScreen() {
                 style={styles.feedPreviewAvatar}
               />
             ) : (
-              <View style={styles.feedPreviewAvatarFallback}>
+              <View style={viewerProfile ? styles.feedPreviewAvatarFallback : { width: 46, height: 46, marginRight: 12 }}>
                 <Text style={styles.feedPreviewAvatarText}>
-                  {previewInitial}
+                  {viewerProfile ? previewInitial : null}
                 </Text>
               </View>
             )}
 
             <View style={styles.feedPreviewAuthorCopy}>
               <View style={styles.feedPreviewIdentity}>
-                <Text
+                {previewDisplayName ? <Text
                   style={styles.feedPreviewAuthorName}
                   numberOfLines={1}
                 >
                   {previewDisplayName}
-                </Text>
+                </Text> : null}
 
                 {previewUsername ? (
                   <Text

@@ -2,7 +2,7 @@ import { moderationMediaUrl } from '../lib/moderation-media-url';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
@@ -30,7 +30,7 @@ export default function PostDestinationPicker({
   const selectedClub = clubs.find((club) => club.id === clubId);
   const title = clubId ? selectedClub?.name || clubName || 'Your club' : 'Your feed';
   const locked = loading || disabled;
-  const initial = (profile?.display_name?.trim() || profile?.username?.trim() || 'You').charAt(0).toUpperCase();
+  const initial = (profile?.display_name?.trim() || profile?.username?.trim() || '').charAt(0).toUpperCase();
 
   function feedPhoto(size: number) {
     const frame = [styles.feedImage, { width: size, height: size, borderRadius: size / 2 }];
@@ -68,11 +68,9 @@ export default function PostDestinationPicker({
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
           <Text style={styles.subtitle}>{clubId ? 'Club' : 'Your followers'}</Text>
         </View>
-        {loading ? <ActivityIndicator size="small" color={colors.gold} /> : (
-          <View style={styles.chevron}>
+        <View style={styles.chevron}>
             <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.gold} />
           </View>
-        )}
       </Pressable>
       {expanded ? (
         <View style={styles.dropdown}>

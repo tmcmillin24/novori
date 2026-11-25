@@ -1,4 +1,5 @@
-import { getClubComposerPreview, type ComposerProfile as ViewerProfile } from '../lib/club-composer-preview';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { getClubComposerPreview } from '../lib/club-composer-preview';
 import CachedMediaImage from '../components/CachedMediaImage';
 import BookSearchRatings from '../components/BookSearchRatings';
 import { displayBookTitle } from '../lib/book-title';
@@ -255,11 +256,7 @@ export default function CreatePostScreen() {
     );
 
   const [clubPreview] = useState(() => getClubComposerPreview(params.previewKey, requestedClubId));
-  const [
-    viewerProfile,
-    setViewerProfile,
-  ] =
-    useState<ViewerProfile | null>(clubPreview?.profile ?? null);
+  const viewerProfile = usePostComposerProfile(params.previewKey, clubPreview);
 
   const [
     destinationExpanded,
@@ -362,16 +359,6 @@ export default function CreatePostScreen() {
       true;
 
     const authRequest = supabase.auth.getUser();
-    // The preview identity doesn't depend on the club list or edit payload.
-    void authRequest.then(async ({ data: { user } }) => {
-      if (!active) return;
-      if (clubPreview && clubPreview.userId !== user?.id) setViewerProfile(null);
-      if (!user || (clubPreview?.userId === user.id && clubPreview.profile)) return;
-      const { data, error } = await supabase.from('profiles')
-        .select('display_name, username, avatar_url').eq('id', user.id).single();
-      if (active && !error) setViewerProfile(data);
-    }).catch(() => {});
-
     async function load() {
       try {
         const [
@@ -542,7 +529,6 @@ export default function CreatePostScreen() {
         false;
     };
   }, [
-    clubPreview,
     editPostId,
     isEditing,
     requestedClubId,
