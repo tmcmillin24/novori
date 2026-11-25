@@ -23,7 +23,8 @@ export function useBrowsingNavigationScroll() {
     const delta = y - last.y;
     if (delta === 0 && y > 0) return;
     let distance = Math.sign(delta) === Math.sign(last.distance) ? last.distance + delta : delta;
-    if (y < 12 || distance <= -10) { setHidden(path, false); distance = 0; }
+    // Only reveal at the top. End-of-list bounce can report upward movement.
+    if (y <= 2) { setHidden(path, false); distance = 0; }
     else if (y > 72 && distance >= 32) { setHidden(path, true); distance = 0; }
     position.current = { y, distance };
   }, [path, setHidden]);
