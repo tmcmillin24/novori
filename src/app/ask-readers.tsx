@@ -1,3 +1,4 @@
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
 import { PostAttachmentControls, RemovablePostAttachment } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
@@ -31,7 +32,7 @@ getNovoriSearchBookCover,
 getNovoriSearchBookIsbn,
 GoogleBookSearchItem,
 resolveNovoriSearchBookCover,
-searchNovoriBooks,
+
 } from '../lib/book-search';
 import { ClubWithMembership,getMyClubs } from '../lib/clubs';
 import {
@@ -97,14 +98,8 @@ export default function AskReadersScreen() {
 
   const [bookPickerVisible, setBookPickerVisible] = useState(false);
   const [bookQuery, setBookQuery] = useState('');
-  const [bookResults, setBookResults] =
-    useState<GoogleBookSearchItem[]>([]);
-  const [bookSearching, setBookSearching] = useState(false);
-  const [bookSearchError, setBookSearchError] = useState('');
-  const bookSearchTimerRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bookSearchRequestRef =
-    useRef(0);
+  const {results:bookResults,busy:bookSearching,error:bookSearchError,submit:submitBookSearch}
+    = useAttachmentBookSearch(bookPickerVisible,bookQuery);
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
@@ -228,105 +223,6 @@ export default function AskReadersScreen() {
     !publishing &&
     !loadingClubs;
 
-  useEffect(() => {
-    if (
-      bookSearchTimerRef.current
-    ) {
-      clearTimeout(
-        bookSearchTimerRef.current
-      );
-    }
-
-    const query =
-      bookQuery.trim();
-
-    if (
-      !bookPickerVisible ||
-      query.length < 2
-    ) {
-      bookSearchRequestRef.current +=
-        1;
-      setBookResults([]);
-      setBookSearchError('');
-      setBookSearching(false);
-      return;
-    }
-
-    const requestId =
-      ++bookSearchRequestRef.current;
-
-    bookSearchTimerRef.current =
-      setTimeout(() => {
-        void performBookSearch(
-          query,
-          requestId
-        );
-      }, 350);
-
-    return () => {
-      if (
-        bookSearchTimerRef.current
-      ) {
-        clearTimeout(
-          bookSearchTimerRef.current
-        );
-      }
-    };
-  }, [
-    bookPickerVisible,
-    bookQuery,
-  ]);
-
-  async function performBookSearch(
-    query: string,
-    requestId: number
-  ) {
-    try {
-      setBookSearching(true);
-      setBookSearchError('');
-
-      const results =
-        await searchNovoriBooks(
-          query
-        );
-
-      if (
-        requestId !==
-        bookSearchRequestRef.current
-      ) {
-        return;
-      }
-
-      setBookResults(
-        results
-      );
-    } catch (error) {
-      if (
-        requestId !==
-        bookSearchRequestRef.current
-      ) {
-        return;
-      }
-
-      console.error(
-        'Could not search books:',
-        error
-      );
-
-      setBookResults([]);
-      setBookSearchError(
-        'Could not search books. Please try again.'
-      );
-    } finally {
-      if (
-        requestId ===
-        bookSearchRequestRef.current
-      ) {
-        setBookSearching(false);
-      }
-    }
-  }
-
   function chooseBook(item: GoogleBookSearchItem) {
     const initialCover =
       getNovoriSearchBookCover(
@@ -384,8 +280,8 @@ export default function AskReadersScreen() {
 
     setBookPickerVisible(false);
     setBookQuery('');
-    setBookResults([]);
-    setBookSearchError('');
+
+
   }
 
   async function publishQuestion() {
@@ -702,6 +598,7 @@ export default function AskReadersScreen() {
 
             <TextInput
               value={bookQuery}
+              returnKeyType="search" onSubmitEditing={submitBookSearch}
               onChangeText={setBookQuery}
               placeholder="Search title or author"
               placeholderTextColor={colors.mutedText}
@@ -720,8 +617,8 @@ export default function AskReadersScreen() {
               <Pressable
                 onPress={() => {
                   setBookQuery('');
-                  setBookResults([]);
-                  setBookSearchError('');
+
+
                 }}
                 hitSlop={8}
                 style={({ pressed }) => [

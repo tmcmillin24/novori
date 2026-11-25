@@ -1,3 +1,4 @@
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
 import { PostAttachmentControls } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -51,7 +52,7 @@ import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import {
 getNovoriSearchBookCover,
 GoogleBookSearchItem,
-searchNovoriBooks,
+
 } from '../lib/book-search';
 import {
 BookStackDraftItem,
@@ -64,9 +65,6 @@ getPostDetail,
 
 const MAX_STACK_BOOKS = 10;
 const MIN_STACK_BOOKS = 2;
-const MIN_BOOK_SEARCH_LENGTH = 2;
-const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
-const BOOK_SEARCH_DELAY_MS = 700;
 
 function getStackBookPrimaryIsbn(
   book: GoogleBookSearchItem
@@ -170,25 +168,8 @@ export default function CreateBookStackScreen() {
   ] =
     useState('');
 
-  const [
-    results,
-    setResults,
-  ] =
-    useState<
-      GoogleBookSearchItem[]
-    >([]);
-
-  const [
-    searching,
-    setSearching,
-  ] =
-    useState(false);
-
-  const [
-    searchError,
-    setSearchError,
-  ] =
-    useState('');
+  const {results,busy:searching,error:searchError,submit:searchImmediately}
+    = useAttachmentBookSearch(searchOpen,query);
 
   const [
     resolvingBookIds,
@@ -287,16 +268,6 @@ export default function CreateBookStackScreen() {
     useRef<
       number | null
     >(null);
-
-  const timerRef =
-    useRef<
-      ReturnType<
-        typeof setTimeout
-      > | null
-    >(null);
-
-  const requestRef =
-    useRef(0);
 
   useEffect(() => {
     let active =
@@ -403,155 +374,6 @@ export default function CreateBookStackScreen() {
     isEditing,
     router,
   ]);
-
-  useEffect(() => {
-    if (
-      timerRef.current
-    ) {
-      clearTimeout(
-        timerRef.current
-      );
-    }
-
-    const searchTerm =
-      query.trim();
-
-    if (
-      !searchOpen
-    ) {
-      requestRef.current +=
-        1;
-      setSearching(false);
-      return;
-    }
-
-    if (
-      searchTerm.length <
-        MIN_BOOK_SEARCH_LENGTH
-    ) {
-      requestRef.current +=
-        1;
-      setResults([]);
-      setSearchError('');
-      setSearching(false);
-      return;
-    }
-
-    if (
-      searchTerm.length <
-        AUTO_BOOK_SEARCH_MIN_LENGTH
-    ) {
-      requestRef.current +=
-        1;
-      setSearching(false);
-      return;
-    }
-
-    const requestId =
-      ++requestRef.current;
-
-    timerRef.current =
-      setTimeout(() => {
-        void performSearch(
-          searchTerm,
-          requestId
-        );
-      }, BOOK_SEARCH_DELAY_MS);
-
-    return () => {
-      if (
-        timerRef.current
-      ) {
-        clearTimeout(
-          timerRef.current
-        );
-      }
-    };
-  }, [
-    query,
-    searchOpen,
-  ]);
-
-  async function performSearch(
-    searchTerm: string,
-    requestId: number
-  ) {
-    try {
-      setSearching(true);
-      setSearchError('');
-
-      const next =
-        await searchNovoriBooks(
-          searchTerm
-        );
-
-      if (
-        requestId !==
-        requestRef.current
-      ) {
-        return;
-      }
-
-      setResults(
-        next
-      );
-    } catch (
-      error
-    ) {
-      if (
-        requestId !==
-        requestRef.current
-      ) {
-        return;
-      }
-
-      console.error(
-        'Could not search books for stack:',
-        error
-      );
-
-      setSearchError(
-        'Could not search books. Please try again.'
-      );
-
-      setResults([]);
-    } finally {
-      if (
-        requestId ===
-        requestRef.current
-      ) {
-        setSearching(false);
-      }
-    }
-  }
-
-  function searchImmediately() {
-    if (
-      timerRef.current
-    ) {
-      clearTimeout(
-        timerRef.current
-      );
-    }
-
-    const searchTerm =
-      query.trim();
-
-    if (
-      searchTerm.length <
-        MIN_BOOK_SEARCH_LENGTH
-    ) {
-      return;
-    }
-
-    const requestId =
-      ++requestRef.current;
-
-    void performSearch(
-      searchTerm,
-      requestId
-    );
-  }
 
   function openBookSearch() {
     setSearchOpen(

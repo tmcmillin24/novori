@@ -1,3 +1,4 @@
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -53,7 +54,7 @@ getNovoriSearchBookCover,
 getNovoriSearchBookIsbn,
 GoogleBookSearchItem,
 resolveNovoriSearchBookCover,
-searchNovoriBooks,
+
 } from '../lib/book-search';
 import {
 ClubWithMembership,
@@ -335,25 +336,8 @@ export default function CreatePostScreen() {
   ] =
     useState('');
 
-  const [
-    bookResults,
-    setBookResults,
-  ] =
-    useState<
-      GoogleBookSearchItem[]
-    >([]);
-
-  const [
-    bookSearching,
-    setBookSearching,
-  ] =
-    useState(false);
-
-  const [
-    bookSearchError,
-    setBookSearchError,
-  ] =
-    useState('');
+  const {results:bookResults,busy:bookSearching,error:bookSearchError,submit:submitBookSearch}
+    = useAttachmentBookSearch(bookPickerVisible,bookQuery);
 
   useEffect(() => {
     let active =
@@ -536,91 +520,6 @@ export default function CreatePostScreen() {
     requestedClubId,
     requestedAnnouncement,
     router,
-  ]);
-
-  useEffect(() => {
-    const query =
-      bookQuery.trim();
-
-    if (
-      !bookPickerVisible ||
-      query.length <
-        2
-    ) {
-      setBookResults(
-        []
-      );
-      setBookSearchError(
-        ''
-      );
-      setBookSearching(
-        false
-      );
-      return;
-    }
-
-    let active =
-      true;
-
-    const timer =
-      setTimeout(
-        async () => {
-          try {
-            setBookSearching(
-              true
-            );
-            setBookSearchError(
-              ''
-            );
-
-            const results =
-              await searchNovoriBooks(
-                query
-              );
-
-            if (
-              active
-            ) {
-              setBookResults(
-                results
-              );
-            }
-          } catch (
-            error
-          ) {
-            if (
-              active
-            ) {
-              setBookResults(
-                []
-              );
-              setBookSearchError(
-                'Could not search books. Please try again.'
-              );
-            }
-          } finally {
-            if (
-              active
-            ) {
-              setBookSearching(
-                false
-              );
-            }
-          }
-        },
-        300
-      );
-
-    return () => {
-      active =
-        false;
-      clearTimeout(
-        timer
-      );
-    };
-  }, [
-    bookPickerVisible,
-    bookQuery,
   ]);
 
   const [submissionWarning, setSubmissionWarning] = useState<{ title: string; message: string } | null>(null);
@@ -898,9 +797,6 @@ export default function CreatePostScreen() {
     );
     setBookQuery(
       ''
-    );
-    setBookResults(
-      []
     );
 
     const [
@@ -1950,6 +1846,7 @@ export default function CreatePostScreen() {
               onChangeText={
                 setBookQuery
               }
+              returnKeyType="search" onSubmitEditing={submitBookSearch}
               placeholder="Search title or author"
               placeholderTextColor={
                 colors.mutedText

@@ -63,7 +63,7 @@ test('event editor preserves cached book data while editing and allows virtual d
 });
 test('book search uses the shared search only after input and stores canonical identity on selection',async()=>{
  await render(<CreateClubEventScreen/>);await press('Choose event book');await fill('Event book search','Searched Book');await act(async()=>jest.advanceTimersByTime(350));await press('Choose book: Searched Book');
- expect(searchNovoriBooks).toHaveBeenCalledWith('Searched Book');expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('searched-book');expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe('resolved-canonical-cover');
+ expect(searchNovoriBooks).toHaveBeenCalledWith('Searched Book',0,expect.objectContaining({onProgress:expect.any(Function)}));expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('searched-book');expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe('resolved-canonical-cover');
 });
 test('calendar date selection and time fields remain in the editable card',async()=>{
  await render(<CreateClubEventScreen/>);await press('Choose start date');expect(button('Next start month')).toBeDefined();await fill('Start hour','7');await fill('Start minute','30');await press('Start PM');
@@ -97,4 +97,20 @@ test('a visitor can share the exact loaded event without editing or fetching boo
  mockParams={id:'event-1'};getClub.mockResolvedValue({...club,membership_role:null});await render(<ClubEventScreen/>);
  await press('Share club event');expect(shareClubEventLink).toHaveBeenCalledWith({eventId:event.id,title:event.title});
  expect(button('Open event options')).toBeUndefined();expect(searchNovoriBooks).not.toHaveBeenCalled();
+});
+
+test('attachment results can be selected before background enrichment finishes',async()=>{
+ let resolveSearch;
+ searchNovoriBooks.mockImplementationOnce((_query,_offset,{onProgress}) => {
+   onProgress([{id:'early',volumeInfo:{title:'Early book',authors:[]}}]);
+   return new Promise(resolve=>{resolveSearch=resolve;});
+ });
+ await render(<CreateClubEventScreen/>);await press('Choose event book');await fill('Event book search','Early book');
+ const input=view.root.findAllByType('TextInput').find(node=>node.props.accessibilityLabel==='Event book search');
+ await act(async()=>input.props.onSubmitEditing());
+ expect(button('Choose book: Early book')).toBeDefined();
+ await press('Choose book: Early book');
+ await act(async()=>resolveSearch([{id:'late',volumeInfo:{title:'Late book'}}]));
+ expect(button('Choose book: Late book')).toBeUndefined();
+ expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('early');
 });

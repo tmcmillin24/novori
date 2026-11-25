@@ -3,7 +3,7 @@ import { useLocalSearchParams,useRouter } from 'expo-router';
 import { useEffect,useRef,useState } from 'react';
 import { ActivityIndicator,Modal,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import BookCoverImage from '../components/BookCoverImage';
 import ClubDiscussionPostAttachment from '../components/ClubDiscussionPostAttachment';
 import EditablePostCard from '../components/EditablePostCard';
@@ -66,12 +66,13 @@ export default function CreateClubDiscussionScreen(){
       </>}/>
       </EditablePostCard>
     </KeyboardAwareScrollView>}
-    <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" onRequestClose={()=>setPicker(false)}><SafeAreaView style={{flex:1,backgroundColor:colors.background}}><View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:18}}><Text style={{...copy,fontFamily:'PlayfairDisplay_700Bold',fontSize:22}}>Your club’s reads</Text><Pressable accessibilityRole="button" accessibilityLabel="Close club read picker" onPress={()=>setPicker(false)} style={{padding:8}}><Ionicons name="close" size={24} color={colors.text}/></Pressable></View><ScrollView contentContainerStyle={{padding:18}}>
+    <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>setPicker(false)}>
+      <SafeAreaProvider style={{flex:1,backgroundColor:colors.background}}><SafeAreaView edges={['top','left','right','bottom']} style={{flex:1,backgroundColor:colors.background}}><View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:18}}><Text style={{...copy,fontFamily:'PlayfairDisplay_700Bold',fontSize:22}}>Your club’s reads</Text><Pressable accessibilityRole="button" accessibilityLabel="Close club read picker" onPress={()=>setPicker(false)} hitSlop={8} style={{padding:10}}><Ionicons name="close" size={24} color={colors.text}/></Pressable></View><ScrollView contentContainerStyle={{padding:18}}>
       <Pressable accessibilityRole="button" accessibilityLabel="No discussion book" onPress={()=>{setReadId(null);setPicker(false);}} style={{paddingVertical:15}}><Text style={{...copy,color:colors.gold}}>General club conversation</Text></Pressable>
       {reads.map(read=><Pressable key={read.id} accessibilityRole="button" accessibilityLabel={`Discuss club read: ${read.book.title}`} onPress={()=>{setReadId(read.id);setPicker(false);}} style={{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:colors.border}}><BookCoverImage googleBookId={read.book.googleBookId} isbn={read.book.isbn} existingCoverUrl={read.book.coverUrl} style={{width:43,height:65,borderRadius:5}}/><View style={{flex:1}}><Text style={copy}>{displayBookTitle(read.book.title ?? '')}</Text><Text style={{...copy,color:colors.mutedText,fontSize:10,marginTop:5}}>{read.status.toUpperCase()} · {read.book.authors.join(', ')}</Text></View></Pressable>)}
       {!reads.length?<Text style={{...copy,color:colors.mutedText}}>Add books to your club’s Books tab to discuss a shared read.</Text>:null}
       {(['upcoming','past'] as const).map(scope=>more[scope]?<Pressable key={scope} disabled={pageBusy} accessibilityRole="button" accessibilityLabel={`More ${scope} discussion books`} onPress={()=>void loadMore(scope)} style={{paddingVertical:16}}><Text style={{...copy,color:colors.gold}}>More {scope} reads</Text></Pressable>:null)}
-    </ScrollView></SafeAreaView></Modal>
+    </ScrollView></SafeAreaView></SafeAreaProvider></Modal>
     <ValidationWarningSheet visible={Boolean(warning)} title="Check your discussion" message={warning} onDismiss={()=>setWarning('')}/>
   </SafeAreaView>;
 }

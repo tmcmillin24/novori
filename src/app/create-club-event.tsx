@@ -1,3 +1,4 @@
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
 import { PostAttachmentControls, RemovablePostAttachment } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams,useRouter } from 'expo-router';
@@ -12,7 +13,7 @@ import EventDateTimeField from '../components/EventDateTimeField';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import { useNovoriTheme } from '../context/theme-context';
 import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import { getNovoriSearchBookCover,getNovoriSearchBookIsbn,resolveNovoriSearchBookCover,searchNovoriBooks,type GoogleBookSearchItem } from '../lib/book-search';
+import { getNovoriSearchBookCover,getNovoriSearchBookIsbn,resolveNovoriSearchBookCover,type GoogleBookSearchItem } from '../lib/book-search';
 import { displayBookTitle } from '../lib/book-title';
 import { isUpcomingClubEvent,localClubEventFields,localClubEventInstant,type ClubEvent,type ClubEventBook } from '../lib/club-event';
 import { getClubEvent,newClubEventRequestKey,saveClubEvent } from '../lib/club-events';
@@ -38,7 +39,8 @@ export default function CreateClubEventScreen() {
   const defaults = useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(18,0,0,0);return {start:start.toISOString(),end:new Date(start.getTime()+3600000).toISOString()};},[]);
   const [start,setStart] = useState(()=>localClubEventFields(defaults.start)),[end,setEnd] = useState(()=>localClubEventFields(defaults.end));
   const [saving,setSaving] = useState(false),[warning,setWarning] = useState(''),[loadError,setLoadError] = useState('');
-  const [picker,setPicker] = useState(false),[query,setQuery] = useState(''),[results,setResults] = useState<GoogleBookSearchItem[]>([]),[searching,setSearching] = useState(false),[searchError,setSearchError] = useState('');
+  const [picker,setPicker] = useState(false),[query,setQuery] = useState('');
+  const {results,busy:searching,error:searchError,submit:submitBookSearch}=useAttachmentBookSearch(picker,query);
   const saveBusy = useRef(false),requestKey = useRef(newClubEventRequestKey()),selectionVersion = useRef(0);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   useEffect(()=>{let active=true;(async()=>{
@@ -48,9 +50,6 @@ export default function CreateClubEventScreen() {
       if (loadedEvent) {setTitle(loadedEvent.title);setDescription(loadedEvent.description);setKind(loadedEvent.kind);setLocation(loadedEvent.location??'');setMeetingUrl(loadedEvent.meeting_url??'');setBook(loadedEvent.book);setStart(localClubEventFields(loadedEvent.starts_at));setEnd(localClubEventFields(loadedEvent.ends_at));}
     } catch(error) {if(active)setLoadError((error as {message?:string})?.message||'Could not load this club.');}finally{if(active)setLoading(false);}
   })();return()=>{active=false;selectionVersion.current++;};},[clubId,eventId]);
-  useEffect(()=>{if(!picker)return;let active=true;setSearchError('');setSearching(Boolean(query.trim()));if(!query.trim()){setResults([]);return;}const timer=setTimeout(async()=>{
-    try {const books=await searchNovoriBooks(query.trim());if(active)setResults(books);}catch(error){if(active){setResults([]);setSearchError((error as {message?:string})?.message||'Could not search books.');}}finally{if(active)setSearching(false);}
-  },350);return()=>{active=false;clearTimeout(timer);};},[picker,query]);
   async function chooseBook(item:GoogleBookSearchItem) {
     const version=++selectionVersion.current;
     const selected={googleBookId:item.id,isbn:getNovoriSearchBookIsbn(item),title:item.volumeInfo.title??'Untitled',authors:item.volumeInfo.authors??[],coverUrl:getNovoriSearchBookCover(item)};
@@ -86,7 +85,7 @@ export default function CreateClubEventScreen() {
       </EditablePostCard>
     </KeyboardAwareScrollView>}
     <Modal supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} visible={picker} animationType="fade" onRequestClose={()=>setPicker(false)}><SafeAreaView style={styles.picker}><View style={styles.header}><Text style={styles.heading}>Choose a book</Text><Pressable accessibilityRole="button" accessibilityLabel="Close event book search" onPress={()=>setPicker(false)}><Ionicons name="close" size={25} color={colors.text}/></Pressable></View>
-      <TextInput accessibilityLabel="Event book search" value={query} onChangeText={setQuery} placeholder="Search title or author" placeholderTextColor={colors.mutedText} autoFocus style={[styles.input,{marginHorizontal:18}]}/>
+      <TextInput accessibilityLabel="Event book search" returnKeyType="search" onSubmitEditing={submitBookSearch} value={query} onChangeText={setQuery} placeholder="Search title or author" placeholderTextColor={colors.mutedText} autoFocus style={[styles.input,{marginHorizontal:18}]}/>
       {searching?<ActivityIndicator color={colors.gold}/>:null}{searchError?<Text style={[styles.help,{margin:18}]}>{searchError}</Text>:!searching&&query.trim()&&!results.length?<Text style={[styles.help,{margin:18}]}>No books found. Try another title or author.</Text>:null}
       <ScrollView keyboardShouldPersistTaps="handled">{results.map(item=><Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Choose book: ${item.volumeInfo.title}`} onPress={()=>void chooseBook(item)} style={styles.result}><BookCoverImage googleBookId={item.id} isbn={getNovoriSearchBookIsbn(item)} existingCoverUrl={getNovoriSearchBookCover(item)} style={styles.cover}/><View style={{flex:1}}><Text style={styles.bookTitle}>{displayBookTitle(item.volumeInfo.title ?? '')}</Text><Text style={styles.bookAuthor}>{item.volumeInfo.authors?.join(', ')}</Text><BookSearchRatings book={item}/></View></Pressable>)}</ScrollView>
     </SafeAreaView></Modal>

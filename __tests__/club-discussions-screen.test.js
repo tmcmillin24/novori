@@ -33,7 +33,7 @@ jest.mock('../src/components/BrowsingNavigation',()=>({
  useScreenBrowsingBottomBar:()=>require('react').createElement('DiscussionBottomBar'),
 }));
 jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardAvoidingView:'KeyboardAvoidingView'}));
-jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
+jest.mock('react-native-safe-area-context',()=>({SafeAreaProvider:'SafeAreaProvider',SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
 jest.mock('expo-blur',()=>({BlurView:'BlurView'}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
@@ -342,4 +342,15 @@ test('discussion book removal clears the club read without turning off spoilers'
  expect(view.root.findByType('Switch').props.value).toBe(true);
  await press('Publish club discussion');
  expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,contains_spoilers:true}),topic,'stable-discussion-request-key');
+});
+
+test('the discussion book picker owns its full-screen safe area and can close',async()=>{
+ mockParams={clubId:'club-1',discussionId:'discussion-1'};
+ await render(<CreateClubDiscussionScreen/>);
+ await press('Choose discussion club read');
+ const modal=view.root.findByType('Modal');
+ expect(modal.props.presentationStyle).toBe('fullScreen');
+ expect(modal.findByType('SafeAreaProvider').findByType('SafeAreaView').props.edges).toContain('top');
+ await press('Close club read picker');
+ expect(button('Close club read picker')).toBeUndefined();
 });
