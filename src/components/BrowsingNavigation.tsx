@@ -13,20 +13,36 @@ const ScrollVisibility = createContext<(path: string, hidden: boolean) => void>(
 export function useBrowsingNavigationScroll() {
   const path = usePathname();
   const setHidden = useContext(ScrollVisibility);
-  const position = useRef({ y: 0, distance: 0 });
-  const onScrollBeginDrag = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
-    position.current = { y: Math.max(0, event.nativeEvent.contentOffset.y), distance: 0 };
+  type ScrollEvent = { nativeEvent: {
+    contentOffset: { y: number };
+    contentSize: { height: number };
+    layoutMeasurement: { height: number };
+    contentInset?: { bottom: number };
+  } };
+  function measure({ nativeEvent: e }: ScrollEvent) {
+    const viewport = e.layoutMeasurement.height;
+    const end = Math.max(0, e.contentSize.height + (e.contentInset?.bottom ?? 0) - viewport);
+    return { y: Math.max(0, Math.min(end, e.contentOffset.y)), viewport, end };
+  }
+  const position = useRef({ y: 0, viewport: 0, end: 0, distance: 0 });
+  const onScrollBeginDrag = useCallback((event: ScrollEvent) => {
+    position.current = { ...measure(event), distance: 0 };
   }, []);
-  const onScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
-    const y = Math.max(0, event.nativeEvent.contentOffset.y);
+  const onScroll = useCallback((event: ScrollEvent) => {
+    const next = measure(event);
     const last = position.current;
-    const delta = y - last.y;
-    if (delta === 0 && y > 0) return;
+    // The bar changes the viewport height as it slides. That layout change
+    // and scroll offsets beyond the real content are not user scrolls.
+    if (Math.abs(next.viewport - last.viewport) > 0.5 || Math.abs(next.end - last.end) > 0.5) {
+      position.current = { ...next, distance: 0 };
+      return;
+    }
+    const delta = next.y - last.y;
+    if (delta === 0) return;
     let distance = Math.sign(delta) === Math.sign(last.distance) ? last.distance + delta : delta;
-    // Only reveal at the top. End-of-list bounce can report upward movement.
-    if (y <= 2) { setHidden(path, false); distance = 0; }
-    else if (y > 72 && distance >= 32) { setHidden(path, true); distance = 0; }
-    position.current = { y, distance };
+    if (next.y <= 2 || distance <= -12) { setHidden(path, false); distance = 0; }
+    else if (next.y > 72 && distance >= 32) { setHidden(path, true); distance = 0; }
+    position.current = { ...next, distance };
   }, [path, setHidden]);
   return { onScroll, onScrollBeginDrag, scrollEventThrottle: 16 };
 }
