@@ -1,4 +1,4 @@
-export type PushJob = { id: number; lease: string; state: 'sending' | 'checking'; attempts: number; ticket: string | null; token: string; recipient: string; notification: string; title: string; body: string };
+export type PushJob = { id: number; lease: string; state: 'sending' | 'checking'; attempts: number; ticket: string | null; token: string; recipient: string; notification: string; title: string; body: string | null };
 type RPC = (name: string, args?: Record<string, unknown>) => Promise<any>;
 type ExpoFetch = (url: string, init: RequestInit) => Promise<Response>;
 export async function runPushWorker(rpc: RPC, transport: ExpoFetch = fetch, accessToken?: string) {
@@ -16,7 +16,7 @@ export async function runPushWorker(rpc: RPC, transport: ExpoFetch = fetch, acce
       }
       const receipt = job.state === 'checking';
       const payload = receipt ? { ids: [job.ticket] } : {
-        to: job.token, title: job.title, body: job.body, sound: 'default', channelId: 'novori', ttl: 86400,
+        to: job.token, title: job.title, ...(job.body?.trim() && job.body.trim().toLowerCase() !== job.title.trim().toLowerCase() ? { body: job.body } : {}), sound: 'default', channelId: 'novori', ttl: 86400,
         data: { notification_id: job.notification, recipient_id: job.recipient },
       };
       requestStarted = true;
