@@ -54,6 +54,7 @@ import BookCoverImage from '../../components/BookCoverImage';
 import {
   getNovoriSearchBookCover,
   searchNovoriBooks,
+  prioritizeBookSearchProducts,
   searchNovoriBookByIsbn,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -3030,11 +3031,11 @@ export default function DiscoverScreen() {
       nextBookPage.current += 40;
       setBooks(previous => {
         const keys = new Set(previous.map(book => book.novoriWork?.key ?? book.id));
-        return [...previous, ...more.filter(book => {
+        return prioritizeBookSearchProducts([...previous, ...more.filter(book => {
           const key = book.novoriWork?.key ?? book.id;
           if (keys.has(key)) return false;
           keys.add(key); return true;
-        })];
+        })], term);
       });
       setVisibleBookCount(count => count + 10);
     } catch { /* Keep visible results; another scroll can retry the cached route. */ }
