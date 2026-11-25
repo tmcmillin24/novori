@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 export type PostComposerProfile = ComposerProfile;
 
 export default function usePostComposerProfile(previewKey?: string, clubPreview?: ComposerIdentity | null) {
-  const [initial] = useState(() => clubPreview ?? getFeedComposerPreview(previewKey));
+  const [entry] = useState(() => getFeedComposerPreview(previewKey));
+  const [initial] = useState(() => clubPreview ?? entry?.identity ?? null);
   const [profile, setProfile] = useState<PostComposerProfile | null>(initial?.profile ?? null);
 
   useEffect(() => {
@@ -16,7 +17,9 @@ export default function usePostComposerProfile(previewKey?: string, clubPreview?
         if (!active) return;
         if (user?.id !== initial?.userId) setProfile(null);
         if (!user || (initial?.userId === user.id && initial.profile)) return;
-        const next = await loadComposerProfile(user.id);
+        const warmed = await entry?.pending;
+        if (!active) return;
+        const next = warmed?.userId === user.id && warmed.profile ? warmed.profile : await loadComposerProfile(user.id);
         if (active) setProfile(next);
       } catch {
         if (active) setProfile(null);
@@ -24,6 +27,6 @@ export default function usePostComposerProfile(previewKey?: string, clubPreview?
     }
     void verifyProfile();
     return () => { active = false; };
-  }, [initial]);
+  }, [entry, initial]);
   return profile;
 }

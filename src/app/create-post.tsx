@@ -2725,7 +2725,7 @@ function createStyles(
     },
     destinationBar: {
       minHeight:
-        56,
+        64,
       flexDirection:
         'row',
       alignItems:
@@ -2820,6 +2820,7 @@ function createStyles(
     destinationCopy: {
       flex: 1,
       minWidth: 0,
+      justifyContent: 'center',
     },
     destinationEyebrow: {
       color:
@@ -2830,8 +2831,7 @@ function createStyles(
         9,
       letterSpacing:
         1.1,
-      marginBottom:
-        2,
+      lineHeight: 12,
     },
     destinationTitle: {
       color:
@@ -2840,6 +2840,7 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize:
         15,
+      lineHeight: 19,
     },
     destinationSubtitle: {
       color:
@@ -2848,8 +2849,7 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         10.5,
-      marginTop:
-        2,
+      lineHeight: 14,
     },
     destinationChevron: {
       width:

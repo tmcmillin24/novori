@@ -50,23 +50,22 @@ export default function PostScreen() {
   const router =
     useRouter();
 
-  const warmedIdentity = useRef<ReturnType<typeof loadSignedInComposerIdentity> | null>(null);
+  const previewKey = useRef<string | null>(null);
   const opening = useRef(false);
   useFocusEffect(useCallback(() => {
-    warmedIdentity.current = loadSignedInComposerIdentity().catch(() => null);
-    return () => { warmedIdentity.current = null; };
+    opening.current = false;
+    previewKey.current = prepareFeedComposerPreview(loadSignedInComposerIdentity());
+    return () => { previewKey.current = null; };
   }, []));
 
-  async function openComposer(pathname: '/create-post' | '/create-reading-update' | '/ask-readers' | '/create-book-stack') {
+  function openComposer(pathname: '/create-post' | '/create-reading-update' | '/ask-readers' | '/create-book-stack') {
     if (opening.current) return;
     opening.current = true;
-    const pending = warmedIdentity.current;
     try {
-      const identity = await (pending ?? loadSignedInComposerIdentity().catch(() => null));
-      if (warmedIdentity.current !== pending) return;
-      router.push({ pathname, params: { previewKey: identity ? prepareFeedComposerPreview(identity) : undefined } });
-    } finally {
+      router.push({ pathname, params: { previewKey: previewKey.current ?? undefined } });
+    } catch (error) {
       opening.current = false;
+      throw error;
     }
   }
 
@@ -169,7 +168,7 @@ export default function PostScreen() {
             accessibilityLabel="Post"
             ref={postTarget.ref} onLayout={event=>{postTarget.onLayout();recordPosition('create-post',event.nativeEvent.layout.y);}}
             accessibilityHint="Create a new social post."
-            onPress={() => void openComposer('/create-post')}
+            onPress={() => openComposer('/create-post')}
             style={({ pressed }) => [
               styles.featureCard,
               pressed &&
@@ -259,7 +258,7 @@ export default function PostScreen() {
             accessibilityLabel="Reading Update"
               ref={readingTarget.ref} onLayout={event=>{readingTarget.onLayout();recordPosition('create-reading-update',event.nativeEvent.layout.y);}}
             accessibilityHint="Share your reading progress."
-            onPress={() => void openComposer('/create-reading-update')}
+            onPress={() => openComposer('/create-reading-update')}
             style={({ pressed }) => [
               styles.readingCard,
               pressed &&
@@ -416,7 +415,7 @@ export default function PostScreen() {
               accessibilityLabel="Ask Readers"
               ref={askTarget.ref} onLayout={event=>{askTarget.onLayout();recordPosition('create-ask-readers',event.nativeEvent.layout.y);}}
               accessibilityHint="Ask readers a question."
-              onPress={() => void openComposer('/ask-readers')}
+              onPress={() => openComposer('/ask-readers')}
               style={({ pressed }) => [
                 styles.smallCard,
                 styles.askReadersCard,
@@ -515,7 +514,7 @@ export default function PostScreen() {
               accessibilityLabel="Book Stack"
               ref={stackTarget.ref} onLayout={event=>{stackTarget.onLayout();recordPosition('create-book-stack',event.nativeEvent.layout.y);}}
               accessibilityHint="Build and save a book stack."
-              onPress={() => void openComposer('/create-book-stack')}
+              onPress={() => openComposer('/create-book-stack')}
               style={({ pressed }) => [
                 styles.smallCard,
                 styles.stackCard,

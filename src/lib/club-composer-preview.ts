@@ -46,7 +46,8 @@ export function getClubComposerPreview(key: string | undefined, clubId: string) 
 }
 
 export type ComposerIdentity = { userId: string; profile: ComposerProfile | null };
-let feedPreview: { key: string; identity: ComposerIdentity } | null = null;
+type FeedPreview = { key: string; identity: ComposerIdentity | null; pending: Promise<ComposerIdentity | null> };
+let feedPreview: FeedPreview | null = null;
 
 export async function loadSignedInComposerIdentity(): Promise<ComposerIdentity | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -54,12 +55,13 @@ export async function loadSignedInComposerIdentity(): Promise<ComposerIdentity |
   return { userId: user.id, profile: await loadComposerProfile(user.id) };
 }
 
-export function prepareFeedComposerPreview(identity: ComposerIdentity) {
-  const key = String(++sequence);
-  feedPreview = { key, identity };
-  return key;
+export function prepareFeedComposerPreview(request: Promise<ComposerIdentity | null>) {
+  const entry: FeedPreview = { key: String(++sequence), identity: null, pending: request.catch(() => null) };
+  feedPreview = entry;
+  void entry.pending.then(identity => { entry.identity = identity; });
+  return entry.key;
 }
 
 export function getFeedComposerPreview(key?: string) {
-  return feedPreview && feedPreview.key === key ? feedPreview.identity : null;
+  return feedPreview && feedPreview.key === key ? feedPreview : null;
 }

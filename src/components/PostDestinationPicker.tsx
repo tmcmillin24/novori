@@ -106,13 +106,13 @@ export default function PostDestinationPicker({
 function createStyles(colors: NovoriColors) {
   return StyleSheet.create({
     container: { marginBottom: 14 },
-    bar: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    bar: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
     barOpen: { borderBottomColor: colors.gold },
     image: { marginRight: 11 },
-    copy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: colors.mutedText, fontFamily: 'Inter_700Bold', fontSize: 9, letterSpacing: 1.1, marginBottom: 2 },
-    title: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-    subtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, marginTop: 2 },
+    copy: { flex: 1, minWidth: 0, justifyContent: 'center' },
+    eyebrow: { color: colors.mutedText, fontFamily: 'Inter_700Bold', fontSize: 9, lineHeight: 12, letterSpacing: 1.1 },
+    title: { color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 15, lineHeight: 19 },
+    subtitle: { color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 10.5, lineHeight: 14 },
     chevron: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated },
     dropdown: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: 4 },
     option: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, borderRadius: 14 },
