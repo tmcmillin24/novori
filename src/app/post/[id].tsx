@@ -1145,7 +1145,9 @@ export default function PostDetailScreen() {
               </Pressable>
             </View>
 
-            <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+            <View style={post.is_club_announcement ? styles.announcementLabelSpacing : undefined}>
+              <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+            </View>
 
             {postSpoilersHidden ? <PostSpoilerNotice onReveal={revealPostSpoilers}/> : post.post_type ===
                 'question' ? ((() => {
@@ -1664,6 +1666,7 @@ function createStyles(colors: NovoriColors) {
             borderRadius: 18,
             padding: 15,
         },
+        announcementLabelSpacing: { marginTop: 8 },
         postHeader: {
             flexDirection: 'row',
             alignItems: 'flex-start',
