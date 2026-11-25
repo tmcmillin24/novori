@@ -74,7 +74,7 @@ const text=()=>view.root.findAllByType('Text').map(n=>[n.props.children].flat(In
 test('member fills the discussion card directly and posts with the stored club read',async()=>{
  await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Our reading chat');await fill('Discussion prompt','What did you think?');await press('Publish club discussion');
  expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:'read-1',kind:'discussion',title:'Our reading chat',prompt:'What did you think?'}),undefined,'stable-discussion-request-key');
- expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType(ClubDiscussionPostAttachment).findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).toContain('Post preview');
+ expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType(ClubDiscussionPostAttachment).findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).not.toContain('Post preview');
 });
 test('poll editor embeds choices and spoiler limit; save errors retain the whole draft',async()=>{
  mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await press('Discussion contains spoilers');await fill('Discussion spoiler limit','Through chapter 5');await press('Publish club discussion');
@@ -292,11 +292,13 @@ test('discussion Edit and Delete live in the standalone post menu, and deletion 
  expect(deletePost).toHaveBeenCalledWith('post-1');expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test.each([false,true])('create and edit share the live discussion card (editing: %s)',async editing=>{
+test.each([false,true])('create and edit put the fields inside one discussion card (editing: %s)',async editing=>{
  mockParams={clubId:'club-1',...(editing?{discussionId:'discussion-1'}:{})};
  await render(<CreateClubDiscussionScreen/>);
  const preview=()=>view.root.findByType(ClubDiscussionPostAttachment);
  expect(preview().props).toMatchObject({detail:true,draft:true,revealed:true});
+ expect(preview().findAllByType('TextInput').some(input=>input.props.accessibilityLabel==='Discussion title')).toBe(true);
+ expect(text()).not.toContain('Post preview');
  if(editing) expect(preview().props.discussion.title).toBe(topic.title);
  await fill('Discussion title','A new chapter');
  await fill('Discussion prompt','What did you think?');
