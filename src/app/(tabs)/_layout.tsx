@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { syncFeedComposerPreview } from '../../lib/club-composer-preview';
+import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import type {ComponentPropsWithoutRef} from 'react';
 import { Tabs } from 'expo-router';
@@ -7,6 +10,21 @@ import { useNovoriTheme } from '../../context/theme-context';
 import {useTutorial,useTutorialTarget} from '../../context/tutorial-context';
 
 export default function TabLayout() {
+  useEffect(() => {
+    let active = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Supabase calls this synchronously: schedule the profile read after it returns.
+      setTimeout(() => {
+        if (active) syncFeedComposerPreview(session?.user?.id ?? null);
+      }, 0);
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      syncFeedComposerPreview(null);
+    };
+  }, []);
+
   const tutorial=useTutorial();
   const createTarget=useTutorialTarget('tab-create',27);
   const {

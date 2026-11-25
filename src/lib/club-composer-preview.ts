@@ -65,3 +65,18 @@ export function prepareFeedComposerPreview(request: Promise<ComposerIdentity | n
 export function getFeedComposerPreview(key?: string) {
   return feedPreview && feedPreview.key === key ? feedPreview : null;
 }
+
+// Keep one warm entry for the active account across visits to the Create tab.
+let warmUserId: string | null = null;
+export function syncFeedComposerPreview(userId: string | null) {
+  if (userId === warmUserId) return;
+  warmUserId = userId;
+  feedPreview = null;
+  if (userId) {
+    prepareFeedComposerPreview(loadComposerProfile(userId).then(profile => ({ userId, profile })));
+  }
+}
+
+export function currentFeedComposerPreviewKey() {
+  return feedPreview?.key ?? prepareFeedComposerPreview(loadSignedInComposerIdentity());
+}

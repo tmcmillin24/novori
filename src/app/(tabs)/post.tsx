@@ -1,4 +1,4 @@
-import { loadSignedInComposerIdentity, prepareFeedComposerPreview } from '../../lib/club-composer-preview';
+import { currentFeedComposerPreviewKey } from '../../lib/club-composer-preview';
 import { Ionicons } from '@expo/vector-icons';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {tutorialRevealOffset} from '../../lib/tutorial';
@@ -50,19 +50,17 @@ export default function PostScreen() {
   const router =
     useRouter();
 
-  const previewKey = useRef<string | null>(null);
   const opening = useRef(false);
   useFocusEffect(useCallback(() => {
     opening.current = false;
-    previewKey.current = prepareFeedComposerPreview(loadSignedInComposerIdentity());
-    return () => { previewKey.current = null; };
+    currentFeedComposerPreviewKey();
   }, []));
 
   function openComposer(pathname: '/create-post' | '/create-reading-update' | '/ask-readers' | '/create-book-stack') {
     if (opening.current) return;
     opening.current = true;
     try {
-      router.push({ pathname, params: { previewKey: previewKey.current ?? undefined } });
+      router.push({ pathname, params: { previewKey: currentFeedComposerPreviewKey() } });
     } catch (error) {
       opening.current = false;
       throw error;
