@@ -366,6 +366,15 @@ export default function CreatePostScreen() {
     let active =
       true;
 
+    const authRequest = supabase.auth.getUser();
+    // The preview identity doesn't depend on the club list or edit payload.
+    void authRequest.then(async ({ data: { user } }) => {
+      if (!active || !user) return;
+      const { data, error } = await supabase.from('profiles')
+        .select('display_name, username, avatar_url').eq('id', user.id).single();
+      if (active && !error) setViewerProfile(data);
+    }).catch(() => {});
+
     async function load() {
       try {
         const [
@@ -382,7 +391,7 @@ export default function CreatePostScreen() {
               : Promise.resolve(
                   null
                 ),
-            supabase.auth.getUser(),
+            authRequest,
           ]);
 
         if (
@@ -397,38 +406,6 @@ export default function CreatePostScreen() {
 
         const user =
           authResult.data.user;
-
-        if (
-          user
-        ) {
-          const {
-            data:
-              profileData,
-            error:
-              profileError,
-          } =
-            await supabase
-              .from(
-                'profiles'
-              )
-              .select(
-                'display_name, username, avatar_url'
-              )
-              .eq(
-                'id',
-                user.id
-              )
-              .single();
-
-          if (
-            !profileError &&
-            active
-          ) {
-            setViewerProfile(
-              profileData
-            );
-          }
-        }
 
         if (
           editingPost
@@ -1264,8 +1241,11 @@ export default function CreatePostScreen() {
               ]}
             >
               {!profileSelected ? (
-                <View style={styles.clubAvatarFallback}>
-                  <Ionicons name="people-outline" size={20} color={colors.gold}/>
+                <View style={styles.clubDestinationMedia}>
+                  {selectedClub?.cover_url ? (
+                    <CachedMediaImage source={{ uri: moderationMediaUrl(selectedClub.cover_url) }}
+                      style={styles.clubDestinationImage}/>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -1539,12 +1519,9 @@ export default function CreatePostScreen() {
                   />
                 ) : (
                   <View
-                    style={
-                      styles.feedPreviewAvatarFallback
-                    }
+                    style={viewerProfile ? styles.feedPreviewAvatarFallback : styles.previewAvatarSpace}
                   >
-                    {profileInitial ? <Text style={styles.feedPreviewAvatarText}>{profileInitial}</Text>
-                      : <Ionicons name="person-outline" size={19} color={colors.mutedText}/>}
+                    {viewerProfile && profileInitial ? <Text style={styles.feedPreviewAvatarText}>{profileInitial}</Text> : null}
 
                   </View>
                 )}
@@ -1560,7 +1537,7 @@ export default function CreatePostScreen() {
                     }
                   >
                     {profileName ? <Text style={styles.feedPreviewAuthorName} numberOfLines={1}>{profileName}</Text>
-                      : <View style={{ width: 86, height: 10, borderRadius: 5, backgroundColor: colors.border, marginVertical: 4 }} />}
+                      : null}
 
                     {viewerProfile
                       ?.username
@@ -1596,22 +1573,7 @@ export default function CreatePostScreen() {
                         · now
                       </Text>
                     </Text>
-                  ) : (
-                    <Text
-                      style={
-                        styles.feedPreviewAudienceText
-                      }
-                    >
-                      posted to their profile{' '}
-                      <Text
-                        style={
-                          styles.feedPreviewTime
-                        }
-                      >
-                        · now
-                      </Text>
-                    </Text>
-                  )}
+                  ) : null}
                 </View>
 
                 <Ionicons
@@ -2803,6 +2765,8 @@ function createStyles(
       marginRight:
         11,
     },
+    clubDestinationMedia: { width: 42, height: 42, marginRight: 11 },
+    clubDestinationImage: { width: 42, height: 42, borderRadius: 13 },
     clubDestinationAvatar: {
       borderRadius:
         13,
@@ -3345,6 +3309,7 @@ function createStyles(
       paddingTop:
         15,
     },
+    previewAvatarSpace: { width: 46, height: 46, marginRight: 12 },
     feedPreviewAvatar: {
       width:
         46,
