@@ -99,6 +99,11 @@ export default function ClubDetailScreen() {
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [clubPosts, setClubPosts] = useState<FeedPost[]>([]);
     const [loading, setLoading] = useState(true);
+    const [postsStatus, setPostsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [eventsLoading, setEventsLoading] = useState(true);
+    const [membersLoading, setMembersLoading] = useState(true);
+    const [accessLoading, setAccessLoading] = useState(true);
+    const clubLoadSequence = useRef(0);
     const [refreshing, setRefreshing] = useState(false);
     const [membershipLoading, setMembershipLoading] = useState(false);
     const [leaveConfirmVisible, setLeaveConfirmVisible,] = useState(false);
@@ -207,73 +212,116 @@ export default function ClubDetailScreen() {
     const visiblePinnedPosts = pinnedPosts.filter(post => !post.club_event || isUpcomingClubEvent(post.club_event, eventNow));
     const nextEvent = upcomingEvents.find(event => isUpcomingClubEvent(event, eventNow));
     const loadClub = useCallback(async () => {
+        const request = ++clubLoadSequence.current;
         const mutationAtStart = getPostMutationVersion();
         const experienceRequest = ++experienceVersion.current;
+        const isCurrent = () => experienceMounted.current && pinClubIdRef.current === clubId && request === clubLoadSequence.current;
         if (!clubId) {
             setError('This club could not be found.');
             setLoading(false);
             return;
         }
+        const authRequest = supabase.auth.getUser().catch(() => null);
         try {
             setError('');
-            const [authResult, clubData] = await Promise.all([supabase.auth.getUser(), getClub(clubId)]);
-            setCurrentUserId(authResult.data.user?.id ?? null);
-            const userId = authResult.data.user?.id;
-            if (userId && clubData.membership_role) {
-                composerWarm.current = {
-                    userId,
-                    clubId: clubData.id,
-                    profile: loadComposerProfile(userId).catch(() => null),
-                    cover: warmComposerImage(clubData.cover_url).catch(() => {}),
-                };
+            if (loadedClub.current?.id !== clubId) {
+                setClubPosts([]);
+                setPinnedPosts([]);
+                setMembers([]);
+                setUpcomingEvents([]);
+                setPendingInvite(null);
+                setPendingJoinRequest(null);
+                setManagerInvites([]);
+                setManagerJoinRequests([]);
+                setPostsStatus('loading');
+                setMembersLoading(true);
+                setEventsLoading(true);
+                setAccessLoading(true);
             }
-            const canReadPrivateContent = clubData.privacy === 'public' || Boolean(clubData.membership_role);
-            const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';
-            const [pendingInviteData, pendingJoinRequestData, experienceData, memberData, conversation, eventData, outgoingInvites, joinRequests] = await Promise.all([
-                getPendingClubInvite(clubId),
-                getPendingPrivateClubRequest(clubId),
-                clubData.membership_role ? getClubMemberExperience(clubId).catch(error => {
-                    if (experienceMounted.current && experienceRequest === experienceVersion.current)
-                        setExperienceWarning(error?.message || 'Could not load your club preferences.');
-                    return null;
-                }) : Promise.resolve(null),
-                canReadPrivateContent ? getClubMembers(clubId) : Promise.resolve([]),
-                canReadPrivateContent ? getClubConversation(clubId) : Promise.resolve({ posts: [], pinnedPosts: [] }),
-                canReadPrivateContent ? getClubEvents(clubId) : Promise.resolve([]),
-                manager ? getPendingClubInvitesForManager(clubId) : Promise.resolve([]),
-                manager ? getPendingClubJoinRequestsForManager(clubId) : Promise.resolve([]),
-            ]);
-            const postData = conversation.posts;
-            const pinnedData = conversation.pinnedPosts;
+            const clubData = await getClub(clubId);
+            if (!isCurrent()) return;
             setClub(clubData);
-            if (experienceMounted.current && experienceRequest === experienceVersion.current) {
-                setMemberExperience(experienceData);
-                setWelcomeOpen(Boolean(experienceData && (!experienceData.welcome_seen_at || ((params as {
-                    guide?: string;
-                }).guide === '1' && !requestedGuideShown.current))));
-                requestedGuideShown.current = true;
+            setLoading(false);
+
+            const canRead = clubData.privacy === 'public' || Boolean(clubData.membership_role);
+            const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';
+            let failed = false;
+            async function section<T>(label: string, promise: Promise<T>, apply: (data: T) => void, onError?: () => void) {
+                try {
+                    const data = await promise;
+                    if (isCurrent()) apply(data);
+                } catch (error) {
+                    failed = true;
+                    if (isCurrent()) {
+                        console.warn(`Could not load club ${label}:`, error);
+                        onError?.();
+                    }
+                }
             }
-            setMembers(memberData);
-            setClubPosts(postData);
-            setPinnedPosts(pinnedData);
-            setUpcomingEvents(current => JSON.stringify(current) === JSON.stringify(eventData) ? current : eventData);
+            void authRequest.then(auth => {
+                if (!isCurrent()) return;
+                const userId = auth?.data.user?.id ?? null;
+                setCurrentUserId(userId);
+                if (userId && clubData.membership_role && (composerWarm.current?.clubId !== clubId || composerWarm.current.userId !== userId)) {
+                    composerWarm.current = {
+                        userId,
+                        clubId,
+                        profile: loadComposerProfile(userId).catch(() => null),
+                        cover: warmComposerImage(clubData.cover_url).catch(() => {}),
+                    };
+                }
+            });
+
+            const access = clubData.membership_role ? [] : [
+                section('invitation', getPendingClubInvite(clubId), setPendingInvite),
+                section('access request', getPendingPrivateClubRequest(clubId), setPendingJoinRequest),
+            ];
+            const management = manager ? [
+                section('sent invitations', getPendingClubInvitesForManager(clubId), setManagerInvites),
+                section('join requests', getPendingClubJoinRequestsForManager(clubId), setManagerJoinRequests),
+            ] : [];
+            const content = canRead ? [
+                section('conversation', getClubConversation(clubId), conversation => {
+                    if (getPostMutationVersion() !== mutationAtStart) {
+                        failed = true;
+                        setPostsStatus(current => current === 'loading' ? 'error' : current);
+                        return;
+                    }
+                    setClubPosts(conversation.posts);
+                    setPinnedPosts(conversation.pinnedPosts);
+                    setPostsStatus('ready');
+                }, () => setPostsStatus(current => current === 'ready' ? current : 'error')),
+                section('events', getClubEvents(clubId), events => {
+                    setUpcomingEvents(current => JSON.stringify(current) === JSON.stringify(events) ? current : events);
+                }).finally(() => { if (isCurrent()) setEventsLoading(false); }),
+                section('members', getClubMembers(clubId), setMembers).finally(() => {
+                    if (isCurrent()) setMembersLoading(false);
+                }),
+            ] : [];
+            const experience = clubData.membership_role ? [
+                section('preferences', getClubMemberExperience(clubId), data => {
+                    if (experienceRequest !== experienceVersion.current) return;
+                    setMemberExperience(data);
+                    setWelcomeOpen(Boolean(data && (!data.welcome_seen_at || ((params as { guide?: string }).guide === '1' && !requestedGuideShown.current))));
+                    requestedGuideShown.current = true;
+                }, () => {
+                    if (experienceRequest === experienceVersion.current) setExperienceWarning('Could not load your club preferences.');
+                }),
+            ] : [];
+            await Promise.all([
+                ...content, ...management, ...experience,
+                Promise.all(access).then(() => { if (isCurrent()) setAccessLoading(false); }),
+            ]);
+            if (!isCurrent()) return;
             setBooksRefreshVersion(version => version + 1);
-            setPendingInvite(pendingInviteData);
-            setPendingJoinRequest(pendingJoinRequestData);
-            setManagerInvites(outgoingInvites);
-            setManagerJoinRequests(joinRequests);
-            loadedClub.current = { id: clubId, version: mutationAtStart };
-        }
-        catch (loadError) {
-            console.error('Could not load club:', loadError);
+            if (!failed) loadedClub.current = { id: clubId, version: mutationAtStart };
+        } catch (loadError) {
+            if (!isCurrent()) return;
+            console.warn('Could not load club:', loadError);
             setError('This club is unavailable or private.');
-        }
-        finally {
             setLoading(false);
         }
-    }, [clubId, (params as {
-            guide?: string;
-        }).guide]);
+    }, [clubId, (params as { guide?: string }).guide]);
     const loadedClub = useRef<{ id: string; version: number } | null>(null);
     useFocusEffect(useCallback(() => {
         const unchanged = loadedClub.current?.id === clubId && loadedClub.current.version === getPostMutationVersion();
@@ -1473,7 +1521,7 @@ export default function ClubDetailScreen() {
             }
             setRemoveMemberConfirmTarget(null);
         } });
-    if (loading) {
+    if (loading || (club && club.id !== clubId && !error)) {
         return (<SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.centered}>
           <ActivityIndicator size="small" color={colors.gold}/>
@@ -1762,7 +1810,7 @@ export default function ClubDetailScreen() {
             </View>
           </View>) : null}
 
-        {isMember ? null : pendingInvite ? (null) : club.privacy ===
+        {isMember || accessLoading ? null : pendingInvite ? (null) : club.privacy ===
             'private' ? (<Pressable disabled={joinRequestLoading} onPress={pendingJoinRequest
                 ? handleCancelAccessRequest
                 : handleRequestAccess} style={({ pressed }) => [
@@ -1892,7 +1940,7 @@ export default function ClubDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          {ownerMember ? <>
+          {membersLoading && !ownerMember ? <ActivityIndicator color={colors.gold} style={{ padding: 16 }}/> : ownerMember ? <>
             <ScrollView accessibilityLabel="Club members" nestedScrollEnabled directionalLockEnabled scrollEnabled={members.length > 5} showsVerticalScrollIndicator={members.length > 5} bounces={false} keyboardShouldPersistTaps="handled" style={members.length > 5 ? styles.membersScroll : undefined}>
               {[ownerMember, ...otherMembers].map((member, index) => <View key={member.user_id}>
                 {index ? <View style={styles.rowDivider}/> : null}
@@ -1913,7 +1961,7 @@ export default function ClubDetailScreen() {
           <View style={clubTab !== 'books' ? styles.hiddenClubTab : undefined}><ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/></View>
         ) : null}
         {(clubTab === 'events' || (visitedTabs.clubId === club.id && visitedTabs.events)) ? (
-          <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}><ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/></View>
+          <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}>{eventsLoading ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/> : <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/>}</View>
         ) : null}
         <View style={clubTab !== 'posts' ? styles.hiddenClubTab : undefined}>
         <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
@@ -1928,7 +1976,11 @@ export default function ClubDetailScreen() {
           </Text>
         </View>
 
-        {clubPosts.length > 0 ? (<View style={styles.postList}>
+        {postsStatus === 'loading' ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/>
+        : postsStatus === 'error' ? <Pressable accessibilityRole="button" onPress={() => void refreshClub()} style={styles.activityPlaceholder}>
+            <Text style={styles.activityText}>Couldn’t load club posts. Tap to retry.</Text>
+          </Pressable>
+        : clubPosts.length > 0 ? (<View style={styles.postList}>
             {clubPosts.map(renderClubPost)}
           </View>) : (<View style={styles.activityPlaceholder}>
             <Ionicons name="chatbubbles-outline" size={27} color={colors.gold}/>
