@@ -1,3 +1,4 @@
+import { currentFeedComposerPreviewKey } from '../../lib/club-composer-preview';
 import { useNotificationAttention } from '../../lib/use-notification-attention';
 import { applyCommentDeletion } from '../../lib/comment-deletion';
 import CachedMediaImage from '../../components/CachedMediaImage';
@@ -1829,7 +1830,7 @@ export default function HomeScreen() {
             Posts from readers you follow and clubs you’ve joined will appear here. You can also make the first post yourself.
           </Text>
 
-          <Pressable onPress={() => router.push('/create-post')} style={({ pressed }) => [
+          <Pressable onPress={() => router.push({ pathname: '/create-post', params: { previewKey: currentFeedComposerPreviewKey() } })} style={({ pressed }) => [
                     styles.feedActionButton,
                     pressed &&
                         styles.pressed
@@ -1854,7 +1855,7 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <Pressable onPress={() => router.push('/create-post')} style={({ pressed }) => [
+          <Pressable onPress={() => router.push({ pathname: '/create-post', params: { previewKey: currentFeedComposerPreviewKey() } })} style={({ pressed }) => [
                 styles.feedComposeButton,
                 pressed &&
                     styles.pressed
