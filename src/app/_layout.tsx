@@ -76,6 +76,7 @@ function AppNavigator() {
           },
         }}
       >
+        <Stack.Screen name="post/[id]" options={{animation:'default', keyboardHandlingEnabled:true}}/>
         <Stack.Screen name="post/[id]/conversation" options={{animation:'none',presentation:'card'}}/>
       </Stack></TutorialBackground></BrowsingNavigation>
       <PushNotificationDeviceSync />

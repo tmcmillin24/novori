@@ -243,7 +243,13 @@ export default function PostDetailScreen() {
     }, [postId]);
     useFocusEffect(useCallback(() => {
         void loadData(true);
-        return () => { loadSequence.current += 1; };
+        return () => {
+            loadSequence.current += 1;
+            // Only release this route's input. A late global dismiss can
+            // interrupt the next screen's keyboard if the reader reopens quickly.
+            const input = commentInputRef.current;
+            if (input?.isFocused()) input.blur();
+        };
     }, [loadData]));
     useEffect(() => {
         if (!targetCommentId ||
@@ -1018,7 +1024,7 @@ export default function PostDetailScreen() {
         !submitting && Boolean(!focusedThreadId || replyTo || editingComment);
     return (<SafeAreaView onLayout={() => conversationDestinationLaidOut(postId, requestedThreadId || targetCommentId)} style={styles.safeArea} edges={bottomInsetCovered ? ['top'] : ['top', 'bottom']}>
       <View style={[styles.header, focusedThreadId && styles.conversationHeader]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={() => { commentInputRef.current?.blur(); router.back(); }} hitSlop={10} style={({ pressed }) => [
             styles.headerButton,
             focusedThreadId && styles.focusedHeaderBack,
             pressed &&
