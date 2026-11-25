@@ -1401,103 +1401,36 @@ export default function HomeScreen() {
           </Pressable>) : null}
       </View>);
     }
-    function renderClubCard(club: ClubWithMembership, compact = false) {
-        const initial = club.name
-            .charAt(0)
-            .toUpperCase();
-        return (<Pressable key={club.id} onPress={() => openClub(club.id)} style={({ pressed }) => [
-                compact
-                    ? styles.compactClubCard
-                    : styles.clubCard,
-                pressed &&
-                    styles.pressed
+    function renderClubCard(club: ClubWithMembership, compact = false, separated = false) {
+        const role = club.membership_role === 'owner' ? 'Owner' : club.membership_role === 'admin' ? 'Admin' : club.membership_role ? 'Member' : null;
+        const count = club.member_count.toLocaleString();
+        const genre = club.genres?.[0];
+        return (
+          <Pressable key={club.id} accessibilityRole="button" accessibilityLabel={`Open ${club.name}`}
+            onPress={() => openClub(club.id)} style={({ pressed }) => [
+              styles.clubCard, compact && styles.compactClubCard, separated && styles.clubRowDivider, pressed && styles.pressed,
             ]}>
-        {club.cover_url ? (<CachedMediaImage source={{
-                    uri: moderationMediaUrl(club.cover_url),
-                }} style={compact
-                    ? styles.compactClubImage
-                    : styles.clubImage}/>) : (<View style={compact
-                    ? styles.compactClubImageFallback
-                    : styles.clubImageFallback}>
-            <Text style={compact
-                    ? styles.compactClubInitial
-                    : styles.clubInitial}>
-              {initial}
-            </Text>
-          </View>)}
-
-        <View style={styles.clubCardCopy}>
-          <View style={styles.clubMetaRow}>
-            <Ionicons name={club.privacy ===
-                'public'
-                ? 'earth-outline'
-                : 'lock-closed-outline'} size={12} color={colors.softGold}/>
-
-            <Text style={styles.clubMetaText}>
-              {club.privacy ===
-                'public'
-                ? 'Public'
-                : 'Private'}
-            </Text>
-
-            <Text style={styles.clubMetaDot}>
-              •
-            </Text>
-
-            <Text style={styles.clubMetaText}>
-              {club.member_count}{' '}
-              {club.member_count ===
-                1
-                ? 'member'
-                : 'members'}
-            </Text>
-          </View>
-
-          <Text style={styles.clubName} numberOfLines={1}>
-            {club.name}
-          </Text>
-
-          {!compact &&
-                club.description ? (<Text style={styles.clubDescription} numberOfLines={2}>
-              {club.description}
-            </Text>) : null}
-
-          {club.genres?.length ? (<View style={styles.clubGenreRow}>
-              {club.genres
-                    .slice(0, compact
-                    ? 1
-                    : 2)
-                    .map((genre) => (<View key={genre} style={styles.clubGenreBadge}>
-                      <Text style={styles.clubGenreBadgeText}>
-                        {getClubGenreLabel(genre)}
-                      </Text>
-                    </View>))}
-
-              {club.genres.length >
-                    (compact ? 1 : 2) ? (<Text style={styles.clubGenreMore}>
-                  +
-                  {club.genres.length -
-                        (compact
-                            ? 1
-                            : 2)}
-                </Text>) : null}
-            </View>) : null}
-
-          {club.membership_role ? (<View style={styles.membershipBadge}>
-              <Text style={styles.membershipBadgeText}>
-                {club.membership_role ===
-                    'owner'
-                    ? 'Owner'
-                    : club.membership_role ===
-                        'admin'
-                        ? 'Admin'
-                        : 'Member'}
-              </Text>
-            </View>) : null}
-        </View>
-
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
-      </Pressable>);
+            {club.cover_url ? <CachedMediaImage source={{ uri: moderationMediaUrl(club.cover_url) }}
+              style={[styles.clubImage, compact && styles.compactClubImage]}/> : (
+              <View style={[styles.clubImage, compact && styles.compactClubImage, styles.clubImageFallback]}>
+                <Text style={styles.clubInitial}>{club.name.trim().charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={styles.clubCardCopy}>
+              <Text style={styles.clubName} numberOfLines={2}>{club.name}</Text>
+              <View style={styles.clubMetaRow}>
+                <Ionicons name={club.privacy === 'public' ? 'earth-outline' : 'lock-closed-outline'} size={12} color={colors.mutedText}/>
+                <Text style={styles.clubMetaText}>{club.privacy === 'public' ? 'Public' : 'Private'} · {count} {club.member_count === 1 ? 'member' : 'members'}</Text>
+                {role ? <Text style={styles.clubRoleText}>· {role}</Text> : null}
+              </View>
+              {!compact && club.description?.trim() ? <Text style={styles.clubDescription} numberOfLines={2}>{club.description}</Text> : null}
+              {!compact && genre ? <Text style={styles.clubGenreText} numberOfLines={1}>
+                {getClubGenreLabel(genre)}{club.genres.length > 1 ? ` +${club.genres.length - 1}` : ''}
+              </Text> : null}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
+          </Pressable>
+        );
     }
     async function alwaysShowExplicitLanguage() {
         try {
@@ -1872,11 +1805,6 @@ export default function HomeScreen() {
       </View>);
     }
     function renderClubs() {
-        if (clubsLoading) {
-            return (<View style={styles.clubsLoading}>
-          <ActivityIndicator size="small" color={colors.gold}/>
-        </View>);
-        }
         const isSearching = Boolean(clubSearch.trim());
         const filteredDiscoverClubs = activeClubGenre ===
             'all'
@@ -1886,9 +1814,9 @@ export default function HomeScreen() {
         <View style={styles.clubSearchWrap}>
           <Ionicons name="search-outline" size={19} color={colors.mutedText}/>
 
-          <TextInput value={clubSearch} onChangeText={setClubSearch} placeholder="Search clubs by name or ID" placeholderTextColor={colors.mutedText} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.clubSearchInput}/>
+          <TextInput value={clubSearch} onChangeText={setClubSearch} accessibilityLabel="Search clubs by name or ID" placeholder="Search clubs" placeholderTextColor={colors.mutedText} autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.clubSearchInput}/>
 
-          {clubSearchLoading ? (<ActivityIndicator size="small" color={colors.gold}/>) : clubSearch ? (<Pressable onPress={() => setClubSearch('')} hitSlop={8} style={({ pressed, }) => [
+          {clubSearch ? (<Pressable accessibilityRole="button" accessibilityLabel="Clear club search" onPress={() => setClubSearch('')} hitSlop={8} style={({ pressed, }) => [
                     styles.clubSearchClear,
                     pressed &&
                         styles.pressed
@@ -1896,10 +1824,6 @@ export default function HomeScreen() {
               <Ionicons name="close-circle" size={19} color={colors.mutedText}/>
             </Pressable>) : null}
         </View>
-
-        <Text style={styles.clubSearchHint}>
-          Search public clubs by name. Exact club IDs also work.
-        </Text>
 
         {isSearching ? (<View>
             <View style={styles.searchResultsHeader}>
@@ -1931,7 +1855,7 @@ export default function HomeScreen() {
                 <ActivityIndicator size="small" color={colors.gold}/>
               </View>) : clubSearchResults.length >
                     0 ? (<View style={styles.clubList}>
-                {clubSearchResults.map((club) => renderClubCard(club))}
+                {clubSearchResults.map((club, index) => renderClubCard(club, false, index > 0))}
               </View>) : (<View style={styles.searchEmpty}>
                 <Ionicons name="search-outline" size={25} color={colors.mutedText}/>
 
@@ -1943,7 +1867,9 @@ export default function HomeScreen() {
                   Try a different club name or paste an exact club ID.
                 </Text>
               </View>)}
-          </View>) : (<>
+          </View>) : clubsLoading && !myClubs.length && !discoverClubs.length ? (
+            <View style={styles.clubsLoading}><ActivityIndicator size="small" color={colors.gold}/></View>
+          ) : (<>
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>
@@ -1951,11 +1877,11 @@ export default function HomeScreen() {
             </Text>
 
             <Text style={styles.sectionSubtitle}>
-              Communities you’ve joined or created.
+              {myClubs.length ? `${myClubs.length} ${myClubs.length === 1 ? 'club' : 'clubs'}` : 'Find your next reading group'}
             </Text>
           </View>
 
-          <Pressable onPress={() => router.push('/create-club')} style={({ pressed }) => [
+          <Pressable accessibilityRole="button" accessibilityLabel="Create a club" onPress={() => router.push('/create-club')} style={({ pressed }) => [
                     styles.createClubButton,
                     pressed &&
                         styles.pressed
@@ -1970,28 +1896,14 @@ export default function HomeScreen() {
 
         {myClubs.length >
                     0 ? (<View style={styles.clubList}>
-            {myClubs.map((club) => renderClubCard(club, true))}
-          </View>) : (<Pressable onPress={() => router.push('/create-club')} style={({ pressed }) => [
-                        styles.emptyClubsCard,
-                        pressed &&
-                            styles.pressed
-                    ]}>
-            <View style={styles.emptyClubsIcon}>
-              <Ionicons name="people-outline" size={24} color={colors.gold}/>
-            </View>
-
+            {myClubs.map((club, index) => renderClubCard(club, true, index > 0))}
+          </View>) : (<View style={styles.emptyClubsCard}>
+            <View style={styles.emptyClubsIcon}><Ionicons name="people-outline" size={22} color={colors.gold}/></View>
             <View style={styles.emptyClubsCopy}>
-              <Text style={styles.emptyClubsTitle}>
-                Start your first club
-              </Text>
-
-              <Text style={styles.emptyClubsText}>
-                Build a reading community around a genre, author, series, or shared interest.
-              </Text>
+              <Text style={styles.emptyClubsTitle}>No clubs joined yet</Text>
+              <Text style={styles.emptyClubsText}>Browse public clubs below or create one of your own.</Text>
             </View>
-
-            <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
-          </Pressable>)}
+          </View>)}
 
         <View style={styles.discoverHeader}>
           <Text style={styles.sectionTitle}>
@@ -1999,12 +1911,12 @@ export default function HomeScreen() {
           </Text>
 
           <Text style={styles.sectionSubtitle}>
-            Public communities open to new readers.
+            Find a public club by genre.
           </Text>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.clubGenreFilterRow} style={styles.clubGenreFilterScroll}>
-          <Pressable onPress={() => setActiveClubGenre('all')} style={[
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: activeClubGenre === 'all' }} onPress={() => setActiveClubGenre('all')} style={[
                     styles.clubGenreFilterChip,
                     activeClubGenre ===
                         'all' &&
@@ -2023,7 +1935,7 @@ export default function HomeScreen() {
           {CLUB_GENRES.map((genre) => {
                     const active = activeClubGenre ===
                         genre.key;
-                    return (<Pressable key={genre.key} onPress={() => setActiveClubGenre(genre.key)} style={[
+                    return (<Pressable key={genre.key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setActiveClubGenre(genre.key)} style={[
                             styles.clubGenreFilterChip,
                             active &&
                                 styles.clubGenreFilterChipActive
@@ -2041,7 +1953,7 @@ export default function HomeScreen() {
 
         {filteredDiscoverClubs.length >
                     0 ? (<View style={styles.clubList}>
-            {filteredDiscoverClubs.map((club) => renderClubCard(club))}
+            {filteredDiscoverClubs.map((club, index) => renderClubCard(club, false, index > 0))}
           </View>) : (<View style={styles.discoverEmpty}>
             <Ionicons name="compass-outline" size={26} color={colors.mutedText}/>
 
@@ -2980,16 +2892,8 @@ function createStyles(colors: NovoriColors) {
             alignItems: 'center',
             justifyContent: 'center',
         },
-        clubSearchHint: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 10,
-            lineHeight: 15,
-            marginTop: 6,
-            marginBottom: 21,
-            paddingHorizontal: 3,
-        },
         searchResultsHeader: {
+            marginTop: 20,
             marginBottom: 2,
         },
         searchLoading: {
@@ -3446,8 +3350,9 @@ function createStyles(colors: NovoriColors) {
             justifyContent: 'center',
         },
         sectionHeader: {
+            marginTop: 22,
             flexDirection: 'row',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'space-between',
             gap: 14,
         },
@@ -3464,7 +3369,7 @@ function createStyles(colors: NovoriColors) {
             marginTop: 3,
         },
         createClubButton: {
-            minHeight: 37,
+            minHeight: 44,
             paddingHorizontal: 12,
             borderRadius: 12,
             backgroundColor: colors.gold,
@@ -3478,140 +3383,21 @@ function createStyles(colors: NovoriColors) {
             fontFamily: 'Inter_700Bold',
             fontSize: 12,
         },
-        clubList: {
-            gap: 10,
-            marginTop: 13,
-        },
-        compactClubCard: {
-            minHeight: 76,
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 16,
-            padding: 11,
-        },
-        clubCard: {
-            minHeight: 104,
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 17,
-            padding: 12,
-        },
-        compactClubImage: {
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            backgroundColor: colors.elevated,
-            marginRight: 12,
-        },
-        compactClubImageFallback: {
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 12,
-        },
-        compactClubInitial: {
-            color: colors.gold,
-            fontFamily: 'PlayfairDisplay_700Bold',
-            fontSize: 23,
-        },
-        clubImage: {
-            width: 66,
-            height: 66,
-            borderRadius: 16,
-            backgroundColor: colors.elevated,
-            marginRight: 13,
-        },
-        clubImageFallback: {
-            width: 66,
-            height: 66,
-            borderRadius: 16,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 13,
-        },
-        clubInitial: {
-            color: colors.gold,
-            fontFamily: 'PlayfairDisplay_700Bold',
-            fontSize: 28,
-        },
-        clubCardCopy: {
-            flex: 1,
-            minWidth: 0,
-            paddingRight: 8,
-        },
-        clubMetaRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-        },
-        clubMetaText: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_500Medium',
-            fontSize: 10,
-        },
-        clubMetaDot: {
-            color: colors.mutedText,
-            fontSize: 9,
-        },
-        clubName: {
-            color: colors.text,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 15,
-            marginTop: 4,
-        },
-        clubDescription: {
-            color: colors.secondaryText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 12,
-            lineHeight: 17,
-            marginTop: 4,
-        },
-        clubGenreRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 5,
-            marginTop: 6,
-        },
-        clubGenreBadge: {
-            backgroundColor: colors.elevated,
-            borderRadius: 8,
-            paddingHorizontal: 7,
-            paddingVertical: 3,
-        },
-        clubGenreBadgeText: {
-            color: colors.softGold,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 9,
-        },
-        clubGenreMore: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 9,
-        },
-        membershipBadge: {
-            alignSelf: 'flex-start',
-            backgroundColor: colors.elevated,
-            borderRadius: 9,
-            paddingHorizontal: 7,
-            paddingVertical: 3,
-            marginTop: 5,
-        },
-        membershipBadgeText: {
-            color: colors.softGold,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 9,
-        },
+        clubList: { marginTop: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface, overflow: 'hidden' },
+        clubCard: { minHeight: 91, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13, paddingVertical: 12 },
+        compactClubCard: { minHeight: 69, paddingVertical: 10 },
+        clubRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+        clubImage: { width: 58, height: 58, borderRadius: 13, backgroundColor: colors.elevated },
+        compactClubImage: { width: 46, height: 46, borderRadius: 11 },
+        clubImageFallback: { alignItems: 'center', justifyContent: 'center' },
+        clubInitial: { color: colors.gold, fontFamily: 'PlayfairDisplay_700Bold', fontSize: 23 },
+        clubCardCopy: { flex: 1, minWidth: 0, gap: 3 },
+        clubName: { color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 14 },
+        clubMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
+        clubMetaText: { color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 11 },
+        clubRoleText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 11 },
+        clubDescription: { color: colors.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, marginTop: 2 },
+        clubGenreText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 10, marginTop: 2 },
         emptyClubsCard: {
             minHeight: 96,
             flexDirection: 'row',
@@ -3649,7 +3435,7 @@ function createStyles(colors: NovoriColors) {
             marginTop: 3,
         },
         discoverHeader: {
-            marginTop: 30,
+            marginTop: 26,
         },
         clubGenreFilterScroll: {
             marginTop: 12,
@@ -3660,7 +3446,7 @@ function createStyles(colors: NovoriColors) {
             gap: 8,
         },
         clubGenreFilterChip: {
-            minHeight: 34,
+            minHeight: 44,
             borderRadius: 17,
             borderWidth: 1,
             borderColor: colors.border,
