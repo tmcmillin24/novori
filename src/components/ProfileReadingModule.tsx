@@ -22,7 +22,6 @@ import {
   Alert,
   Animated,
   AppState,
-  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -135,24 +134,6 @@ export default function ProfileReadingModule({
   const [localDate, setLocalDate] = useState(getLocalDateKey);
   const [checkinFeedback] = useState(() => new Animated.Value(1));
   const reduceMotion = useRef(true);
-  const confirmation = useMemo(() => ({
-    rightArc: checkinFeedback.interpolate({
-      inputRange: [0, 0.36, 1], outputRange: ['-135deg', '45deg', '45deg'],
-    }),
-    leftArc: checkinFeedback.interpolate({
-      inputRange: [0, 0.36, 0.72, 1], outputRange: ['45deg', '45deg', '225deg', '225deg'],
-    }),
-    traceOpacity: checkinFeedback.interpolate({
-      inputRange: [0, 0.72, 1], outputRange: [1, 1, 0],
-    }),
-    circleOpacity: checkinFeedback.interpolate({
-      inputRange: [0, 0.72, 1], outputRange: [0.22, 0.22, 1],
-    }),
-    checkmarkOpacity: checkinFeedback.interpolate({
-      inputRange: [0, 0.72, 0.94, 1], outputRange: [0, 0, 1, 1],
-    }),
-  }), [checkinFeedback]);
-
   useEffect(() => {
     let active = true;
     let receivedChange = false;
@@ -408,8 +389,8 @@ export default function ProfileReadingModule({
         if (reached) {
           setMilestone({tier:reached,days:next.currentStreak});
         } else if (next.checkedIn && !reduceMotion.current) {
-          checkinFeedback.setValue(0);
-          Animated.timing(checkinFeedback, { toValue: 1, duration: 560, easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
+          checkinFeedback.setValue(0.55);
+          Animated.timing(checkinFeedback, { toValue: 1, duration: 180, useNativeDriver: true, isInteraction: false }).start();
         }
       }
 
@@ -653,30 +634,12 @@ export default function ProfileReadingModule({
               accessibilityRole="text"
               accessibilityLabel="Checked in for today’s reading"
             >
-              <View style={styles.confirmationIcon} pointerEvents="none" accessible={false}>
-                <Animated.View style={[styles.confirmationCircle, { opacity: confirmation.circleOpacity }]}/>
-                <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: confirmation.traceOpacity }]}>
-                  <View style={[styles.confirmationClip, { right: 0 }]}>
-                    <Animated.View style={[styles.confirmationArc, {
-                      right: 0, transform: [{ rotate: confirmation.rightArc }],
-                    }]}/>
-                  </View>
-                  <View style={[styles.confirmationClip, { left: 0 }]}>
-                    <Animated.View style={[styles.confirmationArc, {
-                      left: 0, transform: [{ rotate: confirmation.leftArc }],
-                    }]}/>
-                  </View>
-                </Animated.View>
-                <Animated.View style={[styles.confirmationCheckmark, { opacity: confirmation.checkmarkOpacity }]}/>
-              </View>
-
-              <Text
-                style={
-                  styles.checkinButtonText
-                }
-              >
-                Checked in
-              </Text>
+              <Animated.View style={[styles.checkinConfirmation, { opacity: checkinFeedback }]}>
+                <View style={styles.confirmationIcon} accessible={false}>
+                  <Ionicons name="checkmark" size={16} color={colors.background} style={styles.confirmationMark}/>
+                </View>
+                <Text style={styles.checkinButtonText}>Checked in</Text>
+              </Animated.View>
             </View>
 
             {canEditCheckinBook && <Pressable
@@ -986,20 +949,9 @@ function createStyles(
         13,
     },
 
-    confirmationIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-    confirmationCircle: {
-      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5, borderColor: colors.background,
-    },
-    // Each mask reveals one half of the clockwise trace.
-    confirmationClip: { position: 'absolute', top: 0, bottom: 0, width: 9, overflow: 'hidden' },
-    confirmationArc: {
-      position: 'absolute', top: 0, width: 18, height: 18, borderRadius: 9, borderWidth: 1.5,
-      borderColor: 'transparent', borderTopColor: colors.background, borderRightColor: colors.background,
-    },
-    confirmationCheckmark: {
-      width: 5, height: 8, borderRightWidth: 1.5, borderBottomWidth: 1.5,
-      borderColor: colors.background, transform: [{ translateY: -1 }, { rotate: '45deg' }],
-    },
+    checkinConfirmation: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    confirmationIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
+    confirmationMark: { lineHeight: 18, includeFontPadding: false },
 
     checkedInActionRow: {
       flexDirection:
