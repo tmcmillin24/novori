@@ -1,6 +1,6 @@
 import { rememberEditionPages, applyEditionPages } from './edition-pages';
 import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genres';
-import { bookWorkDetails } from './book-work-details';
+import { bookWorkDetails, fillMissingBookSynopsis } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
 import { normalizeIsbnDbEdition, cleanCatalogBookTitle, displayBookTitle, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
@@ -2816,7 +2816,7 @@ function collapseDuplicateEditions(
           isbns,
         };
 
-        return representative;
+        return fillMissingBookSynopsis(representative, sorted);
       }
     );
 

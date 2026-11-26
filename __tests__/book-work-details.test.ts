@@ -49,3 +49,28 @@ test('provider failures retain cached detail metadata and can retry', async () =
  expect((await reader.resolve(book('original', 600))).volumeInfo.pageCount).toBe(600);
  expect((await reader.resolve(book('original', 600))).volumeInfo.pageCount).toBe(600);
 });
+
+test('a blank synopsis falls back to another verified edition without replacing edition metadata', async () => {
+ const original = book('original', 550);
+ original.volumeInfo.description = '<p>&nbsp;</p>';
+ const first = book('first-result', 300);
+ first.volumeInfo.description = undefined;
+ const donor = book('with-synopsis', 800);
+ const result = await createBookWorkDetails(async () => [first, donor]).resolve(original);
+ expect(result.id).toBe(original.id);
+ expect(result.volumeInfo).toEqual({...original.volumeInfo, description:donor.volumeInfo.description});
+ expect(original.volumeInfo.description).toBe('<p>&nbsp;</p>');
+});
+
+test('alternate synopses reject audio, translations, adaptations and different authors', async () => {
+ const original = book('original', 550);
+ original.volumeInfo.description = undefined;
+ const audio = {...book('audio', 0), novoriEdition:{format:'audio'}};
+ const translated = book('translation', 700);
+ translated.volumeInfo.language = 'es';
+ const adapted = book('adaptation', 30);
+ adapted.volumeInfo.subtitle = 'Graphic Novel';
+ const other = book('other', 600, 'Another Author');
+ const result = await createBookWorkDetails(async () => [audio, translated, adapted, other]).resolve(original);
+ expect(result.volumeInfo.description).toBeUndefined();
+});

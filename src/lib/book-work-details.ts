@@ -1,5 +1,6 @@
+import {formatBookDescription} from './book-description';
 import {publicBookCache} from './public-book-cache';
-import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { audioEditionPenalty, catalogWorkTitleKey, cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { isEnglishBookLanguage } from '../../supabase/functions/_shared/book-language';
 import type { GoogleBookSearchItem } from './book-search';
 
@@ -11,11 +12,28 @@ export function sameBookWork(a: GoogleBookSearchItem, b: GoogleBookSearchItem) {
   return eligible(a) && eligible(b) && Boolean(titleKey(a)) && titleKey(a) === titleKey(b) && authors(a).some(author => authors(b).includes(author));
 }
 
+const adaptation = /\b(?:graphic novel|comic|manga|adaptation|retelling|abridged|study guide|summary|workbook)\b/i;
+const editionTitle = (book: GoogleBookSearchItem) => catalogWorkTitleKey(
+  book.volumeInfo.title ?? '', book.novoriEdition?.originalTitle,
+);
+
+export function fillMissingBookSynopsis<T extends GoogleBookSearchItem>(edition: T, candidates: GoogleBookSearchItem[]): T {
+  if (formatBookDescription(edition.volumeInfo.description)) return edition;
+  const usualTextEdition = (book: GoogleBookSearchItem) => !audioEditionPenalty(book) &&
+    !adaptation.test([book.volumeInfo.title, book.volumeInfo.subtitle, book.novoriEdition?.originalTitle].filter(Boolean).join(' '));
+  if (!usualTextEdition(edition)) return edition;
+  const source = candidates.find(book => sameBookWork(edition, book) &&
+    editionTitle(edition) === editionTitle(book) && usualTextEdition(book) &&
+    formatBookDescription(book.volumeInfo.description));
+  return source ? {...edition, volumeInfo:{...edition.volumeInfo, description:source.volumeInfo.description}} : edition;
+}
+
 /** Display work metadata without changing the saved edition's ID, ISBN or cover. */
 export function applyBookWorkDetails<T extends GoogleBookSearchItem>(edition: T, representative: GoogleBookSearchItem): T {
   if (!sameBookWork(edition, representative)) return edition;
-  return { ...edition, novoriDetails: { bookId: representative.id, isbns: (representative.volumeInfo.industryIdentifiers ?? []).map(identifier => identifier.identifier) }, novoriPublication: representative.novoriPublication ?? edition.novoriPublication,
-    volumeInfo: { ...edition.volumeInfo,
+  const display = fillMissingBookSynopsis(edition, [representative]);
+  return { ...display, novoriDetails: { bookId: representative.id, isbns: (representative.volumeInfo.industryIdentifiers ?? []).map(identifier => identifier.identifier) }, novoriPublication: representative.novoriPublication ?? edition.novoriPublication,
+    volumeInfo: { ...display.volumeInfo,
       title: displayBookTitle(representative.volumeInfo.title ?? edition.volumeInfo.title ?? ''),
       publishedDate: edition.volumeInfo.publishedDate,
       imageLinks: edition.volumeInfo.imageLinks,
@@ -50,7 +68,8 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
     let request = pending.get(workKey);
     if (!request) {
       request = search(cleanCatalogBookTitle(edition.volumeInfo.title ?? '')).then(results => {
-        const representative = results.find(candidate => sameBookWork(edition, candidate)) ?? null;
+        const match = results.find(candidate => sameBookWork(edition, candidate));
+        const representative = match ? fillMissingBookSynopsis(match, results) : null;
         if (representative) remember(representative.volumeInfo.title ?? '', [representative]);
         return representative;
       });
@@ -73,6 +92,6 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
 // reader for search payloads; only volume detail payloads enter this resolver.
 export const bookWorkDetails = createBookWorkDetails(async query => {
   const { searchNovoriBooks } = await import('./book-search');
-  const cached=await publicBookCache.read(`work-representative:v1:${query.trim().toLowerCase()}`,()=>searchNovoriBooks(query),{freshMs:86400000,retainMs:7*86400000,valid:(value):value is GoogleBookSearchItem[]=>Array.isArray(value)&&value.length>0&&value.every(book=>book&&typeof book.id==='string'&&book.volumeInfo&&typeof book.volumeInfo.title==='string')});
+  const cached=await publicBookCache.read(`work-representative:v2:${query.trim().toLowerCase()}`,()=>searchNovoriBooks(query),{freshMs:86400000,retainMs:7*86400000,valid:(value):value is GoogleBookSearchItem[]=>Array.isArray(value)&&value.length>0&&value.every(book=>book&&typeof book.id==='string'&&book.volumeInfo&&typeof book.volumeInfo.title==='string')});
   return cached.value;
 });
