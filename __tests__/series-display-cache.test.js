@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),ts=require('typescript');
 const source=fs.readFileSync(path.join(__dirname,'../src/app/book/[id]/index.tsx'),'utf8');
-const code=source.slice(source.indexOf('  async function loadSeries('),source.indexOf('  async function findGoogleBookForSeries('));
+const code=source.slice(source.indexOf('  async function loadSeries('),source.indexOf('  function findGoogleBookForSeries('));
 test('cached series labels display before cover reads finish and cannot replay stale artwork/pages',async()=>{
  let finish;const cover=new Promise(resolve=>{finish=resolve;});
  const deps={getBookISBN:()=> '9780000000002',publicBookCache:{read:jest.fn(async()=>({fromCache:true,value:{series:{id:1,name:'Series'},books:[{id:2,title:'Book',authors:['Different Series Author'],coverBookId:'edition',coverUrl:'https://old/snapshot.jpg'}],pageCounts:{edition:{isbn:'9780000000002',pageCount:50}}}}))},bookExtraKey:()=> 'series:edition',validSeriesExtras:()=>true,

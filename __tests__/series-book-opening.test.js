@@ -1,22 +1,7 @@
-const fs = require('fs'), path = require('path'), vm = require('vm'), ts = require('typescript');
-const { matchesSeriesCatalogEdition } = require('../supabase/functions/_shared/series-book-catalog');
-const { cleanCatalogBookTitle } = require('../supabase/functions/_shared/book-edition-metadata');
-const source = fs.readFileSync(path.join(__dirname, '../src/app/book/[id]/index.tsx'), 'utf8');
+const { resolveSeriesOpening } = require('../src/lib/series-book-opening');
 function harness(results) {
- const start = source.indexOf('  async function findGoogleBookForSeries(');
- const end = source.indexOf('  async function saveReadingStatus(', start);
- const compiled = ts.transpileModule(source.slice(start, end) + '\nexports.resolve = findGoogleBookForSeries;', { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
- const exports = {};
- const deps = {
-  exports, setTimeout, clearTimeout, matchesSeriesCatalogEdition, normalizeSeriesWorkTitle: title => cleanCatalogBookTitle(title ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-  normalizeAuthorName: name => (name ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-  getValidatedHighResolutionCover: (_, links) => links?.thumbnail,
-  searchNovoriBooks: jest.fn(async () => results),
-  resolveGoogleBooksIdentity: jest.fn(async () => ({ ok: true, status: 200, googleBookId: 'isbn-candidate' })),
-  fetchGoogleBooksJson: jest.fn(async url => url.includes('/isbn-candidate') ? { ok: true, data: results[0] } : { ok: true, data: { items: results } }),
- };
- vm.runInNewContext(compiled, deps);
- return { resolve: exports.resolve, deps };
+ const searchNovoriBooks = jest.fn(async () => results);
+ return { resolve: (row,seriesName='') => resolveSeriesOpening(row,seriesName,searchNovoriBooks), deps:{searchNovoriBooks} };
 }
 const row = { title: "The Dungeon Anarchist's Cookbook", authors: ['Matt Dinniman'], isbns: ['9780593820285'] };
 const novel = { id: 'novel', volumeInfo: { title: "The Dungeon Anarchist's Cookbook (Dungeon Crawler Carl, 3)", authors: ['Matt Dinniman'], language: 'en', pageCount: 500, imageLinks: { thumbnail: 'https://novel/art' }, industryIdentifiers: [{ identifier: row.isbns[0] }] } };
@@ -27,15 +12,13 @@ test('series opening rejects an unrelated cookbook even with a matching listed I
 test('series opening keeps the verified novel ahead of wrong prefix candidates without a provider identity lookup', async () => {
  const h = harness([{ ...novel, id: 'wrong', volumeInfo: { ...novel.volumeInfo, title: "The Dungeon Anarchist's Cookbook Recipes" } }, novel]);
  expect((await h.resolve(row)).id).toBe('novel');
- expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
 });
 
 test('series ISBN fallback remains on shared search and never opens raw provider identity/detail results',async()=>{
  const h=harness([]);
  h.deps.searchNovoriBooks.mockImplementation(async query=>query==='isbn:'+row.isbns[0]?[novel]:[]);
  expect((await h.resolve(row)).id).toBe('novel');
- expect(h.deps.searchNovoriBooks.mock.calls.map(call=>call[0])).toEqual([row.title,'isbn:'+row.isbns[0]]);
- expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
+ expect(h.deps.searchNovoriBooks.mock.calls.map(call=>call[0])).toEqual([row.title,`${row.title} Matt Dinniman`,'isbn:'+row.isbns[0]]);
 });
 
 test('series artwork ID cannot bypass the shared reading-edition result',async()=>{
@@ -43,8 +26,6 @@ test('series artwork ID cannot bypass the shared reading-edition result',async()
  const result=await h.resolve({...row,coverBookId:'nv_9781496764898'});
  expect(result).toEqual(novel);
  expect(h.deps.searchNovoriBooks).toHaveBeenCalledWith(row.title, 0, expect.objectContaining({onProgress:expect.any(Function)}));
- expect(h.deps.fetchGoogleBooksJson).not.toHaveBeenCalled();
- expect(h.deps.resolveGoogleBooksIdentity).not.toHaveBeenCalled();
 });
 
 test.each([
@@ -71,4 +52,44 @@ test('series navigation uses verified progressive rows without waiting for ratin
  });
  expect(await h.resolve(row)).toEqual(novel);
  expect(h.deps.searchNovoriBooks).toHaveBeenCalledTimes(1);
+});
+
+test('ISBNdb may omit language; an exact ISBN from the English series edition can verify it',async()=>{
+ const record={...novel,source:{isbn13:row.isbns[0]},volumeInfo:{...novel.volumeInfo,language:undefined,industryIdentifiers:[]}};
+ const h=harness([record]);expect(await h.resolve(row)).toEqual(record);
+});
+
+test('English ISBN proof cannot override an explicit translation, audiobook, or different work',async()=>{
+ const languageMissing={...novel,volumeInfo:{...novel.volumeInfo,language:undefined,industryIdentifiers:[]}};
+ const spanish={...novel,volumeInfo:{...novel.volumeInfo,language:'es'}};
+ const audiobook={...novel,novoriEdition:{format:'audio'}};
+ const tieIn={...novel,volumeInfo:{...novel.volumeInfo,subtitle:'Study Guide'}};
+ expect(await harness([languageMissing,spanish,audiobook,tieIn]).resolve(row)).toBeNull();
+});
+
+test('tries another verified English ISBN when the first printing is missing from the catalog',async()=>{
+ const oldIsbn='9781250214713', newIsbn='9781250310620';
+ const member={title:'The Lantern Below',authors:['Lena Stone'],isbns:[oldIsbn,newIsbn]};
+ const book={id:'second-printing',source:{isbn13:newIsbn},volumeInfo:{title:member.title,authors:member.authors,language:'en'}};
+ const h=harness([]);
+ h.deps.searchNovoriBooks.mockImplementation(async(query,_offset,{onProgress})=>{
+   if(query!==`isbn:${newIsbn}`) return [];
+   onProgress([book]);
+   return new Promise(()=>{});
+ });
+ expect(await h.resolve(member)).toEqual(book);
+ expect(h.deps.searchNovoriBooks.mock.calls.map(([query])=>query)).toContain(`isbn:${oldIsbn}`);
+});
+
+test('verified series-name suffix and catalog author order can differ',async()=>{
+ const record={id:'printing',volumeInfo:{title:'The Lantern Below (Lantern Archives, Book 2)',authors:['Stone, Lena'],language:'en'}};
+ expect(await harness([record]).resolve({title:'Lantern Below',authors:['Lena Stone']},'Lantern Archives')).toEqual(record);
+});
+
+test('ISBN-10 is equivalent to the same English ISBN-13 but is searched only once',async()=>{
+ const short='0593820282', long=row.isbns[0];
+ const record={...novel,volumeInfo:{...novel.volumeInfo,language:'und',industryIdentifiers:[{identifier:short}]}};
+ const h=harness([]);h.deps.searchNovoriBooks.mockImplementation(async query=>query===`isbn:${long}`?[record]:[]);
+ expect(await h.resolve({...row,isbns:[short,long]})).toEqual(record);
+ expect(h.deps.searchNovoriBooks.mock.calls.filter(([query])=>query.startsWith('isbn:'))).toHaveLength(1);
 });
