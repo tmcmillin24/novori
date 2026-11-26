@@ -18,12 +18,13 @@ const reasons: {reason: ReportReason; label: string}[] = [
   {reason:'other', label:'Other'},
 ];
 
-export default function PostActions({post, currentUserId, onDismiss, onDeleted, onPin, onEditStart}: {
+export default function PostActions({post, currentUserId, onDismiss, onDeleted, onPin, isPinned, onEditStart}: {
   post: FeedPost | null;
   currentUserId?: string | null;
   onDismiss: () => void;
   onDeleted: (post: FeedPost) => void;
-  onPin?: (post: FeedPost) => void;
+  onPin?: (post: FeedPost, pinned: boolean) => void;
+  isPinned?: boolean;
   onEditStart?: () => void;
 }) {
   const router = useRouter();
@@ -89,7 +90,7 @@ export default function PostActions({post, currentUserId, onDismiss, onDeleted, 
       onDelete={post && own ? () => setDeleteTarget(post) : undefined}
       actions={[
         ...(post && !own && currentUserId ? [{label:'Report Post',description:'Flag this post for review.',icon:'flag-outline' as const,run:()=>setReportTarget(post)}] : []),
-        ...(post && onPin ? [{label:'Pin options',description:'Manage where this post is pinned.',icon:'pin-outline' as const,run:()=>onPin(post)}] : []),
+        ...(post && onPin ? [{label:isPinned ? 'Unpin post' : 'Pin post',description:isPinned ? 'Remove this post from club pins.' : 'Keep this post above the conversation.',icon:'pin-outline' as const,run:()=>onPin(post, !isPinned)}] : []),
       ]}/>
     {deleteTarget ? <DeletePostConfirmSheet visible busy={deleting}
       title={deleteTarget.club_discussion ? 'Delete discussion?' : 'Delete post?'}

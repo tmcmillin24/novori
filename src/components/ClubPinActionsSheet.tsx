@@ -43,7 +43,7 @@ export default function ClubPinActionsSheet({ visible, post, pinnedPosts, busy, 
               <Text numberOfLines={2} style={styles.actionText}>{action.label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
             </Pressable>)}
-            <Pressable accessibilityRole="button" accessibilityLabel="Close pin options" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close pin replacement" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           </Pressable>
         </UiSheetSurface>
       </Pressable>

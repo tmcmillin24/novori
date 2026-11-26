@@ -30,7 +30,7 @@ import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
 import { getClubEvents } from '../../lib/club-events';
 import { getClubHomeActions,type ClubHomeAction } from '../../lib/club-home';
 import { dismissClubWelcome,getClubMemberExperience,setClubNotificationsEnabled,type ClubMemberExperience } from '../../lib/club-member-experience';
-import { getClubConversation,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
+import { MAX_CLUB_PINS,getClubConversation,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
 import { acceptClubInvite,approveClubJoinRequest,cancelClubInvite,cancelPrivateClubRequest,ClubInvitation,ClubInviteCandidate,ClubJoinRequest,ClubMember,ClubWithMembership,declineClubInvite,declineClubJoinRequest,demoteClubAdmin,getClub,getClubMembers,getPendingClubInvite,getPendingClubInvitesForManager,getPendingClubJoinRequestsForManager,getPendingPrivateClubRequest,inviteReaderToClub,joinClub,kickClubMember,leaveClub,promoteClubMember,requestPrivateClubAccess,searchClubInviteCandidates } from '../../lib/clubs';
 import { FeedPost,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
@@ -1710,7 +1710,7 @@ export default function ClubDetailScreen() {
           <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}>{eventsLoading ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/> : <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/>}</View>
         ) : null}
         <View style={clubTab !== 'posts' ? styles.hiddenClubTab : undefined}>
-        <ClubPinnedPosts onMore={setPostOptions} posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
+        <ClubPinnedPosts onMore={setPostOptions} posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => void handleClubPin(post.id, false)}/>
 
         <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
@@ -1757,7 +1757,11 @@ export default function ClubDetailScreen() {
       </ScrollView>
 
       <PostActions post={postOptions} currentUserId={currentUserId} onDismiss={() => setPostOptions(null)}
-        onPin={isManager && postOptions && (!postOptions.club_event || isUpcomingClubEvent(postOptions.club_event,eventNow)) ? setPinTarget : undefined}
+        isPinned={visiblePinnedPosts.some(post => post.id === postOptions?.id)}
+        onPin={!pinBusy && isManager && postOptions && (!postOptions.club_event || isUpcomingClubEvent(postOptions.club_event,eventNow)) ? (post, pinned) => {
+          if (pinned && visiblePinnedPosts.length >= MAX_CLUB_PINS) setPinTarget(post);
+          else void handleClubPin(post.id, pinned);
+        } : undefined}
         onDeleted={post => {
           setClubPosts(current => current.filter(item => item.id !== post.id));
           setPinnedPosts(current => current.filter(item => item.id !== post.id));

@@ -150,18 +150,18 @@ test('creating a club includes optional rules without a separate save flow',asyn
 });
 
 const postFixture={id:'post-1',author_id:'owner',club_id:'club-1',post_type:'post',body:'Next meeting on Friday.',book_title:null,author_display_name:'Founder Person',created_at:new Date().toISOString(),comment_count:0,vote_score:0,viewer_vote:0,is_club_announcement:true};
-test('manager can start an announcement and pin an existing post',async()=>{
+test('manager can directly pin an existing post',async()=>{
   getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[]});getClubPins.mockResolvedValue([{post_id:'post-1'}]);
-  await render();await press('Create club announcement');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{clubId:'club-1',announcement:'1'}});
-  await press('More post options');await press('Pin options');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,undefined);
+  await render();
+  await press('More post options');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,undefined);
   expect(text()).toContain('PINNED');expect(button('Open pinned post: Next meeting on Friday.')).toBeDefined();
 });
 test('full pin picker replaces a chosen post and unpin uses the same animation',async()=>{
   const pins=[1,2,3].map(i=>({...postFixture,id:'old-'+i,body:'Old pin '+i}));getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:pins});
   getClubPins.mockResolvedValue([{post_id:'old-1'},{post_id:'old-3'},{post_id:'post-1'}]);await render();
-  await press('More post options');await press('Pin options');expect(button('Pin post')).toBeUndefined();await press('Replace: Old pin 2');
+  await press('More post options');await press('Pin post');expect(button('Pin post')).toBeUndefined();await press('Replace: Old pin 2');
   expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,'old-2');
-  await press('More pinned post options: post-1');await press('Pin options');getClubPins.mockResolvedValue([]);await press('Unpin post');
+  await press('More pinned post options: post-1');getClubPins.mockResolvedValue([]);await press('Unpin post');
   expect(setClubPostPin).toHaveBeenLastCalledWith('club-1','post-1',false,undefined);expect(text()).not.toContain('PINNED');
 });
 test('members can open old pinned posts but have no announcement or pin controls',async()=>{
@@ -171,7 +171,7 @@ test('members can open old pinned posts but have no announcement or pin controls
 });
 test('pin failures preserve the visible pins',async()=>{
   getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[postFixture]});setClubPostPin.mockRejectedValue(new Error('Permission changed.'));
-  await render();await press('More post options');await press('Pin options');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
+  await render();await press('More post options');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
 });
 
 test('large member lists scroll inside the card while small clubs stay natural height',async()=>{
@@ -276,6 +276,6 @@ test('club announcement owners can edit and delete directly from the feed',async
 test('other club posts offer report and keep the manager pin action',async()=>{
  await renderWithPost({...postFixture,author_id:'member'});
  await press('More post options');expect(button('Edit Post')).toBeUndefined();expect(button('Delete Post')).toBeUndefined();
- expect(button('Pin options')).toBeDefined();await press('Report Post');await press('Spam or fraud');expect(submitPostReport).toHaveBeenCalledWith('post-1','spam');
+ expect(button('Pin post')).toBeDefined();await press('Report Post');await press('Spam or fraud');expect(submitPostReport).toHaveBeenCalledWith('post-1','spam');
 });
 async function renderWithPost(post){getClubConversation.mockResolvedValue({posts:[post],pinnedPosts:[]});await render();}

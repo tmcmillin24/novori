@@ -11,7 +11,7 @@ import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import useEventClock from '../../hooks/use-event-clock';
 import { useNovoriTheme } from '../../context/theme-context';
 import { getClub,type ClubWithMembership } from '../../lib/clubs';
-import { canManageClubPosts,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
+import { MAX_CLUB_PINS,canManageClubPosts,getClubPins,resolveClubPinnedPosts,setClubPostPin,type ClubPostPin } from '../../lib/club-posts';
 import { getPostDetail,type FeedPost } from '../../lib/feed';
 import { getClubEvent,cancelClubEvent,setClubEventRsvp } from '../../lib/club-events';
 import { shareClubEventLink } from '../../lib/share-links';
@@ -22,6 +22,7 @@ export default function ClubEventScreen() {
   const styles=useMemo(()=>StyleSheet.create({safe:{flex:1,backgroundColor:colors.background},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:17,paddingVertical:10},button:{padding:8,width:42},title:{color:colors.text,fontFamily:'PlayfairDisplay_700Bold',fontSize:20},content:{padding:18,paddingBottom:40,maxWidth: '100%',width:'100%',alignSelf:'center'},club:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12,marginBottom:14},section:{color:colors.text,fontFamily:'Inter_700Bold',fontSize:13,marginTop:9,marginBottom:10},row:{flexDirection:'row',gap:7},rsvp:{flex:1,minHeight:46,borderRadius:11,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},rsvpText:{color:colors.text,fontFamily:'Inter_600SemiBold',fontSize:11},note:{color:colors.mutedText,fontFamily:'Inter_400Regular',fontSize:12,lineHeight:19,marginTop:12},link:{minHeight:46,flexDirection:'row',alignItems:'center',gap:8,marginTop:14},linkText:{color:colors.gold,fontFamily:'Inter_600SemiBold',fontSize:12},center:{padding:30,alignItems:'center'}}),[colors]);
   const [event,setEvent]=useState<ClubEvent|null>(null),[club,setClub]=useState<ClubWithMembership|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refreshing,setRefreshing]=useState(false);
   const [busy,setBusy]=useState(false),[warning,setWarning]=useState(''),[options,setOptions]=useState(false),[cancelConfirm,setCancelConfirm]=useState(false),[pinTarget,setPinTarget]=useState<FeedPost|null>(null),[pins,setPins]=useState<FeedPost[]>([]);
+  const [pinRows,setPinRows]=useState<ClubPostPin[]>([]);
   const mutationBusy=useRef(false),active=useRef(true);const now=useEventClock(event?Date.parse(event.ends_at):undefined);
   useFocusEffect(useCallback(()=>{active.current=true;let current=true;(async()=>{
     try {setLoading(true);setError('');const data=await getClubEvent(eventId),group=await getClub(data.club_id);if(current){setEvent(data);setClub(group);}}
@@ -35,8 +36,15 @@ export default function ClubEventScreen() {
   async function cancel(){if(!event||!manager||mutationBusy.current)return;
     try{mutationBusy.current=true;setBusy(true);await cancelClubEvent(event.id);const data=await getClubEvent(event.id);if(active.current){setEvent(data);setCancelConfirm(false);}}
     catch(error){if(active.current){setCancelConfirm(false);setWarning((error as {message?:string})?.message||'Could not cancel the event.');}}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
-  async function showPins(){if(!event||!manager||mutationBusy.current)return;
-    try{mutationBusy.current=true;setBusy(true);const [rows,post]=await Promise.all([getClubPins(event.club_id),getPostDetail(event.post_id)]);const pinned=await resolveClubPinnedPosts(event.club_id,rows,[post]);if(active.current){setPins(pinned);setPinTarget(post);}}
+  async function openOptions(){if(!event||!manager||mutationBusy.current)return;
+    try{mutationBusy.current=true;setBusy(true);const rows=await getClubPins(event.club_id);if(active.current){setPinRows(rows);setOptions(true);}}
+    catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not load pins.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
+  const isPinned=pinRows.some(row=>row.post_id===event?.post_id);
+  async function togglePin(){if(!event||!manager||!upcoming||mutationBusy.current)return;
+    if(isPinned||pinRows.length<MAX_CLUB_PINS){await pin(event.post_id,!isPinned);return;}
+    try{mutationBusy.current=true;setBusy(true);const post=await getPostDetail(event.post_id);
+      const pinned=await resolveClubPinnedPosts(event.club_id,pinRows,[post]);
+      if(active.current){setPins(pinned);setPinTarget(post);}}
     catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not load pins.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
   async function pin(postId:string,pinned:boolean,replacePostId?:string){if(!event||!manager||mutationBusy.current)return;
     try{mutationBusy.current=true;setBusy(true);await setClubPostPin(event.club_id,postId,pinned,replacePostId);}catch(error){if(active.current)setWarning((error as {message?:string})?.message||'Could not update pins.');}finally{mutationBusy.current=false;if(active.current)setBusy(false);}}
@@ -45,7 +53,7 @@ export default function ClubEventScreen() {
   return <SafeAreaView style={styles.safe} edges={['top','bottom']}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back from event" onPress={()=>router.back()} style={styles.button}><Ionicons name="chevron-back" size={25} color={colors.text}/></Pressable><Text style={styles.title}>Club event</Text>
       <View style={styles.row}>{event&&!loading&&!error?<Pressable accessibilityRole="button" accessibilityLabel="Share club event" onPress={()=>void shareEvent()} style={styles.button}><Ionicons name="share-social-outline" size={23} color={colors.text}/></Pressable>:null}
-      {manager&&upcoming?<Pressable disabled={busy} accessibilityRole="button" accessibilityLabel="Open event options" onPress={()=>setOptions(true)} style={styles.button}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable>:<View style={styles.button}/>}</View></View>
+      {manager&&upcoming?<Pressable disabled={busy} accessibilityRole="button" accessibilityLabel="Open event options" onPress={()=>void openOptions()} style={styles.button}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable>:<View style={styles.button}/>}</View></View>
     {loading?<View style={styles.center}><ActivityIndicator color={colors.gold}/></View>:error||!event?<View style={styles.center}><Text style={styles.note}>{error||'This event is unavailable.'}</Text></View>:<ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void refresh()} tintColor={colors.gold}/>}>
       <Pressable accessibilityRole="button" accessibilityLabel="Open event club" onPress={()=>router.push({pathname:'/club/[id]',params:{id:event.club_id,tab:'events'}})}><Text style={styles.club}>in {club?.name}</Text></Pressable>
       <ClubEventCard event={event} detail now={now}/>
@@ -57,7 +65,7 @@ export default function ClubEventScreen() {
       {event.book?<Pressable accessibilityRole="button" accessibilityLabel="View event book" onPress={()=>router.push({pathname:'/book/[id]',params:{id:event.book!.googleBookId}})} style={styles.link}><Ionicons name="book-outline" size={18} color={colors.gold}/><Text style={styles.linkText}>View book</Text></Pressable>:null}
       <Pressable accessibilityRole="button" accessibilityLabel="View event discussion" onPress={()=>router.push({pathname:'/post/[id]',params:{id:event.post_id}})} style={styles.link}><Ionicons name="chatbubbles-outline" size={18} color={colors.gold}/><Text style={styles.linkText}>View discussion</Text></Pressable>
     </ScrollView>}
-    <ClubEventActionsSheet visible={options} eventTitle={event?.title??'Event'} onDismiss={()=>setOptions(false)} onAction={action=>{if(!event||!manager||!upcoming)return;if(action==='edit')router.push({pathname:'/create-club-event',params:{clubId:event.club_id,eventId:event.id}});else if(action==='cancel')setCancelConfirm(true);else void showPins();}}/>
+    <ClubEventActionsSheet visible={options} isPinned={isPinned} eventTitle={event?.title??'Event'} onDismiss={()=>setOptions(false)} onAction={action=>{if(!event||!manager||!upcoming)return;if(action==='edit')router.push({pathname:'/create-club-event',params:{clubId:event.club_id,eventId:event.id}});else if(action==='cancel')setCancelConfirm(true);else void togglePin();}}/>
     <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={pins} busy={busy} onDismiss={()=>setPinTarget(null)} onPin={(postId,pinned,replaceId)=>void pin(postId,pinned,replaceId)}/>
     <DeletePostConfirmSheet visible={cancelConfirm} busy={busy} title="Cancel this event?" message="Your club will still see the cancelled event in its history. RSVPs will close and its pin will be removed." confirmLabel="Cancel event" cancelLabel="Keep event" onConfirm={cancel} onDismiss={()=>{if(!busy)setCancelConfirm(false);}}/>
     <ValidationWarningSheet visible={Boolean(warning)} title="Club event" message={warning} onDismiss={()=>setWarning('')}/>

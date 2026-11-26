@@ -82,9 +82,10 @@ test('visitors can view public events but cannot RSVP; cancelled events close re
  mockParams={id:'event-1'};getClub.mockResolvedValue({...club,membership_role:null});await render(<ClubEventScreen/>);expect(button('RSVP Going')).toBeUndefined();expect(text()).toContain('Join this club to RSVP.');
  await act(async()=>view.unmount());view=null;getClub.mockResolvedValue(club);getClubEvent.mockResolvedValue({...event,cancelled_at:'2026-10-03T10:00Z'});await render(<ClubEventScreen/>);expect(button('RSVP Going').props.disabled).toBe(true);expect(button('Open event options')).toBeUndefined();expect(text()).toContain('CANCELLED');
 });
-test('event options use manager editor, pin picker, and cancellation confirmation',async()=>{
+test('event options use manager editor, direct pin actions, and cancellation confirmation',async()=>{
  mockParams={id:'event-1'};await render(<ClubEventScreen/>);await press('Open event options');await press('Edit event');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-event',params:{clubId:'club-1',eventId:'event-1'}});
- await press('Open event options');await press('Pin options');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','event-post',true,undefined);
+ await press('Open event options');await press('Pin event');expect(setClubPostPin).toHaveBeenCalledWith('club-1','event-post',true,undefined);
+ getClubPins.mockResolvedValue([{post_id:'event-post'}]);await press('Open event options');expect(button('Pin event')).toBeUndefined();await press('Unpin event');expect(setClubPostPin).toHaveBeenLastCalledWith('club-1','event-post',false,undefined);
  await press('Open event options');await press('Cancel event');const confirm=view.root.findByType('DeletePostConfirmSheet');expect(confirm.props.visible).toBe(true);expect(confirm.props.confirmLabel).toBe('Cancel event');getClubEvent.mockResolvedValue({...event,cancelled_at:'2026-10-03T10:00Z'});
  await act(async()=>confirm.props.onConfirm());expect(cancelClubEvent).toHaveBeenCalledWith('event-1');expect(text()).toContain('CANCELLED');expect(button('View event discussion')).toBeDefined();
 });
