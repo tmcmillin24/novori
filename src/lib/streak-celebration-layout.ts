@@ -1,5 +1,13 @@
+// Inset the celebration from the reading card and cap its size on wide screens.
+export function streakCelebrationFrame(regionWidth: number, regionHeight: number, fontScale: number) {
+  const width = Math.min(360, Math.max(0, regionWidth - 24));
+  const preferredHeight = 104 + Math.min(20, Math.max(0, fontScale - 1) * 12);
+  const height = Math.min(preferredHeight, Math.max(0, regionHeight - 16));
+  return { width, height, left: (regionWidth - width) / 2, top: (regionHeight - height) / 2 };
+}
+
 // Size against the actual card, so iPad split view and rotation use the
-// same constraints as a compact phone. The check-in controls set its height.
+// same constraints as a compact phone. The celebration frame sets its height.
 export function streakCelebrationLayout(width: number, height: number, sceneWidth: number, fontScale: number) {
   const availableWidth = (width || 350) - 46; // border and dismiss target
   const availableHeight = (height || 100) - 2;

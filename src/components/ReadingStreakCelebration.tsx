@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { type StreakTier } from '../lib/reading-streak-tier';
 
-import { streakCelebrationLayout } from '../lib/streak-celebration-layout';
+import { streakCelebrationFrame, streakCelebrationLayout } from '../lib/streak-celebration-layout';
 
 const scenes = {
   3:  { kind:'embers', duration:1050, stage:84, glow:44 },
@@ -19,7 +19,8 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
   const { colors } = useNovoriTheme();
   const scene = scenes[tier.days];
   const { fontScale } = useWindowDimensions();
-  const layout = streakCelebrationLayout(region.width, region.height, scene.stage, fontScale);
+  const frame = streakCelebrationFrame(region.width, region.height, fontScale);
+  const layout = streakCelebrationLayout(frame.width, frame.height, scene.stage, fontScale);
   const progress = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const dismiss = useRef(onDismiss);
@@ -62,7 +63,12 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
   const flare = scene.kind === 'flare';
   const burst = scene.kind === 'burst';
   const peak = crown ? .37 : flare ? .23 : .31;
-  return <Animated.View accessibilityViewIsModal style={[styles.banner,{backgroundColor:colors.elevated,borderColor:colors.gold,opacity}]}>
+  const lift = opacity.interpolate({ inputRange: [0, 1], outputRange: [-5, 0] });
+  return <Animated.View accessibilityViewIsModal style={[
+    styles.frame, frame, { backgroundColor: colors.elevated, opacity },
+    motion && { transform: [{ translateY: lift }] },
+  ]}>
+    <View style={[styles.banner, { borderColor: `${colors.gold}73` }]}>
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.stage,{width:layout.stageWidth,height:layout.stageHeight}]}>
       <View style={[styles.stage,{width:scene.stage,height:88,transform:[{scale:layout.artScale}]}]}>
@@ -117,11 +123,20 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" onPress={onDismiss} style={styles.dismiss}>
       <Ionicons name="close" size={19} color={colors.mutedText}/>
     </Pressable>
+    </View>
   </Animated.View>;
 }
 
 const styles = StyleSheet.create({
-  banner:{ position:"absolute", top:0, right:0, bottom:0, left:0, zIndex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:18, overflow:'hidden' },
+  frame: {
+    position: 'absolute', zIndex: 1, borderRadius: 16,
+    shadowColor: '#000000', shadowOpacity: 0.24, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 }, elevation: 5,
+  },
+  banner: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderRadius: 16, overflow: 'hidden',
+  },
   stage:{ alignItems:'center', justifyContent:'center' },
   glow:{ position:'absolute', borderRadius:50 },
   seal:{ position:'absolute', width:72, height:72, borderRadius:36, borderWidth:2 },
