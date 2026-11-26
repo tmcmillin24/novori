@@ -136,17 +136,20 @@ export default function ProfileReadingModule({
   const [checkinFeedback] = useState(() => new Animated.Value(1));
   const reduceMotion = useRef(true);
   const confirmation = useMemo(() => ({
-    ringRotation: checkinFeedback.interpolate({
-      inputRange: [0, 0.7, 1], outputRange: ['0deg', '360deg', '360deg'],
+    rightArc: checkinFeedback.interpolate({
+      inputRange: [0, 0.36, 1], outputRange: ['-135deg', '45deg', '45deg'],
     }),
-    ringOpacity: checkinFeedback.interpolate({
-      inputRange: [0, 0.62, 0.76, 1], outputRange: [1, 1, 0, 0],
+    leftArc: checkinFeedback.interpolate({
+      inputRange: [0, 0.36, 0.72, 1], outputRange: ['45deg', '45deg', '225deg', '225deg'],
+    }),
+    traceOpacity: checkinFeedback.interpolate({
+      inputRange: [0, 0.72, 1], outputRange: [1, 1, 0],
+    }),
+    circleOpacity: checkinFeedback.interpolate({
+      inputRange: [0, 0.72, 1], outputRange: [0.22, 0.22, 1],
     }),
     checkmarkOpacity: checkinFeedback.interpolate({
-      inputRange: [0, 0.76, 0.88, 1], outputRange: [0, 0, 1, 1],
-    }),
-    checkmarkScale: checkinFeedback.interpolate({
-      inputRange: [0, 0.76, 0.92, 1], outputRange: [0.78, 0.78, 1.12, 1],
+      inputRange: [0, 0.72, 0.94, 1], outputRange: [0, 0, 1, 1],
     }),
   }), [checkinFeedback]);
 
@@ -406,7 +409,7 @@ export default function ProfileReadingModule({
           setMilestone({tier:reached,days:next.currentStreak});
         } else if (next.checkedIn && !reduceMotion.current) {
           checkinFeedback.setValue(0);
-          Animated.timing(checkinFeedback, { toValue: 1, duration: 650, easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
+          Animated.timing(checkinFeedback, { toValue: 1, duration: 560, easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
         }
       }
 
@@ -650,16 +653,21 @@ export default function ProfileReadingModule({
               accessibilityRole="text"
               accessibilityLabel="Checked in for today’s reading"
             >
-              <View style={styles.confirmationIcon} accessible={false}>
-                <Animated.View pointerEvents="none" style={[styles.confirmationRing, { opacity: confirmation.ringOpacity }]}>
-                  <View style={styles.confirmationTrack}/>
-                  <Animated.View style={[styles.confirmationArc, { transform: [{ rotate: confirmation.ringRotation }] }]}/>
+              <View style={styles.confirmationIcon} pointerEvents="none" accessible={false}>
+                <Animated.View style={[styles.confirmationCircle, { opacity: confirmation.circleOpacity }]}/>
+                <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: confirmation.traceOpacity }]}>
+                  <View style={[styles.confirmationClip, { right: 0 }]}>
+                    <Animated.View style={[styles.confirmationArc, {
+                      right: 0, transform: [{ rotate: confirmation.rightArc }],
+                    }]}/>
+                  </View>
+                  <View style={[styles.confirmationClip, { left: 0 }]}>
+                    <Animated.View style={[styles.confirmationArc, {
+                      left: 0, transform: [{ rotate: confirmation.leftArc }],
+                    }]}/>
+                  </View>
                 </Animated.View>
-                <Animated.View style={{
-                  opacity: confirmation.checkmarkOpacity, transform: [{ scale: confirmation.checkmarkScale }],
-                }}>
-                  <Ionicons name="checkmark-circle" size={18} color={colors.background}/>
-                </Animated.View>
+                <Animated.View style={[styles.confirmationCheckmark, { opacity: confirmation.checkmarkOpacity }]}/>
               </View>
 
               <Text
@@ -732,24 +740,7 @@ export default function ProfileReadingModule({
                 styles.pressed,
             ]}
           >
-            {loadingCheckin || savingCheckin ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  colors.background
-                }
-              />
-            ) : (
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={
-                  18
-                }
-                color={
-                  colors.background
-                }
-              />
-            )}
+            {(loadingCheckin || savingCheckin) && <ActivityIndicator size="small" color={colors.background}/>}
 
             <Text
               style={
@@ -995,15 +986,19 @@ function createStyles(
         13,
     },
 
-    confirmationIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
-    confirmationRing: { ...StyleSheet.absoluteFillObject },
-    confirmationTrack: {
-      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5,
-      borderColor: colors.background, opacity: 0.28,
+    confirmationIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+    confirmationCircle: {
+      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5, borderColor: colors.background,
     },
+    // Each mask reveals one half of the clockwise trace.
+    confirmationClip: { position: 'absolute', top: 0, bottom: 0, width: 9, overflow: 'hidden' },
     confirmationArc: {
-      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5,
+      position: 'absolute', top: 0, width: 18, height: 18, borderRadius: 9, borderWidth: 1.5,
       borderColor: 'transparent', borderTopColor: colors.background, borderRightColor: colors.background,
+    },
+    confirmationCheckmark: {
+      width: 5, height: 8, borderRightWidth: 1.5, borderBottomWidth: 1.5,
+      borderColor: colors.background, transform: [{ translateY: -1 }, { rotate: '45deg' }],
     },
 
     checkedInActionRow: {
@@ -1057,6 +1052,8 @@ function createStyles(
     },
 
     checkinButtonText: {
+      lineHeight: 18,
+      includeFontPadding: false,
       color:
         colors.background,
       fontFamily:
