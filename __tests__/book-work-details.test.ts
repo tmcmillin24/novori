@@ -1,5 +1,5 @@
 import { test, expect, jest } from '@jest/globals';
-import { createBookWorkDetails, applyBookWorkDetails } from '../src/lib/book-work-details';
+import { createBookWorkDetails, applyBookWorkDetails, resolveMissingBookSynopsis } from '../src/lib/book-work-details';
 import type { GoogleBookSearchItem } from '../src/lib/book-search';
 const book = (id: string, pages: number, author = 'Frank Herbert'): GoogleBookSearchItem => ({ id, source: { provider: 'isbndb' }, volumeInfo: { title: 'Dune', authors: [author], language: 'en', pageCount: pages, publishedDate: '2020-01-01', description: `Description ${id}`, imageLinks: { thumbnail: `https://covers/${id}` }, industryIdentifiers: [{ type: 'ISBN_13', identifier: id }] } });
 test('trending, search, series and saved editions share work details while retaining every cover and identity', async () => {
@@ -73,4 +73,19 @@ test('alternate synopses reject audio, translations, adaptations and different a
  const other = book('other', 600, 'Another Author');
  const result = await createBookWorkDetails(async () => [audio, translated, adapted, other]).resolve(original);
  expect(result.volumeInfo.description).toBeUndefined();
+});
+
+test('preserves an untagged selected edition and recovers a synopsis available only in a sibling detail', async () => {
+ const original = book('original', 550);
+ original.volumeInfo.language = undefined;
+ original.volumeInfo.description = undefined;
+ const sparse = book('sibling', 300);
+ sparse.volumeInfo.description = undefined;
+ const full = book('sibling', 300);
+ const unrelated = book('other', 700, 'Other');
+ const detail = jest.fn(async () => full);
+ const result = await resolveMissingBookSynopsis(original, {search: async () => [unrelated, sparse], detail});
+ expect(detail.mock.calls).toEqual([['sibling']]);
+ expect(result).toEqual({...original, volumeInfo:{...original.volumeInfo, description:full.volumeInfo.description}});
+ expect((await createBookWorkDetails(async () => [full]).resolve(original))).toEqual(result);
 });

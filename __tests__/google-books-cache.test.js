@@ -17,7 +17,7 @@ function harness(workDetails) {
   function load(){
     const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/lib/google-books.ts'),'utf8');
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-    vm.runInNewContext(compiled+";exports.cacheSizes=()=>[memoryCache.size,volumeMemoryCache.size];",{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('cache-terminal-log')?{localCacheLog:()=>{}}:name.includes('book-work-details')?(workDetails?{bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
+    vm.runInNewContext(compiled+";exports.cacheSizes=()=>[memoryCache.size,volumeMemoryCache.size];",{exports,URL,Date,Promise,console,__DEV__:false,require:name=>name.includes('cache-terminal-log')?{localCacheLog:()=>{}}:name.includes('book-description')?require('../src/lib/book-description'):name.includes('book-work-details')?(workDetails?{...require('../src/lib/book-work-details'),bookWorkDetails:workDetails}:require('../src/lib/book-work-details')):name.includes('book-read-cache')?require('../src/lib/book-read-cache'):name.includes('book-edition-metadata')?require('../supabase/functions/_shared/book-edition-metadata'):name.startsWith('@react-native')?{__esModule:true,default:asyncStorage}:{supabase}});
     return exports;
   }
   return {storage,calls,load,setCatalog:value=>{catalog=value;}};
@@ -91,7 +91,7 @@ test('cached-first details return while work enrichment is pending, without rewr
  let finish;
  const search=jest.fn(() => new Promise(resolve => { finish=resolve; }));
  const h=harness(createBookWorkDetails(search));
- const edition={id:'saved',volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:600,imageLinks:{thumbnail:'https://covers/saved'}}};
+ const edition={id:'saved',volumeInfo:{title:'Dune',authors:['Frank Herbert'],language:'en',pageCount:600,description:'Original synopsis',imageLinks:{thumbnail:'https://covers/saved'}}};
  h.storage.set('novori:google-books:detail:v5:saved',JSON.stringify({id:'saved',savedAt:Date.now(),data:edition}));
  const before=new Map(h.storage),onWorkDetails=jest.fn(),api=h.load();
  const first=await api.fetchGoogleBooksJson(detail('saved'),{cachedFirst:true,onWorkDetails});

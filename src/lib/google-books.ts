@@ -1,5 +1,7 @@
+import { formatBookDescription } from './book-description';
+import type { GoogleBookSearchItem } from './book-search';
 import { localCacheLog } from './cache-terminal-log';
-import { bookWorkDetails } from './book-work-details';
+import { bookWorkDetails, resolveMissingBookSynopsis } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { normalizeIsbnDbEdition } from '../../supabase/functions/_shared/book-edition-metadata';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -768,12 +770,24 @@ export async function fetchGoogleBooksJson<T>(url: string, options?: {
     const edition = normalizeIsbnDbEdition(result.data as any);
     if (options?.cachedFirst) {
       const known = bookWorkDetails.peek(edition);
-      if (known) return { ...result, data: known as T };
-      // Keep the existing deduplicated work lookup, but never hold cached edition
-      // data behind it. No raw memory/device/catalog cache rows are rewritten.
-      const workDetails = bookWorkDetails.resolve(edition) as Promise<T>;
-      void workDetails.then(book => options.onWorkDetails?.(book)).catch(() => {});
-      return { ...result, data: edition as T, workDetails };
+      const initial = known ?? edition;
+      if (known && formatBookDescription(known.volumeInfo.description)) return { ...result, data: known as T };
+      const workDetails = (known ? Promise.resolve(known) : bookWorkDetails.resolve(edition)) as Promise<T>;
+      void (workDetails as Promise<GoogleBookSearchItem>).then(book => {
+        if (!known) options.onWorkDetails?.(book as T);
+        if (!options.onWorkDetails) return;
+        return resolveMissingBookSynopsis(book, {
+          search: async title => (await loadGoogleBooksJson<{items?: GoogleBookSearchItem[]}>(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&startIndex=0&maxResults=40&printType=books&projection=full`
+          )).data?.items ?? [],
+          detail: async id => (await loadGoogleBooksJson<GoogleBookSearchItem>(
+            `https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(id)}`
+          )).data ?? null,
+        }).then(withSynopsis => {
+          if (withSynopsis !== book) options.onWorkDetails?.(withSynopsis as T);
+        });
+      }).catch(() => {});
+      return { ...result, data: initial as T, workDetails };
     }
     return { ...result, data: await bookWorkDetails.resolve(edition) as T };
   }
