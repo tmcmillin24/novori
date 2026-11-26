@@ -81,3 +81,14 @@ test('ISBNs on audiobooks or untagged works cannot produce a library edition whe
  ]},series.id,deps)).toBeNull();
  expect(persistHardcoverEdition).not.toHaveBeenCalled();
 });
+
+test('an ISBN-linked English print edition can open without a duplicate title on the edition row',async()=>{
+ const persistHardcoverEdition=jest.fn(async book=>book);
+ const book={...hardcover,editions:[{isbn_13:first,language:{code2:'en'},physical_format:'Paperback'}]};
+ const resolved=await resolveSeriesEdition(book,series.id,sources({persistHardcoverEdition}));
+ expect(resolved?.volumeInfo.title).toBe(hardcover.title);
+ expect(resolved?.source.isbn13).toBe(first);
+ const conflict={...book,editions:[{...book.editions[0],title:'Unrelated Book'}]};
+ expect(await resolveSeriesEdition(conflict,series.id,sources({persistHardcoverEdition}))).toBeNull();
+ expect(persistHardcoverEdition).toHaveBeenCalledTimes(1);
+});

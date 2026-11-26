@@ -1,5 +1,6 @@
 import { audioEditionPenalty, cleanCatalogBookTitle, isCatalogCollection, isCatalogSupplement,
   normalizeCatalogAuthor } from './book-edition-metadata.ts';
+import { seriesIdentityMatches } from './series-lookup.ts';
 import { hardcoverTextEdition } from './hardcover-discovery-policy.ts';
 import { validPageCount } from './page-count.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
@@ -52,7 +53,12 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
     const isbn = seriesIsbnKey(row.isbn_13) ?? seriesIsbnKey(row.isbn_10);
     if (!isbn) continue;
     (languages.some(isEnglishBookLanguage) ? english : untagged).add(isbn);
-    if (!hardcoverEditions.has(isbn) && hardcoverTextEdition(row, member.title, '9999-12-31')) {
+    // Hardcover's edition belongs to this work, but its title can be absent
+    // or carry a publisher's series label. Reject any conflicting title.
+    const title = row.title?.trim();
+    const titleMatches = !title || seriesIdentityMatches({title,authors:member.authors},member,series.name);
+    if (!hardcoverEditions.has(isbn) && titleMatches &&
+        hardcoverTextEdition({...row,title:member.title}, member.title, '9999-12-31')) {
       hardcoverEditions.set(isbn, row);
     }
   }

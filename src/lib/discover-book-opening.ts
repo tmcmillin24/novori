@@ -17,7 +17,8 @@ export type BookDetailParams = {
   seriesPreviewName?: string;
   seriesPreviewPosition?: string;
   seriesPreviewDate?: string;
-  seriesPreviewEditionCheckFailed?: string;
+  seriesLookupId?: string;
+  seriesLookupIsbns?: string;
 };
 
 export function openingAuthors(raw?: string): string[] {
