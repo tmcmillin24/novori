@@ -22,6 +22,7 @@ import {
   Alert,
   Animated,
   AppState,
+  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -132,16 +133,22 @@ export default function ProfileReadingModule({
     );
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
-  const [checkinFeedback] = useState(() => new Animated.Value(0));
+  const [checkinFeedback] = useState(() => new Animated.Value(1));
   const reduceMotion = useRef(true);
-  const checkmarkScale = checkinFeedback.interpolate({
-    inputRange: [0, 0.25, 0.54, 0.78, 1],
-    outputRange: [1, 1.3, 0.94, 1.05, 1],
-  });
-  const dayPulseScale = checkinFeedback.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.42] });
-  const dayPulseOpacity = checkinFeedback.interpolate({
-    inputRange: [0, 0.15, 1], outputRange: [0, 0.8, 0],
-  });
+  const confirmation = useMemo(() => ({
+    ringRotation: checkinFeedback.interpolate({
+      inputRange: [0, 0.7, 1], outputRange: ['0deg', '360deg', '360deg'],
+    }),
+    ringOpacity: checkinFeedback.interpolate({
+      inputRange: [0, 0.62, 0.76, 1], outputRange: [1, 1, 0, 0],
+    }),
+    checkmarkOpacity: checkinFeedback.interpolate({
+      inputRange: [0, 0.76, 0.88, 1], outputRange: [0, 0, 1, 1],
+    }),
+    checkmarkScale: checkinFeedback.interpolate({
+      inputRange: [0, 0.76, 0.92, 1], outputRange: [0.78, 0.78, 1.12, 1],
+    }),
+  }), [checkinFeedback]);
 
   useEffect(() => {
     let active = true;
@@ -150,7 +157,7 @@ export default function ProfileReadingModule({
       reduceMotion.current = reduced;
       if (reduced) {
         checkinFeedback.stopAnimation();
-        checkinFeedback.setValue(0);
+        checkinFeedback.setValue(1);
       }
     }
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', reduced => {
@@ -253,6 +260,8 @@ export default function ProfileReadingModule({
         books,
       ]
     );
+
+  const canEditCheckinBook = readingBooks.length === 2;
 
   const checkinPickerBooks =
     useMemo(
@@ -397,7 +406,7 @@ export default function ProfileReadingModule({
           setMilestone({tier:reached,days:next.currentStreak});
         } else if (next.checkedIn && !reduceMotion.current) {
           checkinFeedback.setValue(0);
-          Animated.timing(checkinFeedback, { toValue: 1, duration: 480, useNativeDriver: true, isInteraction: false }).start();
+          Animated.timing(checkinFeedback, { toValue: 1, duration: 650, easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
         }
       }
 
@@ -503,6 +512,7 @@ export default function ProfileReadingModule({
 
   async function openEditDailyCheckin() {
     if (
+      !canEditCheckinBook ||
       loadingCheckin ||
       savingCheckin ||
       checkinError ||
@@ -640,9 +650,17 @@ export default function ProfileReadingModule({
               accessibilityRole="text"
               accessibilityLabel="Checked in for today’s reading"
             >
-              <Animated.View style={{ transform: [{ scale: checkmarkScale }] }}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.background}/>
-              </Animated.View>
+              <View style={styles.confirmationIcon} accessible={false}>
+                <Animated.View pointerEvents="none" style={[styles.confirmationRing, { opacity: confirmation.ringOpacity }]}>
+                  <View style={styles.confirmationTrack}/>
+                  <Animated.View style={[styles.confirmationArc, { transform: [{ rotate: confirmation.ringRotation }] }]}/>
+                </Animated.View>
+                <Animated.View style={{
+                  opacity: confirmation.checkmarkOpacity, transform: [{ scale: confirmation.checkmarkScale }],
+                }}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.background}/>
+                </Animated.View>
+              </View>
 
               <Text
                 style={
@@ -653,7 +671,7 @@ export default function ProfileReadingModule({
               </Text>
             </View>
 
-            <Pressable
+            {canEditCheckinBook && <Pressable
               disabled={
                 loadingCheckin ||
                 savingCheckin ||
@@ -691,7 +709,7 @@ export default function ProfileReadingModule({
               >
                 Edit book
               </Text>
-            </Pressable>
+            </Pressable>}
           </View>
         ) : (
           <Pressable
@@ -796,10 +814,6 @@ export default function ProfileReadingModule({
                         styles.dayBubbleChecked,
                     ]}
                   >
-                    {isToday && checked && <Animated.View pointerEvents="none" accessible={false}
-                      style={[styles.dayPulse, {
-                        opacity: dayPulseOpacity, transform: [{ scale: dayPulseScale }],
-                      }]}/>}
                     <Text
                       style={[
                         styles.dayBubbleText,
@@ -981,6 +995,17 @@ function createStyles(
         13,
     },
 
+    confirmationIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
+    confirmationRing: { ...StyleSheet.absoluteFillObject },
+    confirmationTrack: {
+      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5,
+      borderColor: colors.background, opacity: 0.28,
+    },
+    confirmationArc: {
+      ...StyleSheet.absoluteFillObject, borderRadius: 9, borderWidth: 1.5,
+      borderColor: 'transparent', borderTopColor: colors.background, borderRightColor: colors.background,
+    },
+
     checkedInActionRow: {
       flexDirection:
         'row',
@@ -1091,11 +1116,6 @@ function createStyles(
         'center',
       justifyContent:
         'center',
-    },
-
-    dayPulse: {
-      position: 'absolute', top: -2, right: -2, bottom: -2, left: -2,
-      borderRadius: 17, borderWidth: 1.5, borderColor: colors.gold,
     },
 
     dayBubbleToday: {

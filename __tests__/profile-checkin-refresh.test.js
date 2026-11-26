@@ -15,6 +15,7 @@ jest.mock('react-native',()=>({
     isReduceMotionEnabled: async () => mockReduceMotion,
     addEventListener: () => ({remove() {}}),
   },
+  Easing: { linear: value => value },
   Animated: {
     View: 'AnimatedView',
     Value: class { interpolate() { return 0; } setValue() {} stopAnimation() {} },
@@ -156,4 +157,14 @@ test.each([false, true])('a regular check-in honors Reduce Motion (%s) and does 
   expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
   await act(async () => {mockFocusCleanup(); mockFocusCleanup = mockFocus();});
   expect(mockCheckinAnimation).toHaveBeenCalledTimes(reduced ? 0 : 1);
+});
+
+test.each([0, 1, 2, 3])('Edit book is available with %s Reading books only when there are two', async count => {
+  getDailyReadingCheckinState.mockResolvedValue({...checked, checkedIn: true});
+  await render([
+    ...Array.from({length: count}, (_, index) => ({google_book_id: `book-${index}`, status: 'reading'})),
+    {google_book_id: 'finished', status: 'read'},
+  ]);
+  expect(view.root.findAllByProps({accessibilityLabel: 'Edit book for today’s reading check-in'}).length > 0)
+    .toBe(count === 2);
 });
