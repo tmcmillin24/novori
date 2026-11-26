@@ -88,7 +88,11 @@ test('a confirmed milestone check-in celebrates once, and opening the profile do
  await act(async()=>view.root.findByType('DailyCheckinSheet').props.onConfirm());
  const celebration=view.root.findByType('ReadingStreakCelebration');
  expect(celebration.props).toMatchObject({days:3,tier:{label:'Heating Up'}});
+ expect(view.root.findAllByType('View').some(node=>node.props.pointerEvents==='none' && node.props.accessibilityElementsHidden &&
+   node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);
  await act(async()=>celebration.props.onDismiss());
+ expect(view.root.findAllByType('View').some(node=>node.props.pointerEvents==='auto' &&
+   node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);
  await act(async()=>view.unmount());
  await render();
  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);

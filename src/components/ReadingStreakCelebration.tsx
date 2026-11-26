@@ -4,10 +4,10 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View 
 import { readingStreakTier, reachedReadingStreakTier, STREAK_TIERS, type StreakTier } from '../lib/reading-streak-tier';
 
 const scenes = {
-  3:  { kind:'embers', duration:1050, height:100, stage:84, glow:44 },
-  7:  { kind:'flare', duration:1350, height:114, stage:92, glow:54 },
-  14: { kind:'burst', duration:1700, height:132, stage:108, glow:65 },
-  30: { kind:'crown', duration:2100, height:152, stage:122, glow:76 },
+  3:  { kind:'embers', duration:1050, stage:84, glow:44 },
+  7:  { kind:'flare', duration:1350, stage:92, glow:54 },
+  14: { kind:'burst', duration:1700, stage:108, glow:65 },
+  30: { kind:'crown', duration:2100, stage:122, glow:76 },
 } as const;
 
 type Milestone = {tier: StreakTier; days: number};
@@ -15,7 +15,10 @@ type Milestone = {tier: StreakTier; days: number};
 export default function ReadingStreakCelebration({ tier, days, onDismiss }: Milestone & {onDismiss: () => void}) {
   const scene = scenes[tier.days];
   const progress = useRef(new Animated.Value(0)).current;
-  const [motion, setMotion] = useState(false);
+  const opacity = useRef(new Animated.Value(1)).current;
+  const dismiss = useRef(onDismiss);
+  dismiss.current = onDismiss;
+  const [motion, setMotion] = useState<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -26,26 +29,36 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
     });
     void AccessibilityInfo.isReduceMotionEnabled().then(reduced => {
       if (active && !changed) setMotion(!reduced);
-    }, () => {});
+    }, () => { if (active && !changed) setMotion(false); });
     return () => { active = false; subscription.remove(); };
   }, []);
 
   useEffect(() => {
-    if (!motion) return;
+    if (motion === null) return;
+    if (!motion) {
+      opacity.setValue(1);
+      const timer = setTimeout(() => dismiss.current(), scene.duration + 800);
+      return () => clearTimeout(timer);
+    }
     progress.setValue(0);
-    const animation = Animated.timing(progress, {toValue:1, duration:scene.duration, easing:Easing.linear, useNativeDriver:true});
-    animation.start();
-    return () => animation.stop();
-  }, [motion, progress, scene.duration]);
+    opacity.setValue(1);
+    const sequence = Animated.sequence([
+      Animated.timing(progress, {toValue:1, duration:scene.duration, easing:Easing.linear, useNativeDriver:true, isInteraction:false}),
+      Animated.delay(750),
+      Animated.timing(opacity, {toValue:0, duration:380, useNativeDriver:true, isInteraction:false}),
+    ]);
+    sequence.start(({finished}) => { if (finished) dismiss.current(); });
+    return () => sequence.stop();
+  }, [motion, progress, opacity, scene.duration]);
 
   const crown = scene.kind === 'crown';
   const ringCount = scene.kind === 'embers' ? 0 : scene.kind === 'flare' ? 1 : 2;
   const flare = scene.kind === 'flare';
   const burst = scene.kind === 'burst';
   const peak = crown ? .37 : flare ? .23 : .31;
-  return <View style={[styles.banner,{borderColor:tier.color,minHeight:scene.height}]}>
+  return <Animated.View accessibilityViewIsModal style={[styles.banner,{borderColor:tier.color,opacity}]}>
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={[styles.stage,{width:scene.stage,height:scene.height-14}]}>
+      style={[styles.stage,{width:scene.stage,height:88}]}>
       <View style={[styles.glow,{width:scene.glow,height:scene.glow,backgroundColor:tier.color,opacity:crown ? .16 : .10}]}/>
       {motion && <>
         {Array.from({length:ringCount}, (_, index) => {
@@ -96,7 +109,7 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" hitSlop={8} onPress={onDismiss} style={styles.dismiss}>
       <Ionicons name="close" size={19} color="#E5CBB4"/>
     </Pressable>
-  </View>;
+  </Animated.View>;
 }
 
 export function ReadingStreakPreview() {
@@ -121,12 +134,21 @@ export function ReadingStreakPreview() {
     <Pressable accessibilityRole="button" onPress={simulate} style={styles.previewButton}>
       <Text style={styles.previewText}>Simulate check-in</Text>
     </Pressable>
-    {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
+    <View>
+      <View accessibilityElementsHidden={Boolean(milestone)} importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
+        <Text style={styles.previewCheckin}>✓ Checked in</Text>
+        <View style={styles.previewDays}>
+          {['M','T','W','T','F','S','S'].map((day,index) =>
+            <Text key={index} style={[styles.previewDay,{backgroundColor:index<4?'#654425':'#352820'}]}>{day}</Text>)}
+        </View>
+      </View>
+      {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
+    </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  banner:{ flexDirection:'row', alignItems:'center', backgroundColor:'#302019', borderWidth:1, borderRadius:18, minHeight:96, marginTop:12, paddingVertical:9 },
+  banner:{ position:"absolute", top:0, right:0, bottom:0, left:0, zIndex:1, flexDirection:'row', alignItems:'center', backgroundColor:'#302019', borderWidth:1, borderRadius:18, overflow:'hidden' },
   stage:{ alignItems:'center', justifyContent:'center' },
   glow:{ position:'absolute', borderRadius:50 },
   seal:{ position:'absolute', width:72, height:72, borderRadius:36, borderWidth:2 },
@@ -140,6 +162,9 @@ const styles = StyleSheet.create({
   detail:{ fontSize:12, color:'#F1DACC', fontFamily:'Inter_500Medium' },
   dismiss:{ minWidth:36, alignSelf:'flex-start', alignItems:'center', paddingVertical:5 },
   preview:{ backgroundColor:'#211915', borderRadius:14, padding:10, marginTop:10, gap:8 },
+  previewCheckin:{ textAlign:'center', backgroundColor:'#654425', color:'#FFF5E9', padding:12, borderRadius:12 },
+  previewDays:{ flexDirection:'row', justifyContent:'space-between', paddingVertical:14 },
+  previewDay:{ width:25,height:25,borderRadius:13,textAlign:'center',textAlignVertical:'center',lineHeight:25,color:'#FFF5E9' },
   previewRow:{ flexDirection:'row', flexWrap:'wrap', gap:6 },
   previewButton:{ padding:8, backgroundColor:'#533A2B', borderRadius:8 },
   previewText:{ color:'#FFF5E9', fontSize:12, fontFamily:'Inter_600SemiBold' },

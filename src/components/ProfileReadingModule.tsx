@@ -617,13 +617,15 @@ export default function ProfileReadingModule({
         </View>
 
         {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
-        {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
         {__DEV__ && <Pressable accessibilityRole="button" accessibilityState={{expanded:previewOpen}}
           onPress={() => setPreviewOpen(open => !open)} style={{paddingVertical:8}}>
           <Text style={{color:colors.mutedText,fontSize:12}}>Streak preview</Text>
         </Pressable>}
         {__DEV__ && previewOpen && <ReadingStreakPreview/>}
 
+        <View>
+          <View pointerEvents={milestone ? 'none' : 'auto'} accessibilityElementsHidden={Boolean(milestone)}
+            importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
         {checkinState
           ?.checkedIn ? (
           <View
@@ -826,6 +828,10 @@ export default function ProfileReadingModule({
               );
             }
           )}
+        </View>
+
+          </View>
+          {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
         </View>
 
         {checkinError ? (
