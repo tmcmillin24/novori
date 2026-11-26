@@ -3047,11 +3047,18 @@ export function hasMoreBookSearchResults(term: string, startIndex: number) {
 
 const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
 
+const completedSearchKey = (term: string, offset: number, mode?: 'author') =>
+  `${mode ?? 'auto'}:${searchQueryKey(term)}:${offset}`;
+
+export function peekNovoriBookSearch(title: string) {
+  return readCompletedSearch.peek(completedSearchKey(title, 0));
+}
+
+
 export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {mode?: 'author'; onProgress?: (books: GoogleBookSearchItem[]) => void} = {}) {
   const isbn = !options.mode && /^(?:isbn[:\s]*)?[\dXx -]+$/i.test(searchTerm.trim()) ? normalizeSearchIsbn(searchTerm) : null;
   const term = isbn ?? searchTerm;
-  const key = searchQueryKey(term);
-  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
+  return readCompletedSearch(completedSearchKey(term, startIndex, options.mode), publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
 }
 
 async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author', onProgress?: (books: GoogleBookSearchItem[]) => void) {

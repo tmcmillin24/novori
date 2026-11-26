@@ -73,6 +73,7 @@ import {
   resolveHardcoverRating,
   type ResolvedHardcoverRating,
   searchNovoriBooks,
+  peekNovoriBookSearch,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -1101,7 +1102,7 @@ function SeriesBookOpeningRoute({params}: {params: BookDetailParams}) {
     }
     const member = {title:params.clickedTitle ?? '', authors, isbns:(params.seriesLookupIsbns ?? '').split(',').slice(0,20)};
     void readSeriesEdition(`${seriesId}:${bookId}`, () =>
-      resolveSeriesOpening<GoogleBook>(member, params.seriesPreviewName ?? '', searchNovoriBooks, async () => {
+      resolveSeriesOpening<GoogleBook>(member, params.seriesPreviewName ?? '', peekNovoriBookSearch, async () => {
         const {data,error} = await supabase.functions.invoke<{book: GoogleBook | null}>('hardcover-series', {
           body:{mode:'resolve-edition',seriesId,bookId}, timeout:18000,
         });

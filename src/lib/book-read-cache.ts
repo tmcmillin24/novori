@@ -6,7 +6,7 @@ export function createBookReadCache<T>(ttlMs = 5 * 60_000, maxEntries = 40) {
   const previews = new Map<string, T>();
   const listeners = new Map<string, Set<(value: T) => void>>();
   const copy = (value: T): T => JSON.parse(JSON.stringify(value));
-  return async (key: string, load: (publish: (value: T) => void) => Promise<T>, cacheable: (value: T) => boolean = () => true, onProgress?: (value: T) => void): Promise<T> => {
+  const read = async (key: string, load: (publish: (value: T) => void) => Promise<T>, cacheable: (value: T) => boolean = () => true, onProgress?: (value: T) => void): Promise<T> => {
     const cached = values.get(key);
     if (cached && cached.expiresAt > Date.now()) {localCacheLog('device-metadata','HIT');return copy(cached.value);}
     const notify = (listener: (value: T) => void, value: T) => {
@@ -45,4 +45,10 @@ export function createBookReadCache<T>(ttlMs = 5 * 60_000, maxEntries = 40) {
       if (pending.get(key) === request) { pending.delete(key); previews.delete(key); }
     }
   };
+  return Object.assign(read, {
+    peek(key: string): T | undefined {
+      const entry = values.get(key);
+      return entry && entry.expiresAt > Date.now() ? copy(entry.value) : undefined;
+    },
+  });
 }
