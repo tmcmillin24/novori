@@ -18,7 +18,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -27,6 +27,7 @@ import LegalAcceptanceGate from '../components/LegalAcceptanceGate';
 import TutorialGate from '../components/TutorialGate';
 import TutorialOverlay from '../components/TutorialOverlay';
 import {TutorialProvider,TutorialBackground} from '../context/tutorial-context';
+import LaunchTrace from '../components/LaunchTrace';
 import ConversationHandoffOverlay from '../components/ConversationHandoffOverlay';
 import ReadingReminderDeviceSync from '../components/ReadingReminderDeviceSync';
 
@@ -43,7 +44,6 @@ function AppNavigator() {
   useEffect(() => {
     if (ready) {
       void SystemUI.setBackgroundColorAsync(colors.background);
-      void SplashScreen.hideAsync();
     }
   }, [ready, colors.background]);
 
@@ -89,12 +89,12 @@ function AppNavigator() {
 }
 
 export default function RootLayout() {
-  const [playfairLoaded] = usePlayfairFonts({
+  const [playfairLoaded, playfairError] = usePlayfairFonts({
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_700Bold,
   });
 
-  const [interLoaded] = useInterFonts({
+  const [interLoaded, interError] = useInterFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -102,12 +102,9 @@ export default function RootLayout() {
   });
 
   const appReady =
-    playfairLoaded &&
-    interLoaded;
+    (playfairLoaded || !!playfairError) &&
+    (interLoaded || !!interError);
 
-  if (!appReady) {
-    return null;
-  }
 
   return (
     <GestureHandlerRootView
@@ -117,10 +114,25 @@ export default function RootLayout() {
     >
       <KeyboardProvider>
         <NovoriThemeProvider>
-          <ReadingReminderDeviceSync />
-          <AppNavigator />
+          <StartupContent fontsReady={appReady} />
         </NovoriThemeProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function StartupContent({ fontsReady }: { fontsReady: boolean }) {
+  const { ready } = useNovoriTheme();
+  const [introFinished, setIntroFinished] = useState(false);
+
+  if (!fontsReady || !ready || !introFinished) {
+    return <LaunchTrace onFinished={setIntroFinished} />;
+  }
+
+  return (
+    <>
+      <ReadingReminderDeviceSync />
+      <AppNavigator />
+    </>
   );
 }
