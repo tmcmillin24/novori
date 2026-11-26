@@ -3,9 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { readingStreakTier, reachedReadingStreakTier, STREAK_TIERS, type StreakTier } from '../lib/reading-streak-tier';
 
+const scenes = {
+  3:  { kind:'embers', duration:1050, height:100, stage:84, glow:44 },
+  7:  { kind:'flare', duration:1350, height:114, stage:92, glow:54 },
+  14: { kind:'burst', duration:1700, height:132, stage:108, glow:65 },
+  30: { kind:'crown', duration:2100, height:152, stage:122, glow:76 },
+} as const;
+
 type Milestone = {tier: StreakTier; days: number};
 
 export default function ReadingStreakCelebration({ tier, days, onDismiss }: Milestone & {onDismiss: () => void}) {
+  const scene = scenes[tier.days];
   const progress = useRef(new Animated.Value(0)).current;
   const [motion, setMotion] = useState(false);
 
@@ -25,39 +33,66 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
   useEffect(() => {
     if (!motion) return;
     progress.setValue(0);
-    const animation = Animated.timing(progress, {toValue:1, duration:1150, easing:Easing.out(Easing.cubic), useNativeDriver:true});
+    const animation = Animated.timing(progress, {toValue:1, duration:scene.duration, easing:Easing.linear, useNativeDriver:true});
     animation.start();
     return () => animation.stop();
-  }, [motion, progress]);
+  }, [motion, progress, scene.duration]);
 
-  return <View style={[styles.banner,{borderColor:tier.color}]}>
-    <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.stage}>
+  const crown = scene.kind === 'crown';
+  const ringCount = scene.kind === 'embers' ? 0 : scene.kind === 'flare' ? 1 : 2;
+  const flare = scene.kind === 'flare';
+  const burst = scene.kind === 'burst';
+  const peak = crown ? .37 : flare ? .23 : .31;
+  return <View style={[styles.banner,{borderColor:tier.color,minHeight:scene.height}]}>
+    <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={[styles.stage,{width:scene.stage,height:scene.height-14}]}>
+      <View style={[styles.glow,{width:scene.glow,height:scene.glow,backgroundColor:tier.color,opacity:crown ? .16 : .10}]}/>
       {motion && <>
-        <Animated.View style={[styles.ring,{borderColor:tier.color,
-          opacity:progress.interpolate({inputRange:[0,.3,1],outputRange:[.85,.7,0]}),
-          transform:[{scale:progress.interpolate({inputRange:[0,1],outputRange:[.48,2.35]})}],
-        }]}/>
-        {Array.from({length:tier.sparks}, (_, index) => {
-          const angle = index / tier.sparks * Math.PI * 2;
-          const distance = 29 + (index % 3) * 5;
-          return <Animated.View key={index} style={[styles.spark,{backgroundColor:tier.color,
-            opacity:progress.interpolate({inputRange:[0,.17,.67,1],outputRange:[0,1,.85,0]}),
-            transform:[
-              {translateX:Animated.multiply(progress,Math.cos(angle)*distance)},
-              {translateY:Animated.multiply(progress,Math.sin(angle)*distance)},
-            ],
+        {Array.from({length:ringCount}, (_, index) => {
+          const start = (crown ? .22 : .11) + index*.15;
+          return <Animated.View key={index} style={[styles.ring,{borderColor:tier.color,
+            opacity:progress.interpolate({inputRange:[0,start,start+.07,start+.4,1],outputRange:[0,0,.8,0,0]}),
+            transform:[{scale:progress.interpolate({inputRange:[start,start+.4],outputRange:[.65,crown?2.85:2.4],extrapolate:'clamp'})}],
           }]}/>;
         })}
+        {Array.from({length:tier.sparks}, (_, index) => {
+          const angle = flare ? -Math.PI/2 + (index/(tier.sparks-1)-.5)*2.5 : index/tier.sparks*Math.PI*2;
+          const distance = 26+(index%3)*7+(crown?9:burst?5:0);
+          const x = scene.kind === 'embers' ? (index%3-1)*13 : Math.cos(angle)*distance;
+          const y = scene.kind === 'embers' ? -25-index*4 : Math.sin(angle)*distance;
+          const start = (crown ? .35 : burst ? .24 : .13) + (index%3)*.065;
+          return <Animated.View key={index} style={[styles.spark,{
+            opacity:progress.interpolate({inputRange:[0,start,start+.08,.92,1],outputRange:[0,0,1,.35,0]}),
+            transform:[
+              {translateX:progress.interpolate({inputRange:[start,.93],outputRange:[0,x],extrapolate:'clamp'})},
+              {translateY:progress.interpolate({inputRange:[start,.93],outputRange:[0,y],extrapolate:'clamp'})},
+              {rotate:index%2?'30deg':'0deg'},
+            ],
+          }]}><View style={[styles.sparkCore,{backgroundColor:index%3===0?'#FFF5DE':tier.color,height:flare?9:burst?7:4}]}/></Animated.View>;
+        })}
       </>}
-      <Animated.View style={motion ? {transform:[{scale:progress.interpolate({inputRange:[0,.26,.58,1],outputRange:[.72,1.32,.94,1]})}]} : undefined}>
-        <Ionicons name="flame" size={37} color={tier.color}/>
+      {crown && <Animated.View style={[styles.seal,{borderColor:tier.color},motion ? {
+        opacity:progress.interpolate({inputRange:[0,.38,.68,1],outputRange:[0,0,1,1]}),
+        transform:[{scale:progress.interpolate({inputRange:[0,.38,.68,1],outputRange:[.55,.55,1.13,1]})}],
+      } : undefined]}/>}
+      <Animated.View style={motion ? {transform:[
+        {translateY:progress.interpolate({inputRange:[0,peak,.67,1],outputRange:[scene.kind==='embers'?10:6,flare?-12:-6,2,0]})},
+        {scale:progress.interpolate({inputRange:[0,peak,.67,1],outputRange:[.42,crown?1.47:burst?1.36:flare?1.3:1.08,.96,1]})},
+      ]} : undefined}>
+        <Ionicons name="flame" size={crown?50:burst?44:flare?38:33} color={tier.color}/>
       </Animated.View>
+      {crown && <Animated.View style={[styles.crownMark,motion ? {
+        opacity:progress.interpolate({inputRange:[0,.57,.8,1],outputRange:[0,0,1,1]}),
+        transform:[{translateY:progress.interpolate({inputRange:[.57,.8,1],outputRange:[-14,2,0],extrapolate:'clamp'})}],
+      } : undefined]}><Ionicons name="sparkles" size={17} color={tier.color}/></Animated.View>}
     </View>
-    <View style={styles.copy} accessibilityLiveRegion="polite">
+    <Animated.View style={[styles.copy, motion ? {transform:[{
+      translateY:progress.interpolate({inputRange:[0,crown ? .7 : .47,1],outputRange:[7,0,0]}),
+    }]} : undefined]} accessibilityLiveRegion="polite">
       <Text style={[styles.kicker,{color:tier.color}]}>STREAK MILESTONE</Text>
       <Text accessibilityRole="header" style={styles.title}>{tier.label}</Text>
       <Text style={styles.detail}>{days} days of reading in a row</Text>
-    </View>
+    </Animated.View>
     <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" hitSlop={8} onPress={onDismiss} style={styles.dismiss}>
       <Ionicons name="close" size={19} color="#E5CBB4"/>
     </Pressable>
@@ -92,9 +127,13 @@ export function ReadingStreakPreview() {
 
 const styles = StyleSheet.create({
   banner:{ flexDirection:'row', alignItems:'center', backgroundColor:'#302019', borderWidth:1, borderRadius:18, minHeight:96, marginTop:12, paddingVertical:9 },
-  stage:{ width:68, height:76, alignItems:'center', justifyContent:'center' },
+  stage:{ alignItems:'center', justifyContent:'center' },
+  glow:{ position:'absolute', borderRadius:50 },
+  seal:{ position:'absolute', width:72, height:72, borderRadius:36, borderWidth:2 },
+  crownMark:{ position:'absolute', top:10 },
   ring:{ position:'absolute', width:34, height:34, borderWidth:1.5, borderRadius:17 },
-  spark:{ position:'absolute', width:4, height:4, borderRadius:2 },
+  spark:{ position:'absolute' },
+  sparkCore:{ width:4, borderRadius:2 },
   copy:{ flex:1, paddingVertical:3 },
   kicker:{ fontSize:9, fontFamily:'Inter_700Bold', letterSpacing:1 },
   title:{ fontSize:25, color:'#FFF5E9', fontFamily:'PlayfairDisplay_700Bold', marginVertical:2 },
