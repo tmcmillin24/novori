@@ -136,7 +136,7 @@ type GoogleBook = {
 };
 
 type HardcoverSeriesBook = {
-  position: number;
+  position: number | null;
   id: number;
   title: string;
   slug?: string | null;
@@ -2077,7 +2077,16 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
   }
 
   function findGoogleBookForSeries(seriesBook: HardcoverSeriesBook) {
-    return resolveSeriesOpening<GoogleBook>(seriesBook, series?.name ?? '', searchNovoriBooks);
+    const currentSeries = series;
+    return resolveSeriesOpening<GoogleBook>(seriesBook, currentSeries?.name ?? '', searchNovoriBooks,
+      currentSeries ? async () => {
+        const {data, error} = await supabase.functions.invoke<{book: GoogleBook | null}>('hardcover-series', {
+          body: {mode: 'resolve-edition', seriesId: currentSeries.id, bookId: seriesBook.id},
+          timeout: 18000,
+        });
+        if (error || !data || !('book' in data)) throw error ?? new Error('Edition lookup was incomplete');
+        return data.book;
+      } : undefined);
   }
 
   async function saveReadingStatus(
@@ -2499,8 +2508,8 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
     seriesBook: HardcoverSeriesBook
   ) {
     if (
-      series?.currentPosition ===
-        seriesBook.position
+      series?.currentPosition != null &&
+      series.currentPosition === seriesBook.position
     ) {
       return;
     }
@@ -4473,9 +4482,8 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
                 ]}
               >
                 {seriesBooks.map((seriesBook, index) => {
-                  const isCurrent =
-                    series.currentPosition ===
-                    seriesBook.position;
+                  const isCurrent = series.currentPosition != null &&
+                    series.currentPosition === seriesBook.position;
 
                   const isOpening =
                     openingSeriesBookId === seriesBook.id;

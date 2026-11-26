@@ -9,7 +9,8 @@ import { attachDiscoveryCatalogCovers } from '../_shared/discovery-cover-catalog
 import { hardcoverTextEdition } from '../_shared/hardcover-discovery-policy.ts';
 import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
-import { isbnDbEnabled } from '../_shared/isbndb.ts';
+import { isbnDbEnabled, isbnDbSearch, lookupIsbnDbEdition } from '../_shared/isbndb.ts';
+import { resolveSeriesEdition } from '../_shared/series-edition-resolver.ts';
 import { englishEditionIsbns, isEnglishBookLanguage } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -45,6 +46,15 @@ Deno.serve(async (req) => {
   try {
 
     const body = await req.json();
+
+    const resolveEdition = body?.mode === 'resolve-edition';
+    const editionResponse = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
+      status, headers: {...corsHeaders, 'Content-Type': 'application/json'},
+    });
+    if (resolveEdition && ![body.seriesId, body.bookId].every(id =>
+      Number.isInteger(id) && id > 0 && id <= 2147483647)) {
+      return editionResponse({error: 'A valid series and book are required.'}, 400);
+    }
 
     const requestedIsbns = Array.from(
       new Set(
@@ -87,10 +97,7 @@ Deno.serve(async (req) => {
         ? body.googleBookId.trim()
         : "";
 
-    if (
-      requestedIsbns.length === 0 &&
-      !requestedTitle
-    ) {
+    if (!resolveEdition && requestedIsbns.length === 0 && !requestedTitle) {
 
       return new Response(
 
@@ -218,7 +225,45 @@ Deno.serve(async (req) => {
 
 
     const supabaseAdmin = createCacheAdmin();requestTrace=providerTrace(supabaseAdmin);
-    await requireReader(supabaseAdmin, req);
+    const reader = await requireReader(supabaseAdmin, req);
+    if (resolveEdition) {
+      if (!isbnDbEnabled()) return editionResponse({error: 'Edition lookup is unavailable.'}, 503);
+      const query = `
+        query SeriesReadingEditions($bookId: Int!) {
+          books(where: {id: {_eq: $bookId}}, limit: 1) {
+            id title compilation
+            contributions { author { name } }
+            book_series { series { id name } }
+            editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
+              isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
+              reading_format { format }
+              language { code2 code3 language }
+            }
+          }
+        }
+      `;
+      const response = await cachedHardcoverFetch(supabaseAdmin, 'https://api.hardcover.app/v1/graphql', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+        body: JSON.stringify({query, variables: {bookId: body.bookId}}),
+      }, 14 * 86400000, 14 * 86400000, 'hardcover_series', undefined,
+      payload => seriesResultLifetime(Boolean(payload?.data?.books?.length)));
+      const payload = await response.json();
+      if (!Array.isArray(payload?.data?.books)) throw new Error('Hardcover edition response was incomplete.');
+      const member = payload.data.books.find((row: {id: number}) => row.id === body.bookId);
+      const book = member ? await resolveSeriesEdition(member, body.seriesId, {
+        catalog: async isbns => {
+          const {data, error} = await supabaseAdmin.from('book_editions')
+            .select('provider_book_id,metadata').eq('provider','isbndb').eq('detail_complete',true).in('isbn_13',isbns);
+          if (error) throw error;
+          return (data ?? []).flatMap(row => row.provider_book_id && row.metadata?.volumeInfo?.title
+            ? [{...row.metadata, id: row.provider_book_id}] : []);
+        },
+        byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
+        byTitle: async query => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false})).items,
+      }) : null;
+      return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
+    }
     let sourceExpiresAt = Infinity;
     const fetchHardcover = (url: string, init: RequestInit) => cachedHardcoverFetch(
       supabaseAdmin, url, init, 14 * 86400000, 90 * 86400000, 'hardcover_series',

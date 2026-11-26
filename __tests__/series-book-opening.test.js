@@ -93,3 +93,28 @@ test('ISBN-10 is equivalent to the same English ISBN-13 but is searched only onc
  expect(await h.resolve({...row,isbns:[short,long]})).toEqual(record);
  expect(h.deps.searchNovoriBooks.mock.calls.filter(([query])=>query.startsWith('isbn:'))).toHaveLength(1);
 });
+
+test('a preliminary near match does not end the search before the verified edition arrives',async()=>{
+ const search=jest.fn(async(_query,_offset,{onProgress})=>{
+   onProgress([{...novel,volumeInfo:{...novel.volumeInfo,authors:['Wrong Author']}}]);
+   return [novel];
+ });
+ const resolveEdition=jest.fn(async()=>null);
+ expect(await resolveSeriesOpening(row,'',search,resolveEdition)).toEqual(novel);
+ expect(resolveEdition).not.toHaveBeenCalled();
+});
+
+test('a series tap falls back to the direct endpoint without waiting on a slow Discover search',async()=>{
+ const routed={...novel,id:'nv_series_edition'};
+ const search=jest.fn(()=>new Promise(()=>{}));
+ const resolveEdition=jest.fn(async()=>routed);
+ expect(await resolveSeriesOpening(row,'',search,resolveEdition)).toEqual(routed);
+ expect(search).toHaveBeenCalledTimes(1);
+ expect(resolveEdition).toHaveBeenCalledTimes(1);
+});
+
+test('provider failures surface as retryable and do not masquerade as no verified book',async()=>{
+ const search=jest.fn(async()=>[]);
+ await expect(resolveSeriesOpening(row,'',search,async()=>{throw Error('temporarily offline');}))
+   .rejects.toThrow('lookup unavailable');
+});

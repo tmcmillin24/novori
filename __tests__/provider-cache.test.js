@@ -718,3 +718,35 @@ test('a cache filled after the initial read but before lease acquisition skips a
  const load=jest.fn(async()=>({known:false}));
  expect(await h.api.cachedProviderValue({...options(h),load})).toEqual({known:true});expect(load).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
 });
+
+test('series taps route a verified edition through normal book detail and reuse both provider caches', async () => {
+  const h = isbnHarness();
+  const title = 'Winter Charts';
+  const author = 'Lena Grant';
+  const isbn = '9780134093413';
+  h.setUpstream(async (url, _init, body) => {
+    if (url.includes('hardcover.app')) {
+      expect(body.query).toContain('SeriesReadingEditions');
+      expect(body.variables).toEqual({bookId:17});
+      return {data:{books:[{
+        id:17,title,contributions:[{author:{name:author}}],
+        book_series:[{series:{id:36,name:'Mapmakers'}}],
+        editions:[{isbn_13:isbn,language:null,physical_format:'hardcover'}],
+      }]}};
+    }
+    if (url.endsWith('/book/' + isbn)) return {book:isbnBook({title,authors:[author],binding:'hardcover'})};
+    return {books:[],total:0};
+  });
+  const body = {mode:'resolve-edition',seriesId:36,bookId:17};
+  const response = await h.request('hardcover-series', body);
+  expect(response.book).toMatchObject({id:'nv_' + isbn,volumeInfo:{title,language:'en'}});
+  const detail = await h.request('google-books-detail', {volumeId:response.book.id});
+  expect(detail.data).toMatchObject({id:response.book.id,volumeInfo:{title,language:'en'}});
+  const exactCalls = h.calls.filter(row => row.url.endsWith('/book/' + isbn)).length;
+  expect((await h.request('hardcover-series', body)).book.id).toBe(response.book.id);
+  expect(h.calls.filter(row => row.url.endsWith('/book/' + isbn))).toHaveLength(exactCalls);
+  expect(exactCalls).toBe(1);
+  expect(h.hardcoverRequests).toBe(1);
+  expect(h.catalogWrites).toEqual([]);
+  expect((await h.request('hardcover-series', {...body,seriesId:99})).book).toBeNull();
+});
