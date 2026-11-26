@@ -2,7 +2,9 @@ import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import ProfileReadingModule from '../src/components/ProfileReadingModule';
 import {getDailyReadingCheckinState,ensureDailyReadingCheckin} from '../src/lib/reading-checkins';
+import {setTestStreak} from '../src/lib/streak-testing';
 const mockListeners=new Set();
+let mockAuthUser = null;
 let mockAppState='active',mockFocus,mockFocusCleanup;
 jest.mock('expo-router',()=>({useRouter:()=>({push:jest.fn()}),useFocusEffect:callback=>{mockFocus=callback;require('react').useEffect(()=>{mockFocusCleanup=callback();return()=>mockFocusCleanup?.();},[callback]);}}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
@@ -11,10 +13,15 @@ jest.mock('../src/components/DailyCheckinSheet',()=> 'DailyCheckinSheet');
 jest.mock('../src/components/ReadingStreakCelebration',()=>({__esModule:true,default:'ReadingStreakCelebration'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
 jest.mock('../src/lib/reading-checkins',()=>({...jest.requireActual('../src/lib/reading-checkins'),getDailyReadingCheckinState:jest.fn(),ensureDailyReadingCheckin:jest.fn().mockResolvedValue('checkin')}));
-jest.mock('../src/lib/supabase',()=>({supabase:{}}));
+jest.mock('../src/lib/supabase', () => ({
+  supabase: { auth: { onAuthStateChange: callback => {
+    callback('INITIAL_SESSION', mockAuthUser ? {user: mockAuthUser} : null);
+    return {data: {subscription: {unsubscribe() {}}}};
+  } } },
+}));
 const empty={localDate:'2026-10-27',checkedIn:false,currentStreak:0,checkedDates:[]};
 let view,silence;
-beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-10-27T12:00:00Z'));jest.clearAllMocks();mockListeners.clear();mockAppState='active';getDailyReadingCheckinState.mockResolvedValue(empty);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
+beforeEach(()=>{mockAuthUser=null;setTestStreak('tester', '2026-10-27', null);globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-10-27T12:00:00Z'));jest.clearAllMocks();mockListeners.clear();mockAppState='active';getDailyReadingCheckinState.mockResolvedValue(empty);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;jest.useRealTimers();silence.mockRestore();});
 async function render(books=[]){await act(async()=>{view=renderer.create(<ProfileReadingModule books={books}/>);});}
 async function state(value){await act(async()=>{mockAppState=value;for(const listener of [...mockListeners])listener(value);});}
@@ -100,4 +107,24 @@ test('a confirmed milestone check-in celebrates once, and opening the profile do
  await act(async()=>view.unmount());
  await render();
  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
+});
+
+test.each([3, 7, 14, 30])('the test account can trigger the %s-day animation from Profile', async milestone => {
+  mockAuthUser = {id: 'tester', email: 'novori.acc@gmail.com'};
+  setTestStreak('tester', empty.localDate, milestone - 1);
+  getDailyReadingCheckinState.mockResolvedValue({...checked, checkedIn: true});
+  await render([{google_book_id: 'book-1', status: 'reading'}]);
+  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
+  await act(async () => view.root.findByProps({accessibilityLabel: 'Check in for today’s reading'}).props.onPress());
+  expect(view.root.findByType('ReadingStreakCelebration').props.days).toBe(milestone);
+  expect(ensureDailyReadingCheckin).not.toHaveBeenCalled();
+});
+
+test('a different signed-in account uses its actual check-in state', async () => {
+  mockAuthUser = {id: 'other', email: 'other@example.com'};
+  setTestStreak('tester', empty.localDate, 6);
+  getDailyReadingCheckinState.mockResolvedValue({...checked, checkedIn: true});
+  await render();
+  expect(view.root.findByProps({accessibilityLabel: 'Checked in for today’s reading'})).toBeDefined();
+  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
 });

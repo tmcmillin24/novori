@@ -1,3 +1,4 @@
+import { getTestCheckinState, setTestCheckinBook, useStreakTest } from '../lib/streak-testing';
 import ReadingStreakCelebration from './ReadingStreakCelebration';
 import { readingStreakTier, reachedReadingStreakTier, type StreakTier } from '../lib/reading-streak-tier';
 import {isAccountUnavailableError} from '../lib/account-session-errors';
@@ -67,7 +68,7 @@ export default function ProfileReadingModule({
     );
 
   const [
-    checkinState,
+    savedCheckinState,
     setCheckinState,
   ] =
     useState<
@@ -77,7 +78,7 @@ export default function ProfileReadingModule({
     );
 
   const [
-    loadingCheckin,
+    loadingSavedCheckin,
     setLoadingCheckin,
   ] =
     useState(
@@ -93,7 +94,7 @@ export default function ProfileReadingModule({
     );
 
   const [
-    checkinError,
+    savedCheckinError,
     setCheckinError,
   ] =
     useState(
@@ -129,12 +130,17 @@ export default function ProfileReadingModule({
   const [localDate, setLocalDate] = useState(getLocalDateKey);
   const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
   const [checkinSize, setCheckinSize] = useState({ width: 0, height: 0 });
+  const { test: streakTest } = useStreakTest(localDate);
+  const checkinState = useMemo(() => streakTest ? getTestCheckinState(streakTest) : savedCheckinState,
+    [streakTest, savedCheckinState]);
+  const loadingCheckin = !streakTest && loadingSavedCheckin;
+  const checkinError = streakTest ? '' : savedCheckinError;
   const currentStreak = checkinState?.currentStreak ?? 0;
   const tier = readingStreakTier(currentStreak);
 
   const checkinMutationVersion = useRef(0);
-  const knownCheckinState = useRef(checkinState);
-  knownCheckinState.current = checkinState;
+  const knownCheckinState = useRef(savedCheckinState);
+  knownCheckinState.current = savedCheckinState;
 
   useEffect(() => {
     let midnightTimer: ReturnType<typeof setTimeout>;
@@ -337,20 +343,17 @@ export default function ProfileReadingModule({
         ''
       );
 
-      await ensureDailyReadingCheckin(
-        googleBookIds,
-        'manual',
-        todayCheckinKey
-      );
-      checkinMutationVersion.current += 1;
+      let next: DailyReadingCheckinState | null;
+      if (streakTest) {
+        next = setTestCheckinBook(streakTest, googleBookIds[0]);
+      } else {
+        await ensureDailyReadingCheckin(googleBookIds, 'manual', todayCheckinKey);
+        checkinMutationVersion.current += 1;
+        next = await getDailyReadingCheckinState(todayCheckinKey);
+      }
 
-      const next =
-        await getDailyReadingCheckinState(
-          todayCheckinKey
-        );
-
-      if (next.localDate === getLocalDateKey()) {
-        setCheckinState(next);
+      if (next?.localDate === getLocalDateKey()) {
+        if (!streakTest) setCheckinState(next);
         const reached = next.checkedIn && reachedReadingStreakTier(checkinState?.currentStreak ?? 0, next.currentStreak);
         if (reached) setMilestone({tier:reached,days:next.currentStreak});
       }
@@ -413,18 +416,14 @@ export default function ProfileReadingModule({
         ''
       );
 
-      await replaceDailyReadingCheckinBooks(
-        googleBookIds,
-        todayCheckinKey
-      );
-      checkinMutationVersion.current += 1;
-
-      const next =
-        await getDailyReadingCheckinState(
-          todayCheckinKey
-        );
-
-      if (next.localDate === getLocalDateKey()) setCheckinState(next);
+      if (streakTest) {
+        setTestCheckinBook(streakTest, googleBookIds[0]);
+      } else {
+        await replaceDailyReadingCheckinBooks(googleBookIds, todayCheckinKey);
+        checkinMutationVersion.current += 1;
+        const next = await getDailyReadingCheckinState(todayCheckinKey);
+        if (next.localDate === getLocalDateKey()) setCheckinState(next);
+      }
 
       setCheckinSheetVisible(
         false
@@ -475,10 +474,9 @@ export default function ProfileReadingModule({
         true
       );
 
-      const existingBookIds =
-        await getDailyReadingCheckinBookIds(
-          todayCheckinKey
-        );
+      const existingBookIds = streakTest?.bookId
+        ? [streakTest.bookId]
+        : await getDailyReadingCheckinBookIds(todayCheckinKey);
 
       setSelectedCheckinBookIds(
         existingBookIds.slice(

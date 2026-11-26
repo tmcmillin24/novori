@@ -8,9 +8,8 @@ import { useNovoriTheme } from '../context/theme-context';
 import { getExplicitLanguagePreference, setExplicitLanguagePreference } from '../lib/content-filter';
 import { signOutCurrentDevice } from '../lib/sign-out';
 import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
-import ReadingStreakCelebration from '../components/ReadingStreakCelebration';
-import { reachedReadingStreakTier, STREAK_TIERS } from '../lib/reading-streak-tier';
-import { supabase } from '../lib/supabase';
+import { getLocalDateKey } from '../lib/reading-checkins';
+import { setTestStreak, useStreakTest } from '../lib/streak-testing';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 
 function SettingsRow({ icon, title, danger, onPress }: {
@@ -30,56 +29,35 @@ function SettingsRow({ icon, title, danger, onPress }: {
     style={({pressed}) => [styles.row, pressed && styles.pressed]}>{content}</Pressable>;
 }
 
-const STREAK_TEST_ACCOUNT = 'novori.acc@gmail.com';
-
-function StreakTestingSection() {
+function StreakTestingSection({ userId, days }: { userId: string; days?: number }) {
   const { colors } = useNovoriTheme();
   const styles = settingsStyles(colors);
-  const [value, setValue] = useState(String(STREAK_TIERS[0].days));
-  const [days, setDays] = useState<number | null>(null);
-  const [replay, setReplay] = useState(0);
-  const [region, setRegion] = useState({ width: 0, height: 0 });
-  const count = value.trim() === '' ? NaN : Number(value);
-  const valid = Number.isSafeInteger(count) && count >= 0;
-  const tier = days === null ? undefined : reachedReadingStreakTier(days - 1, days);
+  const [value, setValue] = useState(String(days ?? 2));
+  const count = Number(value);
+  const valid = /^\d{1,6}$/.test(value);
 
   return <SettingsSection icon="flame-outline" title="Streak testing">
     <View style={{padding: 16, gap: 10}}>
-      <Text style={styles.rowTitle}>Test streak days</Text>
+      <Text style={styles.rowTitle}>Current test streak</Text>
       <Text style={{ color: colors.secondaryText }}>
-        Preview a check-in milestone on this device. Milestones are {STREAK_TIERS.map(item => item.days).join(', ')} days.
+        Set your starting streak, then check in on your Profile to advance it by one day. For example, set 2 to test the 3-day milestone.
       </Text>
-      <TextInput
-        accessibilityLabel="Test streak days"
-        keyboardType="number-pad"
-        value={value}
-        onChangeText={setValue}
-        maxLength={6}
+      <TextInput accessibilityLabel="Current test streak" keyboardType="number-pad" value={value}
+        onChangeText={setValue} maxLength={6}
         style={{ minHeight: 44, borderWidth: 1, borderColor: colors.mutedText, borderRadius: 10, paddingHorizontal: 12, color: colors.text }}
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !valid }}
-        disabled={!valid}
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !valid }} disabled={!valid}
         style={{ minHeight: 44, justifyContent: 'center', opacity: valid ? 1 : 0.5 }}
-        onPress={() => {
-          setDays(count);
-          setReplay(previous => previous + 1);
-        }}
-      >
-        <Text style={styles.retryText}>Test streak</Text>
+        onPress={() => setTestStreak(userId, getLocalDateKey(), count)}>
+        <Text style={styles.retryText}>Set test streak</Text>
       </Pressable>
-      {days !== null && !tier && <Text accessibilityLiveRegion="polite" style={{ color: colors.secondaryText }}>
-        Day {days} has no milestone celebration.
-      </Text>}
-      {tier && <View style={{ minHeight: 96 }} onLayout={({ nativeEvent }) => {
-        const { width, height } = nativeEvent.layout;
-        setRegion({ width, height });
-      }}>
-        {region.width > 0 && region.height > 0 && days !== null && <ReadingStreakCelebration
-          key={replay} tier={tier} days={days} region={region} onDismiss={() => setDays(null)}
-        />}
-      </View>}
+      {days !== undefined && <>
+        <Text accessibilityLiveRegion="polite" style={{ color: colors.secondaryText }}>Active test streak: {days} days</Text>
+        <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}
+          onPress={() => setTestStreak(userId, getLocalDateKey(), null)}>
+          <Text style={styles.retryText}>Clear test streak</Text>
+        </Pressable>
+      </>}
     </View>
   </SettingsSection>;
 }
@@ -96,14 +74,7 @@ export default function SettingsScreen() {
   const [explicitSaving, setExplicitSaving] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const [streakTesterId, setStreakTesterId] = useState<string | null>(null);
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user;
-      setStreakTesterId(user?.email?.toLowerCase() === STREAK_TEST_ACCOUNT ? user.id : null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+  const { userId: streakTesterId, test: streakTest } = useStreakTest(getLocalDateKey());
 
   const [explicitAttempt, setExplicitAttempt] = useState(0);
   useEffect(() => {
@@ -171,7 +142,7 @@ export default function SettingsScreen() {
         <SettingsDivider/>
         <SettingsRow icon="information-circle-outline" title="About Novori" onPress={() => router.push('/about-novori')}/>
       </SettingsSection>
-      {streakTesterId && <StreakTestingSection key={streakTesterId}/>}
+      {streakTesterId && <StreakTestingSection key={streakTesterId} userId={streakTesterId} days={streakTest?.days}/>}
       <SettingsSection icon="log-out-outline" title="Account actions">
         <SettingsRow icon="log-out-outline" title="Sign Out" onPress={confirmSignOut}/>
         <SettingsDivider/>
