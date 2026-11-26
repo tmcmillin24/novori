@@ -35,6 +35,18 @@ export function usePostFooterTransition() {
   }, [navigation, path, report]);
 }
 
+type BrowsingScreen = { children: ReactNode; route: { name: string }; navigation: { isFocused: () => boolean } };
+const BrowsingScreenFrame = createContext<(screen: BrowsingScreen) => ReactNode>(screen => screen.children);
+
+function BrowsingScreenContent(screen: BrowsingScreen) {
+  const renderFrame = useContext(BrowsingScreenFrame);
+  return <>{renderFrame(screen)}</>;
+}
+
+export function renderBrowsingScreenLayout(screen: BrowsingScreen) {
+  return <BrowsingScreenContent {...screen}/>;
+}
+
 const ScrollVisibility = createContext<(path: string, hidden: boolean) => void>(() => {});
 
 export function useBrowsingNavigationScroll() {
@@ -82,8 +94,6 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const tutorial = useTutorial();
   const route = segments.join('/');
   const detail = detailRoutes.has(route);
-  // Keep the book viewport the same size before and after the bar mounts.
-  const overlayBookBar = route === 'book/[id]' || route === 'book/[id]/index';
   const owner = useRef<Tab>('discover');
   const saved = useRef<Partial<Record<Tab, Href>>>({});
   const [active, setActive] = useState<Tab>('discover');
@@ -123,8 +133,6 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const keepPostFooter = Platform.OS === 'ios' && postRoute;
   const showBar = detail && !tutorial?.active && (!keyboard || keepPostFooter);
   const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
-  const postLeaving = postRoute && closingPostPath === pathname;
-  const barUnavailable = hidden || keyboard || postLeaving;
   const progress = useSharedValue(1);
   useEffect(() => {
     if (!showBar || reduceMotion) { progress.value = 1; return; }
@@ -149,25 +157,46 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
     router.navigate(destination);
   }
 
+  function renderScreen({ children: screen, route: screenRoute, navigation }: BrowsingScreen) {
+    const name = screenRoute.name;
+    const isPost = name === 'post/[id]';
+    const isOverlay = isPost || name === 'book/[id]' || name === 'book/[id]/index';
+    const focused = navigation.isFocused();
+    const screenKeyboard = focused && keyboard;
+    const keepFooter = Platform.OS === 'ios' && isPost;
+    const showFooter = detailRoutes.has(name) && !tutorial?.active && (!screenKeyboard || keepFooter);
+    const screenHidden = focused && hidden;
+    const leaving = focused && isPost && closingPostPath === pathname;
+    const unavailable = screenHidden || screenKeyboard || leaving;
+
+    return <BottomInsetCovered.Provider value={(!keepFooter && screenKeyboard) || (showFooter && !screenHidden && !isOverlay)}>
+      <PostFooterSpace.Provider value={isPost && showFooter
+        ? <Animated.View pointerEvents="none" accessible={false}
+            style={focused ? postFooterSpace : {height: NOVORI_TAB_BAR_HEIGHT}}/>
+        : null}>
+        <View style={{ flex: 1 }}>{screen}</View>
+        {showFooter && <Animated.View style={[
+          { overflow: 'hidden', marginTop: -raisedButtonSpace, opacity: leaving ? 0 : 1 },
+          isOverlay && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 },
+          focused ? slide : { height: raisedButtonSpace + NOVORI_TAB_BAR_HEIGHT },
+        ]} pointerEvents={unavailable ? 'none' : 'auto'}
+          accessibilityElementsHidden={unavailable} importantForAccessibility={unavailable ? 'no-hide-descendants' : 'auto'}>
+          <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
+            <NovoriBottomBar active={active} onTab={switchTab}/>
+          </View>
+        </Animated.View>}
+      </PostFooterSpace.Provider>
+    </BottomInsetCovered.Provider>;
+  }
+
   return <ScrollVisibility.Provider value={report}>
-    <BottomInsetCovered.Provider value={(!keepPostFooter && keyboard) || (showBar && !hidden && !overlayBookBar)}>
-      <PostFooterTransition.Provider value={reportPostTransition}>
-        <PostFooterSpace.Provider value={postRoute && showBar
-          ? <Animated.View pointerEvents="none" accessible={false} style={postFooterSpace}/>
-          : null}>
-          <ScreenBottomBar.Provider value={tutorial?.active ? null :
-            <NovoriBottomBar active={active} onTab={switchTab}/>}>
-            <View style={{ flex: 1 }}>{children}</View>
-          </ScreenBottomBar.Provider>
-        </PostFooterSpace.Provider>
-      </PostFooterTransition.Provider>
-    </BottomInsetCovered.Provider>
-    {showBar ? <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace, opacity: postLeaving ? 0 : 1 },
-      (overlayBookBar || postRoute) && { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40 }, slide]} pointerEvents={barUnavailable ? 'none' : 'auto'}
-      accessibilityElementsHidden={barUnavailable} importantForAccessibility={barUnavailable ? 'no-hide-descendants' : 'auto'}>
-      <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
-        <NovoriBottomBar active={active} onTab={switchTab}/>
-      </View>
-    </Animated.View> : null}
+    <PostFooterTransition.Provider value={reportPostTransition}>
+      <ScreenBottomBar.Provider value={tutorial?.active ? null :
+        <NovoriBottomBar active={active} onTab={switchTab}/>}>
+        <BrowsingScreenFrame.Provider value={renderScreen}>
+          <View style={{ flex: 1 }}>{children}</View>
+        </BrowsingScreenFrame.Provider>
+      </ScreenBottomBar.Provider>
+    </PostFooterTransition.Provider>
   </ScrollVisibility.Provider>;
 }

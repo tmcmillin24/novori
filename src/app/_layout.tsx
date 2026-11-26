@@ -1,4 +1,4 @@
-import BrowsingNavigation from '../components/BrowsingNavigation';
+import BrowsingNavigation, { renderBrowsingScreenLayout } from '../components/BrowsingNavigation';
 import PushNotificationDeviceSync from '../components/PushNotificationDeviceSync';
 import {
   PlayfairDisplay_600SemiBold,
@@ -68,6 +68,7 @@ function AppNavigator() {
       <AccountDeletionGate />
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <BrowsingNavigation><TutorialBackground><Stack
+        screenLayout={renderBrowsingScreenLayout}
         screenOptions={{
           headerShown: false,
           animation: 'none',
