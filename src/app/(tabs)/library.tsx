@@ -2,7 +2,8 @@ import {getCanonicalBookCover} from '../../lib/canonical-book-covers';
 import { hasLibraryMembership } from '../../lib/library-membership';
 import CartShortcut from '../../components/CartShortcut';
 import { displayBookTitle } from '../../lib/book-title';
-import { getBookLayout, getLibraryBookWidth } from '../../lib/book-layout';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getBookLayout, getLibraryBookWidth, LIBRARY_COLUMN_OPTIONS, type LibraryColumns } from '../../lib/book-layout';
 import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
 import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,6 +65,7 @@ const STATUS_ICONS: Record<UserBookStatus, keyof typeof Ionicons.glyphMap> = {
     read: 'checkmark-circle-outline',
     dnf: 'close-circle-outline',
 };
+const LIBRARY_COLUMNS_KEY = 'novori:library-columns';
 const LIBRARY_STALE_MS = 5 * 60 * 1000;
 let librarySessionCache: {
     books: UserBook[];
@@ -144,8 +146,28 @@ export default function LibraryScreen() {
         getLibraryMutationVersion());
     const { colors, } = useNovoriTheme();
     const { width: windowWidth } = useWindowDimensions();
-    const { libraryColumns } = getBookLayout(windowWidth);
-    const styles = useMemo(() => createStyles(colors, windowWidth), [colors, windowWidth]);
+    const [preferredColumns, setPreferredColumns] = useState<LibraryColumns | null>(null);
+    const hasChosenColumns = useRef(false);
+    const saveColumnPreference = useRef(Promise.resolve());
+    const libraryColumns = preferredColumns ?? getBookLayout(windowWidth).libraryColumns;
+    const styles = useMemo(() => createStyles(colors, windowWidth, libraryColumns), [colors, windowWidth, libraryColumns]);
+
+    useEffect(() => {
+        let active = true;
+        void AsyncStorage.getItem(LIBRARY_COLUMNS_KEY).then(value => {
+            const columns = LIBRARY_COLUMN_OPTIONS.find(option => String(option) === value);
+            if (active && !hasChosenColumns.current && columns) setPreferredColumns(columns);
+        }).catch(() => {});
+        return () => { active = false; };
+    }, []);
+
+    function selectLibraryColumns(columns: LibraryColumns) {
+        hasChosenColumns.current = true;
+        setPreferredColumns(columns);
+        saveColumnPreference.current = saveColumnPreference.current
+            .then(() => AsyncStorage.setItem(LIBRARY_COLUMNS_KEY, String(columns)))
+            .catch(() => {});
+    }
     const [books, setBooks,] = useState<UserBook[]>((librarySessionCache?.books ?? []).filter(hasLibraryMembership));
     const [cartCount, setCartCount,] = useState(librarySessionCache
         ?.cartCount ??
@@ -793,6 +815,20 @@ export default function LibraryScreen() {
 
             <Ionicons name="chevron-down" size={14} color={colors.mutedText}/>
           </Pressable>
+
+          <View style={styles.coverSizeControl}>
+            <Ionicons name="grid-outline" size={14} color={colors.mutedText} style={styles.coverSizeIcon}/>
+            {LIBRARY_COLUMN_OPTIONS.map(columns => {
+                const selected = libraryColumns === columns;
+                return <Pressable key={columns} accessibilityRole="button"
+                    accessibilityLabel={`${columns} covers per row`} accessibilityState={{ selected }}
+                    onPress={() => selectLibraryColumns(columns)} style={({ pressed }) => [
+                        styles.coverSizeOption, selected && styles.coverSizeOptionSelected, pressed && styles.pressed,
+                    ]}>
+                    <Text style={[styles.coverSizeText, selected && styles.coverSizeTextSelected]}>{columns}</Text>
+                </Pressable>;
+            })}
+          </View>
         </View>
       </>);
     }
@@ -1265,7 +1301,9 @@ export default function LibraryScreen() {
       </UiSheetModal>
     </>);
 }
-function createStyles(colors: NovoriColors, windowWidth = 390) {
+function createStyles(colors: NovoriColors, windowWidth: number, libraryColumns: LibraryColumns) {
+    const cardWidth = getLibraryBookWidth(windowWidth, libraryColumns);
+    const compact = cardWidth < 92;
     return StyleSheet.create({
         safeArea: {
             flex: 1,
@@ -1435,11 +1473,24 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
         },
         libraryControls: {
             flexDirection: 'row',
-            justifyContent: 'flex-start',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            gap: 8,
             alignItems: 'center',
             marginTop: 8,
             marginBottom: 10,
         },
+        coverSizeControl: {
+            flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 999,
+            borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+        },
+        coverSizeIcon: { marginHorizontal: 6 },
+        coverSizeOption: {
+            minWidth: 34, minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 999,
+        },
+        coverSizeOptionSelected: { backgroundColor: colors.gold },
+        coverSizeText: { color: colors.secondaryText, fontFamily: 'Inter_700Bold', fontSize: 12 },
+        coverSizeTextSelected: { color: colors.background },
         sortButton: {
             minHeight: 36,
             flexDirection: 'row',
@@ -1471,7 +1522,7 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
             columnGap: 8,
         },
         bookCard: {
-            width: getLibraryBookWidth(windowWidth),
+            width: cardWidth,
             marginBottom: 18,
         },
         coverWrap: {
@@ -1497,13 +1548,13 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
         },
         statusBadge: {
             position: 'absolute',
-            left: 8,
-            bottom: 8,
-            maxWidth: '72%',
+            left: compact ? 4 : 8,
+            bottom: compact ? 4 : 8,
+            maxWidth: compact ? '86%' : '72%',
             backgroundColor: colors.background,
             borderRadius: 999,
-            paddingHorizontal: 8,
-            paddingVertical: 5,
+            paddingHorizontal: compact ? 4 : 8,
+            paddingVertical: compact ? 3 : 5,
             borderWidth: 1,
             borderColor: colors.border,
         },
@@ -1514,14 +1565,14 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
             letterSpacing: 0.25,
         },
         titleRow: {
-            minHeight: 38,
+            minHeight: compact ? 32 : 38,
             flexDirection: 'row',
             alignItems: 'flex-start',
             marginTop: 8,
             gap: 4,
         },
         inlineManageButton: {
-            width: 26,
+            width: compact ? 19 : 26,
             height: 26,
             borderRadius: 8,
             alignItems: 'center',
@@ -1536,8 +1587,8 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
             flex: 1,
             color: colors.text,
             fontFamily: 'Inter_600SemiBold',
-            fontSize: 14,
-            lineHeight: 19,
+            fontSize: compact ? 12 : 14,
+            lineHeight: compact ? 16 : 19,
         },
         authorRow: {
             minHeight: 15,
