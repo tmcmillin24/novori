@@ -17,7 +17,8 @@ import BookArtworkReportButton from '../../../components/BookArtworkReportButton
 import { applyEditionPages, subscribeEditionPages, rememberEditionPages } from '../../../lib/edition-pages';
 import { normalizeBookGenres } from '../../../../supabase/functions/_shared/book-genres';
 import { cleanCatalogBookTitle, displayBookTitle, normalizeCatalogAuthor, isCatalogCollection, isCatalogSupplement } from '../../../../supabase/functions/_shared/book-edition-metadata';
-import { createBookReadCache } from '../../../lib/book-read-cache';
+import { peekSeriesEdition, readSeriesEdition } from '../../../lib/series-edition-cache';
+import { localCacheLog } from '../../../lib/cache-terminal-log';
 import { resolveSeriesOpening } from '../../../lib/series-book-opening';
 import { rememberDiscoveryBookId } from '../../../lib/discovery-books';
 import { formatBookDescription } from '../../../lib/book-description';
@@ -1042,8 +1043,6 @@ function getValidatedHighResolutionCover(
 // selected edition's own cache is refreshed. This never seeds artwork choices.
 const seriesOpeningSnapshots = new Map<string, HardcoverSeriesResponse>();
 
-const readSeriesEdition = createBookReadCache<GoogleBook | null>();
-
 function SeriesBookPreview({params, failed, onRetry}: {params: BookDetailParams; failed: boolean; onRetry: () => void}) {
   const router = useRouter();
   const {colors} = useNovoriTheme();
@@ -1101,14 +1100,15 @@ function SeriesBookOpeningRoute({params}: {params: BookDetailParams}) {
       return;
     }
     const member = {title:params.clickedTitle ?? '', authors, isbns:(params.seriesLookupIsbns ?? '').split(',').slice(0,20)};
-    void readSeriesEdition(`${seriesId}:${bookId}`, () =>
+    void readSeriesEdition(seriesId, bookId, () =>
       resolveSeriesOpening<GoogleBook>(member, params.seriesPreviewName ?? '', peekNovoriBookSearch, async () => {
         const {data,error} = await supabase.functions.invoke<{book: GoogleBook | null}>('hardcover-series', {
           body:{mode:'resolve-edition',seriesId,bookId}, timeout:18000,
         });
         if (error || !data || !('book' in data)) throw error ?? new Error('Edition lookup was incomplete');
         return data.book;
-      }), Boolean).then(book => {
+      }, searchNovoriBooks)).then(({ value: book, fromCache }) => {
+        localCacheLog('series-edition', fromCache ? 'HIT' : 'MISS');
         if (active) setResult({book,failed:false});
       }, () => {
         if (active) setResult({book:null,failed:true});
@@ -1131,7 +1131,7 @@ function SeriesBookOpeningRoute({params}: {params: BookDetailParams}) {
   const coverUrl = book.novoriWork?.canonicalCoverUrl ??
     secureGoogleBooksImageUrl(params.coverUrl) ??
     getValidatedHighResolutionCover(undefined, book.volumeInfo.imageLinks) ?? undefined;
-  return <BookDetailsScreen key={book.id} initialSeries={snapshot} seriesMemberId={bookId} seriesLookupId={seriesId} params={{
+  return <BookDetailsScreen key={book.id} initialSeries={snapshot} initialBook={book} seriesMemberId={bookId} seriesLookupId={seriesId} params={{
     id:book.id, source:params.source, canonicalizeWork:'0', coverUrl,
     trustedCover:coverUrl ? '1' : undefined,
     clickedTitle:book.volumeInfo.title ?? params.clickedTitle,
@@ -1149,9 +1149,10 @@ export default function BookDetailsRoute() {
   return <BookDetailsScreen key={JSON.stringify([params.source, params.id])} params={params} />;
 }
 
-function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookupId }: {
+function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId, seriesLookupId }: {
   params: BookDetailParams;
   initialSeries?: HardcoverSeriesResponse;
+  initialBook?: GoogleBook;
   seriesMemberId?: number;
   seriesLookupId?: number;
 }) {
@@ -1184,7 +1185,7 @@ function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookup
   const opening = useMemo(() => discoverOpening(params, discoverClickedAuthors), [params, discoverClickedAuthors]);
   const [detailAttempt, setDetailAttempt] = useState(0);
 
-  const [book, setBook] = useState<GoogleBook | null>(null);
+  const [book, setBook] = useState<GoogleBook | null>(initialBook ?? null);
   useSyncExternalStore(subscribeSeriesRowMetadata, seriesRowMetadataVersion, seriesRowMetadataVersion);
   useEffect(() => {
     if (!book || !seriesLookupId || !seriesMemberId) return;
@@ -1251,6 +1252,24 @@ function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookup
     useState<HardcoverSeries | null>(seriesSnapshot?.series ?? null);
   const [seriesBooks, setSeriesBooks] =
     useState<HardcoverSeriesBook[]>(seriesSnapshot?.books ?? []);
+  useEffect(() => {
+    if (!series?.id) return;
+    const seriesId = series.id;
+    let active = true;
+    for (const row of seriesBooks) {
+      if (getSeriesRowMetadata(seriesId, row.id)) continue;
+      void peekSeriesEdition<GoogleBook>(seriesId, row.id).then(edition => {
+        if (!active || !edition || getSeriesRowMetadata(seriesId, row.id)) return;
+        rememberSeriesRowMetadata(seriesId, row.id, {
+          bookId: edition.id,
+          isbn: getBookISBN(edition),
+          imageLinks: edition.volumeInfo.imageLinks,
+          publishedDate: edition.volumeInfo.publishedDate,
+        });
+      });
+    }
+    return () => { active = false; };
+  }, [series?.id, seriesBooks]);
   const [seriesLoading, setSeriesLoading] =
     useState(false);
   const [seriesExpanded, setSeriesExpanded] =
@@ -1429,7 +1448,7 @@ function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookup
       try {
         setLoading(true);
         setError('');
-        setBook(null);
+        setBook(initialBook ?? null);
         setOpeningHero(null);
         setSavedBook(null);
         setReadingStatus(null);
@@ -1470,20 +1489,16 @@ function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookup
               if (active && coreReady && enriched.id === openingBookId) setBook(applyEditionPages(enriched));
             },
           }
-        );
+        ).catch(error => {
+          if (!initialBook) throw error;
+          return { ok: false as const, data: null, status: 0, fromCache: false, workDetails: undefined };
+        });
         if (!active) return;
 
-        if (
-          !response.ok ||
-          !response.data
-        ) {
-          throw new Error(
-            `Google Books request failed: ${response.status}`
-          );
+        const data = (response.ok ? response.data : null) ?? initialBook;
+        if (!data) {
+          throw new Error(`Google Books request failed: ${response.status}`);
         }
-
-        const data =
-          response.data;
 
         const shouldCanonicalizeWork =
           canonicalizeWork ===
@@ -1759,6 +1774,7 @@ function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookup
     canonicalizeWork,
     trustedCover,
     detailAttempt,
+    initialBook,
   ]);
 
   useFocusEffect(

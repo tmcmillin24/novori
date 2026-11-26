@@ -68,12 +68,12 @@ test('the destination keeps its book visible during lookup and enables details o
  const supabase={functions:{invoke:jest.fn(()=>response)}};
  vm.runInNewContext(ts.transpileModule(routeCode+'\nexports.open=SeriesBookOpeningRoute;',
   {fileName:'route.tsx',compilerOptions:{jsx:ts.JsxEmit.React,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
-   exports,supabase,peekNovoriBookSearch:jest.fn(),useRouter:()=>({}),useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),
+   exports,supabase,peekNovoriBookSearch:jest.fn(),searchNovoriBooks:jest.fn(),useRouter:()=>({}),useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),
    useState(initial){const key=cursor++; if(!(key in states)) states[key]=typeof initial==='function'?initial():initial;return [states[key],value=>{states[key]=value;}];},
    React:{createElement:(type,props)=>({type,props})},
    seriesOpeningSnapshots:new Map([[params.id,snapshot]]),openingAuthors:JSON.parse,
    BookDetailLoading:'loading',SeriesBookPreview:'preview',BookDetailsScreen:'details',
-   readSeriesEdition:(_key,load)=>load(),resolveSeriesOpening:(_member,_series,_search,load)=>load(),
+   readSeriesEdition:(_series,_book,load)=>load().then(value=>({value,fromCache:false})),localCacheLog:jest.fn(),resolveSeriesOpening:(_member,_series,_search,load)=>load(),
    secureGoogleBooksImageUrl:value=>value,getValidatedHighResolutionCover:()=>undefined,getBookISBN:()=> '9781958968123',
  });
  const initial=exports.open({params});
@@ -84,5 +84,5 @@ test('the destination keeps its book visible during lookup and enables details o
  finish({data:{book}});
  for(let n=0;n<10;n++)await Promise.resolve();
  cursor=0;
- expect(exports.open({params})).toMatchObject({type:'details',props:{initialSeries:snapshot,params:{id:book.id,clickedIsbn:'9781958968123'}}});
+ expect(exports.open({params})).toMatchObject({type:'details',props:{initialSeries:snapshot,initialBook:book,params:{id:book.id,clickedIsbn:'9781958968123'}}});
 });

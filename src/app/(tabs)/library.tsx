@@ -65,6 +65,8 @@ const STATUS_ICONS: Record<UserBookStatus, keyof typeof Ionicons.glyphMap> = {
     read: 'checkmark-circle-outline',
     dnf: 'close-circle-outline',
 };
+// A block contains whole rows at every supported size (2, 3, or 4).
+const LIBRARY_GRID_BLOCK_SIZE = 12;
 const LIBRARY_COLUMNS_KEY = 'novori:library-columns';
 const LIBRARY_STALE_MS = 5 * 60 * 1000;
 let librarySessionCache: {
@@ -216,7 +218,7 @@ export default function LibraryScreen() {
                 null;
         uiSheet.closeAfterActionWithCallback();
     }
-    const libraryListRef = useRef<FlatList<UserBook> | null>(null);
+    const libraryListRef = useRef<FlatList<UserBook[]> | null>(null);
     const libraryScrollOffsetRef = useRef(0);
     const restoreLibraryScrollRef = useRef(false);
     const hasLoadedLibraryRef = useRef(Boolean(librarySessionCache));
@@ -832,10 +834,20 @@ export default function LibraryScreen() {
         </View>
       </>);
     }
-    const renderBook = useCallback(({ item, }: {
-        item: UserBook;
-    }) => (<LibraryBookCard item={item} updating={updatingBookId ===
-            item.id} styles={styles} goldColor={colors.gold} mutedTextColor={colors.mutedText} onOpenBook={openBook} onShowBookActions={showBookActions}/>), [
+    const gridBlocks = useMemo(() => {
+        const blocks: UserBook[][] = [];
+        for (let start = 0; start < visibleBooks.length; start += LIBRARY_GRID_BLOCK_SIZE) {
+            blocks.push(visibleBooks.slice(start, start + LIBRARY_GRID_BLOCK_SIZE));
+        }
+        return blocks;
+    }, [visibleBooks]);
+    const renderGridBlock = useCallback(({ item: block }: { item: UserBook[] }) => (
+        <View style={styles.gridBlock}>
+            {block.map(item => <LibraryBookCard key={item.id} item={item} updating={updatingBookId === item.id}
+                styles={styles} goldColor={colors.gold} mutedTextColor={colors.mutedText}
+                onOpenBook={openBook} onShowBookActions={showBookActions}/>)}
+        </View>
+    ), [
         colors.gold,
         colors.mutedText,
         openBook,
@@ -901,7 +913,8 @@ export default function LibraryScreen() {
       <SafeAreaView style={styles.safeArea} edges={[
             'top'
         ]} onStartShouldSetResponderCapture={captureSearchDismiss}>
-        <FlatList key={`library-${libraryColumns}`} ref={libraryListRef} data={visibleBooks} keyExtractor={(item) => item.id} renderItem={renderBook} numColumns={libraryColumns} columnWrapperStyle={styles.gridRow} ListHeaderComponent={renderHeader()} ListEmptyComponent={<View style={styles.emptyState}>
+        <FlatList ref={libraryListRef} data={gridBlocks} keyExtractor={(_block, index) => String(index)}
+            renderItem={renderGridBlock} initialNumToRender={2} maxToRenderPerBatch={2} ListHeaderComponent={renderHeader()} ListEmptyComponent={<View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
                 <Ionicons name="library-outline" size={27} color={colors.gold}/>
               </View>
@@ -1517,7 +1530,9 @@ function createStyles(colors: NovoriColors, windowWidth: number, libraryColumns:
             borderRadius: 3,
             backgroundColor: colors.gold,
         },
-        gridRow: {
+        gridBlock: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
             justifyContent: 'flex-start',
             columnGap: 8,
         },
