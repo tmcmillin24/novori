@@ -425,30 +425,6 @@ export default function PrivacySettingsScreen() {
           false
         }
       >
-        <View
-          style={
-            styles.intro
-          }
-        >
-          <Text
-            style={
-              styles.introTitle
-            }
-          >
-            Your Privacy
-          </Text>
-
-          <Text
-            style={
-              styles.introText
-            }
-          >
-            Choose what other readers
-            can see and how people can
-            discover you on Novori.
-          </Text>
-        </View>
-
         <Text
           style={
             styles.sectionLabel
@@ -528,7 +504,7 @@ export default function PrivacySettingsScreen() {
             icon="star-outline"
             title="Reviews & Ratings"
             disabled={savingPrivacy || !profilePrivacyRef.current}
-            subtitle="Show reviews and ratings you publish"
+            subtitle="Show published reviews on your profile"
             value={
               preferences.showReviews
             }
@@ -610,7 +586,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="search-outline"
             title="Reader Discovery"
-            subtitle="Allow your profile to appear in reader recommendations and search"
+            subtitle="Show your profile in search and recommendations"
             value={
               preferences.discoverableByReaders
             }
@@ -644,7 +620,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="location-outline"
             title="Appear in Nearby"
-            subtitle="Allow Novori to include you in nearby reader discovery"
+            subtitle="Show your profile to nearby readers"
             value={
               preferences.nearbyEnabled
             }
@@ -670,7 +646,7 @@ export default function PrivacySettingsScreen() {
           <PreferenceRow
             icon="navigate-outline"
             title="Approximate Distance"
-            subtitle="Allow nearby readers to see an approximate distance from you"
+            subtitle="Show approximate distance in Nearby"
             value={
               preferences.showApproximateDistance
             }

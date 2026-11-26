@@ -1,0 +1,138 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SettingsDivider, SettingsGroup, SettingsHeader, SettingsSection, SettingsToggleRow, settingsStyles } from './SettingsPrimitives';
+import { useNovoriTheme } from '../context/theme-context';
+import { getExplicitLanguagePreference, setExplicitLanguagePreference } from '../lib/content-filter';
+import { signOutCurrentDevice } from '../lib/sign-out';
+import DeletePostConfirmSheet from './DeletePostConfirmSheet';
+import ValidationWarningSheet from './ValidationWarningSheet';
+import { supabase } from '../lib/supabase';
+
+function SettingsRow({ icon, title, value, danger, onPress }: {
+  icon: keyof typeof Ionicons.glyphMap; title: string; value?: string;
+  danger?: boolean; onPress?: () => void;
+}) {
+  const { colors } = useNovoriTheme();
+  const styles = settingsStyles(colors);
+  const content = <>
+    <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={danger ? colors.danger : colors.gold}/></View>
+    <View style={styles.copy}>
+      <Text style={[styles.rowTitle, danger && {color:colors.danger}]}>{title}</Text>
+      {value ? <Text style={styles.rowDetail} selectable>{value}</Text> : null}
+    </View>
+    {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/> : null}
+  </>;
+  return onPress ? <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
+    style={({pressed}) => [styles.row, pressed && styles.pressed]}>{content}</Pressable>
+    : <View style={styles.row}>{content}</View>;
+}
+
+type Category = 'home' | 'account' | 'privacy' | 'support';
+const titles: Record<Category,string> = {
+  home:'Settings', account:'Account', privacy:'Privacy & Comfort', support:'Help & About',
+};
+
+export default function SettingsCategories({category}: {category: Category}) {
+  const router = useRouter();
+  const { colors, theme } = useNovoriTheme();
+  const styles = settingsStyles(colors);
+  const [signOutConfirmation,setSignOutConfirmation]=useState(false);
+  const [signingOut,setSigningOut]=useState(false);
+  const [signOutError, setSignOutError] = useState('');
+  const [email, setEmail] = useState('');
+  const [allowExplicitLanguage, setAllowExplicitLanguage] = useState(false);
+  const [explicitLoading, setExplicitLoading] = useState(true);
+  const [explicitSaving, setExplicitSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (category !== 'account' && category !== 'privacy') return;
+    let mounted = true;
+    async function load() {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        if (category === 'account') {
+          if (mounted) setEmail(user?.email ?? '');
+        } else {
+          const preference = user ? await getExplicitLanguagePreference() : false;
+          if (mounted) setAllowExplicitLanguage(preference);
+        }
+      } catch (error) {
+        console.error('Could not load settings:', error);
+        if (mounted) setFailed(true);
+      } finally { if (mounted) setExplicitLoading(false); }
+    }
+    void load();
+    return () => { mounted = false; };
+  }, [category]);
+
+  async function toggleExplicitLanguage(enabled: boolean) {
+    if (explicitSaving || explicitLoading || failed) return;
+    const previous = allowExplicitLanguage;
+    setAllowExplicitLanguage(enabled);
+    setExplicitSaving(true);
+    try { setAllowExplicitLanguage(await setExplicitLanguagePreference(enabled)); }
+    catch (error) {
+      console.error('Could not update explicit-language preference:', error);
+      setAllowExplicitLanguage(previous);
+      Alert.alert('Could not save', 'Your explicit-language preference was not changed. Please try again.');
+    } finally { setExplicitSaving(false); }
+  }
+
+  async function signOut() {
+    if(signingOut)return;
+    setSigningOut(true);
+    try { await signOutCurrentDevice(); setSignOutConfirmation(false); router.replace('/auth'); }
+    catch (error) { setSignOutConfirmation(false); setSignOutError((error as Error).message || 'Please try again.'); }
+    finally {setSigningOut(false);}
+  }
+  function confirmSignOut() {setSignOutConfirmation(true);}
+
+  return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SettingsHeader title={titles[category]}/>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {category === 'home' && <SettingsGroup>
+        <SettingsRow icon="person-circle-outline" title="Account" onPress={() => router.push('/settings-account')}/>
+        <SettingsDivider/>
+        <SettingsRow icon="shield-checkmark-outline" title="Privacy & Comfort" onPress={() => router.push('/settings-privacy-comfort')}/>
+        <SettingsDivider/>
+        <SettingsRow icon="notifications-outline" title="Notifications" onPress={() => router.push('/notification-settings')}/>
+        <SettingsDivider/>
+        <SettingsRow icon={theme === 'dark' ? 'moon-outline' : 'sunny-outline'} title="Appearance" onPress={() => router.push('/appearance')}/>
+        <SettingsDivider/>
+        <SettingsRow icon="help-circle-outline" title="Help & About" onPress={() => router.push('/settings-help-about')}/>
+      </SettingsGroup>}
+      {category === 'privacy' && <SettingsGroup>
+        <SettingsRow icon="shield-checkmark-outline" title="Privacy" onPress={() => router.push('/privacy')}/>
+        <SettingsDivider/>
+        <SettingsToggleRow icon="eye-outline" title="Allow explicit language" subtitle={failed ? 'Unavailable. Reopen this page to retry.' : undefined}
+          value={allowExplicitLanguage} disabled={explicitLoading || explicitSaving || failed} onValueChange={value => void toggleExplicitLanguage(value)}/>
+        <SettingsDivider/>
+        <SettingsRow icon="ban-outline" title="Blocked Readers" onPress={() => router.push('/blocked-readers')}/>
+      </SettingsGroup>}
+      {category === 'account' && <>
+        <SettingsGroup>
+          <SettingsRow icon="mail-outline" title="Email" value={email || (failed ? 'Unavailable' : '—')}/>
+          <SettingsDivider/>
+          <SettingsRow icon="lock-closed-outline" title="Password & Security" onPress={() => router.push('/password-security')}/>
+        </SettingsGroup>
+        <SettingsSection icon="log-out-outline" title="Account actions">
+          <SettingsRow icon="log-out-outline" title="Sign Out" onPress={confirmSignOut}/>
+          <SettingsDivider/>
+          <SettingsRow icon="person-remove-outline" title="Delete account" danger onPress={() => router.push('/delete-account')}/>
+        </SettingsSection>
+      </>}
+      {category === 'support' && <SettingsGroup>
+        <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => router.push('/help-support')}/>
+        <SettingsDivider/>
+        <SettingsRow icon="information-circle-outline" title="About Novori" onPress={() => router.push('/about-novori')}/>
+      </SettingsGroup>}
+    </ScrollView>
+    <DeletePostConfirmSheet visible={signOutConfirmation} icon="log-out-outline" title="Sign out of Novori?" message="You can sign back in whenever you’re ready." confirmLabel="Sign out" busy={signingOut} onConfirm={signOut} onDismiss={()=>{if(!signingOut)setSignOutConfirmation(false);}}/>
+    <ValidationWarningSheet visible={!!signOutError} title="Could not sign out" message={signOutError} onDismiss={() => setSignOutError('')}/>
+  </SafeAreaView>;
+}

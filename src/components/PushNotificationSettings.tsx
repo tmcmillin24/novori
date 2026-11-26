@@ -15,10 +15,10 @@ export default function PushNotificationSettings() {
     return () => listener.remove();
   }, []);
   const descriptions = {
-    checking: 'Checking this phone…', enabled: 'Phone notifications are enabled. Your choices below also control which alerts are sent.',
-    off: 'Enable alerts on your lock screen and in Notification Center.', denied: 'Notifications are disabled in your phone settings.',
+    checking: 'Checking this phone…', enabled: 'Phone alerts are on.',
+    off: 'Phone alerts are off.', denied: 'Notifications are disabled in your phone settings.',
     unavailable: 'Phone alerts need a physical device and the latest Novori build. Your in-app inbox still works.',
-    error: 'This phone could not connect for notifications. Check your connection and try again.',
+    error: 'Could not connect for phone alerts.',
   };
   async function action() {
     setBusy(true);
