@@ -1,8 +1,10 @@
 import { useNovoriTheme } from '../context/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { readingStreakTier, STREAK_TIERS, type StreakTier } from '../lib/reading-streak-tier';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { type StreakTier } from '../lib/reading-streak-tier';
+
+import { streakCelebrationLayout } from '../lib/streak-celebration-layout';
 
 const scenes = {
   3:  { kind:'embers', duration:1050, stage:84, glow:44 },
@@ -13,9 +15,11 @@ const scenes = {
 
 type Milestone = {tier: StreakTier; days: number};
 
-export default function ReadingStreakCelebration({ tier, days, onDismiss }: Milestone & {onDismiss: () => void}) {
+export default function ReadingStreakCelebration({ tier, days, region, onDismiss }: Milestone & {region: {width: number; height: number}; onDismiss: () => void}) {
   const { colors } = useNovoriTheme();
   const scene = scenes[tier.days];
+  const { fontScale } = useWindowDimensions();
+  const layout = streakCelebrationLayout(region.width, region.height, scene.stage, fontScale);
   const progress = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const dismiss = useRef(onDismiss);
@@ -60,7 +64,8 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
   const peak = crown ? .37 : flare ? .23 : .31;
   return <Animated.View accessibilityViewIsModal style={[styles.banner,{backgroundColor:colors.elevated,borderColor:colors.gold,opacity}]}>
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={[styles.stage,{width:scene.stage,height:88}]}>
+      style={[styles.stage,{width:layout.stageWidth,height:layout.stageHeight}]}>
+      <View style={[styles.stage,{width:scene.stage,height:88,transform:[{scale:layout.artScale}]}]}>
       <View style={[styles.glow,{width:scene.glow,height:scene.glow,backgroundColor:colors.gold,opacity:crown ? .16 : .10}]}/>
       {motion && <>
         {Array.from({length:ringCount}, (_, index) => {
@@ -100,38 +105,19 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
         opacity:progress.interpolate({inputRange:[0,.57,.8,1],outputRange:[0,0,1,1]}),
         transform:[{translateY:progress.interpolate({inputRange:[.57,.8,1],outputRange:[-14,2,0],extrapolate:'clamp'})}],
       } : undefined]}><Ionicons name="sparkles" size={17} color={colors.gold}/></Animated.View>}
+      </View>
     </View>
     <Animated.View style={[styles.copy, motion ? {transform:[{
-      translateY:progress.interpolate({inputRange:[0,crown ? .7 : .47,1],outputRange:[7,0,0]}),
+      translateY:progress.interpolate({inputRange:[0,crown ? .7 : .47,1],outputRange:[layout.copyLift,0,0]}),
     }]} : undefined]} accessibilityLiveRegion="polite">
-      <Text style={[styles.kicker,{color:colors.gold}]}>STREAK MILESTONE</Text>
-      <Text accessibilityRole="header" style={[styles.title,{color:colors.text}]}>{tier.label}</Text>
-      <Text style={[styles.detail,{color:colors.secondaryText}]}>{days} days of reading in a row</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1} style={[styles.kicker,{fontSize:9 * layout.textScale,color:colors.gold}]}>STREAK MILESTONE</Text>
+      <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1} style={[styles.title,{fontSize:25 * layout.textScale,color:colors.text}]}>{tier.label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1} style={[styles.detail,{fontSize:12 * layout.textScale,color:colors.secondaryText}]}>{days} days of reading in a row</Text>
     </Animated.View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" hitSlop={8} onPress={onDismiss} style={styles.dismiss}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" onPress={onDismiss} style={styles.dismiss}>
       <Ionicons name="close" size={19} color={colors.mutedText}/>
     </Pressable>
   </Animated.View>;
-}
-
-export function ReadingStreakPreview({days, onChoose, onSimulate}: {
-  days: number; onChoose: (days: number) => void; onSimulate: () => void;
-}) {
-  const { colors } = useNovoriTheme();
-  const tier = readingStreakTier(days);
-  return <View style={[styles.preview,{backgroundColor:colors.surface,borderColor:colors.border}]}>
-    <Text style={[styles.previewText,{color:colors.text}]}>Streak preview · {days} days{tier ? ' · '+tier.label : ''}</Text>
-    <View style={styles.previewRow}>
-      {[...STREAK_TIERS.map(tier => tier.days-1),30].map(value =>
-        <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Set preview streak to ${value} days`}
-          accessibilityState={{selected:days===value}} onPress={() => onChoose(value)} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
-          <Text style={[styles.previewText,{color:colors.text}]}>{value}d</Text>
-        </Pressable>)}
-    </View>
-    <Pressable accessibilityRole="button" onPress={onSimulate} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
-      <Text style={[styles.previewText,{color:colors.text}]}>Simulate check-in</Text>
-    </Pressable>
-  </View>;
 }
 
 const styles = StyleSheet.create({
@@ -143,13 +129,9 @@ const styles = StyleSheet.create({
   ring:{ position:'absolute', width:34, height:34, borderWidth:1.5, borderRadius:17 },
   spark:{ position:'absolute' },
   sparkCore:{ width:4, borderRadius:2 },
-  copy:{ flex:1, paddingVertical:3 },
+  copy:{ flex:1, minWidth:0, paddingVertical:3 },
   kicker:{ fontSize:9, fontFamily:'Inter_700Bold', letterSpacing:1 },
   title:{ fontSize:25, fontFamily:'PlayfairDisplay_700Bold', marginVertical:2 },
   detail:{ fontSize:12, fontFamily:'Inter_500Medium' },
-  dismiss:{ minWidth:36, alignSelf:'flex-start', alignItems:'center', paddingVertical:5 },
-  preview:{ borderWidth:1, borderRadius:14, padding:10, marginTop:10, gap:8 },
-  previewRow:{ flexDirection:'row', flexWrap:'wrap', gap:6 },
-  previewButton:{ borderWidth:1, padding:8, borderRadius:8 },
-  previewText:{ fontSize:12, fontFamily:'Inter_600SemiBold' },
+  dismiss:{ width:44, height:44, alignSelf:'flex-start', alignItems:'center', justifyContent:'center' },
 });
