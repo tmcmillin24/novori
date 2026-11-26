@@ -33,11 +33,6 @@ export function SettingsIntro({ icon, title, detail, children }: { icon: IconNam
   </View>;
 }
 
-export function SettingsGroup({children}: {children: ReactNode}) {
-  const {colors} = useNovoriTheme();
-  return <View style={settingsStyles(colors).group}>{children}</View>;
-}
-
 export function SettingsSection({ icon, title, detail, children }: { icon: IconName; title: string; detail?: string; children: ReactNode }) {
   const { colors } = useNovoriTheme();
   const styles = settingsStyles(colors);

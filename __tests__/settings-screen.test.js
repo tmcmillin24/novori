@@ -3,9 +3,6 @@ import React from 'react';
 import renderer,{act} from 'react-test-renderer';
 import {Alert} from 'react-native';
 import SettingsScreen from '../src/app/settings';
-import AccountSettings from '../src/app/settings-account';
-import PrivacyComfortSettings from '../src/app/settings-privacy-comfort';
-import HelpAboutSettings from '../src/app/settings-help-about';
 import NotificationSettingsScreen from '../src/app/notification-settings';
 import {getNotificationPreferences,updateNotificationPreference} from '../src/lib/notifications';
 import {getReadingReminderPreferences,updateReadingReminderPreferences} from '../src/lib/reading-reminders';
@@ -36,37 +33,21 @@ const toggle=label=>view.root.findAllByType('Switch').find(n=>n.props.accessibil
 async function press(label){expect(button(label)).toBeDefined();await act(async()=>button(label).props.onPress());}
 async function change(label,value){await act(async()=>toggle(label).props.onValueChange(value));}
 
-test('Settings opens five categories without loading private preferences or showing tutorial controls',async()=>{
+test('Settings exposes controls directly and has each destination one tap away',async()=>{
  await render(<SettingsScreen/>);
- for(const [title,path] of [['Account','/settings-account'],['Privacy & Comfort','/settings-privacy-comfort'],['Notifications','/notification-settings'],['Appearance','/appearance'],['Help & About','/settings-help-about']]){
+ for(const [title,path] of [['Password & Security','/password-security'],['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers'],['Help & Support','/help-support'],['About Novori','/about-novori'],['Delete account','/delete-account']]){
   await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);
  }
  expect(button('View tutorial')).toBeUndefined();
- expect(toggle('Allow explicit language')).toBeUndefined();
+ expect(toggle('Allow explicit language')).toBeDefined();
  expect(supabase.auth.getUser).not.toHaveBeenCalled();
  await press('Go back');expect(mockRouter.back).toHaveBeenCalled();
 });
 
-test('category screens retain their account, privacy and support destinations',async()=>{
- await render(<AccountSettings/>);
- expect(text()).toContain('reader@example.com');
- for(const [title,path] of [['Password & Security','/password-security'],['Delete account','/delete-account']]){
-  await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);
- }
- await act(async()=>view.update(<PrivacyComfortSettings/>));
- for(const [title,path] of [['Privacy','/privacy'],['Blocked Readers','/blocked-readers']]){
-  await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);
- }
- await act(async()=>view.update(<HelpAboutSettings/>));
- for(const [title,path] of [['About Novori','/about-novori'],['Help & Support','/help-support']]){
-  await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);
- }
- expect(button('View tutorial')).toBeUndefined();
-});
 test('explicit-language preference preserves save, error recovery, and sign-out confirmation',async()=>{
- await render(<PrivacyComfortSettings/>);await change('Allow explicit language',true);expect(setExplicitLanguagePreference).toHaveBeenCalledWith(true);expect(toggle('Allow explicit language').props.value).toBe(true);
+ await render(<SettingsScreen/>);await change('Allow explicit language',true);expect(setExplicitLanguagePreference).toHaveBeenCalledWith(true);expect(toggle('Allow explicit language').props.value).toBe(true);
  setExplicitLanguagePreference.mockRejectedValue(new Error('Offline'));await change('Allow explicit language',false);expect(toggle('Allow explicit language').props.value).toBe(true);
- await act(async()=>view.update(<AccountSettings/>));await press('Sign Out');expect(supabase.auth.signOut).not.toHaveBeenCalled();const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);expect(Alert.alert).not.toHaveBeenCalledWith('Sign Out',expect.anything(),expect.anything());await act(async()=>sheet.props.onConfirm());expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
+ await press('Sign Out');expect(supabase.auth.signOut).not.toHaveBeenCalled();const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);expect(Alert.alert).not.toHaveBeenCalledWith('Sign Out',expect.anything(),expect.anything());await act(async()=>sheet.props.onConfirm());expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
 });
 test('notification preferences preserve existing opt-outs and expose only working switches',async()=>{
  await render(<NotificationSettingsScreen/>);expect(text()).not.toContain('When a reader follows you.');expect(toggle('New Followers').props.value).toBe(false);expect(toggle('Weekly Recap').props.value).toBe(false);
