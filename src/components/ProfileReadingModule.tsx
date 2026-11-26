@@ -1,3 +1,5 @@
+import ReadingStreakCelebration, { ReadingStreakPreview } from './ReadingStreakCelebration';
+import { readingStreakTier, reachedReadingStreakTier, type StreakTier } from '../lib/reading-streak-tier';
 import {isAccountUnavailableError} from '../lib/account-session-errors';
 import {
   Ionicons,
@@ -125,6 +127,9 @@ export default function ProfileReadingModule({
     );
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
+  const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const tier = readingStreakTier(checkinState?.currentStreak ?? 0);
   const checkinMutationVersion = useRef(0);
   const knownCheckinState = useRef(checkinState);
   knownCheckinState.current = checkinState;
@@ -343,7 +348,11 @@ export default function ProfileReadingModule({
           todayCheckinKey
         );
 
-      if (next.localDate === getLocalDateKey()) setCheckinState(next);
+      if (next.localDate === getLocalDateKey()) {
+        setCheckinState(next);
+        const reached = next.checkedIn && reachedReadingStreakTier(checkinState?.currentStreak ?? 0, next.currentStreak);
+        if (reached) setMilestone({tier:reached,days:next.currentStreak});
+      }
 
       setCheckinSheetVisible(
         false
@@ -581,7 +590,7 @@ export default function ProfileReadingModule({
               }
             >
               <Ionicons
-                name="flame-outline"
+                name={tier ? "flame" : "flame-outline"}
                 size={
                   16
                 }
@@ -606,6 +615,14 @@ export default function ProfileReadingModule({
 
           <View style={styles.moduleMark}><Ionicons name="book-outline" size={21} color={colors.gold} /></View>
         </View>
+
+        {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
+        {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
+        {__DEV__ && <Pressable accessibilityRole="button" accessibilityState={{expanded:previewOpen}}
+          onPress={() => setPreviewOpen(open => !open)} style={{paddingVertical:8}}>
+          <Text style={{color:colors.mutedText,fontSize:12}}>Streak preview</Text>
+        </Pressable>}
+        {__DEV__ && previewOpen && <ReadingStreakPreview/>}
 
         {checkinState
           ?.checkedIn ? (
