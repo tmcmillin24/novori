@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
 const TRACE = require('../../assets/images/novori-launch-trace.png');
-const STILL = require('../../assets/images/novori_loadingscreen.png');
 // Allow for native frame pacing, then hold the finished logo briefly.
 const TRACE_AND_HOLD_MS = 2050;
 const IMAGE_LOAD_TIMEOUT_MS = 2400;
@@ -61,9 +60,9 @@ export default function LaunchTrace({ onFinished }: { onFinished: (finished: tru
       }}
     >
       <StatusBar style="light" />
-      {(finished || reduceMotion !== null) && (
+      {reduceMotion === false && (
         <Image
-          source={reduceMotion ? STILL : TRACE}
+          source={TRACE}
           style={styles.mark}
           contentFit="contain"
           transition={0}
