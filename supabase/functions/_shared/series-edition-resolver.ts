@@ -85,6 +85,7 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   const title = cleanCatalogBookTitle(member.title);
   const author = member.authors[0] ? normalizeCatalogAuthor(member.authors[0]) : '';
   let settled = false;
+  let languageUnspecified: T | null = null;
   async function search(): Promise<T | null> {
     // An ISBNdb edition need not appear in Hardcover's ISBN list or in
     // generic ranked results. Search the actual title field first.
@@ -110,6 +111,15 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
         const verified = Boolean(detail && exact(detail, isbn));
         sources.trace?.('isbn-lookup', {isbn, found:Boolean(detail), verified});
         if (verified) return detail;
+        // An absent language tag does not invalidate a verified ISBN and
+        // matching work. Require both search and exact detail to agree on
+        // title/author, preserve the missing tag, and prefer proven English.
+        if (detail && seriesIsbnKey(detail.source?.isbn13) === isbn &&
+            unknownSeriesLanguage(detail.volumeInfo.language) &&
+            seriesIdentityMatches({title:detail.volumeInfo.title ?? '',authors:detail.volumeInfo.authors ?? []},member,series.name) &&
+            matches({...detail,volumeInfo:{...detail.volumeInfo,language:'en'}})) {
+          languageUnspecified ??= detail;
+        }
       }
     }
     return null;
@@ -159,6 +169,11 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
       },
     };
     return await persist(edition);
+  }
+  if (languageUnspecified) {
+    const edition = languageUnspecified as T;
+    sources.trace?.('matched-language-unspecified', {isbn:edition.source?.isbn13});
+    return edition;
   }
   if (failed) throw new Error('One or more edition sources could not be checked.');
   return null;

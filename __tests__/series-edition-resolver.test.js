@@ -105,3 +105,11 @@ test('finds another provider’s ISBN and verifies language through its exact de
  expect(deps.byTitle).toHaveBeenCalledWith('Winter Charts',true);
  expect(deps.byIsbn).toHaveBeenCalledWith(second);
 });
+
+test.each(['und','es'])('checks sparse search and exact details independently: %s', async language=>{
+ const member={...hardcover,editions:[]};
+ const sparse=edition(second,'und');
+ const full=edition(second,language);
+ const deps=sources({byTitle:jest.fn(async()=>[sparse]),byIsbn:jest.fn(async()=>full)});
+ expect(await resolveSeriesEdition(member,series.id,deps)).toEqual(language==='und'?full:null);
+});
