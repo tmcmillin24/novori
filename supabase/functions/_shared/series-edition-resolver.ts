@@ -33,6 +33,7 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   catalog: (isbns: string[]) => Promise<T[]>;
   byIsbn: (isbn: string) => Promise<T | null>;
   byTitle: (query: string, titleOnly?: boolean) => Promise<T[]>;
+  trace?: (stage: string, facts: Record<string, unknown>) => void;
   persistHardcoverEdition?: (book: HardcoverReadingEdition) => Promise<T>;
 }): Promise<T | null> {
   const series = book.book_series?.find(row => row.series?.id === seriesId)?.series;
@@ -64,16 +65,17 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   }
   // Give both lists room: provider A can omit a language or list several unavailable printings.
   const candidates = [...new Set([...Array.from(english).slice(0,3), ...Array.from(untagged).slice(0,3)])];
+  sources.trace?.('hardcover-isbns', {candidates});
   const linked = new Set([...english, ...untagged]);
   const matches = (edition: T) => isVerifiedReadingEdition(member, edition, series.name, english, linked);
   const exact = (edition: T, isbn: string) =>
     [edition.source?.isbn13, ...(edition.volumeInfo.industryIdentifiers ?? []).map(row => row.identifier)]
       .some(value => seriesIsbnKey(value) === isbn) && matches(edition);
   let failed = false;
-  async function attempt<V>(lookup: () => Promise<V>, empty: V) {
-    try { return await lookup(); } catch { failed = true; return empty; }
+  async function attempt<V>(stage: string, lookup: () => Promise<V>, empty: V) {
+    try { return await lookup(); } catch { failed = true; sources.trace?.(stage + '-failed', {}); return empty; }
   }
-  const catalog = linked.size ? await attempt(() => sources.catalog([...linked]), []) : [];
+  const catalog = linked.size ? await attempt('catalog', () => sources.catalog([...linked]), []) : [];
   for (const isbn of linked) {
     const cached = catalog.find(edition => exact(edition, isbn));
     if (cached) return cached;
@@ -90,8 +92,11 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
     for (const [query, titleOnly] of [[title, true], [(title + ' ' + author).trim(), false]] as const) {
       if (settled) return null;
       if (query.length < 2 || query.length > 150) continue;
-      const rows = await attempt(() => sources.byTitle(query, titleOnly), []);
+      const rows = await attempt('title-search', () => sources.byTitle(query, titleOnly), []);
       const match = rows.find(matches);
+      sources.trace?.('title-search', {titleOnly, count:rows.length, matched:Boolean(match),
+        candidates:rows.slice(0,8).map(row=>({isbn:seriesIsbnKey(row.source?.isbn13),
+          language:isEnglishBookLanguage(row.volumeInfo.language)?'english':unknownSeriesLanguage(row.volumeInfo.language)?'unknown':'other'}))});
       if (match) return match;
       // Search hits can omit language. Only spend an exact ISBN read on a
       // matching title/author, and require the detailed record to prove it.
@@ -101,8 +106,10 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
       const isbn = seriesIsbnKey(sparse?.source?.isbn13);
       if (isbn && !settled) {
         checked.add(isbn);
-        const detail = await attempt(() => sources.byIsbn(isbn), null);
-        if (detail && exact(detail, isbn)) return detail;
+        const detail = await attempt('isbn-lookup', () => sources.byIsbn(isbn), null);
+        const verified = Boolean(detail && exact(detail, isbn));
+        sources.trace?.('isbn-lookup', {isbn, found:Boolean(detail), verified});
+        if (verified) return detail;
       }
     }
     return null;
@@ -112,9 +119,11 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
       if (settled) return null;
       const batch = candidates.slice(offset, offset + 2);
       const match = await firstMatch(batch.map(async isbn => {
-        const edition = await attempt(() => sources.byIsbn(isbn), null);
+        const edition = await attempt('isbn-lookup', () => sources.byIsbn(isbn), null);
+        const verified = Boolean(edition && exact(edition, isbn));
+        sources.trace?.('isbn-lookup', {isbn, found:Boolean(edition), verified});
         if (!edition) return null;
-        if (exact(edition, isbn)) return edition;
+        if (verified) return edition;
         conflicts.add(isbn);
         return null;
       }));
