@@ -32,7 +32,7 @@ type HardcoverMember = {
 export async function resolveSeriesEdition<T extends ReadingEdition>(book: HardcoverMember, seriesId: number, sources: {
   catalog: (isbns: string[]) => Promise<T[]>;
   byIsbn: (isbn: string) => Promise<T | null>;
-  byTitle: (query: string) => Promise<T[]>;
+  byTitle: (query: string, titleOnly?: boolean) => Promise<T[]>;
   persistHardcoverEdition?: (book: HardcoverReadingEdition) => Promise<T>;
 }): Promise<T | null> {
   const series = book.book_series?.find(row => row.series?.id === seriesId)?.series;
@@ -84,13 +84,26 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   const author = member.authors[0] ? normalizeCatalogAuthor(member.authors[0]) : '';
   let settled = false;
   async function search(): Promise<T | null> {
-    // Keep edition rows separate; Discover's work grouping can discard the verified printing.
-    for (const query of new Set([(title + ' ' + author).trim(), title])) {
+    // An ISBNdb edition need not appear in Hardcover's ISBN list or in
+    // generic ranked results. Search the actual title field first.
+    const checked = new Set<string>();
+    for (const [query, titleOnly] of [[title, true], [(title + ' ' + author).trim(), false]] as const) {
       if (settled) return null;
       if (query.length < 2 || query.length > 150) continue;
-      const rows = await attempt(() => sources.byTitle(query), []);
+      const rows = await attempt(() => sources.byTitle(query, titleOnly), []);
       const match = rows.find(matches);
       if (match) return match;
+      // Search hits can omit language. Only spend an exact ISBN read on a
+      // matching title/author, and require the detailed record to prove it.
+      const sparse = rows.find(edition => unknownSeriesLanguage(edition.volumeInfo.language) &&
+        matches({...edition, volumeInfo:{...edition.volumeInfo,language:'en'}}) &&
+        seriesIsbnKey(edition.source?.isbn13) && !linked.has(seriesIsbnKey(edition.source?.isbn13)!) && !checked.has(seriesIsbnKey(edition.source?.isbn13)!));
+      const isbn = seriesIsbnKey(sparse?.source?.isbn13);
+      if (isbn && !settled) {
+        checked.add(isbn);
+        const detail = await attempt(() => sources.byIsbn(isbn), null);
+        if (detail && exact(detail, isbn)) return detail;
+      }
     }
     return null;
   }

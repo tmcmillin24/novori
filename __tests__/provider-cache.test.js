@@ -778,3 +778,26 @@ test('a verified Hardcover reading edition takes a normal detail route when ISBN
   expect((await req(32)).book).toBeNull();
   expect(h.catalogWrites).toEqual([]);
 });
+
+test('series resolver discovers an ISBN absent from Hardcover via scoped title search and full detail', async () => {
+ const h=isbnHarness();
+ const isbn='9798195073749', title='Curse the Heart', authors=['Emily Blackwood'];
+ h.setUpstream(async(url,_init,body)=>{
+  if(url.includes('hardcover.app')) return {data:{books:[{
+   id:31,title,contributions:[{author:{name:authors[0]}}],
+   book_series:[{series:{id:23,name:'Mystics of Ashora'}}],editions:[],
+  }]}};
+  if(url.endsWith('/book/'+isbn)) return {book:isbnBook({isbn13:isbn,title,authors,synopsis:'Full edition description'})};
+  if(new URL(url).searchParams.get('column')==='title') return {
+   books:[isbnBook({isbn13:isbn,title,authors,language:undefined})],total:1,
+  };
+  return {books:[],total:0};
+ });
+ const body={mode:'resolve-edition',seriesId:23,bookId:31};
+ expect((await h.request('hardcover-series',body)).book).toMatchObject({
+  id:'nv_'+isbn,volumeInfo:{language:'en',description:'Full edition description'},
+ });
+ const calls=h.calls.length;
+ expect((await h.request('hardcover-series',body)).book.id).toBe('nv_'+isbn);
+ expect(h.calls).toHaveLength(calls);
+});

@@ -40,7 +40,7 @@ test('falls back to matching separate ISBNdb editions by title and author, witho
   edition(second,'es'),edition(second,'en',{authors:['Another Reader']}),expected,
  ])});
  expect(await resolveSeriesEdition(hardcover,series.id,deps)).toEqual(expected);
- expect(deps.byTitle).toHaveBeenCalledWith('Winter Charts Lena Grant');
+ expect(deps.byTitle).toHaveBeenCalledWith('Winter Charts',true);
 });
 
 test.each([
@@ -91,4 +91,17 @@ test('an ISBN-linked English print edition can open without a duplicate title on
  const conflict={...book,editions:[{...book.editions[0],title:'Unrelated Book'}]};
  expect(await resolveSeriesEdition(conflict,series.id,sources({persistHardcoverEdition}))).toBeNull();
  expect(persistHardcoverEdition).toHaveBeenCalledTimes(1);
+});
+
+test('finds another provider’s ISBN and verifies language through its exact detail record',async()=>{
+ const sparse=edition(second,'und');
+ const full=edition(second,'en');
+ const deps=sources({
+  byTitle:jest.fn(async (_title, scoped)=>scoped?[sparse]:[]),
+  byIsbn:jest.fn(async isbn=>isbn===second?full:null),
+ });
+ const member={...hardcover,editions:[{isbn_13:first,language:{code2:'en'}}]};
+ expect(await resolveSeriesEdition(member,series.id,deps)).toEqual(full);
+ expect(deps.byTitle).toHaveBeenCalledWith('Winter Charts',true);
+ expect(deps.byIsbn).toHaveBeenCalledWith(second);
 });

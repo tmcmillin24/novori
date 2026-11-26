@@ -196,7 +196,7 @@ export async function lookupIsbnDbEdition(admin: SupabaseClient, userId: string,
   return book ? normalizeIsbnDbEdition(book) : null;
 }
 
-export async function isbnDbSearch(admin: SupabaseClient, userId: string, query: string, startIndex = 0, { resolvePreferredCover = true } = {}) {
+export async function isbnDbSearch(admin: SupabaseClient, userId: string, query: string, startIndex = 0, { resolvePreferredCover = true, titleOnly = false } = {}) {
   if (typeof query !== 'string' || query.length < 2 || query.length > 200 || !Number.isInteger(startIndex) || startIndex < 0 || startIndex > 1000) throw new Error('Invalid book search.');
   const isbnText = query.replace(/^isbn:/i, '').trim();
   const isbn = validIsbn13(isbnText) ?? isbn13From10(isbnText);
@@ -204,10 +204,11 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
   const text = query.replace(/\b(?:intitle|inauthor):/gi, '').replace(/"/g, '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!text || text.length > 150) throw new Error('Book search must be no longer than 150 characters.');
   const page = Math.floor(startIndex / 40) + 1;
-  const response = await cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
+  const response = await cachedProviderValue({ admin, provider: PROVIDER, key: `${titleOnly ? "title-search:v1" : "search:v2"}:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
     load: async () => {
-      const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40`);
-      if (!raw || !Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
+      const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40${titleOnly ? "&column=title&shouldMatchAll=true" : ""}`);
+      if (raw === null) return {items: [] as Book[], totalItems: 0};
+      if (!Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
       const mapped = raw.books.map((item: any) => adaptIsbnDbBook(item)).filter((book: Book | null): book is Book => Boolean(book));
       const linked = await attachIdentities(admin, mapped);
       const books = [...new Map(linked.map(book => [book.id, book])).values()];

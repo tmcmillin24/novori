@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
         },
         byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
         persistHardcoverEdition: book => saveHardcoverSeriesEdition(supabaseAdmin, book),
-        byTitle: async query => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false})).items,
+        byTitle: async (query, titleOnly) => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false, titleOnly})).items,
       }) : null;
       return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
     }
