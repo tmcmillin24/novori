@@ -21,7 +21,7 @@ import { peekSeriesEdition, readSeriesEdition } from '../../../lib/series-editio
 import { localCacheLog } from '../../../lib/cache-terminal-log';
 import { resolveSeriesOpening } from '../../../lib/series-book-opening';
 import { rememberDiscoveryBookId } from '../../../lib/discovery-books';
-import { formatBookDescription } from '../../../lib/book-description';
+import { formatBookDescription, preserveBookDescription } from '../../../lib/book-description';
 import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../../lib/reading-status-display';
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
@@ -1184,6 +1184,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
   const discoverClickedAuthors = useMemo(() => openingAuthors(clickedAuthors), [clickedAuthors]);
   const opening = useMemo(() => discoverOpening(params, discoverClickedAuthors), [params, discoverClickedAuthors]);
   const [detailAttempt, setDetailAttempt] = useState(0);
+  const [synopsisLoading, setSynopsisLoading] = useState(false);
 
   const [book, setBook] = useState<GoogleBook | null>(initialBook ?? null);
   useSyncExternalStore(subscribeSeriesRowMetadata, seriesRowMetadataVersion, seriesRowMetadataVersion);
@@ -1448,7 +1449,8 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
       try {
         setLoading(true);
         setError('');
-        setBook(initialBook ?? null);
+        setBook(current => current?.id === id ? current : initialBook ?? null);
+        setSynopsisLoading(Boolean(seriesLookupId && seriesMemberId));
         setOpeningHero(null);
         setSavedBook(null);
         setReadingStatus(null);
@@ -1486,12 +1488,14 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
             cachedFirst: true,
             onWorkDetails: enriched => {
               latestWorkDetails = enriched;
-              if (active && coreReady && enriched.id === openingBookId) setBook(applyEditionPages(enriched));
+              if (active && coreReady && enriched.id === openingBookId) {
+                setBook(current => preserveBookDescription(applyEditionPages(enriched), current));
+              }
             },
           }
         ).catch(error => {
           if (!initialBook) throw error;
-          return { ok: false as const, data: null, status: 0, fromCache: false, workDetails: undefined };
+          return { ok: false as const, data: null, status: 0, fromCache: false, workDetails: undefined, synopsisDetails: undefined };
         });
         if (!active) return;
 
@@ -1537,9 +1541,36 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
         void syncEditionPages(resolvedBook).catch(() => {});
         openingBookId = resolvedBook.id;
         coreReady = true;
-        const initialDetails = applyEditionPages(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
+        const detailRecord = latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook;
+        const initialDetails = applyEditionPages(preserveBookDescription(
+          preserveBookDescription(detailRecord, resolvedBook), initialBook,
+        ));
         if (source === 'discover') setOpeningHero(initialDetails.volumeInfo);
-        setBook(initialDetails);
+        setBook(current => preserveBookDescription(initialDetails, current));
+        if (seriesLookupId && seriesMemberId && !formatBookDescription(initialDetails.volumeInfo.description)) {
+          const seriesSynopsis = publicBookCache.read<string | null>(
+            `series-synopsis:v1:${seriesLookupId}:${seriesMemberId}`,
+            async () => {
+              const { data, error } = await supabase.functions.invoke<{ description: string | null }>('hardcover-series', {
+                body: { mode: 'resolve-synopsis', seriesId: seriesLookupId, bookId: seriesMemberId },
+                timeout: 10000,
+              });
+              if (error) throw error;
+              return typeof data?.description === 'string' ? data.description : null;
+            },
+            { freshMs: 14 * 86400000, retainMs: 90 * 86400000,
+              valid: (value): value is string => typeof value === 'string' && Boolean(formatBookDescription(value)) },
+          ).then(({ value }) => {
+            if (active && value) setBook(current => current?.id === resolvedBook.id
+                ? preserveBookDescription(current, { id: resolvedBook.id, volumeInfo: { description: value } })
+                : current);
+          });
+          void Promise.allSettled([seriesSynopsis, response.synopsisDetails]).then(() => {
+            if (active) setSynopsisLoading(false);
+          });
+        } else {
+          setSynopsisLoading(false);
+        }
         const coverInput = {
           googleBookId: resolvedBook.id,
           isbn: getBookISBN(resolvedBook),
@@ -1775,6 +1806,8 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     trustedCover,
     detailAttempt,
     initialBook,
+    seriesLookupId,
+    seriesMemberId,
   ]);
 
   useFocusEffect(
@@ -2232,6 +2265,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     }
 
     const info = book.volumeInfo;
+    if (seriesLookupId && !savedBook?.status && !formatBookDescription(info.description)) return;
 
     const coverUrl =
       await resolveCanonicalBookCover({
@@ -2716,6 +2750,8 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     formatBookDescription(
       info.description
     );
+
+  const waitingForSeriesDescription = Boolean(seriesLookupId && !savedBook?.status && !description);
 
   const statuses: {
     value: UserBookStatus;
@@ -3821,8 +3857,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                             status.value
                           }
                           disabled={
-                            !readerStateReady || savingStatus !==
-                            null
+                            !readerStateReady || waitingForSeriesDescription || savingStatus !== null
                           }
                           onPress={() =>
                             saveReadingStatus(
@@ -4116,8 +4151,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                           status.value
                         }
                         disabled={
-                          !readerStateReady || savingStatus !==
-                          null
+                          !readerStateReady || waitingForSeriesDescription || savingStatus !== null
                         }
                         onPress={() =>
                           saveReadingStatus(
@@ -4661,9 +4695,22 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
               </Pressable>
             </>
           ) : (
-            <Text style={styles.noDescription}>
-              No description is available for this edition.
-            </Text>
+            <View>
+              <Text style={styles.noDescription}>
+                {seriesLookupId
+                  ? (loading || synopsisLoading
+                      ? 'Looking up the description…'
+                      : waitingForSeriesDescription
+                        ? 'A verified description is required before adding this book to your Library.'
+                        : 'A verified description is unavailable.')
+                  : 'No description is available for this edition.'}
+              </Text>
+              {seriesLookupId && !loading && !synopsisLoading && (
+                <Pressable accessibilityRole="button" onPress={() => setDetailAttempt(attempt => attempt + 1)}>
+                  <Text style={styles.readMore}>Retry description lookup</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
 

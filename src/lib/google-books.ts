@@ -25,6 +25,7 @@ type GoogleBooksJsonResult<T> = {
   data: T | null;
   fromCache: boolean;
   workDetails?: Promise<T>;
+  synopsisDetails?: Promise<T>;
 };
 
 const SEARCH_CACHE_MS =
@@ -773,9 +774,8 @@ export async function fetchGoogleBooksJson<T>(url: string, options?: {
       const initial = known ?? edition;
       if (known && formatBookDescription(known.volumeInfo.description)) return { ...result, data: known as T };
       const workDetails = (known ? Promise.resolve(known) : bookWorkDetails.resolve(edition)) as Promise<T>;
-      void (workDetails as Promise<GoogleBookSearchItem>).then(book => {
+      const synopsisDetails = options.onWorkDetails ? (workDetails as Promise<GoogleBookSearchItem>).then(book => {
         if (!known) options.onWorkDetails?.(book as T);
-        if (!options.onWorkDetails) return;
         return resolveMissingBookSynopsis(book, {
           search: async title => (await loadGoogleBooksJson<{items?: GoogleBookSearchItem[]}>(
             `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&startIndex=0&maxResults=40&printType=books&projection=full`
@@ -785,9 +785,10 @@ export async function fetchGoogleBooksJson<T>(url: string, options?: {
           )).data ?? null,
         }).then(withSynopsis => {
           if (withSynopsis !== book) options.onWorkDetails?.(withSynopsis as T);
+          return withSynopsis as T;
         });
-      }).catch(() => {});
-      return { ...result, data: initial as T, workDetails };
+      }).catch(() => initial as T) : undefined;
+      return { ...result, data: initial as T, workDetails, synopsisDetails };
     }
     return { ...result, data: await bookWorkDetails.resolve(edition) as T };
   }

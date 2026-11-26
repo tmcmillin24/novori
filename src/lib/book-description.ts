@@ -28,3 +28,12 @@ export function formatBookDescription(description?: string | null): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+/** A partial refresh must not clear a description already verified for this edition. */
+export function preserveBookDescription<T extends {id: string; volumeInfo: {description?: string}}>(
+  next: T, previous?: {id: string; volumeInfo: {description?: string}} | null,
+): T {
+  if (next.id !== previous?.id || formatBookDescription(next.volumeInfo.description) ||
+      !formatBookDescription(previous.volumeInfo.description)) return next;
+  return { ...next, volumeInfo: { ...next.volumeInfo, description: previous.volumeInfo.description } };
+}

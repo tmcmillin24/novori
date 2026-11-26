@@ -1,327 +1,134 @@
-import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from './UiSheet';
 import { NovoriColors } from '../constants/novori-theme';
 import { useNovoriTheme } from '../context/theme-context';
-type SortMode = 'recent' | 'title' | 'author';
-type OwnershipFilter = 'all' | 'owned' | 'not_owned';
-type Props = {
-    visible: boolean;
-    sortMode: SortMode;
-    ownershipFilter: OwnershipFilter;
-    onChangeSort: (value: SortMode) => void;
-    onChangeOwnership: (value: OwnershipFilter) => void;
-    onDismiss: () => void;
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All' }, { value: 'reading', label: 'Reading' },
+  { value: 'want_to_read', label: 'TBR' }, { value: 'read', label: 'Read' },
+  { value: 'dnf', label: 'DNF' },
+] as const;
+const OWNERSHIP_OPTIONS = [
+  { value: 'all', label: 'All' }, { value: 'owned', label: 'Owned' },
+  { value: 'not_owned', label: 'Not owned' },
+] as const;
+const SORT_OPTIONS = [
+  { value: 'recent', label: 'Recently updated' }, { value: 'title', label: 'Title' },
+  { value: 'author', label: 'Author' },
+] as const;
+
+export type LibraryFilters = {
+  status: typeof STATUS_OPTIONS[number]['value'];
+  ownership: typeof OWNERSHIP_OPTIONS[number]['value'];
+  sort: typeof SORT_OPTIONS[number]['value'];
 };
-const SORT_OPTIONS: Array<{
-    value: SortMode;
-    label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-}> = [
-    {
-        value: 'recent',
-        label: 'Recently Updated',
-        icon: 'time-outline',
-    },
-    {
-        value: 'title',
-        label: 'Title',
-        icon: 'text-outline',
-    },
-    {
-        value: 'author',
-        label: 'Author',
-        icon: 'person-outline',
-    },
-];
-const OWNERSHIP_OPTIONS: Array<{
-    value: OwnershipFilter;
-    label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-}> = [
-    {
-        value: 'all',
-        label: 'All Books',
-        icon: 'library-outline',
-    },
-    {
-        value: 'owned',
-        label: 'Owned',
-        icon: 'checkmark-circle-outline',
-    },
-    {
-        value: 'not_owned',
-        label: 'Not Owned',
-        icon: 'ellipse-outline',
-    },
-];
-export default function LibrarySortFilterSheet({ visible, sortMode, ownershipFilter, onChangeSort, onChangeOwnership, onDismiss, }: Props) {
-    const { colors, } = useNovoriTheme();
-    const styles = createStyles(colors);
-    const insets = useSafeAreaInsets();
-    const motion = useUiSheetMotion({ visible, busy: false, onDismiss: onDismiss });
-    const closeSmoothly = motion.close;
-    return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={closeSmoothly} motion={motion}>
-      <Pressable style={styles.backdrop} onPress={closeSmoothly}>
-        <UiSheetBackdrop pointerEvents="none" style={[
-            StyleSheet.absoluteFill,
-            styles.backdropVisual,
-            {}
-        ]} motion={motion}/>
 
-        <UiSheetSurface style={[
-            styles.sheet,
-            {
-                paddingBottom: Math.max(22, insets.bottom +
-                    12)
-            }
-        ]} motion={motion}>
-          <Pressable onPress={(event) => event.stopPropagation()}>
-            <View style={styles.handle}/>
+export const DEFAULT_LIBRARY_FILTERS: LibraryFilters = { status: 'all', ownership: 'all', sort: 'recent' };
 
-            <View style={styles.header}>
-              <View style={styles.headerIcon}>
-                <Ionicons name="options-outline" size={21} color={colors.gold}/>
-              </View>
-
-              <View style={styles.headerCopy}>
-                <Text style={styles.title}>
-                  Sort & Filter
-                </Text>
-
-                <Text style={styles.subtitle}>
-                  Fine-tune what appears in your Library.
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.sectionLabel}>
-              SORT BY
-            </Text>
-
-            <View style={styles.optionGroup}>
-              {SORT_OPTIONS.map((option) => {
-            const selected = sortMode ===
-                option.value;
-            return (<Pressable key={option.value} onPress={() => onChangeSort(option.value)} style={({ pressed, }) => [
-                    styles.optionRow,
-                    selected &&
-                        styles.optionRowSelected,
-                    pressed &&
-                        styles.pressed,
-                ]}>
-                      <View style={styles.optionIcon}>
-                        <Ionicons name={option.icon} size={18} color={selected
-                    ? colors.gold
-                    : colors.mutedText}/>
-                      </View>
-
-                      <Text style={[
-                    styles.optionText,
-                    selected &&
-                        styles.optionTextSelected
-                ]}>
-                        {option.label}
-                      </Text>
-
-                      <View style={[
-                    styles.radio,
-                    selected &&
-                        styles.radioSelected
-                ]}>
-                        {selected ? (<View style={styles.radioDot}/>) : null}
-                      </View>
-                    </Pressable>);
-        })}
-            </View>
-
-            <Text style={[
-            styles.sectionLabel,
-            styles.secondSection
-        ]}>
-              OWNERSHIP
-            </Text>
-
-            <View style={styles.optionGroup}>
-              {OWNERSHIP_OPTIONS.map((option) => {
-            const selected = ownershipFilter ===
-                option.value;
-            return (<Pressable key={option.value} onPress={() => onChangeOwnership(option.value)} style={({ pressed, }) => [
-                    styles.optionRow,
-                    selected &&
-                        styles.optionRowSelected,
-                    pressed &&
-                        styles.pressed,
-                ]}>
-                      <View style={styles.optionIcon}>
-                        <Ionicons name={option.icon} size={18} color={selected
-                    ? colors.gold
-                    : colors.mutedText}/>
-                      </View>
-
-                      <Text style={[
-                    styles.optionText,
-                    selected &&
-                        styles.optionTextSelected
-                ]}>
-                        {option.label}
-                      </Text>
-
-                      <View style={[
-                    styles.radio,
-                    selected &&
-                        styles.radioSelected
-                ]}>
-                        {selected ? (<View style={styles.radioDot}/>) : null}
-                      </View>
-                    </Pressable>);
-        })}
-            </View>
-
-            <Pressable onPress={closeSmoothly} style={({ pressed, }) => [
-            styles.doneButton,
-            pressed &&
-                styles.pressed,
-        ]}>
-              <Text style={styles.doneText}>
-                Done
-              </Text>
-            </Pressable>
-          </Pressable>
-        </UiSheetSurface>
-      </Pressable>
-    </UiSheetModal>);
+export function parseLibraryFilters(raw: string | null): LibraryFilters {
+  try {
+    const saved = raw ? JSON.parse(raw) : null;
+    return {
+      status: STATUS_OPTIONS.find(option => option.value === saved?.status)?.value ?? DEFAULT_LIBRARY_FILTERS.status,
+      ownership: OWNERSHIP_OPTIONS.find(option => option.value === saved?.ownership)?.value ?? DEFAULT_LIBRARY_FILTERS.ownership,
+      sort: SORT_OPTIONS.find(option => option.value === saved?.sort)?.value ?? DEFAULT_LIBRARY_FILTERS.sort,
+    };
+  } catch {
+    return DEFAULT_LIBRARY_FILTERS;
+  }
 }
+
+type Props = {
+  visible: boolean;
+  filters: LibraryFilters;
+  onApply: (filters: LibraryFilters) => void;
+  onDismiss: () => void;
+};
+
+export default function LibrarySortFilterSheet({ visible, filters, onApply, onDismiss }: Props) {
+  const { colors } = useNovoriTheme();
+  const styles = createStyles(colors);
+  const insets = useSafeAreaInsets();
+  const [draft, setDraft] = useState(filters);
+  const motion = useUiSheetMotion({ visible, busy: false, onDismiss });
+
+  useEffect(() => {
+    if (visible) setDraft(filters);
+  }, [visible, filters]);
+
+  function group<Key extends keyof LibraryFilters>(key: Key, title: string,
+    options: readonly { value: LibraryFilters[Key]; label: string }[]) {
+    return <View style={styles.group}>
+      <Text accessibilityRole="header" style={styles.groupTitle}>{title}</Text>
+      <View style={styles.choices}>
+        {options.map(option => {
+          const selected = draft[key] === option.value;
+          return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: selected }}
+            onPress={() => setDraft(current => ({ ...current, [key]: option.value }))}
+            style={({ pressed }) => [styles.choice, selected && styles.selected, pressed && styles.pressed]}>
+            <Text style={[styles.choiceText, selected && styles.selectedText]}>{option.label}</Text>
+          </Pressable>;
+        })}
+      </View>
+    </View>;
+  }
+
+  return <UiSheetModal visible={visible} transparent onRequestClose={motion.close} motion={motion}>
+    <View style={styles.container}>
+      <UiSheetBackdrop pointerEvents="none" style={styles.backdrop} motion={motion}/>
+      <Pressable accessibilityLabel="Close Sort & Filter" accessibilityRole="button" style={StyleSheet.absoluteFill} onPress={motion.close}/>
+      <UiSheetSurface accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(16, insets.bottom + 8) }]} motion={motion}>
+        <View style={styles.handle}/>
+        <View style={styles.header}>
+          <Text accessibilityRole="header" style={styles.title}>Sort & Filter</Text>
+          <Pressable accessibilityRole="button" onPress={() => setDraft(DEFAULT_LIBRARY_FILTERS)}
+            style={({ pressed }) => [styles.reset, pressed && styles.pressed]}>
+            <Text style={styles.resetText}>Reset</Text>
+          </Pressable>
+        </View>
+        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+          {group('status', 'Reading status', STATUS_OPTIONS)}
+          {group('ownership', 'Ownership', OWNERSHIP_OPTIONS)}
+          {group('sort', 'Sort by', SORT_OPTIONS)}
+        </ScrollView>
+        <Pressable accessibilityRole="button" onPress={() => { onApply(draft); motion.close(); }}
+          style={({ pressed }) => [styles.applyButton, pressed && styles.pressed]}>
+          <Text style={styles.applyText}>Apply</Text>
+        </Pressable>
+      </UiSheetSurface>
+    </View>
+  </UiSheetModal>;
+}
+
 function createStyles(colors: NovoriColors) {
-    return StyleSheet.create({
-        backdrop: {
-            flex: 1,
-            justifyContent: 'flex-end',
-            backgroundColor: 'transparent',
-        },
-        backdropVisual: {
-            backgroundColor: 'rgba(0, 0, 0, 0.52)',
-        },
-        sheet: {
-            width: '100%',
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingHorizontal: 18,
-            paddingTop: 9,
-        },
-        handle: {
-            width: 38,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: colors.border,
-            alignSelf: 'center',
-            marginBottom: 15,
-        },
-        header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 18,
-        },
-        headerIcon: {
-            width: 44,
-            height: 44,
-            borderRadius: 14,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 11,
-        },
-        headerCopy: {
-            flex: 1,
-        },
-        title: {
-            color: colors.text,
-            fontFamily: 'PlayfairDisplay_700Bold',
-            fontSize: 20,
-        },
-        subtitle: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 11.5,
-            lineHeight: 16,
-            marginTop: 2,
-        },
-        sectionLabel: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 9,
-            letterSpacing: 1,
-            marginBottom: 7,
-        },
-        secondSection: {
-            marginTop: 15,
-        },
-        optionGroup: {
-            gap: 7,
-        },
-        optionRow: {
-            minHeight: 48,
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderRadius: 13,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-            paddingHorizontal: 11,
-        },
-        optionRowSelected: {
-            borderColor: colors.gold,
-            backgroundColor: colors.elevated,
-        },
-        optionIcon: {
-            width: 30,
-            alignItems: 'flex-start',
-        },
-        optionText: {
-            flex: 1,
-            color: colors.text,
-            fontFamily: 'Inter_500Medium',
-            fontSize: 12.5,
-        },
-        optionTextSelected: {
-            color: colors.gold,
-            fontFamily: 'Inter_600SemiBold',
-        },
-        radio: {
-            width: 18,
-            height: 18,
-            borderRadius: 9,
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        radioSelected: {
-            borderColor: colors.gold,
-        },
-        radioDot: {
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: colors.gold,
-        },
-        doneButton: {
-            minHeight: 46,
-            borderRadius: 14,
-            backgroundColor: colors.gold,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginTop: 18,
-        },
-        doneText: {
-            color: colors.background,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 12.5,
-        },
-        pressed: {
-            opacity: 0.8,
-        },
-    });
+  return StyleSheet.create({
+    container: { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
+    sheet: {
+      width: '100%', maxHeight: '89%', backgroundColor: colors.surface,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 9, paddingHorizontal: 20,
+    },
+    handle: { alignSelf: 'center', width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 7 },
+    title: { color: colors.text, fontFamily: 'PlayfairDisplay_700Bold', fontSize: 22, flexShrink: 1 },
+    reset: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
+    resetText: { color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+    body: { flexGrow: 0, flexShrink: 1 },
+    bodyContent: { gap: 16, paddingVertical: 6 },
+    group: { gap: 7 },
+    groupTitle: { color: colors.secondaryText, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+    choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    choice: {
+      minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10,
+      backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
+    },
+    selected: { backgroundColor: colors.elevated, borderColor: colors.gold },
+    choiceText: { color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 12 },
+    selectedText: { color: colors.gold, fontFamily: 'Inter_700Bold' },
+    applyButton: { minHeight: 46, marginTop: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.gold },
+    applyText: { color: colors.background, fontFamily: 'Inter_700Bold', fontSize: 13 },
+    pressed: { opacity: 0.78 },
+  });
 }

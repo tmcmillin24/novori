@@ -9,44 +9,15 @@ import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, type GestureResponderEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, type GestureResponderEvent, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
-import LibrarySortFilterSheet from '../../components/LibrarySortFilterSheet';
+import LibrarySortFilterSheet, { DEFAULT_LIBRARY_FILTERS, parseLibraryFilters, type LibraryFilters } from '../../components/LibrarySortFilterSheet';
 import { getUserBooks, getLibraryMutationVersion, removeUserBook, saveUserBook, updateUserBookOwned, UserBook, UserBookStatus } from '../../lib/user-books';
 import { refreshBookCartCount, getBookCartCountSnapshot } from '../../lib/book-cart-count';
 import { transitionReadingJourney } from '../../lib/reading-details';
-type LibraryFilter = 'all' | UserBookStatus;
-type OwnershipFilter = 'all' | 'owned' | 'not_owned';
-type SortMode = 'recent' | 'title' | 'author';
-type FilterOption = {
-    value: LibraryFilter;
-    label: string;
-};
-const FILTERS: FilterOption[] = [
-    {
-        value: 'all',
-        label: 'All',
-    },
-    {
-        value: 'reading',
-        label: 'Reading',
-    },
-    {
-        value: 'want_to_read',
-        label: 'TBR',
-    },
-    {
-        value: 'read',
-        label: 'Read',
-    },
-    {
-        value: 'dnf',
-        label: 'DNF',
-    }
-];
 const STATUS_LABELS: Record<UserBookStatus, string> = {
     reading: 'Reading',
     want_to_read: 'TBR',
@@ -68,6 +39,7 @@ const STATUS_ICONS: Record<UserBookStatus, keyof typeof Ionicons.glyphMap> = {
 // A block contains whole rows at every supported size (2, 3, or 4).
 const LIBRARY_GRID_BLOCK_SIZE = 12;
 const LIBRARY_COLUMNS_KEY = 'novori:library-columns';
+const LIBRARY_FILTERS_KEY = 'novori:library-filters';
 const LIBRARY_STALE_MS = 5 * 60 * 1000;
 let librarySessionCache: {
     books: UserBook[];
@@ -178,9 +150,25 @@ export default function LibraryScreen() {
     const [error, setError,] = useState('');
     const [searchQuery, setSearchQuery,] = useState('');
     const [searchOpen, setSearchOpen,] = useState(false);
-    const [activeFilter, setActiveFilter,] = useState<LibraryFilter>('all');
-    const [ownershipFilter, setOwnershipFilter,] = useState<OwnershipFilter>('all');
-    const [sortMode, setSortMode,] = useState<SortMode>('recent');
+    const [filters, setFilters] = useState(DEFAULT_LIBRARY_FILTERS);
+    const { status: activeFilter, ownership: ownershipFilter, sort: sortMode } = filters;
+    const activeFilterCount = Number(activeFilter !== 'all') + Number(ownershipFilter !== 'all') + Number(sortMode !== 'recent');
+    const [filtersReady, setFiltersReady] = useState(false);
+    const saveFilterPreference = useRef(Promise.resolve());
+    useEffect(() => {
+        let mounted = true;
+        void AsyncStorage.getItem(LIBRARY_FILTERS_KEY).then(raw => {
+            if (mounted) setFilters(parseLibraryFilters(raw));
+        }).catch(() => {}).finally(() => { if (mounted) setFiltersReady(true); });
+        return () => { mounted = false; };
+    }, []);
+
+    function applyLibraryFilters(next: LibraryFilters) {
+        setFilters(next);
+        saveFilterPreference.current = saveFilterPreference.current
+            .then(() => AsyncStorage.setItem(LIBRARY_FILTERS_KEY, JSON.stringify(next)))
+            .catch(() => {});
+    }
     const [sortFilterSheetVisible, setSortFilterSheetVisible,] = useState(false);
     const [updatingBookId, setUpdatingBookId,] = useState<string | null>(null);
     const [selectedBook, setSelectedBook,] = useState<UserBook | null>(null);
@@ -229,16 +217,6 @@ export default function LibraryScreen() {
         requestAnimationFrame(() => {
             libraryListRef.current?.scrollToOffset({
                 offset: libraryScrollOffsetRef.current,
-                animated: false,
-            });
-        });
-    }
-    const filterScrollRef = useRef<ScrollView | null>(null);
-    const filterScrollOffsetRef = useRef(0);
-    function restoreFilterScrollPosition() {
-        requestAnimationFrame(() => {
-            filterScrollRef.current?.scrollTo({
-                x: filterScrollOffsetRef.current,
                 animated: false,
             });
         });
@@ -339,19 +317,6 @@ export default function LibraryScreen() {
     }, [
         navigation
     ]);
-    const counts = useMemo(() => {
-        return {
-            all: books.length,
-            reading: books.filter((book) => book.status ===
-                'reading').length,
-            want_to_read: books.filter((book) => book.status ===
-                'want_to_read').length,
-            read: books.filter((book) => book.status ===
-                'read').length,
-            dnf: books.filter((book) => book.status ===
-                'dnf').length,
-        };
-    }, [books]);
     const visibleBooks = useMemo(() => {
         const normalizedSearch = normalizeLibrarySearch(searchQuery);
         const filtered = (activeFilter ===
@@ -413,12 +378,6 @@ export default function LibraryScreen() {
         searchQuery,
         sortMode
     ]);
-    const sortLabel = sortMode === 'title'
-        ? 'Title'
-        : sortMode ===
-            'author'
-            ? 'Author'
-            : 'Recently Updated';
     const openBook = useCallback((googleBookId: string) => {
         const preview=books.find(book=>book.google_book_id===googleBookId);
         const selectedCover=getCanonicalBookCover({googleBookId});
@@ -754,53 +713,10 @@ export default function LibraryScreen() {
               </Pressable>) : null}
           </View>) : null}
 
-        <ScrollView ref={filterScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={[
-                styles.filterScroll,
-                !searchOpen &&
-                    styles.filterScrollTopSpacing
-            ]} onScroll={(event) => {
-                filterScrollOffsetRef.current =
-                    event.nativeEvent.contentOffset.x;
-            }} scrollEventThrottle={16} onLayout={restoreFilterScrollPosition} onContentSizeChange={restoreFilterScrollPosition}>
-          {FILTERS.map((filter) => {
-                const selected = activeFilter ===
-                    filter.value;
-                return (<Pressable key={filter.value} onPress={() => setActiveFilter(filter.value)} style={[
-                        styles.filterChip,
-                        selected &&
-                            styles.filterChipSelected
-                    ]}>
-                  <Text style={[
-                        styles.filterChipText,
-                        selected &&
-                            styles.filterChipTextSelected
-                    ]}>
-                    {filter.label}
-                  </Text>
-
-                  <View style={[
-                        styles.filterCount,
-                        selected &&
-                            styles.filterCountSelected
-                    ]}>
-                    <Text style={[
-                        styles.filterCountText,
-                        selected &&
-                            styles.filterCountTextSelected
-                    ]}>
-                      {counts[filter.value]}
-                    </Text>
-                  </View>
-                </Pressable>);
-            })}
-        </ScrollView>
-
         <View style={styles.libraryControls}>
           <Pressable onPress={openSortMenu} style={({ pressed }) => [
                 styles.sortButton,
-                ownershipFilter !==
-                    'all' &&
-                    styles.sortButtonFiltered,
+                activeFilterCount > 0 && styles.sortButtonFiltered,
                 pressed &&
                     styles.pressed
             ]}>
@@ -810,10 +726,7 @@ export default function LibraryScreen() {
               Sort & Filter
             </Text>
 
-            {(ownershipFilter !==
-                'all' ||
-                sortMode !==
-                    'recent') ? (<View style={styles.activeFilterDot}/>) : null}
+            {activeFilterCount > 0 && <View style={styles.activeFilterDot}/>}
 
             <Ionicons name="chevron-down" size={14} color={colors.mutedText}/>
           </Pressable>
@@ -866,7 +779,7 @@ export default function LibraryScreen() {
                 handleBookSheetDismiss();
             }
         } });
-    if (loading) {
+    if (loading || !filtersReady) {
         return (<SafeAreaView style={styles.safeArea} edges={[
                 'top'
             ]}>
@@ -942,7 +855,7 @@ export default function LibraryScreen() {
         }} showsVerticalScrollIndicator={false}/>
       </SafeAreaView>
 
-      <LibrarySortFilterSheet visible={sortFilterSheetVisible} sortMode={sortMode} ownershipFilter={ownershipFilter} onChangeSort={setSortMode} onChangeOwnership={setOwnershipFilter} onDismiss={() => setSortFilterSheetVisible(false)}/>
+      <LibrarySortFilterSheet visible={sortFilterSheetVisible} filters={filters} onApply={applyLibraryFilters} onDismiss={() => setSortFilterSheetVisible(false)}/>
 
       <RemoveBookConfirmSheet visible={removeConfirmBook !==
             null} bookTitle={removeConfirmBook
@@ -1430,68 +1343,14 @@ function createStyles(colors: NovoriColors, windowWidth: number, libraryColumns:
             alignItems: 'center',
             justifyContent: 'center',
         },
-        filterScroll: {
-            marginHorizontal: -20,
-        },
-        filterScrollTopSpacing: {
-            marginTop: 12,
-        },
-        filterRow: {
-            paddingHorizontal: 20,
-            gap: 8,
-        },
-        filterChip: {
-            minHeight: 38,
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 999,
-            paddingLeft: 13,
-            paddingRight: 8,
-            gap: 7,
-        },
-        filterChipSelected: {
-            backgroundColor: colors.gold,
-            borderColor: colors.gold,
-        },
-        filterChipText: {
-            color: colors.text,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 12,
-        },
-        filterChipTextSelected: {
-            color: colors.background,
-        },
-        filterCount: {
-            minWidth: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 6,
-        },
-        filterCountSelected: {
-            backgroundColor: colors.background,
-        },
-        filterCountText: {
-            color: colors.gold,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 10,
-        },
-        filterCountTextSelected: {
-            color: colors.gold,
-        },
         libraryControls: {
             flexDirection: 'row',
             flexWrap: 'wrap',
             justifyContent: 'space-between',
             gap: 8,
             alignItems: 'center',
-            marginTop: 8,
-            marginBottom: 10,
+            marginTop: 12,
+            marginBottom: 12,
         },
         coverSizeControl: {
             flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 999,

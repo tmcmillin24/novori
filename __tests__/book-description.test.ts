@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
-import { formatBookDescription } from '../src/lib/book-description';
+import { formatBookDescription, preserveBookDescription } from '../src/lib/book-description';
 
 describe('book description display', () => {
   test.each([
@@ -39,4 +39,20 @@ describe('book description display', () => {
     expect(formatBookDescription(book.volumeInfo.description)).toBe('What’s next?');
     expect(JSON.stringify(book)).toBe(original);
   });
+});
+
+test('a blank detail refresh preserves a synopsis for the same edition only', () => {
+  const prior = { id: 'edition', volumeInfo: { description: '<p>Verified publisher synopsis.</p>' } };
+  const partial = { id: 'edition', volumeInfo: { description: '<p>&nbsp;</p>', pageCount: 312 } };
+  expect(preserveBookDescription(partial, prior)).toEqual({
+    id: 'edition', volumeInfo: { description: '<p>Verified publisher synopsis.</p>', pageCount: 312 },
+  });
+  const other = { ...partial, id: 'different-edition' };
+  expect(preserveBookDescription(other, prior)).toBe(other);
+});
+
+test('a newly supplied synopsis takes priority over an earlier one', () => {
+  const prior = { id: 'edition', volumeInfo: { description: 'Earlier synopsis' } };
+  const updated = { id: 'edition', volumeInfo: { description: 'Publisher update' } };
+  expect(preserveBookDescription(updated, prior)).toBe(updated);
 });

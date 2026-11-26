@@ -50,10 +50,11 @@ Deno.serve(async (req) => {
 
     const startedAt = Date.now();
     const resolveEdition = body?.mode === 'resolve-edition';
+    const resolveSynopsis = body?.mode === 'resolve-synopsis';
     const editionResponse = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
       status, headers: {...corsHeaders, 'Content-Type': 'application/json'},
     });
-    if (resolveEdition && ![body.seriesId, body.bookId].every(id =>
+    if ((resolveEdition || resolveSynopsis) && ![body.seriesId, body.bookId].every(id =>
       Number.isInteger(id) && id > 0 && id <= 2147483647)) {
       return editionResponse({error: 'A valid series and book are required.'}, 400);
     }
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
         ? body.googleBookId.trim()
         : "";
 
-    if (!resolveEdition && requestedIsbns.length === 0 && !requestedTitle) {
+    if (!resolveEdition && !resolveSynopsis && requestedIsbns.length === 0 && !requestedTitle) {
 
       return new Response(
 
@@ -228,6 +229,26 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createCacheAdmin();requestTrace=providerTrace(supabaseAdmin);
     const reader = await requireReader(supabaseAdmin, req);
+    if (resolveSynopsis) {
+      // Corrected series use private synthetic IDs. Their synopses come from the edition catalog.
+      if (isCorrectedSeriesId(body.seriesId)) return editionResponse({ description: null });
+      const query = `query SeriesSynopsis($bookId: Int!, $seriesId: Int!) {
+        books(where: {id: {_eq: $bookId}, book_series: {series: {id: {_eq: $seriesId}}}}, limit: 1) {
+          id description compilation book_series { series { id } }
+        }
+      }`;
+      const response = await cachedHardcoverFetch(supabaseAdmin, 'https://api.hardcover.app/v1/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query, variables: { bookId: body.bookId, seriesId: body.seriesId } }),
+      }, 14 * 86400000, 90 * 86400000, 'hardcover_series', undefined,
+      payload => seriesResultLifetime(Boolean(payload?.data?.books?.[0]?.description?.trim())));
+      const payload = await response.json();
+      if (!Array.isArray(payload?.data?.books)) return editionResponse({ error: 'Description lookup is unavailable.' }, 503);
+      const book = payload.data.books.find((row: { id: number; compilation?: boolean; book_series?: { series?: { id: number } }[] }) =>
+        row.id === body.bookId && !row.compilation && row.book_series?.some(link => link.series?.id === body.seriesId));
+      return editionResponse({ description: typeof book?.description === 'string' ? book.description : null });
+    }
     if (resolveEdition) {
       const trace = (stage: string, facts: Record<string, unknown> = {}) => console.info(
         '[series-edition:v1]', JSON.stringify({stage, seriesId:body.seriesId, bookId:body.bookId, ms:Date.now()-startedAt,...facts}),
@@ -244,7 +265,7 @@ Deno.serve(async (req) => {
         const query = `
           query SeriesReadingEditions($bookId: Int!) {
             books(where: {id: {_eq: $bookId}}, limit: 1) {
-              id title compilation
+              id title description compilation
               contributions { author { name } }
               book_series { series { id name } }
               editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
@@ -281,7 +302,10 @@ Deno.serve(async (req) => {
           byTitle: async (query, titleOnly) => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false, titleOnly})).items,
         }) : null;
         trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
-        return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
+        const describedBook = book && !book.volumeInfo.description?.trim() && typeof member?.description === 'string' && member.description.trim()
+          ? { ...book, volumeInfo: { ...book.volumeInfo, description: member.description } }
+          : book;
+        return editionResponse({book: describedBook, cacheTrace: providerTrace(supabaseAdmin)});
       } catch (error) {
         trace('failed', {kind: error instanceof Error ? error.name : 'UnknownError'});
         throw error;
