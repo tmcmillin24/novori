@@ -1,3 +1,4 @@
+import { getSeriesRowMetadata, rememberSeriesRowMetadata, seriesRowMetadataVersion, subscribeSeriesRowMetadata } from '../../../lib/series-row-metadata';
 import { useBrowsingNavigationScroll } from '../../../components/BrowsingNavigation';
 import RemoveBookConfirmSheet from '../../../components/RemoveBookConfirmSheet';
 import { NOVORI_TAB_BAR_HEIGHT } from '../../../components/NovoriBottomBar';
@@ -1129,7 +1130,7 @@ function SeriesBookOpeningRoute({params}: {params: BookDetailParams}) {
   const coverUrl = book.novoriWork?.canonicalCoverUrl ??
     secureGoogleBooksImageUrl(params.coverUrl) ??
     getValidatedHighResolutionCover(undefined, book.volumeInfo.imageLinks) ?? undefined;
-  return <BookDetailsScreen key={book.id} initialSeries={snapshot} params={{
+  return <BookDetailsScreen key={book.id} initialSeries={snapshot} seriesMemberId={bookId} seriesLookupId={seriesId} params={{
     id:book.id, source:params.source, canonicalizeWork:'0', coverUrl,
     trustedCover:coverUrl ? '1' : undefined,
     clickedTitle:book.volumeInfo.title ?? params.clickedTitle,
@@ -1147,7 +1148,12 @@ export default function BookDetailsRoute() {
   return <BookDetailsScreen key={JSON.stringify([params.source, params.id])} params={params} />;
 }
 
-function BookDetailsScreen({ params, initialSeries }: { params: BookDetailParams; initialSeries?: HardcoverSeriesResponse }) {
+function BookDetailsScreen({ params, initialSeries, seriesMemberId, seriesLookupId }: {
+  params: BookDetailParams;
+  initialSeries?: HardcoverSeriesResponse;
+  seriesMemberId?: number;
+  seriesLookupId?: number;
+}) {
   const browsingScroll = useBrowsingNavigationScroll();
   const {
     colors,
@@ -1178,6 +1184,17 @@ function BookDetailsScreen({ params, initialSeries }: { params: BookDetailParams
   const [detailAttempt, setDetailAttempt] = useState(0);
 
   const [book, setBook] = useState<GoogleBook | null>(null);
+  useSyncExternalStore(subscribeSeriesRowMetadata, seriesRowMetadataVersion, seriesRowMetadataVersion);
+  useEffect(() => {
+    if (!book || !seriesLookupId || !seriesMemberId) return;
+    rememberSeriesRowMetadata(seriesLookupId, seriesMemberId, {
+      bookId: book.id,
+      isbn: getBookISBN(book),
+      imageLinks: book.volumeInfo.imageLinks,
+      publishedDate: book.volumeInfo.publishedDate,
+    });
+  }, [book, seriesLookupId, seriesMemberId]);
+
   useSyncExternalStore(subscribeCanonicalBookCovers,
     () => getCanonicalBookCoverMetadata({googleBookId: book?.id})?.genres.join('|') ?? '',
     () => '');
@@ -4489,7 +4506,10 @@ function BookDetailsScreen({ params, initialSeries }: { params: BookDetailParams
                     series.currentPosition === seriesBook.position;
 
 
-                  const year = getYear(seriesBook.releaseDate);
+                  const learned = getSeriesRowMetadata(series.id, seriesBook.id);
+                  const releaseYear = getYear(seriesBook.releaseDate);
+                  const editionYear = getYear(learned?.publishedDate);
+                  const hasSeriesCover = Boolean(seriesBook.coverBookId || seriesBook.coverUrl);
 
                   const displayTitle = getDisplayTitle(
                     seriesBook.title
@@ -4516,9 +4536,11 @@ function BookDetailsScreen({ params, initialSeries }: { params: BookDetailParams
                           styles.seriesRowPressed,
                       ]}
                     >
-                      {(isCurrent || seriesBook.coverBookId || seriesBook.coverUrl) ? (
+                      {(isCurrent || hasSeriesCover || learned) ? (
                         <BookCoverImage
-                          googleBookId={isCurrent ? book.id : seriesBook.coverBookId}
+                          googleBookId={isCurrent ? book.id : hasSeriesCover ? seriesBook.coverBookId : learned?.bookId}
+                          isbn={!isCurrent && !hasSeriesCover ? learned?.isbn : undefined}
+                          imageLinks={!isCurrent && !hasSeriesCover ? learned?.imageLinks : undefined}
                           hardcoverBookId={!isCurrent && !seriesBook.coverBookId && seriesBook.coverProvider === 'hardcover' ? seriesBook.id : undefined}
                           existingCoverUrl={isCurrent ? displayExistingCoverUrl : undefined}
                           style={styles.seriesCover}
@@ -4568,8 +4590,10 @@ function BookDetailsScreen({ params, initialSeries }: { params: BookDetailParams
                           </View>
                         ) : (
                           <Text style={styles.seriesBookMeta}>
-                            {year
-                              ? year
+                            {releaseYear
+                              ? releaseYear
+                              : editionYear
+                              ? `Edition · ${editionYear}`
                               : hasUsableTitle
                               ? 'View book'
                               : 'Details not announced'}
