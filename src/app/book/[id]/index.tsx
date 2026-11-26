@@ -1340,6 +1340,8 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
 
   // Pick the layout from the entry route so loading personal library data cannot swap the hero.
   const isSavedBookContext = source === 'library' || source === 'profile';
+  const isInLibrary = Boolean(savedBook && hasLibraryMembership(savedBook));
+  const showSavedReadingPanel = isSavedBookContext && isInLibrary;
 
   const backLabel =
     source === 'library'
@@ -2265,10 +2267,9 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     }
 
     const info = book.volumeInfo;
-    if (seriesLookupId && !savedBook?.status && !formatBookDescription(info.description)) return;
-
-    const coverUrl =
-      await resolveCanonicalBookCover({
+    try {
+      setSavingStatus(status);
+      const coverUrl = await resolveCanonicalBookCover({
         googleBookId: book.id,
         imageLinks:
           info.imageLinks,
@@ -2287,9 +2288,6 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
               null,
       });
 
-    try {
-      setSavingStatus(status);
-
       const updatedBook =
         await saveUserBook({
           googleBookId: book.id,
@@ -2306,7 +2304,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
       setSavedBook({ ...updatedBook, status });
       setReadingStatus(status);
 
-      if (!isSavedBookContext) {
+      if (!isInLibrary || !isSavedBookContext) {
         setLibraryConfirmation(status);
       } else if (status === 'read' || status === 'dnf') {
         router.push({ pathname: '/rate-review', params: { googleBookId: book.id } });
@@ -2750,8 +2748,6 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     formatBookDescription(
       info.description
     );
-
-  const waitingForSeriesDescription = Boolean(seriesLookupId && !savedBook?.status && !description);
 
   const statuses: {
     value: UserBookStatus;
@@ -3757,8 +3753,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
             <Text style={styles.loadingText}>{readerStateError ? 'Couldn’t load your library status. Tap to retry.' : 'Loading your library status…'}</Text>
           </Pressable>
         ) : null}
-        {isSavedBookContext &&
-        savedBook ? (
+        {showSavedReadingPanel && savedBook ? (
           <View
             style={
               styles.libraryReadingPanel
@@ -3857,7 +3852,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                             status.value
                           }
                           disabled={
-                            !readerStateReady || waitingForSeriesDescription || savingStatus !== null
+                            !readerStateReady || savingStatus !== null
                           }
                           onPress={() =>
                             saveReadingStatus(
@@ -4060,7 +4055,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
           </View>
         ) : null}
 
-        {!isSavedBookContext ? (
+        {!showSavedReadingPanel && (!isSavedBookContext || readerStateReady) ? (
           displayedReadingStatus &&
           selectedStatusLabel ? (
             <View
@@ -4151,7 +4146,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                           status.value
                         }
                         disabled={
-                          !readerStateReady || waitingForSeriesDescription || savingStatus !== null
+                          !readerStateReady || savingStatus !== null
                         }
                         onPress={() =>
                           saveReadingStatus(
@@ -4700,9 +4695,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                 {seriesLookupId
                   ? (loading || synopsisLoading
                       ? 'Looking up the description…'
-                      : waitingForSeriesDescription
-                        ? 'A verified description is required before adding this book to your Library.'
-                        : 'A verified description is unavailable.')
+                      : 'A description is unavailable right now.')
                   : 'No description is available for this edition.'}
               </Text>
               {seriesLookupId && !loading && !synopsisLoading && (
