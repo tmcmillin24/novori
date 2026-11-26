@@ -118,6 +118,7 @@ export default function NotificationsScreen() {
     const { colors } = useNovoriTheme();
     const styles = createStyles(colors);
     const isFocusedRef = useRef(false);
+    const hasLoadedNotifications = useRef(false);
     const [notifications, setNotifications] = useState<NovoriNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -198,6 +199,7 @@ export default function NotificationsScreen() {
             setNotifications(notificationData);
             setFollowRequestCount(requestCount);
             setAllowExplicitLanguage(explicitLanguagePreference);
+            hasLoadedNotifications.current = true;
             if (markViewed &&
                 notificationData.some((item) => !item.read_at)) {
                 void markAllNotificationsRead().catch((markSeenError) => {
@@ -218,7 +220,8 @@ export default function NotificationsScreen() {
     useFocusEffect(useCallback(() => {
         isFocusedRef.current =
             true;
-        loadNotifications(true, true);
+        // Keep the list mounted when returning from any notification destination.
+        void loadNotifications(!hasLoadedNotifications.current, true);
         return () => {
             isFocusedRef.current =
                 false;
