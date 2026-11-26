@@ -1440,7 +1440,7 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
         void publicBookCache.peek(bookExtraKey('series',resolvedBook.id,getBookISBN(resolvedBook)),validSeriesExtras).then(cached=>{
           if(!active)return;
           if(cached)void loadSeries(resolvedBook,()=>active);
-          else void enrichedBook.then(enriched=>{if(active)void loadSeries(enriched,()=>active);});
+          else void enrichedBook.catch(()=>resolvedBook).then(enriched=>{if(active)void loadSeries(enriched,()=>active);});
         });
 
         const cartTask = (async () => {
@@ -1986,24 +1986,12 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
         currentBook
       );
 
-    const isbns =
-      Array.from(
-        new Set(
-          (
-            currentBook
-              .volumeInfo
-              .industryIdentifiers ??
-            []
-          )
-            .map(
-              (
-                identifier
-              ) =>
-                identifier.identifier
-            )
-            .filter(Boolean)
-        )
-      );
+    const editionIsbn = /^nv_((?:978|979)\d{10})$/.exec(currentBook.id)?.[1];
+    const isbns = [...new Set([
+      exactIsbn, editionIsbn,
+      ...(currentBook.volumeInfo.industryIdentifiers ?? []).map(row => row.identifier),
+      ...(currentBook.novoriDetails?.isbns ?? []),
+    ].filter((isbn): isbn is string => Boolean(isbn)))].slice(0,8);
 
     const title =
       currentBook.volumeInfo
@@ -2044,7 +2032,10 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
           null;
 
       const currentAuthors = (currentBook.volumeInfo.authors ?? []).map(name => normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''));
-      const resolvedSeriesBooks = (response.books ?? []).filter(row =>
+      // Verified membership defines the series. Coauthored and multi-author
+      // series can legitimately contain books by a different writer.
+      const resolvedSeriesBooks = response.books ?? [];
+      const coverRows = resolvedSeriesBooks.filter(row =>
         !currentAuthors.length || row.authors?.some(name => currentAuthors.includes(normalizeCatalogAuthor(name).toLowerCase().replace(/[^a-z0-9]/g, ''))));
       if(!cachedSeries.fromCache)rememberBookPublications(resolvedSeriesBooks);
 
@@ -2057,7 +2048,7 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
       if(isCurrent())setSeriesLoading(false);
       // A persisted series snapshot is metadata, never a new cover selection.
       // Only fresh server responses can publish artwork into the cover cache.
-      if(!cachedSeries.fromCache)for (const row of resolvedSeriesBooks) {
+      if(!cachedSeries.fromCache)for (const row of coverRows) {
         const key = row.coverBookId ?? (row.coverProvider === 'hardcover' ? `hc_art_${row.id}` : null);
         if (key && row.coverUrl) publishCatalogCovers({[key]: row.coverUrl}, {[key]: {
           provider: row.coverProvider, fallback: row.coverFallback, workId: row.coverWorkId,
@@ -4817,11 +4808,12 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
               </Text>
             </View>
           </View>
-        ) : series && seriesBooks.length > 0 ? (
+        ) : series ? (
           <View style={styles.seriesSection}>
             <Text style={styles.sectionHeading}>Series</Text>
 
             <Pressable
+              disabled={!seriesBooks.length}
               onPress={() =>
                 setSeriesExpanded((current) => !current)
               }
@@ -4844,15 +4836,16 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
                 </Text>
 
                 <Text style={styles.seriesToggleMeta}>
-                  {seriesBooks.length}{' '}
-                  {seriesBooks.length === 1 ? 'book' : 'books'}
-                  {series.currentPosition
+                  {seriesBooks.length
+                    ? `${seriesBooks.length} ${seriesBooks.length === 1 ? 'book' : 'books'}`
+                    : 'Reading order unavailable'}
+                  {series.currentPosition != null
                     ? ` • Current: Book ${series.currentPosition}`
                     : ''}
                 </Text>
               </View>
 
-              <Ionicons
+              {seriesBooks.length > 0 ? <Ionicons
                 name={
                   seriesExpanded
                     ? 'chevron-up'
@@ -4860,10 +4853,10 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
                 }
                 size={20}
                 color={colors.softGold}
-              />
+              /> : null}
             </Pressable>
 
-            {seriesExpanded ? (
+            {seriesExpanded && seriesBooks.length > 0 ? (
               <View
                 style={[
                   styles.seriesCard,

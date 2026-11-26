@@ -29,9 +29,10 @@ function harness() {
     },
     from(table) {
       const filters = {};
+      const lowerBounds = {};
       const q = {
         update: () => q, select: () => q, eq: (k,v) => { filters[k] = v; return q; },
-        in: (k,v) => { filters[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
+        in: (k,v) => { filters[k] = v; return q; }, gt: (k,v) => { lowerBounds[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
           return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
@@ -41,10 +42,12 @@ function harness() {
           if (table === 'book_cover_candidates' || table === 'book_cover_selections') catalogWrites.push({ table, data });
           if (errors.write) return { error: { message: 'offline' } };
           if (table === 'novori_book_provider_ids') for (const row of Array.isArray(data) ? data : [data]) { if (!identities.has(row.isbn13)) identities.set(row.isbn13, {...row}); }
-          if (table === 'book_api_cache') rows.set(data.provider + ':' + data.request_key, { ...data });
+          if (table === 'book_api_cache') for (const row of Array.isArray(data) ? data : [data]) rows.set(row.provider + ':' + row.request_key, { ...row });
           return { error: null };
         },
-        then: resolve => Promise.resolve({ data: table === 'novori_book_provider_ids' ? [...identities.values()].filter(row => !filters.isbn13 || filters.isbn13.includes(row.isbn13)) : table === 'book_editions' ? legacy.filter(row => (!filters.isbn_13 || (Array.isArray(filters.isbn_13) ? filters.isbn_13.includes(row.isbn_13) : row.isbn_13 === filters.isbn_13)) && (!filters.provider_book_id || row.provider_book_id === filters.provider_book_id)) : [], error: null }).then(resolve),
+        then: resolve => Promise.resolve({ data: table === 'book_api_cache' ? [...rows.values()].filter(row =>
+          Object.entries(filters).every(([key,value])=>Array.isArray(value)?value.includes(row[key]):value===row[key]) &&
+          Object.entries(lowerBounds).every(([key,value])=>row[key]>value)) : table === 'novori_book_provider_ids' ? [...identities.values()].filter(row => !filters.isbn13 || filters.isbn13.includes(row.isbn13)) : table === 'book_editions' ? legacy.filter(row => (!filters.isbn_13 || (Array.isArray(filters.isbn_13) ? filters.isbn_13.includes(row.isbn_13) : row.isbn_13 === filters.isbn_13)) && (!filters.provider_book_id || row.provider_book_id === filters.provider_book_id)) : [], error: null }).then(resolve),
       };
       return q;
     },
@@ -195,16 +198,17 @@ test('ISBN-only discovery popularity inputs produce matches',async()=>{
 
 test('series membership data is reused when a different book in the same series is opened',async()=>{
   const h=harness();
-  const language={code2:'en'};
-  const record=(id,title)=>({id,title,editions:[{isbn_13:'978'+id,language}],book_series:[{position:id,series:{id:50,name:'Series'}}]});
-  h.setUpstream(async(url,init,body)=>body.query.includes('FindBookByISBN')
-    ? {data:{editions:[{language,book:record(body.variables.isbn.endsWith('2')?2:1,'Book')}]}}
-    : {data:{series_by_pk:{id:50,name:'Series',book_series:[{position:1,book:record(1,'One')},{position:2,book:record(2,'Two')}]}}});
-  const first=await h.request('hardcover-series',{isbn:'9781111111111'});
-  const second=await h.request('hardcover-series',{isbn:'9782222222222'});
-  expect(first.series.id).toBe(50);expect(second.series.id).toBe(50);
-  expect(h.calls.filter(call=>call.body.query.includes('GetSeries')).length).toBe(1);
-  expect(h.calls.length).toBe(3);
+  const language={code2:'en'}, firstIsbn='9781111111111', secondIsbn='9782222222222';
+  const record=(id,title,isbn)=>({id,title,contributions:[{author:{name:'A. Writer'}}],editions:[{isbn_13:isbn,language}],book_series:[{position:id,series:{id:50,name:'Series'}}]});
+  const one=record(1,'One',firstIsbn), two=record(2,'Two',secondIsbn);
+  h.setUpstream(async(url,init,body)=>body.query.includes('FindSeriesBooksByISBN')
+    ? {data:{editions:[{isbn_13:firstIsbn,language,book:one}]}}
+    : {data:{series_by_pk:{id:50,name:'Series',book_series:[{position:1,book:one},{position:2,book:two}]}}});
+  const first=await h.request('hardcover-series',{isbn:firstIsbn});
+  const second=await h.request('hardcover-series',{isbn:secondIsbn});
+  expect(first.series).toMatchObject({id:50,currentPosition:1});
+  expect(second.series).toMatchObject({id:50,currentPosition:2});
+  expect(h.calls.map(call=>call.body.query.match(/query (\w+)/)[1])).toEqual(['FindSeriesBooksByISBN','GetSeries']);
 });
 
 test('a confirmed no-series result is cached and skips Google language lookup',async()=>{
@@ -494,8 +498,8 @@ test('series lookup tries a second verified duplicate and rejects another author
    image: { url: 'https://art/catching-fire.jpg' }, reading_format: { format: 'Physical Book' } }],
   book_series: series ? [{ position: 2, series: { id: 50, name: 'The Hunger Games' } }] : [] });
  h.setUpstream(async (_url, _init, body) => {
-  if (body.query.includes('FindBookByISBN')) return { data: { editions: [] } };
-  if (body.query.includes('HardcoverBookById')) return { data: { books: [make(body.variables.id, body.variables.id === 2)] } };
+  if (body.query.includes('FindSeriesBooksByISBN')) return { data: { editions: [] } };
+  if (body.query.includes('SeriesBooksById')) return { data: { books: body.variables.ids.map(id=>make(id,id===2)) } };
   if (body.query.includes('GetSeries')) return { data: { series_by_pk: { id: 50, name: 'The Hunger Games', book_series: [{ position: 2, book: make(2, true) }] } } };
   return { data: { search: { results: { hits: [
    { document: { id: 3, title: 'Catching Fire', author_names: ['Other Author'] } },
@@ -508,7 +512,7 @@ test('series lookup tries a second verified duplicate and rejects another author
  expect(result.series).toMatchObject({ id: 50, currentPosition: 2 });
  expect(h.catalogWrites).toEqual([]);
  expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverEdition: { language: 'en', url: 'https://art/catching-fire.jpg' } });
- expect(h.calls.filter(call => call.body.query.includes('HardcoverBookById')).map(call => call.body.variables.id)).toEqual([1, 2]);
+ expect(h.calls.filter(call => call.body.query.includes('SeriesBooksById')).map(call => call.body.variables.ids)).toEqual([[1, 2]]);
  const count = h.calls.length;
  await h.request('hardcover-series', body);
  await h.request('hardcover-series', { ...body, isbn: '9780545586177', isbns: ['9780545586177'] });

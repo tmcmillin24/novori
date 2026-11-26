@@ -106,7 +106,7 @@ async function getSeriesMetadata(
       item
     );
 
-  if (!isbn) {
+  if (!isbn && !item.volumeInfo.title) {
     return {
       name: null,
       position: null,
@@ -123,6 +123,9 @@ async function getSeriesMetadata(
         {
           body: {
             isbn,
+            googleBookId: item.id,
+            title: item.volumeInfo.title,
+            authors: item.volumeInfo.authors ?? [],
           },
         }
       );

@@ -17,3 +17,12 @@ test('wrong author, adaptation, expired source and missing series fail safely',a
  d.rows[0].expires_at='2000-01-01';expect(await readSeriesMembership(d.admin,books[1])).toBeNull();
  expect(seriesMemberKeys({title:'All Systems Red',authors:[]})).toEqual([]);
 });
+
+test('an edition can reuse a verified series without a populated author field',async()=>{
+ const d=db();
+ const isbn='9781250214713';
+ d.rows[0].response_json={series,books:[{...books[1],isbns:[isbn]}]};
+ await cacheSeriesMembership(d.admin,d.rows[0].response_json,'series:v5:platform');
+ expect((await readSeriesMembership(d.admin,{title:books[1].title,authors:[],isbns:[isbn]})).series.currentPosition).toBe(1);
+ expect(await readSeriesMembership(d.admin,{title:'Different story',authors:[],isbns:[isbn]})).toBeNull();
+});
