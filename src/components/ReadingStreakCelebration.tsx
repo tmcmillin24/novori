@@ -18,6 +18,7 @@ type Milestone = {tier: StreakTier; days: number};
 export default function ReadingStreakCelebration({ tier, days, region, onDismiss }: Milestone & {region: {width: number; height: number}; onDismiss: () => void}) {
   const { colors } = useNovoriTheme();
   const scene = scenes[tier.days];
+  const visibleDuration = Math.round((scene.duration + 750) * 1.15);
   const { fontScale } = useWindowDimensions();
   const frame = streakCelebrationFrame(region.width, region.height, fontScale);
   const layout = streakCelebrationLayout(frame.width, frame.height, scene.stage, fontScale);
@@ -44,19 +45,19 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
     if (motion === null) return;
     if (!motion) {
       opacity.setValue(1);
-      const timer = setTimeout(() => dismiss.current(), scene.duration + 800);
+      const timer = setTimeout(() => dismiss.current(), visibleDuration);
       return () => clearTimeout(timer);
     }
     progress.setValue(0);
     opacity.setValue(1);
     const sequence = Animated.sequence([
       Animated.timing(progress, {toValue:1, duration:scene.duration, easing:Easing.linear, useNativeDriver:true, isInteraction:false}),
-      Animated.delay(750),
+      Animated.delay(visibleDuration - scene.duration),
       Animated.timing(opacity, {toValue:0, duration:420, easing:Easing.inOut(Easing.cubic), useNativeDriver:true, isInteraction:false}),
     ]);
     sequence.start(({finished}) => { if (finished) dismiss.current(); });
     return () => sequence.stop();
-  }, [motion, progress, opacity, scene.duration]);
+  }, [motion, progress, opacity, scene.duration, visibleDuration]);
 
   const crown = scene.kind === 'crown';
   const ringCount = scene.kind === 'embers' ? 0 : scene.kind === 'flare' ? 1 : 2;
