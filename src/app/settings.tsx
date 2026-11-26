@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsDivider, SettingsHeader, SettingsSection, SettingsToggleRow, settingsStyles } from '../components/SettingsPrimitives';
 import { useNovoriTheme } from '../context/theme-context';
 import { getExplicitLanguagePreference, setExplicitLanguagePreference } from '../lib/content-filter';
 import { signOutCurrentDevice } from '../lib/sign-out';
 import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
+import ReadingStreakCelebration from '../components/ReadingStreakCelebration';
+import { reachedReadingStreakTier, STREAK_TIERS } from '../lib/reading-streak-tier';
+import { supabase } from '../lib/supabase';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
 
 function SettingsRow({ icon, title, danger, onPress }: {
@@ -27,6 +30,60 @@ function SettingsRow({ icon, title, danger, onPress }: {
     style={({pressed}) => [styles.row, pressed && styles.pressed]}>{content}</Pressable>;
 }
 
+const STREAK_TEST_ACCOUNT = 'novori.acc@gmail.com';
+
+function StreakTestingSection() {
+  const { colors } = useNovoriTheme();
+  const styles = settingsStyles(colors);
+  const [value, setValue] = useState(String(STREAK_TIERS[0].days));
+  const [days, setDays] = useState<number | null>(null);
+  const [replay, setReplay] = useState(0);
+  const [region, setRegion] = useState({ width: 0, height: 0 });
+  const count = value.trim() === '' ? NaN : Number(value);
+  const valid = Number.isSafeInteger(count) && count >= 0;
+  const tier = days === null ? undefined : reachedReadingStreakTier(days - 1, days);
+
+  return <SettingsSection icon="flame-outline" title="Streak testing">
+    <View style={{padding: 16, gap: 10}}>
+      <Text style={styles.rowTitle}>Test streak days</Text>
+      <Text style={{ color: colors.secondaryText }}>
+        Preview a check-in milestone on this device. Milestones are {STREAK_TIERS.map(item => item.days).join(', ')} days.
+      </Text>
+      <TextInput
+        accessibilityLabel="Test streak days"
+        keyboardType="number-pad"
+        value={value}
+        onChangeText={setValue}
+        maxLength={6}
+        style={{ minHeight: 44, borderWidth: 1, borderColor: colors.mutedText, borderRadius: 10, paddingHorizontal: 12, color: colors.text }}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !valid }}
+        disabled={!valid}
+        style={{ minHeight: 44, justifyContent: 'center', opacity: valid ? 1 : 0.5 }}
+        onPress={() => {
+          setDays(count);
+          setReplay(previous => previous + 1);
+        }}
+      >
+        <Text style={styles.retryText}>Test streak</Text>
+      </Pressable>
+      {days !== null && !tier && <Text accessibilityLiveRegion="polite" style={{ color: colors.secondaryText }}>
+        Day {days} has no milestone celebration.
+      </Text>}
+      {tier && <View style={{ minHeight: 96 }} onLayout={({ nativeEvent }) => {
+        const { width, height } = nativeEvent.layout;
+        setRegion({ width, height });
+      }}>
+        {region.width > 0 && region.height > 0 && days !== null && <ReadingStreakCelebration
+          key={replay} tier={tier} days={days} region={region} onDismiss={() => setDays(null)}
+        />}
+      </View>}
+    </View>
+  </SettingsSection>;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, theme } = useNovoriTheme();
@@ -38,6 +95,15 @@ export default function SettingsScreen() {
   const [explicitLoading, setExplicitLoading] = useState(true);
   const [explicitSaving, setExplicitSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+
+  const [streakTesterId, setStreakTesterId] = useState<string | null>(null);
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      setStreakTesterId(user?.email?.toLowerCase() === STREAK_TEST_ACCOUNT ? user.id : null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const [explicitAttempt, setExplicitAttempt] = useState(0);
   useEffect(() => {
@@ -75,7 +141,7 @@ export default function SettingsScreen() {
 
   return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
     <SettingsHeader title="Settings"/>
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <SettingsSection icon="person-circle-outline" title="Account">
         <SettingsRow icon="lock-closed-outline" title="Password & Security" onPress={() => router.push('/password-security')}/>
       </SettingsSection>
@@ -105,6 +171,7 @@ export default function SettingsScreen() {
         <SettingsDivider/>
         <SettingsRow icon="information-circle-outline" title="About Novori" onPress={() => router.push('/about-novori')}/>
       </SettingsSection>
+      {streakTesterId && <StreakTestingSection key={streakTesterId}/>}
       <SettingsSection icon="log-out-outline" title="Account actions">
         <SettingsRow icon="log-out-outline" title="Sign Out" onPress={confirmSignOut}/>
         <SettingsDivider/>
