@@ -46,6 +46,8 @@ import {
   UserBook,
 } from '../lib/user-books';
 
+const READING_CARD_PADDING = 14;
+
 type ProfileReadingModuleProps = {
   books:
     UserBook[];
@@ -129,7 +131,7 @@ export default function ProfileReadingModule({
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
   const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
-  const [checkinSize, setCheckinSize] = useState({ width: 0, height: 0 });
+  const [streakRegionSize, setStreakRegionSize] = useState({ width: 0, height: 0 });
   const { test: streakTest } = useStreakTest(localDate);
   const checkinState = useMemo(() => streakTest ? getTestCheckinState(streakTest) : savedCheckinState,
     [streakTest, savedCheckinState]);
@@ -569,6 +571,12 @@ export default function ProfileReadingModule({
       <View style={styles.cardShadow}><View style={styles.card}>
         <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.cardAccent} />
         <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.cardGlow} />
+        <View style={styles.streakRegion} onLayout={({ nativeEvent: { layout: { width, height } } }) => {
+          setStreakRegionSize(current => current.width === width && current.height === height ? current : { width, height });
+        }}>
+          <View style={styles.streakRegionContent} pointerEvents={milestone ? 'none' : 'auto'}
+            accessibilityElementsHidden={Boolean(milestone)}
+            importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
         <View
           style={
             styles.topRow
@@ -612,11 +620,6 @@ export default function ProfileReadingModule({
         </View>
 
         {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
-        <View onLayout={({ nativeEvent: { layout: { width, height } } }) => {
-          setCheckinSize(current => current.width === width && current.height === height ? current : { width, height });
-        }}>
-          <View pointerEvents={milestone ? 'none' : 'auto'} accessibilityElementsHidden={Boolean(milestone)}
-            importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
         {checkinState?.checkedIn ? (
           <View
             style={
@@ -812,7 +815,7 @@ export default function ProfileReadingModule({
         </View>
 
           </View>
-          {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} region={checkinSize} onDismiss={() => setMilestone(null)}/>}
+          {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} region={streakRegionSize} onDismiss={() => setMilestone(null)}/>}
         </View>
 
         {checkinError ? (
@@ -916,7 +919,9 @@ function createStyles(
   return StyleSheet.create({
     cardShadow: { marginTop: 12, borderRadius: 18, backgroundColor: colors.surface,
       shadowColor: '#000000', shadowOpacity: 0.13, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-    card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: `${colors.gold}40`, borderRadius: 18, padding: 14, overflow: 'hidden' },
+    card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: `${colors.gold}40`, borderRadius: 18, padding: READING_CARD_PADDING, overflow: 'hidden' },
+    streakRegion: { marginTop: -READING_CARD_PADDING, marginHorizontal: -READING_CARD_PADDING },
+    streakRegionContent: { paddingTop: READING_CARD_PADDING, paddingHorizontal: READING_CARD_PADDING },
     cardAccent: { position: 'absolute', top: 0, left: 16, right: 16, height: 2, borderRadius: 2, backgroundColor: colors.gold, opacity: 0.85 },
     cardGlow: { position: 'absolute', top: -55, right: -35, width: 160, height: 160, borderRadius: 80, backgroundColor: colors.gold, opacity: 0.035 },
     moduleMark: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, borderColor: `${colors.gold}40`,

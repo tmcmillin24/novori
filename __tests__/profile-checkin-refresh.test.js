@@ -95,12 +95,16 @@ test('a confirmed milestone check-in celebrates once, and opening the profile do
  await act(async()=>view.root.findByType('DailyCheckinSheet').props.onConfirm());
  const celebration=view.root.findByType('ReadingStreakCelebration');
  const region = celebration.parent;
+ const copy = region.findAllByType('Text').map(node => node.props.children);
+ expect(copy).toContain('MY READING');
+ expect(copy).toContain(27);
+ expect(region.findAllByProps({accessibilityLabel:'Open Reading Tracker'})).toHaveLength(0);
  expect(region.findAllByType('View').some(node=>node.props.pointerEvents==='none' && node.props.accessibilityElementsHidden &&
    node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);
- await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:310,height:95}}}));
- expect(celebration.props).toMatchObject({days:3,tier:{label:'Heating Up'},region:{width:310,height:95}});
- await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:700,height:102}}}));
- expect(celebration.props.region).toEqual({width:700,height:102});
+ await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:338,height:176}}}));
+ expect(celebration.props).toMatchObject({days:3,tier:{label:'Heating Up'},region:{width:338,height:176}});
+ await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:728,height:186}}}));
+ expect(celebration.props.region).toEqual({width:728,height:186});
  await act(async()=>celebration.props.onDismiss());
  expect(view.root.findAllByType('View').some(node=>node.props.pointerEvents==='auto' &&
    node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);

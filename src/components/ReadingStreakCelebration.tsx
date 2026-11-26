@@ -51,7 +51,7 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
     const sequence = Animated.sequence([
       Animated.timing(progress, {toValue:1, duration:scene.duration, easing:Easing.linear, useNativeDriver:true, isInteraction:false}),
       Animated.delay(750),
-      Animated.timing(opacity, {toValue:0, duration:380, useNativeDriver:true, isInteraction:false}),
+      Animated.timing(opacity, {toValue:0, duration:420, easing:Easing.inOut(Easing.cubic), useNativeDriver:true, isInteraction:false}),
     ]);
     sequence.start(({finished}) => { if (finished) dismiss.current(); });
     return () => sequence.stop();
