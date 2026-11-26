@@ -1035,8 +1035,51 @@ function getValidatedHighResolutionCover(
   );
 }
 
+// A series already shown on the previous screen can be reused while the
+// selected edition's own cache is refreshed. This never seeds artwork choices.
+const seriesOpeningSnapshots = new Map<string, HardcoverSeriesResponse>();
+
+function SeriesBookPreview({params}: {params: BookDetailParams}) {
+  const router = useRouter();
+  const {colors} = useNovoriTheme();
+  const styles = createStyles(colors);
+  const authors = openingAuthors(params.clickedAuthors);
+  const onBack = () => router.canGoBack() ? router.back() : router.replace('/(tabs)/discover');
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <Pressable accessibilityRole="button" style={styles.backButton} onPress={onBack}>
+          <Ionicons name="chevron-back" size={25} color={colors.text} />
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={{padding:24, paddingBottom:NOVORI_TAB_BAR_HEIGHT+32, alignItems:'center', gap:12}}>
+        <BookCoverImage
+          hardcoverBookId={Number(params.id.slice('hc_series_'.length))}
+          existingCoverUrl={secureGoogleBooksImageUrl(params.coverUrl)}
+          style={{width:150, height:225, borderRadius:10}}
+        />
+        <Text accessibilityRole="header" style={[styles.sectionHeading,{textAlign:'center'}]}>{params.clickedTitle}</Text>
+        {!!authors.length && <Text style={[styles.errorText,{textAlign:'center'}]}>{authors.join(', ')}</Text>}
+        <Text style={[styles.errorText,{textAlign:'center'}]}>
+          {params.seriesPreviewName}{params.seriesPreviewPosition ? ` · Book ${params.seriesPreviewPosition}` : ''}
+        </Text>
+        {params.seriesPreviewDate && <Text style={styles.errorText}>Release: {params.seriesPreviewDate}</Text>}
+        <Text style={[styles.errorText,{textAlign:'center',marginTop:16}]}>
+          {params.seriesPreviewEditionCheckFailed === '1'
+            ? 'Novori couldn’t check editions right now. Go back and tap the book again to retry.'
+            : 'This book is in the series, but Novori doesn’t have a verified reading edition to add to your library yet.'}
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 export default function BookDetailsRoute() {
   const params = useLocalSearchParams<BookDetailParams>();
+  if (typeof params.id === 'string' && /^hc_series_[1-9]\d*$/.test(params.id) && params.seriesPreviewName && params.clickedTitle) {
+    return <SeriesBookPreview params={params} />;
+  }
   // A reused route must never render the previous book's cover or enabled actions.
   return <BookDetailsScreen key={JSON.stringify([params.source, params.id])} params={params} />;
 }
@@ -1122,10 +1165,14 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
     useState(false);
   useEffect(() => subscribeEditionPages(() => setBook(current => current ? applyEditionPages(current) : current)), []);
 
+  const [seriesSnapshot] = useState(() => seriesOpeningSnapshots.get(id));
+  useEffect(() => {
+    if (seriesOpeningSnapshots.get(id) === seriesSnapshot) seriesOpeningSnapshots.delete(id);
+  }, [id, seriesSnapshot]);
   const [series, setSeries] =
-    useState<HardcoverSeries | null>(null);
+    useState<HardcoverSeries | null>(seriesSnapshot?.series ?? null);
   const [seriesBooks, setSeriesBooks] =
-    useState<HardcoverSeriesBook[]>([]);
+    useState<HardcoverSeriesBook[]>(seriesSnapshot?.books ?? []);
   const [seriesLoading, setSeriesLoading] =
     useState(false);
   const [seriesExpanded, setSeriesExpanded] =
@@ -1324,9 +1371,9 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
         setSeriesWorkCoverUrl(
           null
         );
-        setSeries(null);
-        setSeriesBooks([]);
-        setSeriesLoading(true);
+        setSeries(seriesSnapshot?.series ?? null);
+        setSeriesBooks(seriesSnapshot?.books ?? []);
+        setSeriesLoading(!seriesSnapshot);
         setSeriesExpanded(false);
         setRemoveConfirmTarget(null);
 
@@ -1437,11 +1484,9 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
 
         const enrichedBook = response.workDetails && resolvedBook.id === id
           ? response.workDetails : Promise.resolve(latestWorkDetails && latestWorkDetails.id === resolvedBook.id ? latestWorkDetails : resolvedBook);
-        void publicBookCache.peek(bookExtraKey('series',resolvedBook.id,getBookISBN(resolvedBook)),validSeriesExtras).then(cached=>{
-          if(!active)return;
-          if(cached)void loadSeries(resolvedBook,()=>active);
-          else void enrichedBook.catch(()=>resolvedBook).then(enriched=>{if(active)void loadSeries(enriched,()=>active);});
-        });
+        // Start with the detail record we already have. Only a miss needs to
+        // wait for extra ISBN aliases from the slower work-details request.
+        void loadSeries(resolvedBook, () => active, enrichedBook, seriesSnapshot);
 
         const cartTask = (async () => {
           try {
@@ -1979,19 +2024,21 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
 
   async function loadSeries(
     currentBook: GoogleBook,
-    isCurrent = () => true
+    isCurrent = () => true,
+    enrichedBook?: Promise<GoogleBook>,
+    snapshot?: HardcoverSeriesResponse,
   ) {
     const exactIsbn =
       getBookISBN(
         currentBook
       );
 
-    const editionIsbn = /^nv_((?:978|979)\d{10})$/.exec(currentBook.id)?.[1];
-    const isbns = [...new Set([
-      exactIsbn, editionIsbn,
-      ...(currentBook.volumeInfo.industryIdentifiers ?? []).map(row => row.identifier),
-      ...(currentBook.novoriDetails?.isbns ?? []),
+    const editionIsbns = (edition: GoogleBook) => [...new Set([
+      getBookISBN(edition), /^nv_((?:978|979)\d{10})$/.exec(edition.id)?.[1],
+      ...(edition.volumeInfo.industryIdentifiers ?? []).map(row => row.identifier),
+      ...(edition.novoriDetails?.isbns ?? []),
     ].filter((isbn): isbn is string => Boolean(isbn)))].slice(0,8);
+    const isbns = editionIsbns(currentBook);
 
     const title =
       currentBook.volumeInfo
@@ -2013,17 +2060,27 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
     }
 
     try {
-      setSeriesLoading(true);
-      setSeries(null);
-      setSeriesBooks([]);
-
-      const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(bookExtraKey('series',currentBook.id,exactIsbn),async()=>{
-        const result=await supabase.functions.invoke('hardcover-series',{body:{googleBookId:currentBook.id,isbn:exactIsbn??isbns[0]??null,isbns,title,authors}});
-        if(result.error||result.data?.error)throw new Error('Series lookup unavailable.');
+      if (!isCurrent()) return null;
+      setSeriesLoading(!snapshot);
+      const lookup = async (lookupIsbns: string[]) => {
+        const result = await supabase.functions.invoke('hardcover-series', {
+          body: {googleBookId: currentBook.id, isbn: exactIsbn ?? lookupIsbns[0] ?? null, isbns: lookupIsbns, title, authors},
+          timeout: 15000,
+        });
+        if (result.error || result.data?.error || !Array.isArray(result.data?.books)) throw new Error('Series lookup unavailable.');
         return result.data as HardcoverSeriesResponse;
+      };
+      const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(bookExtraKey('series',currentBook.id,exactIsbn),async()=>{
+        const response = await lookup(isbns);
+        if (response.series || !enrichedBook || !isCurrent()) return response;
+        const enriched = await enrichedBook.catch(() => currentBook);
+        if (!isCurrent()) return response;
+        const aliases = editionIsbns(enriched);
+        return aliases.some(isbn => !isbns.includes(isbn)) ? lookup(aliases) : response;
       },{freshMs:86400000,retainMs:7*86400000,valid:validSeriesExtras});
       if(!isCurrent())return null;
       const response=cachedSeries.value;
+      if (!response.series && snapshot) return null;
       if(__DEV__)console.info(`[Novori cache] book series ${cachedSeries.fromCache?'HIT':'MISS'}`);
       if(!cachedSeries.fromCache)rememberEditionPages(response.pageCounts ?? {});
 
@@ -2067,9 +2124,7 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
       setSelectedWorkCoverUrl(canonicalCover);
       return canonicalCover;
     } catch {
-      if (!isCurrent()) return null;
-      setSeries(null);
-      setSeriesBooks([]);
+      // A failed refresh must not clear a series we already know.
       return null;
     } finally {
       if (isCurrent()) setSeriesLoading(false);
@@ -2535,19 +2590,31 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
         seriesBook.id
       );
 
-      const resolved =
-        await findGoogleBookForSeries(
-          seriesBook
-        );
-
-      if (
-        !resolved
-      ) {
-        Alert.alert(
-          'Book not found',
-          'Novori could not verify an English edition of this book yet.'
-        );
+      const resolution = await findGoogleBookForSeries(seriesBook).then(
+        book => ({book, failed:false}), () => ({book:null, failed:true}),
+      );
+      const resolved = resolution.book;
+      if (!resolved) {
+        if (!series) return;
+        const cover = secureGoogleBooksImageUrl(seriesBook.coverUrl ?? seriesBook.imageUrl ?? undefined);
+        router.push({
+          pathname:'/book/[id]',
+          params:{
+            id:`hc_series_${seriesBook.id}`, clickedTitle:displayBookTitle(seriesBook.title),
+            clickedAuthors:JSON.stringify(seriesBook.authors), seriesPreviewName:series.name,
+            ...(seriesBook.position != null ? {seriesPreviewPosition:String(seriesBook.position)} : {}),
+            ...(seriesBook.releaseDate ? {seriesPreviewDate:seriesBook.releaseDate} : {}),
+            ...(resolution.failed ? {seriesPreviewEditionCheckFailed:'1'} : {}),
+            ...(cover ? {coverUrl:cover} : {}),
+          },
+        });
         return;
+      }
+
+      if (series) {
+        seriesOpeningSnapshots.delete(resolved.id);
+        seriesOpeningSnapshots.set(resolved.id, {series:{...series,currentPosition:seriesBook.position},books:seriesBooks});
+        if (seriesOpeningSnapshots.size > 12) seriesOpeningSnapshots.delete(seriesOpeningSnapshots.keys().next().value!);
       }
 
       const resolvedCover =
@@ -2586,7 +2653,7 @@ function BookDetailsScreen({ params }: { params: BookDetailParams }) {
           canonicalizeWork:
             '0',
           clickedTitle:
-            displayBookTitle(seriesBook.title),
+            resolved.volumeInfo.title ?? displayBookTitle(seriesBook.title),
           clickedAuthors:
             JSON.stringify(
               resolved.volumeInfo

@@ -62,3 +62,22 @@ test('does not make ISBNdb requests for a book outside the requested series',asy
  expect(deps.byTitle).not.toHaveBeenCalled();
  expect(deps.byIsbn).not.toHaveBeenCalled();
 });
+
+test('a conflicting ISBNdb translation cannot be saved as a Hardcover edition',async()=>{
+ const persistHardcoverEdition=jest.fn(async book=>book);
+ const deps=sources({byIsbn:jest.fn(async()=>edition(first,'es')),persistHardcoverEdition});
+ expect(await resolveSeriesEdition({...hardcover,editions:[
+  {title:hardcover.title,isbn_13:first,language:{code2:'en'},physical_format:'Paperback'},
+ ]},series.id,deps)).toBeNull();
+ expect(persistHardcoverEdition).not.toHaveBeenCalled();
+});
+
+test('ISBNs on audiobooks or untagged works cannot produce a library edition when ISBNdb misses',async()=>{
+ const persistHardcoverEdition=jest.fn(async book=>book);
+ const deps=sources({persistHardcoverEdition});
+ expect(await resolveSeriesEdition({...hardcover,editions:[
+  {title:hardcover.title,isbn_13:first,language:{code2:'en'},physical_format:'Audiobook'},
+  {title:hardcover.title,isbn_13:second,physical_format:'Paperback'},
+ ]},series.id,deps)).toBeNull();
+ expect(persistHardcoverEdition).not.toHaveBeenCalled();
+});

@@ -1,9 +1,14 @@
 import { audioEditionPenalty, cleanCatalogBookTitle, isCatalogCollection, isCatalogSupplement,
   normalizeCatalogAuthor } from './book-edition-metadata.ts';
+import { hardcoverTextEdition } from './hardcover-discovery-policy.ts';
+import { validPageCount } from './page-count.ts';
 import { isEnglishBookLanguage } from './book-language.ts';
 import { isVerifiedReadingEdition, seriesIsbnKey, unknownSeriesLanguage, type ReadingEdition } from './series-reading-edition.ts';
 
 type HardcoverEdition = {
+  title?: string;
+  pages?: number;
+  release_date?: string;
   isbn_13?: string;
   isbn_10?: string;
   compilation?: boolean;
@@ -27,6 +32,7 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   catalog: (isbns: string[]) => Promise<T[]>;
   byIsbn: (isbn: string) => Promise<T | null>;
   byTitle: (query: string) => Promise<T[]>;
+  persistHardcoverEdition?: (book: HardcoverReadingEdition) => Promise<T>;
 }): Promise<T | null> {
   const series = book.book_series?.find(row => row.series?.id === seriesId)?.series;
   if (!series || !book.title || book.compilation) return null;
@@ -35,6 +41,8 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   if (audioEditionPenalty(product) || isCatalogCollection(product) || isCatalogSupplement(product)) return null;
 
   const english = new Set<string>();
+  const hardcoverEditions = new Map<string,HardcoverEdition>();
+  const conflicts = new Set<string>();
   const untagged = new Set<string>();
   for (const row of book.editions ?? []) {
     if (row.compilation || Number(row.audio_seconds) > 0 || row.reading_format_id === 2 ||
@@ -42,7 +50,11 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
     const languages = [row.language?.code2, row.language?.code3, row.language?.language];
     if (languages.some(language => !unknownSeriesLanguage(language) && !isEnglishBookLanguage(language))) continue;
     const isbn = seriesIsbnKey(row.isbn_13) ?? seriesIsbnKey(row.isbn_10);
-    if (isbn) (languages.some(isEnglishBookLanguage) ? english : untagged).add(isbn);
+    if (!isbn) continue;
+    (languages.some(isEnglishBookLanguage) ? english : untagged).add(isbn);
+    if (!hardcoverEditions.has(isbn) && hardcoverTextEdition(row, member.title, '9999-12-31')) {
+      hardcoverEditions.set(isbn, row);
+    }
   }
   // Give both lists room: provider A can omit a language or list several unavailable printings.
   const candidates = [...new Set([...Array.from(english).slice(0,3), ...Array.from(untagged).slice(0,3)])];
@@ -59,6 +71,7 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   for (const isbn of linked) {
     const cached = catalog.find(edition => exact(edition, isbn));
     if (cached) return cached;
+    if (catalog.some(edition => seriesIsbnKey(edition.source?.isbn13) === isbn)) conflicts.add(isbn);
   }
 
   const title = cleanCatalogBookTitle(member.title);
@@ -81,7 +94,10 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
       const batch = candidates.slice(offset, offset + 2);
       const match = await firstMatch(batch.map(async isbn => {
         const edition = await attempt(() => sources.byIsbn(isbn), null);
-        return edition && exact(edition, isbn) ? edition : null;
+        if (!edition) return null;
+        if (exact(edition, isbn)) return edition;
+        conflicts.add(isbn);
+        return null;
       }));
       if (match) return match;
     }
@@ -102,6 +118,28 @@ export async function resolveSeriesEdition<T extends ReadingEdition>(book: Hardc
   // Slow or empty text search cannot hold up a successful exact ISBN lookup.
   const result = await firstMatch([lookupIsbns(), search()]);
   settled = true;
-  if (!result && failed) throw new Error('One or more edition sources could not be checked.');
-  return result;
+  if (result) return result;
+  const persist = sources.persistHardcoverEdition;
+  if (persist && member.authors.length) for (const [isbn, row] of hardcoverEditions) {
+    if (conflicts.has(isbn)) continue;
+    const edition: HardcoverReadingEdition = {
+      id: `nv_${isbn}`, source:{provider:'hardcover',isbn13:isbn},
+      volumeInfo:{
+        ...member, language:'en', pageCount:validPageCount(row.pages),
+        publishedDate:row.release_date ?? undefined,
+        industryIdentifiers:[{type:'ISBN_13',identifier:isbn}],
+      },
+    };
+    return await persist(edition);
+  }
+  if (failed) throw new Error('One or more edition sources could not be checked.');
+  return null;
 }
+
+type HardcoverReadingEdition = ReadingEdition & {
+  source:{provider:'hardcover';isbn13:string};
+  volumeInfo: ReadingEdition['volumeInfo'] & {
+    publishedDate?: string;
+    industryIdentifiers:{type:'ISBN_13';identifier:string}[];
+  };
+};

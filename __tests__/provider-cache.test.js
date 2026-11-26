@@ -7,7 +7,7 @@ const crypto = require('crypto').webcrypto;
 function harness() {
   const rows = new Map(), locks = new Map(), discover = new Map(), identities = new Map(), legacy = [];
   const errors = { read: false, lock: false, write: false, usage: false };
-  const catalogWrites = [];
+  const catalogWrites = [], seriesDetails = new Map();
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
   let claims = 0, hardcoverRequests = 0, catalog = [], isbnRequests = 0;
@@ -35,13 +35,15 @@ function harness() {
         in: (k,v) => { filters[k] = v; return q; }, gt: (k,v) => { lowerBounds[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
-          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
+          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? seriesDetails.get(filters.google_book_id) ?? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
         },
         single: async () => ({data: identities.get(filters.isbn13) ?? null}),
         upsert: async data => {
           if (table === 'book_cover_candidates' || table === 'book_cover_selections') catalogWrites.push({ table, data });
           if (errors.write) return { error: { message: 'offline' } };
           if (table === 'novori_book_provider_ids') for (const row of Array.isArray(data) ? data : [data]) { if (!identities.has(row.isbn13)) identities.set(row.isbn13, {...row}); }
+          if (table === 'google_books_catalog' && data.google_book_id?.startsWith('hardcover-series:'))
+            seriesDetails.set(data.google_book_id,data);
           if (table === 'book_api_cache') for (const row of Array.isArray(data) ? data : [data]) rows.set(row.provider + ':' + row.request_key, { ...row });
           return { error: null };
         },
@@ -749,4 +751,30 @@ test('series taps route a verified edition through normal book detail and reuse 
   expect(h.hardcoverRequests).toBe(1);
   expect(h.catalogWrites).toEqual([]);
   expect((await h.request('hardcover-series', {...body,seriesId:99})).book).toBeNull();
+});
+
+test('a verified Hardcover reading edition takes a normal detail route when ISBNdb has no record', async () => {
+  const h = isbnHarness();
+  const isbn = '9781958968123';
+  h.setUpstream(async (url, _init, body) => {
+    if (url.includes('hardcover.app')) {
+      const hasEdition = body.variables.bookId === 31;
+      const title = hasEdition ? 'Curse The Heart' : 'Bleed The Vow';
+      return {data:{books:[{
+        id:body.variables.bookId,title,contributions:[{author:{name:'Emily Blackwood'}}],
+        book_series:[{series:{id:23,name:'Mystics of Ashora'}}],
+        editions:hasEdition ? [{title:'Curse the Heart: Mystics of Ashora Book 2',isbn_13:isbn,
+          language:{code2:'en'},physical_format:'Paperback',release_date:'2026-06-11'}] : [],
+      }]}};
+    }
+    if (url.includes('/book/')) return new Response(null,{status:404});
+    return {books:[],total:0};
+  });
+  const req = bookId => h.request('hardcover-series',{mode:'resolve-edition',seriesId:23,bookId});
+  const result = await req(31);
+  expect(result.book).toMatchObject({id:`nv_${isbn}`,source:{provider:'hardcover',isbn13:isbn},
+    volumeInfo:{title:'Curse The Heart',language:'en'}});
+  expect((await h.request('google-books-detail',{volumeId:result.book.id})).data).toEqual(result.book);
+  expect((await req(32)).book).toBeNull();
+  expect(h.catalogWrites).toEqual([]);
 });

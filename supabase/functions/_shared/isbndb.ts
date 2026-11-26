@@ -137,6 +137,25 @@ async function attachIdentities(admin: SupabaseClient, books: Book[]): Promise<B
   return books.map(book => ({ ...book, id: ids.get(book.source.isbn13)! }));
 }
 
+// Save the verified Hardcover edition as detail-only metadata. The regular
+// ISBNdb result can supersede it later. This does not write cover or work rows.
+export async function saveHardcoverSeriesEdition(admin: SupabaseClient, edition: Book): Promise<Book> {
+  const [book] = await attachIdentities(admin, [edition]);
+  const {error} = await admin.from('google_books_catalog').upsert({
+    google_book_id:`hardcover-series:${book.id}`, metadata:book, detail_complete:true, fetched_at:new Date().toISOString(),
+  }, {onConflict:'google_book_id'});
+  if (error) throw new Error('Could not save the verified Hardcover edition.');
+  return book;
+}
+
+async function readHardcoverSeriesEdition(admin: SupabaseClient, id: string): Promise<Book | null> {
+  const {data,error} = await admin.from('google_books_catalog').select('metadata').eq('google_book_id',`hardcover-series:${id}`).maybeSingle();
+  if (error) return null;
+  const book = data?.metadata;
+  return book?.source?.provider === 'hardcover' && validIsbn13(book.source.isbn13) &&
+    book.volumeInfo?.language === 'en' && book.volumeInfo?.title && book.id === id ? book : null;
+}
+
 async function ingest(admin: SupabaseClient, raw: any): Promise<Book | null> {
   const mapped = adaptIsbnDbBook(raw);
   if (!mapped) return null;
@@ -228,12 +247,14 @@ async function detail(admin: SupabaseClient, userId: string, id: string) {
   }
   const isbn = validIsbn13(id.replace(/^nv_/, '')) ??
     (rows ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean);
-  if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+  if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : await readHardcoverSeriesEdition(admin,id);
   try {
     const book = await lookupIsbnDbEdition(admin, userId, isbn);
-    return book ? { ...book, id } : cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+    return book ? { ...book, id } : cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : await readHardcoverSeriesEdition(admin,id);
   } catch (error) {
     if (cached) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    const fallback = await readHardcoverSeriesEdition(admin,id);
+    if (fallback) return fallback;
     throw error;
   }
 }

@@ -9,7 +9,7 @@ import { attachDiscoveryCatalogCovers } from '../_shared/discovery-cover-catalog
 import { hardcoverTextEdition } from '../_shared/hardcover-discovery-policy.ts';
 import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
-import { isbnDbEnabled, isbnDbSearch, lookupIsbnDbEdition } from '../_shared/isbndb.ts';
+import { isbnDbEnabled, isbnDbSearch, lookupIsbnDbEdition, saveHardcoverSeriesEdition } from '../_shared/isbndb.ts';
 import { resolveSeriesEdition } from '../_shared/series-edition-resolver.ts';
 import { englishEditionIsbns, isEnglishBookLanguage } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
             contributions { author { name } }
             book_series { series { id name } }
             editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
-              isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
+              title pages release_date isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
               reading_format { format }
               language { code2 code3 language }
             }
@@ -254,12 +254,13 @@ Deno.serve(async (req) => {
       const book = member ? await resolveSeriesEdition(member, body.seriesId, {
         catalog: async isbns => {
           const {data, error} = await supabaseAdmin.from('book_editions')
-            .select('provider_book_id,metadata').eq('provider','isbndb').eq('detail_complete',true).in('isbn_13',isbns);
+            .select('provider_book_id,metadata').in('provider',['isbndb','google_books']).eq('detail_complete',true).in('isbn_13',isbns);
           if (error) throw error;
           return (data ?? []).flatMap(row => row.provider_book_id && row.metadata?.volumeInfo?.title
             ? [{...row.metadata, id: row.provider_book_id}] : []);
         },
         byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
+        persistHardcoverEdition: book => saveHardcoverSeriesEdition(supabaseAdmin, book),
         byTitle: async query => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false})).items,
       }) : null;
       return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
@@ -2678,8 +2679,14 @@ Deno.serve(async (req) => {
       },
     });
     const verifiedPayload = await attachDiscoveryCatalogCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({...row, coverOrigin: 'series', formatPolicyVersion: 1})) });
-    await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
-    if (!knownMembership) await cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey);
+    const indexWrites = Promise.allSettled([
+      cacheSeriesPublications(supabaseAdmin, verifiedPayload),
+      ...(knownMembership ? [] : [cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey)]),
+    ]);
+    // These indexes benefit later reads; they aren't required in this response.
+    const runtime = (globalThis as {EdgeRuntime?: {waitUntil: (task: Promise<unknown>) => void}}).EdgeRuntime;
+    if (runtime) runtime.waitUntil(indexWrites);
+    else await indexWrites;
     return new Response(JSON.stringify({...verifiedPayload,cacheTrace:providerTrace(supabaseAdmin)}), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

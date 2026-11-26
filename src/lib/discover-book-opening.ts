@@ -14,6 +14,10 @@ export type BookDetailParams = {
   canonicalizeWork?: string;
   trustedCover?: string;
   detailHandoff?: string;
+  seriesPreviewName?: string;
+  seriesPreviewPosition?: string;
+  seriesPreviewDate?: string;
+  seriesPreviewEditionCheckFailed?: string;
 };
 
 export function openingAuthors(raw?: string): string[] {
