@@ -2,7 +2,7 @@ import { useNovoriTheme } from '../context/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { readingStreakTier, reachedReadingStreakTier, STREAK_TIERS, type StreakTier } from '../lib/reading-streak-tier';
+import { readingStreakTier, STREAK_TIERS, type StreakTier } from '../lib/reading-streak-tier';
 
 const scenes = {
   3:  { kind:'embers', duration:1050, stage:84, glow:44 },
@@ -114,39 +114,23 @@ export default function ReadingStreakCelebration({ tier, days, onDismiss }: Mile
   </Animated.View>;
 }
 
-export function ReadingStreakPreview() {
+export function ReadingStreakPreview({days, onChoose, onSimulate}: {
+  days: number; onChoose: (days: number) => void; onSimulate: () => void;
+}) {
   const { colors } = useNovoriTheme();
-  const [days, setDays] = useState(2);
-  const [milestone, setMilestone] = useState<Milestone | null>(null);
   const tier = readingStreakTier(days);
-  const choose = (value: number) => { setDays(value); setMilestone(null); };
-  const simulate = () => {
-    const hit = reachedReadingStreakTier(days, days+1);
-    setDays(days+1);
-    setMilestone(hit ? {tier:hit,days:days+1} : null);
-  };
   return <View style={[styles.preview,{backgroundColor:colors.surface,borderColor:colors.border}]}>
     <Text style={[styles.previewText,{color:colors.text}]}>Streak preview · {days} days{tier ? ' · '+tier.label : ''}</Text>
     <View style={styles.previewRow}>
       {[...STREAK_TIERS.map(tier => tier.days-1),30].map(value =>
         <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Set preview streak to ${value} days`}
-          accessibilityState={{selected:days===value}} onPress={() => choose(value)} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
+          accessibilityState={{selected:days===value}} onPress={() => onChoose(value)} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
           <Text style={[styles.previewText,{color:colors.text}]}>{value}d</Text>
         </Pressable>)}
     </View>
-    <Pressable accessibilityRole="button" onPress={simulate} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
+    <Pressable accessibilityRole="button" onPress={onSimulate} style={[styles.previewButton,{backgroundColor:colors.elevated,borderColor:colors.border}]}>
       <Text style={[styles.previewText,{color:colors.text}]}>Simulate check-in</Text>
     </Pressable>
-    <View>
-      <View accessibilityElementsHidden={Boolean(milestone)} importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
-        <Text style={[styles.previewCheckin,{backgroundColor:colors.gold,color:colors.background}]}>✓ Checked in</Text>
-        <View style={styles.previewDays}>
-          {['M','T','W','T','F','S','S'].map((day,index) =>
-            <Text key={index} style={[styles.previewDay,{backgroundColor:index<4 ? colors.gold : colors.elevated,color:index<4 ? colors.background : colors.text}]}>{day}</Text>)}
-        </View>
-      </View>
-      {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
-    </View>
   </View>;
 }
 
@@ -165,9 +149,6 @@ const styles = StyleSheet.create({
   detail:{ fontSize:12, fontFamily:'Inter_500Medium' },
   dismiss:{ minWidth:36, alignSelf:'flex-start', alignItems:'center', paddingVertical:5 },
   preview:{ borderWidth:1, borderRadius:14, padding:10, marginTop:10, gap:8 },
-  previewCheckin:{ textAlign:'center', padding:12, borderRadius:12 },
-  previewDays:{ flexDirection:'row', justifyContent:'space-between', paddingVertical:14 },
-  previewDay:{ width:25,height:25,borderRadius:13,textAlign:'center',textAlignVertical:'center',lineHeight:25 },
   previewRow:{ flexDirection:'row', flexWrap:'wrap', gap:6 },
   previewButton:{ borderWidth:1, padding:8, borderRadius:8 },
   previewText:{ fontSize:12, fontFamily:'Inter_600SemiBold' },

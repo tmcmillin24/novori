@@ -97,3 +97,23 @@ test('a confirmed milestone check-in celebrates once, and opening the profile do
  await render();
  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
 });
+
+test('developer preview swaps data in the same controls and never saves a check-in', async () => {
+ await render();
+ const checkinLabel = 'Check in for today’s reading';
+ const previous = view.root.findByProps({accessibilityLabel:checkinLabel});
+ const before = previous.props.style({pressed:false});
+ const previewButton = () => view.root.findAllByType('Pressable').find(node=>node.props.accessibilityState?.expanded !== undefined);
+ await act(async()=>previewButton().props.onPress());
+ expect(view.root.findByProps({accessibilityLabel:checkinLabel}).props.style({pressed:false})).toEqual(before);
+ await act(async()=>view.root.findByType('ReadingStreakPreview').props.onSimulate());
+ const celebration = view.root.findByType('ReadingStreakCelebration');
+ const region = view.root.findAllByType('View').find(node=>node.props.pointerEvents==='none' &&
+   node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length);
+ expect(region.parent.findAllByType('ReadingStreakCelebration')).toContain(celebration);
+ await act(async()=>celebration.props.onDismiss());
+ expect(view.root.findByProps({accessibilityLabel:'Checked in for today’s reading'})).toBeDefined();
+ await act(async()=>previewButton().props.onPress());
+ expect(view.root.findByProps({accessibilityLabel:checkinLabel})).toBeDefined();
+ expect(ensureDailyReadingCheckin).not.toHaveBeenCalled();
+});

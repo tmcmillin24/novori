@@ -128,8 +128,27 @@ export default function ProfileReadingModule({
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
   const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const tier = readingStreakTier(checkinState?.currentStreak ?? 0);
+  const [preview, setPreview] = useState<{days:number; checkedIn:boolean; celebration:typeof milestone} | null>(null);
+  const activePreview = __DEV__ ? preview : null;
+  const shownMilestone = activePreview ? activePreview.celebration : milestone;
+  const shownStreak = activePreview?.days ?? checkinState?.currentStreak ?? 0;
+  const shownCheckedIn = activePreview?.checkedIn ?? Boolean(checkinState?.checkedIn);
+  const tier = readingStreakTier(shownStreak);
+
+  function simulatePreviewCheckin() {
+    if (!__DEV__) return;
+    setPreview(current => {
+      if (!current) return current;
+      const days = current.days + 1;
+      const tier = reachedReadingStreakTier(current.days, days);
+      return {days,checkedIn:true,celebration:tier ? {tier,days} : null};
+    });
+  }
+
+  function dismissShownMilestone() {
+    if (activePreview) setPreview(current => current && {...current,celebration:null});
+    else setMilestone(null);
+  }
   const checkinMutationVersion = useRef(0);
   const knownCheckinState = useRef(checkinState);
   knownCheckinState.current = checkinState;
@@ -262,8 +281,8 @@ export default function ProfileReadingModule({
       ]
     );
 
-  const todayCheckinKey =
-    localDate;
+  const todayCheckinKey = localDate;
+  const todayIndex = activePreview ? checkinDays.findIndex(day => day.key === todayCheckinKey) : -1;
 
   function toggleCheckinBook(
     googleBookId:
@@ -604,11 +623,7 @@ export default function ProfileReadingModule({
                   styles.streakText
                 }
               >
-                {checkinState &&
-                checkinState.currentStreak >
-                  0
-                  ? `${checkinState.currentStreak} day${checkinState.currentStreak === 1 ? '' : 's'} streak`
-                  : 'Start your streak today'}
+                {shownStreak > 0 ? `${shownStreak} day${shownStreak === 1 ? '' : 's'} streak` : 'Start your streak today'}
               </Text>
             </View>
           </View>
@@ -617,17 +632,20 @@ export default function ProfileReadingModule({
         </View>
 
         {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
-        {__DEV__ && <Pressable accessibilityRole="button" accessibilityState={{expanded:previewOpen}}
-          onPress={() => setPreviewOpen(open => !open)} style={{paddingVertical:8}}>
-          <Text style={{color:colors.mutedText,fontSize:12}}>Streak preview</Text>
-        </Pressable>}
-        {__DEV__ && previewOpen && <ReadingStreakPreview/>}
+        {__DEV__ && <>
+          <Pressable accessibilityRole="button" accessibilityState={{expanded:Boolean(activePreview)}}
+            onPress={() => setPreview(current => current ? null : {days:2,checkedIn:false,celebration:null})}
+            style={{paddingVertical:8}}>
+            <Text style={{color:colors.mutedText,fontSize:12}}>{activePreview ? 'Exit streak preview' : 'Streak preview'}</Text>
+          </Pressable>
+          {activePreview && <ReadingStreakPreview days={activePreview.days}
+            onChoose={days => setPreview({days,checkedIn:false,celebration:null})} onSimulate={simulatePreviewCheckin}/>}
+        </>}
 
         <View>
-          <View pointerEvents={milestone ? 'none' : 'auto'} accessibilityElementsHidden={Boolean(milestone)}
-            importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
-        {checkinState
-          ?.checkedIn ? (
+          <View pointerEvents={shownMilestone ? 'none' : 'auto'} accessibilityElementsHidden={Boolean(shownMilestone)}
+            importantForAccessibility={shownMilestone ? 'no-hide-descendants' : 'auto'}>
+        {shownCheckedIn ? (
           <View
             style={
               styles.checkedInActionRow
@@ -662,14 +680,14 @@ export default function ProfileReadingModule({
 
             <Pressable
               disabled={
-                loadingCheckin ||
+                Boolean(activePreview) || loadingCheckin ||
                 savingCheckin ||
                 Boolean(
                   checkinError
                 )
               }
               onPress={
-                openEditDailyCheckin
+                activePreview ? undefined : openEditDailyCheckin
               }
               accessibilityRole="button"
               accessibilityLabel="Edit book for today’s reading check-in"
@@ -703,14 +721,10 @@ export default function ProfileReadingModule({
         ) : (
           <Pressable
             disabled={
-              loadingCheckin ||
-              savingCheckin ||
-              Boolean(
-                checkinError
-              )
+              !activePreview && (loadingCheckin || savingCheckin || Boolean(checkinError))
             }
             onPress={
-              openDailyCheckin
+              activePreview ? simulatePreviewCheckin : openDailyCheckin
             }
             accessibilityRole="button"
             accessibilityLabel="Check in for today’s reading"
@@ -720,14 +734,12 @@ export default function ProfileReadingModule({
               styles.checkinButton,
               (
                 pressed ||
-                loadingCheckin ||
-                savingCheckin
+                (!activePreview && (loadingCheckin || savingCheckin))
               ) &&
                 styles.pressed,
             ]}
           >
-            {loadingCheckin ||
-            savingCheckin ? (
+            {!activePreview && (loadingCheckin || savingCheckin) ? (
               <ActivityIndicator
                 size="small"
                 color={
@@ -763,12 +775,12 @@ export default function ProfileReadingModule({
         >
           {checkinDays.map(
             (
-              item
+              item, index
             ) => {
-              const checked =
-                checkedDateSet.has(
-                  item.key
-                );
+              const offset = todayIndex - index;
+              const checked = activePreview
+                ? (activePreview.checkedIn ? offset >= 0 && offset < activePreview.days : offset > 0 && offset <= activePreview.days)
+                : checkedDateSet.has(item.key);
 
               const isToday =
                 item.key ===
@@ -831,7 +843,7 @@ export default function ProfileReadingModule({
         </View>
 
           </View>
-          {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} onDismiss={() => setMilestone(null)}/>}
+          {shownMilestone && <ReadingStreakCelebration key={shownMilestone.days} {...shownMilestone} onDismiss={dismissShownMilestone}/>}
         </View>
 
         {checkinError ? (
