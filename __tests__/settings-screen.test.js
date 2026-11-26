@@ -64,3 +64,13 @@ test('unavailable preferences show a retry instead of trapping the user in a spi
  getNotificationPreferences.mockRejectedValueOnce(new Error('Offline'));getReadingReminderPreferences.mockRejectedValueOnce(new Error('Offline'));await render(<NotificationSettingsScreen/>);
  expect(text()).toContain('couldn’t be loaded');expect(toggle('Club Notifications')).toBeUndefined();expect(button('Go back')).toBeDefined();await press('Retry notification preferences');expect(toggle('Club Notifications').props.value).toBe(true);await press('Retry reading reminders');expect(toggle('Daily Check-in').props.value).toBe(true);
 });
+
+test('explicit language shows an in-place retry after a timeout and restores the saved choice', async () => {
+ getExplicitLanguagePreference.mockRejectedValueOnce(Object.assign(new Error('Timed out'), {code:'READ_TIMEOUT'}));
+ getExplicitLanguagePreference.mockResolvedValueOnce(true);
+ await render(<SettingsScreen/>);
+ expect(toggle('Allow explicit language')).toBeUndefined();
+ await press('Retry explicit-language preference');
+ expect(toggle('Allow explicit language').props.value).toBe(true);
+ expect(toggle('Allow explicit language').props.disabled).toBe(false);
+});

@@ -39,20 +39,17 @@ export default function SettingsScreen() {
   const [explicitSaving, setExplicitSaving] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  const [explicitAttempt, setExplicitAttempt] = useState(0);
   useEffect(() => {
     let mounted = true;
-    async function load() {
-      try {
-        const preference = await getExplicitLanguagePreference();
-        if (mounted) setAllowExplicitLanguage(preference);
-      } catch (error) {
-        console.error('Could not load settings:', error);
-        if (mounted) setFailed(true);
-      } finally { if (mounted) setExplicitLoading(false); }
-    }
-    void load();
+    setFailed(false);
+    setExplicitLoading(true);
+    getExplicitLanguagePreference()
+      .then(preference => { if (mounted) setAllowExplicitLanguage(preference); })
+      .catch(() => { if (mounted) setFailed(true); })
+      .finally(() => { if (mounted) setExplicitLoading(false); });
     return () => { mounted = false; };
-  }, []);
+  }, [explicitAttempt]);
 
   async function toggleExplicitLanguage(enabled: boolean) {
     if (explicitSaving || explicitLoading || failed) return;
@@ -92,8 +89,16 @@ export default function SettingsScreen() {
         <SettingsDivider/>
         <SettingsRow icon="ban-outline" title="Blocked Readers" onPress={() => router.push('/blocked-readers')}/>
         <SettingsDivider/>
-        <SettingsToggleRow icon="eye-outline" title="Allow explicit language" subtitle={failed ? 'Unavailable. Reopen Settings to retry.' : undefined}
-          value={allowExplicitLanguage} disabled={explicitLoading || explicitSaving || failed} onValueChange={value => void toggleExplicitLanguage(value)}/>
+        {failed || explicitLoading ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{failed ? 'Could not load explicit-language preference.' : 'Loading explicit-language preference…'}</Text>
+            {failed && <Pressable accessibilityRole="button" accessibilityLabel="Retry explicit-language preference"
+              style={styles.retry} onPress={() => setExplicitAttempt(attempt => attempt + 1)}>
+              <Text style={styles.retryText}>Try again</Text>
+            </Pressable>}
+          </View>
+        ) : <SettingsToggleRow icon="eye-outline" title="Allow explicit language"
+          value={allowExplicitLanguage} disabled={explicitSaving} onValueChange={value => void toggleExplicitLanguage(value)}/>}
       </SettingsSection>
       <SettingsSection icon="help-circle-outline" title="Help & About">
         <SettingsRow icon="help-circle-outline" title="Help & Support" onPress={() => router.push('/help-support')}/>
