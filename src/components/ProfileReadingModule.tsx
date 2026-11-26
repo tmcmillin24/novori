@@ -17,8 +17,10 @@ import {
   useState,
 } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   AppState,
   Pressable,
   StyleSheet,
@@ -130,6 +132,40 @@ export default function ProfileReadingModule({
     );
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
+  const [checkinFeedback] = useState(() => new Animated.Value(0));
+  const reduceMotion = useRef(true);
+  const checkmarkScale = checkinFeedback.interpolate({
+    inputRange: [0, 0.25, 0.54, 0.78, 1],
+    outputRange: [1, 1.3, 0.94, 1.05, 1],
+  });
+  const dayPulseScale = checkinFeedback.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.42] });
+  const dayPulseOpacity = checkinFeedback.interpolate({
+    inputRange: [0, 0.15, 1], outputRange: [0, 0.8, 0],
+  });
+
+  useEffect(() => {
+    let active = true;
+    let receivedChange = false;
+    function setMotionPreference(reduced: boolean) {
+      reduceMotion.current = reduced;
+      if (reduced) {
+        checkinFeedback.stopAnimation();
+        checkinFeedback.setValue(0);
+      }
+    }
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', reduced => {
+      receivedChange = true;
+      setMotionPreference(reduced);
+    });
+    void AccessibilityInfo.isReduceMotionEnabled().then(reduced => {
+      if (active && !receivedChange) setMotionPreference(reduced);
+    }).catch(() => {});
+    return () => {
+      active = false;
+      subscription.remove();
+      checkinFeedback.stopAnimation();
+    };
+  }, [checkinFeedback]);
   const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
   const [streakRegionSize, setStreakRegionSize] = useState({ width: 0, height: 0 });
   const { test: streakTest } = useStreakTest(localDate);
@@ -357,7 +393,12 @@ export default function ProfileReadingModule({
       if (next?.localDate === getLocalDateKey()) {
         if (!streakTest) setCheckinState(next);
         const reached = next.checkedIn && reachedReadingStreakTier(checkinState?.currentStreak ?? 0, next.currentStreak);
-        if (reached) setMilestone({tier:reached,days:next.currentStreak});
+        if (reached) {
+          setMilestone({tier:reached,days:next.currentStreak});
+        } else if (next.checkedIn && !reduceMotion.current) {
+          checkinFeedback.setValue(0);
+          Animated.timing(checkinFeedback, { toValue: 1, duration: 480, useNativeDriver: true, isInteraction: false }).start();
+        }
       }
 
       setCheckinSheetVisible(
@@ -599,15 +640,9 @@ export default function ProfileReadingModule({
               accessibilityRole="text"
               accessibilityLabel="Checked in for today’s reading"
             >
-              <Ionicons
-                name="checkmark-circle"
-                size={
-                  18
-                }
-                color={
-                  colors.background
-                }
-              />
+              <Animated.View style={{ transform: [{ scale: checkmarkScale }] }}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.background}/>
+              </Animated.View>
 
               <Text
                 style={
@@ -761,6 +796,10 @@ export default function ProfileReadingModule({
                         styles.dayBubbleChecked,
                     ]}
                   >
+                    {isToday && checked && <Animated.View pointerEvents="none" accessible={false}
+                      style={[styles.dayPulse, {
+                        opacity: dayPulseOpacity, transform: [{ scale: dayPulseScale }],
+                      }]}/>}
                     <Text
                       style={[
                         styles.dayBubbleText,
@@ -1052,6 +1091,11 @@ function createStyles(
         'center',
       justifyContent:
         'center',
+    },
+
+    dayPulse: {
+      position: 'absolute', top: -2, right: -2, bottom: -2, left: -2,
+      borderRadius: 17, borderWidth: 1.5, borderColor: colors.gold,
     },
 
     dayBubbleToday: {

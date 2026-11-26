@@ -5,10 +5,22 @@ import {getDailyReadingCheckinState,ensureDailyReadingCheckin} from '../src/lib/
 import {setTestStreak} from '../src/lib/streak-testing';
 const mockListeners=new Set();
 let mockAuthUser = null;
+let mockReduceMotion = false;
+const mockCheckinAnimation = jest.fn();
 let mockAppState='active',mockFocus,mockFocusCleanup;
 jest.mock('expo-router',()=>({useRouter:()=>({push:jest.fn()}),useFocusEffect:callback=>{mockFocus=callback;require('react').useEffect(()=>{mockFocusCleanup=callback();return()=>mockFocusCleanup?.();},[callback]);}}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
-jest.mock('react-native',()=>({ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',Text:'Text',View:'View',StyleSheet:{create:v=>v},Platform:{select:v=>v.ios??v.default},Alert:{alert:jest.fn()},AppState:{get currentState(){return mockAppState;},addEventListener:(_event,callback)=>{mockListeners.add(callback);return{remove:()=>mockListeners.delete(callback)};}}}));
+jest.mock('react-native',()=>({
+  AccessibilityInfo: {
+    isReduceMotionEnabled: async () => mockReduceMotion,
+    addEventListener: () => ({remove() {}}),
+  },
+  Animated: {
+    View: 'AnimatedView',
+    Value: class { interpolate() { return 0; } setValue() {} stopAnimation() {} },
+    timing: () => ({start: mockCheckinAnimation}),
+  },
+  ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',Text:'Text',View:'View',StyleSheet:{create:v=>v},Platform:{select:v=>v.ios??v.default},Alert:{alert:jest.fn()},AppState:{get currentState(){return mockAppState;},addEventListener:(_event,callback)=>{mockListeners.add(callback);return{remove:()=>mockListeners.delete(callback)};}}}));
 jest.mock('../src/components/DailyCheckinSheet',()=> 'DailyCheckinSheet');
 jest.mock('../src/components/ReadingStreakCelebration',()=>({__esModule:true,default:'ReadingStreakCelebration'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
@@ -21,7 +33,7 @@ jest.mock('../src/lib/supabase', () => ({
 }));
 const empty={localDate:'2026-10-27',checkedIn:false,currentStreak:0,checkedDates:[]};
 let view,silence;
-beforeEach(()=>{mockAuthUser=null;setTestStreak('tester', '2026-10-27', null);globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-10-27T12:00:00Z'));jest.clearAllMocks();mockListeners.clear();mockAppState='active';getDailyReadingCheckinState.mockResolvedValue(empty);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
+beforeEach(()=>{mockAuthUser=null;mockReduceMotion=false;setTestStreak('tester', '2026-10-27', null);globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers().setSystemTime(new Date('2026-10-27T12:00:00Z'));jest.clearAllMocks();mockListeners.clear();mockAppState='active';getDailyReadingCheckinState.mockResolvedValue(empty);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;jest.useRealTimers();silence.mockRestore();});
 async function render(books=[]){await act(async()=>{view=renderer.create(<ProfileReadingModule books={books}/>);});}
 async function state(value){await act(async()=>{mockAppState=value;for(const listener of [...mockListeners])listener(value);});}
@@ -121,6 +133,7 @@ test.each([3, 7, 14, 30])('the test account can trigger the %s-day animation fro
   expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
   await act(async () => view.root.findByProps({accessibilityLabel: 'Check in for today’s reading'}).props.onPress());
   expect(view.root.findByType('ReadingStreakCelebration').props.days).toBe(milestone);
+  expect(mockCheckinAnimation).not.toHaveBeenCalled();
   expect(ensureDailyReadingCheckin).not.toHaveBeenCalled();
 });
 
@@ -131,4 +144,16 @@ test('a different signed-in account uses its actual check-in state', async () =>
   await render();
   expect(view.root.findByProps({accessibilityLabel: 'Checked in for today’s reading'})).toBeDefined();
   expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
+});
+
+test.each([false, true])('a regular check-in honors Reduce Motion (%s) and does not animate on refocus', async reduced => {
+  mockReduceMotion = reduced;
+  await render([{google_book_id: 'book-1', status: 'reading'}]);
+  expect(mockCheckinAnimation).not.toHaveBeenCalled();
+  getDailyReadingCheckinState.mockResolvedValue({...empty, checkedIn: true, currentStreak: 1, checkedDates: [empty.localDate]});
+  await act(async () => view.root.findByProps({accessibilityLabel: 'Check in for today’s reading'}).props.onPress());
+  expect(mockCheckinAnimation).toHaveBeenCalledTimes(reduced ? 0 : 1);
+  expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
+  await act(async () => {mockFocusCleanup(); mockFocusCleanup = mockFocus();});
+  expect(mockCheckinAnimation).toHaveBeenCalledTimes(reduced ? 0 : 1);
 });
