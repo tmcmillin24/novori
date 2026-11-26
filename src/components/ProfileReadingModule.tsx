@@ -577,49 +577,14 @@ export default function ProfileReadingModule({
           <View style={styles.streakRegionContent} pointerEvents={milestone ? 'none' : 'auto'}
             accessibilityElementsHidden={Boolean(milestone)}
             importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
-        <View
-          style={
-            styles.topRow
-          }
-        >
-          <View>
-            <Text
-              style={
-                styles.eyebrow
-              }
-            >
-              MY READING
-            </Text>
-
-            <View
-              style={
-                styles.streakRow
-              }
-            >
-              <Ionicons
-                name={tier ? "flame" : "flame-outline"}
-                size={
-                  16
-                }
-                color={
-                  colors.gold
-                }
-              />
-
-              <Text
-                style={
-                  styles.streakText
-                }
-              >
-                {currentStreak > 0 ? `${currentStreak} day${currentStreak === 1 ? '' : 's'} streak` : 'Start your streak today'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.moduleMark}><Ionicons name="book-outline" size={21} color={colors.gold} /></View>
+        <Text style={styles.eyebrow}>MY READING</Text>
+        <View style={styles.streakRow}>
+          <Ionicons name={tier ? 'flame' : 'flame-outline'} size={16} color={colors.gold}/>
+          <Text style={styles.streakText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {currentStreak > 0 ? `${currentStreak} day${currentStreak === 1 ? '' : 's'} streak` : 'Start your streak today'}
+            {tier && <Text style={styles.streakTier}>{`  ·  ${tier.label}`}</Text>}
+          </Text>
         </View>
-
-        {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
         {checkinState?.checkedIn ? (
           <View
             style={
@@ -924,20 +889,6 @@ function createStyles(
     streakRegionContent: { paddingTop: READING_CARD_PADDING, paddingHorizontal: READING_CARD_PADDING },
     cardAccent: { position: 'absolute', top: 0, left: 16, right: 16, height: 2, borderRadius: 2, backgroundColor: colors.gold, opacity: 0.85 },
     cardGlow: { position: 'absolute', top: -55, right: -35, width: 160, height: 160, borderRadius: 80, backgroundColor: colors.gold, opacity: 0.035 },
-    moduleMark: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, borderColor: `${colors.gold}40`,
-      backgroundColor: `${colors.gold}16`, alignItems: 'center', justifyContent: 'center' },
-
-    topRow: {
-      flexDirection:
-        'row',
-      alignItems:
-        'flex-start',
-      justifyContent:
-        'space-between',
-      gap:
-        12,
-    },
-
     eyebrow: {
       color:
         colors.gold,
@@ -961,6 +912,7 @@ function createStyles(
     },
 
     streakText: {
+      flexShrink: 1,
       color:
         colors.text,
       fontFamily:
@@ -968,6 +920,8 @@ function createStyles(
       fontSize:
         13,
     },
+
+    streakTier: { color: colors.gold, fontFamily: 'Inter_700Bold', fontSize: 11 },
 
     checkinButton: {
       minHeight:
