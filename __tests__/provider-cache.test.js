@@ -801,3 +801,43 @@ test('series resolver discovers an ISBN absent from Hardcover via scoped title s
  expect((await h.request('hardcover-series',body)).book.id).toBe('nv_'+isbn);
  expect(h.calls).toHaveLength(calls);
 });
+
+test('verified series corrections match exact editions and open members without Hardcover', async () => {
+ const h = isbnHarness();
+ const titles = [
+  'The Ballad of Phoenix and Monsters',
+  'The Ballad of Phoenix and the Cursed Heirs',
+  'The Ballad of Phoenix and Fallen Kings',
+ ];
+ const isbns = ['9798266280014', '9798196054730', '9798996944910'];
+ const authors = [['Robbins, M.N.'], ['Robbins, M. N.'], ['Robbins, Merry']];
+ const request = (body) => h.request('hardcover-series', body);
+ let series;
+ for (let i=0;i<3;i++) {
+  const result = await request({isbn:isbns[i],title:titles[i],authors:authors[i]});
+  expect(result.series).toMatchObject({name:'Ballad of Phoenix',currentPosition:i+1});
+  expect(result.books.map(book=>book.title)).toEqual(titles);
+  series = result;
+ }
+ expect(h.calls).toHaveLength(0);
+ const [,,third] = series.books;
+ h.setUpstream(async url => {
+  expect(url).toBe('https://api2.isbndb.com/book/'+isbns[2]);
+  return {book:isbnBook({isbn13:isbns[2],title:titles[2],authors:authors[2]})};
+ });
+ expect((await request({mode:'resolve-edition',seriesId:series.series.id,bookId:third.id})).book.id).toBe('nv_'+isbns[2]);
+ expect((await request({mode:'resolve-edition',seriesId:series.series.id,bookId:third.id+99})).book).toBeNull();
+ expect(h.calls).toHaveLength(1);
+});
+
+test('catalog corrections reject lookalike titles, conflicting metadata and mixed member ISBNs', () => {
+ const h = isbnHarness();
+ const {findCorrectedSeries} = h.load('supabase/functions/_shared/verified-series-corrections.ts');
+ const title = 'The Ballad of Phoenix and Monsters';
+ const author = ['M. N. Robbins'];
+ const isbn = '9798266280014';
+ expect(findCorrectedSeries([],title,author)).toBeNull();
+ expect(findCorrectedSeries([isbn],title,['Different Author'])).toBeNull();
+ expect(findCorrectedSeries([isbn],title+' Workbook',author)).toBeNull();
+ expect(findCorrectedSeries([isbn,'9798196054730'],title,author)).toBeNull();
+});

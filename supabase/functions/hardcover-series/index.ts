@@ -1,3 +1,4 @@
+import { findCorrectedSeries, isCorrectedSeriesId, resolveCorrectedSeriesEdition } from '../_shared/verified-series-corrections.ts';
 import { findSeriesBookByTitle, seriesResultLifetime, verifiedSeriesMembership } from '../_shared/series-lookup.ts';
 import { providerTrace, noteProviderCache } from '../_shared/provider-observability.ts';
 import { cacheSeriesEditionPages } from '../_shared/edition-pages.ts';
@@ -234,6 +235,12 @@ Deno.serve(async (req) => {
       trace('start');
       try {
         if (!isbnDbEnabled()) return editionResponse({error: 'Edition lookup is unavailable.'}, 503);
+        if (isCorrectedSeriesId(body.seriesId)) {
+          const book = await resolveCorrectedSeriesEdition(body.seriesId, body.bookId,
+            isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn));
+          trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
+          return editionResponse({book,cacheTrace:providerTrace(supabaseAdmin)});
+        }
         const query = `
           query SeriesReadingEditions($bookId: Int!) {
             books(where: {id: {_eq: $bookId}}, limit: 1) {
@@ -279,6 +286,12 @@ Deno.serve(async (req) => {
         trace('failed', {kind: error instanceof Error ? error.name : 'UnknownError'});
         throw error;
       }
+    }
+    const correction = findCorrectedSeries(requestedIsbns, requestedTitle, requestedAuthors);
+    if (correction) {
+      // Artwork is optional and still comes from the existing catalog policy.
+      const payload = await attachDiscoveryCatalogCovers(supabaseAdmin, correction).catch(() => correction);
+      return editionResponse({...payload,cacheTrace:providerTrace(supabaseAdmin)});
     }
     console.info('[series-list:v1]');
     let sourceExpiresAt = Infinity;

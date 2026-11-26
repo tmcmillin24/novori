@@ -17,6 +17,7 @@ function handler(incompleteSeries = false) {
   Request,Response,console,
   require(name){
    if (name.endsWith('/series-lookup.ts'))return lookup;
+   if (name.endsWith('/verified-series-corrections.ts'))return require('../supabase/functions/_shared/verified-series-corrections');
    if (name.endsWith('/book-edition-metadata.ts'))return metadata;
    if (name.endsWith('/provider-cache.ts')) return {
     createCacheAdmin:()=>admin,requireReader:async()=>{},
