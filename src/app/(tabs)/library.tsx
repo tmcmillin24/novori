@@ -17,7 +17,6 @@ import { useNovoriTheme } from '../../context/theme-context';
 import RemoveBookConfirmSheet from '../../components/RemoveBookConfirmSheet';
 import LibrarySortFilterSheet, { DEFAULT_LIBRARY_FILTERS, parseLibraryFilters, type LibraryFilters } from '../../components/LibrarySortFilterSheet';
 import { getUserBooks, getLibraryMutationVersion, removeUserBook, saveUserBook, updateUserBookOwned, UserBook, UserBookStatus } from '../../lib/user-books';
-import { refreshBookCartCount, getBookCartCountSnapshot } from '../../lib/book-cart-count';
 import { transitionReadingJourney } from '../../lib/reading-details';
 const STATUS_LABELS: Record<UserBookStatus, string> = {
     reading: 'Reading',
@@ -44,7 +43,6 @@ const LIBRARY_FILTERS_KEY = 'novori:library-filters';
 const LIBRARY_STALE_MS = 5 * 60 * 1000;
 let librarySessionCache: {
     books: UserBook[];
-    cartCount: number;
     refreshedAt: number;
     mutationVersion: number;
 } | null = null;
@@ -144,16 +142,15 @@ export default function LibraryScreen() {
             .catch(() => {});
     }
     const [books, setBooks,] = useState<UserBook[]>((librarySessionCache?.books ?? []).filter(hasLibraryMembership));
-    const [cartCount, setCartCount,] = useState(librarySessionCache
-        ?.cartCount ??
-        0);
     const [loading, setLoading,] = useState(!librarySessionCache);
     const [error, setError,] = useState('');
+    const [retryLoad, setRetryLoad] = useState(0);
     const [searchQuery, setSearchQuery,] = useState('');
     const [searchOpen, setSearchOpen,] = useState(false);
     const [filters, setFilters] = useState(DEFAULT_LIBRARY_FILTERS);
     const { status: activeFilter, ownership: ownershipFilter, sort: sortMode } = filters;
     const activeFilterCount = Number(activeFilter !== 'all') + Number(ownershipFilter !== 'all') + Number(sortMode !== 'recent');
+    const hasShelfFilters = activeFilter !== 'all' || ownershipFilter !== 'all';
     const [filtersReady, setFiltersReady] = useState(false);
     const saveFilterPreference = useRef(Promise.resolve());
     useEffect(() => {
@@ -251,12 +248,8 @@ export default function LibraryScreen() {
                     setLoading(true);
                 }
                 setError('');
-                const [data, cartItems,] = await Promise.all([
-                    getUserBooks(),
-                    refreshBookCartCount().then(() => getBookCartCountSnapshot() ?? 0)
-                ]);
+                const data = await getUserBooks();
                 if (active) {
-                    setCartCount(cartItems);
                     if (!isFirstLoad) {
                         restoreLibraryScrollRef.current =
                             true;
@@ -271,7 +264,6 @@ export default function LibraryScreen() {
                         refreshedAt;
                     librarySessionCache = {
                         books: data,
-                        cartCount: cartItems,
                         refreshedAt,
                         mutationVersion: currentLibraryMutationVersion,
                     };
@@ -282,7 +274,7 @@ export default function LibraryScreen() {
             }
             catch (loadError) {
                 console.error('Could not load library:', loadError);
-                if (active) {
+                if (active && isFirstLoad) {
                     setError('Could not load your library.');
                 }
             }
@@ -298,7 +290,7 @@ export default function LibraryScreen() {
             libraryFocusedRef.current =
                 false;
         };
-    }, []));
+    }, [retryLoad]));
     useEffect(() => {
         const unsubscribe = (navigation as any).addListener('tabPress', () => {
             if (!libraryFocusedRef.current) {
@@ -822,6 +814,9 @@ export default function LibraryScreen() {
             <Text style={styles.errorText}>
               {error}
             </Text>
+            <Pressable accessibilityRole="button" style={styles.emptyAction} onPress={() => setRetryLoad(current => current + 1)}>
+              <Text style={styles.emptyActionText}>Try again</Text>
+            </Pressable>
           </View>
         </View>
       </SafeAreaView>);
@@ -839,14 +834,22 @@ export default function LibraryScreen() {
               <Text style={styles.emptyTitle}>
                 {searchQuery.trim()
                 ? 'No matching books'
-                : getEmptyTitle()}
+                : books.length > 0 && hasShelfFilters ? 'No books match these filters.' : getEmptyTitle()}
               </Text>
 
               <Text style={styles.emptyText}>
                 {searchQuery.trim()
                 ? 'Try a different title or author.'
-                : 'Books you save will appear here.'}
+                : books.length > 0 && hasShelfFilters
+                    ? 'Clear your filters to see all your books.'
+                    : 'Books you save will appear here.'}
               </Text>
+              {books.length > 0 && hasShelfFilters && !searchOpen ? (
+                <Pressable accessibilityRole="button" style={styles.emptyAction}
+                    onPress={() => applyLibraryFilters({ ...filters, status: 'all', ownership: 'all' })}>
+                  <Text style={styles.emptyActionText}>Clear filters</Text>
+                </Pressable>
+              ) : null}
             </View>} contentContainerStyle={styles.listContent} {...navigationScroll} onContentSizeChange={(width, height) => {
             navigationScroll.onContentSizeChange(width, height);
             if (restoreLibraryScrollRef.current) {
@@ -1507,6 +1510,17 @@ function createStyles(colors: NovoriColors, windowWidth: number, libraryColumns:
             fontSize: 13,
             textAlign: 'center',
             marginTop: 5,
+        },
+        emptyAction: {
+            marginTop: 10,
+            minHeight: 44,
+            paddingHorizontal: 12,
+            justifyContent: 'center',
+        },
+        emptyActionText: {
+            color: colors.gold,
+            fontFamily: 'Inter_600SemiBold',
+            fontSize: 13,
         },
         loadingContainer: {
             flex: 1,

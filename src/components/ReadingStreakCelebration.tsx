@@ -121,8 +121,8 @@ export default function ReadingStreakCelebration({ tier, days, region, onDismiss
       <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1} style={[styles.title,{fontSize:25 * layout.textScale,color:colors.text}]}>{tier.label}</Text>
       <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1} style={[styles.detail,{fontSize:12 * layout.textScale,color:colors.secondaryText}]}>{days} days of reading in a row</Text>
     </Animated.View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" onPress={onDismiss} style={styles.dismiss}>
-      <Ionicons name="close" size={19} color={colors.mutedText}/>
+    <Pressable accessibilityRole="button" accessibilityLabel="Dismiss streak celebration" onPress={onDismiss} style={[styles.dismiss, { width: layout.dismissSize, height: layout.dismissSize }]}>
+      <Ionicons name="close" size={19 * layout.dismissSize / 44} color={colors.mutedText}/>
     </Pressable>
     </View>
   </Animated.View>;
@@ -149,5 +149,5 @@ const styles = StyleSheet.create({
   kicker:{ fontSize:9, fontFamily:'Inter_700Bold', letterSpacing:1 },
   title:{ fontSize:25, fontFamily:'PlayfairDisplay_700Bold', marginVertical:2 },
   detail:{ fontSize:12, fontFamily:'Inter_500Medium' },
-  dismiss:{ width:44, height:44, alignSelf:'flex-start', alignItems:'center', justifyContent:'center' },
+  dismiss:{ alignSelf:'flex-start', alignItems:'center', justifyContent:'center' },
 });
