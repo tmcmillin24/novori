@@ -26,6 +26,36 @@ function bookIdentity(book: HardcoverBook): Identity {
   return {title: book.title, authors: (book.contributions ?? []).flatMap(row => row.author?.name ? [row.author.name] : [])};
 }
 
+const originalMistbornSlug = 'the-mistborn-saga-the-original-trilogy';
+const originalMistbornPositions: Readonly<Record<string, number | undefined>> = {
+  mistborn: 1,
+  finalempire: 1,
+  mistbornthefinalempire: 1,
+  mistbornfinalempire: 1,
+  eleventhmetal: 1.5,
+  wellofascension: 2,
+  heroofages: 3,
+  mistbornsecrethistory: 3.5,
+  secrethistory: 3.5,
+};
+
+export function preferredSeriesWork({title, authors}: Identity) {
+  if (!authors.some(name => authorKey(name) === 'brandonsanderson')) return undefined;
+  const position = originalMistbornPositions[titleKey(title)];
+  return typeof position === 'number' ? {slug: originalMistbornSlug, position} : undefined;
+}
+
+export function verifiedPreferredSeriesRows(
+  rows: {position?: number | null; book?: HardcoverBook | null}[],
+  slug: string,
+) {
+  return rows.flatMap(({book}) => {
+    if (!book || book.compilation) return [];
+    const work = preferredSeriesWork(bookIdentity(book));
+    return work?.slug === slug ? [{position: work.position, book}] : [];
+  });
+}
+
 export function verifiedSeriesMembership(book: HardcoverBook | null, wanted: Identity, exactEdition = false) {
   if (!book || book.compilation) return undefined;
   const candidate = bookIdentity(book);

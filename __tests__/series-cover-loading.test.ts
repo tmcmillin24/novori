@@ -11,7 +11,7 @@ test('loads missing series covers without opening books, skips cached and unanno
   result,
  ]);
  const publish = jest.fn();
- await loadMissingSeriesCovers([row, { ...row, id: 2, coverBookId: 'cached', coverUrl: 'https://covers/cached.jpg' }, { ...row, id: 3, title: 'Unannounced' }], search, publish, () => true);
+ await loadMissingSeriesCovers([row, { ...row, id: 2, coverBookId: 'cached', coverUrl: 'https://covers/cached.jpg', coverFallback: true }, { ...row, id: 3, title: 'Unannounced' }], search, publish, () => true);
  expect(search).toHaveBeenCalledTimes(1);
  expect(publish).toHaveBeenCalledWith(row, 'english');
 });

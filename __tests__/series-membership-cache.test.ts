@@ -26,3 +26,21 @@ test('an edition can reuse a verified series without a populated author field',a
  expect((await readSeriesMembership(d.admin,{title:books[1].title,authors:[],isbns:[isbn]})).series.currentPosition).toBe(1);
  expect(await readSeriesMembership(d.admin,{title:'Different story',authors:[],isbns:[isbn]})).toBeNull();
 });
+
+test('a previously indexed broader series cannot replace the Original Trilogy', async () => {
+ const d = db();
+ const title = 'Mistborn: The Final Empire';
+ const first = { title, authors: ['Brandon Sanderson'], position: 1, isbns: ['9780765311788'] };
+ const broader = { id: 100, name: 'A larger series', slug: 'larger-series' };
+ const trilogy = { id: 101, name: 'The Mistborn Saga: The Original Trilogy', slug: 'the-mistborn-saga-the-original-trilogy' };
+ d.rows[0].response_json = {series: broader, books: [first]};
+ d.rows.push({ ...d.rows[0], request_key: seriesMemberKeys(first)[0],
+   response_json: {series: broader, member: first, sourceKey: d.rows[0].request_key} });
+ expect(await readSeriesMembership(d.admin, first)).toBeNull();
+ await cacheSeriesMembership(d.admin, d.rows[0].response_json, d.rows[0].request_key);
+ expect(d.writes).toBe(0);
+
+ d.rows[0].response_json = {series: trilogy, books: [first]};
+ await cacheSeriesMembership(d.admin, d.rows[0].response_json, d.rows[0].request_key);
+ expect((await readSeriesMembership(d.admin, first)).series.id).toBe(trilogy.id);
+});

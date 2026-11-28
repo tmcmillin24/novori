@@ -26,6 +26,7 @@ import { getDisplayedReadingStatus, type ConfirmedReadingStatus } from '../../..
 import ValidationWarningSheet from '../../../components/ValidationWarningSheet';
 import { moderationMediaUrl } from '../../../lib/moderation-media-url';
 import { isEnglishBookLanguage } from '../../../../supabase/functions/_shared/book-language';
+import { preferredSeriesWork } from '../../../../supabase/functions/_shared/series-lookup';
 import { getCanonicalBookCover, resolveCanonicalBookCover, getCanonicalBookCoverMetadata, subscribeCanonicalBookCovers } from '../../../lib/canonical-book-covers';
 import { publishCatalogCovers } from '../../../lib/canonical-book-covers';
 import { loadMissingSeriesCovers } from '../../../lib/series-cover-loading';
@@ -73,7 +74,6 @@ import { supabase } from '../../../lib/supabase';
 import {
   resolveHardcoverRating,
   type ResolvedHardcoverRating,
-  searchNovoriBooks,
   peekNovoriBookSearch,
   searchNovoriBookWorkMetadata,
 } from '../../../lib/book-search';
@@ -1438,7 +1438,7 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     let active = true;
     // Capture this series once; publishing a cover must not restart the queue.
     const rows = seriesBooks.filter(row => row.position !== series.currentPosition);
-    void loadMissingSeriesCovers(rows, searchNovoriBooks, (row, bookId) => {
+    void loadMissingSeriesCovers(rows, searchNovoriBookWorkMetadata, (row, bookId) => {
       setSeriesBooks(current => current.map(item => item.id === row.id ? { ...item, coverBookId: bookId } : item));
       void resolveCanonicalBookCover({ googleBookId: bookId });
     }, () => active);
@@ -2201,23 +2201,27 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
     try {
       if (!isCurrent()) return null;
       setSeriesLoading(!snapshot);
+      const preferred = preferredSeriesWork({title, authors});
+      const validForBook = (value: unknown): value is HardcoverSeriesResponse =>
+        validSeriesExtras(value) && (!preferred || value.series?.slug === preferred.slug);
+      const cacheKey = bookExtraKey('series', currentBook.id, exactIsbn);
       const lookup = async (lookupIsbns: string[]) => {
         const result = await supabase.functions.invoke('hardcover-series', {
           body: {googleBookId: currentBook.id, isbn: exactIsbn ?? lookupIsbns[0] ?? null, isbns: lookupIsbns, title, authors},
           timeout: 15000,
         });
-        if (result.error || !validSeriesExtras(result.data)) throw new Error('Series lookup unavailable.');
+        if (result.error || !validForBook(result.data)) throw new Error('Series lookup unavailable.');
         if (__DEV__) console.info('[Novori cache] series upstream', result.data.cacheTrace?.upstream ?? {});
         return result.data;
       };
-      const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(bookExtraKey('series',currentBook.id,exactIsbn),async()=>{
+      const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(preferred ? `${cacheKey}:${preferred.slug}` : cacheKey, async()=>{
         const response = await lookup(isbns);
         if (response.series || !enrichedBook) return response;
         // Finish the shared lookup even if the screen that started it has closed.
         const enriched = await enrichedBook.catch(() => currentBook);
         const aliases = editionIsbns(enriched);
         return aliases.some(isbn => !isbns.includes(isbn)) ? lookup(aliases) : response;
-      },{...foundExtraLifetime,valid:validSeriesExtras,
+      },{...foundExtraLifetime,valid:validForBook,
         valueLifetime: value => value.series ? foundExtraLifetime : confirmedEmptyLifetime});
       if(!isCurrent())return null;
       const response=cachedSeries.value;

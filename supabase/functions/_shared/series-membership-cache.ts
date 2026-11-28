@@ -1,4 +1,4 @@
-import { seriesIdentityMatches } from './series-lookup.ts';
+import { preferredSeriesWork, seriesIdentityMatches } from './series-lookup.ts';
 import { catalogWorkTitleKey, normalizeCatalogAuthor } from './book-edition-metadata.ts';
 const authorKey = (name: string) => normalizeCatalogAuthor(name).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g,'');
 const titleKey = (title: string) => catalogWorkTitleKey(title);
@@ -22,7 +22,11 @@ export async function readSeriesMembership(admin: any, requested: any) {
   if (!keys.length) return null;
   const {data,error} = await admin.from('book_api_cache').select('response_json').eq('provider','hardcover_series').in('request_key',keys).gt('expires_at',new Date().toISOString());
   if (error) return null;
-  const verified = (data ?? []).map((row: any)=>row.response_json).filter((fact: any)=>Number.isSafeInteger(fact?.series?.id) && memberMatches(fact.member ?? {},requested,fact.series.name));
+  const preferred = preferredSeriesWork({title: requested.title ?? '', authors: requested.authors ?? []});
+  const verified = (data ?? []).map((row: any)=>row.response_json).filter((fact: any) =>
+   Number.isSafeInteger(fact?.series?.id) &&
+   (!preferred || fact.series.slug === preferred.slug) &&
+   memberMatches(fact.member ?? {},requested,fact.series.name));
   const sourceKeys = [...new Set(verified.map((fact: any)=>fact.sourceKey).filter((key: any)=>typeof key === 'string' && key.startsWith('series:')))];
   if (!sourceKeys.length) return null;
   const {data:sources,error:sourceError} = await admin.from('book_api_cache').select('request_key,response_json').eq('provider','hardcover_series').in('request_key',sourceKeys).gt('expires_at',new Date().toISOString());
@@ -43,6 +47,8 @@ export async function cacheSeriesMembership(admin: any, payload: any, sourceKey:
   if (error || !source || Date.parse(source.expires_at) <= Date.now()) return;
   const facts = new Map<string,any>();
   for (const book of payload.books) if (book.position != null && book.authors?.length) {
+   const preferred = preferredSeriesWork(book);
+   if (preferred && payload.series.slug !== preferred.slug) continue;
    for (const request_key of seriesMemberKeys(book)) facts.set(request_key,{series:payload.series,member:{title:book.title,authors:book.authors,position:book.position,isbns:book.isbns},sourceKey});
   }
   const keys = [...facts.keys()];

@@ -1,4 +1,4 @@
-import { findSeriesBookByTitle, seriesResultLifetime, verifiedSeriesMembership } from '../supabase/functions/_shared/series-lookup';
+import { findSeriesBookByTitle, preferredSeriesWork, seriesResultLifetime, verifiedPreferredSeriesRows, verifiedSeriesMembership } from '../supabase/functions/_shared/series-lookup';
 
 const series = {id:72,name:'Harbor Mysteries'};
 const wanted = {title:'The Bell at Low Tide',authors:['Mara Flores']};
@@ -40,4 +40,20 @@ test('exact edition matching tolerates a missing author or a publisher subtitle,
   expect(verifiedSeriesMembership(book(1,wanted.title,'Wrong Author'),wanted,true)).toBeUndefined();
   expect(verifiedSeriesMembership(book(1,'The Bell at High Tide'),wanted,true)).toBeUndefined();
   expect(verifiedSeriesMembership({...book(1,wanted.title),compilation:true},wanted,true)).toBeUndefined();
+});
+
+test('the Original Trilogy retains its three novels and two supplemental works', () => {
+  const sanderson = ['Brandon Sanderson'];
+  const preferred = preferredSeriesWork({title: 'The Final Empire', authors: sanderson});
+  const titles = ['Mistborn: The Final Empire', 'The Eleventh Metal', 'The Well of Ascension', 'The Hero of Ages', 'Mistborn: Secret History'];
+  const rows = titles.map((title, index) => ({book: book(index + 1, title, sanderson[0])}));
+  const candidates = [...rows, {book: book(20, 'The Lost Metal', sanderson[0])},
+    {book: {...book(21, 'Mistborn', sanderson[0]), compilation: true}},
+    {book: book(22, 'The Final Empire', 'Someone Else')}];
+
+  expect(preferred).toEqual({slug: 'the-mistborn-saga-the-original-trilogy', position: 1});
+  expect(verifiedPreferredSeriesRows(candidates, preferred!.slug).map(({position, book}) => [position, book.title]))
+    .toEqual(titles.map((title, index) => [[1, 1.5, 2, 3, 3.5][index], title]));
+  expect(preferredSeriesWork({title: 'Mistborn: The Final Empire', authors: ['Someone Else']})).toBeUndefined();
+  expect(preferredSeriesWork({title: 'Mistborn: The Final Empire Graphic Novel', authors: sanderson})).toBeUndefined();
 });

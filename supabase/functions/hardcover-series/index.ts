@@ -1,5 +1,5 @@
 import { findCorrectedSeries, isCorrectedSeriesId, resolveCorrectedSeriesEdition } from '../_shared/verified-series-corrections.ts';
-import { findSeriesBookByTitle, seriesResultLifetime, verifiedSeriesMembership } from '../_shared/series-lookup.ts';
+import { findSeriesBookByTitle, preferredSeriesWork, seriesResultLifetime, verifiedPreferredSeriesRows, verifiedSeriesMembership } from '../_shared/series-lookup.ts';
 import { providerTrace, noteProviderCache } from '../_shared/provider-observability.ts';
 import { cacheSeriesEditionPages } from '../_shared/edition-pages.ts';
 import { readSeriesMembership, cacheSeriesMembership } from '../_shared/series-membership-cache.ts';
@@ -330,11 +330,11 @@ Deno.serve(async (req) => {
     const fetchHardcover = (url: string, init: RequestInit) => cachedHardcoverFetch(
       supabaseAdmin, url, init, 14 * 86400000, 90 * 86400000, 'hardcover_series',
       row => {
-        if (row.response_json?.data?.series_by_pk) sourceExpiresAt = Date.parse(row.expires_at);
+        if (row.response_json?.data?.series_by_pk || row.response_json?.data?.series?.[0]) sourceExpiresAt = Date.parse(row.expires_at);
       },
       payload => {
         const data = payload?.data;
-        if (data?.series_by_pk?.book_series?.length) return seriesResultLifetime(true);
+        if (data?.series_by_pk?.book_series?.length || data?.series?.[0]?.book_series?.length) return seriesResultLifetime(true);
         if (data?.search?.results?.hits?.length) return seriesResultLifetime(true);
         // A book record without a series link can gain one later.
         const books = data?.books ?? data?.editions?.map((edition: any)=>edition.book) ?? [];
@@ -395,12 +395,16 @@ Deno.serve(async (req) => {
 
     // Include the evidence used for lookup so an older edition's miss
     // cannot block a sibling edition. Verified memberships are reused above this cache.
-    const hardcoverSeriesCacheKey = [
-      'series:v6:verified-membership',
-      normalizeSeriesCacheText(cleanCatalogBookTitle(requestedTitle)),
-      requestedAuthors.map(author => normalizeSeriesCacheText(normalizeCatalogAuthor(author))).sort().join('|'),
-      requestedIsbns.slice().sort().join(','),
-    ].join('::');
+    const requestedIdentity = {title: requestedTitle, authors: requestedAuthors};
+    const preferredWork = preferredSeriesWork(requestedIdentity);
+    const hardcoverSeriesCacheKey = preferredWork
+      ? `series:v7:${preferredWork.slug}:${preferredWork.position}`
+      : [
+          'series:v6:verified-membership',
+          normalizeSeriesCacheText(cleanCatalogBookTitle(requestedTitle)),
+          requestedAuthors.map(author => normalizeSeriesCacheText(normalizeCatalogAuthor(author))).sort().join('|'),
+          requestedIsbns.slice().sort().join(','),
+        ].join('::');
 
     const knownMembership = await readSeriesMembership(supabaseAdmin,{title:requestedTitle,authors:requestedAuthors,coverBookId:requestedGoogleBookId,isbns:requestedIsbns});
     if (knownMembership) noteProviderCache(supabaseAdmin,'hardcover_series','hit-membership',hardcoverSeriesCacheKey);
@@ -811,15 +815,125 @@ Deno.serve(async (req) => {
 
 
 
-    const requestedIdentity = {title:requestedTitle,authors:requestedAuthors};
     const hardcoverQuery = async (query: string, variables: Record<string, unknown>) => {
       const response = await fetchHardcover("https://api.hardcover.app/v1/graphql", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({query,variables}),
       });
-      return (await response.json()).data;
+      const payload = await response.json();
+      if (!response.ok || payload?.errors?.length) throw new Error('Hardcover series query failed.');
+      return payload?.data;
     };
+
+    const seriesQuery = (bySlug = false) => `
+
+      query GetSeries(${bySlug ? '$seriesSlug: String!' : '$seriesId: Int!'}) {
+
+        ${bySlug ? 'series(where: {slug: {_eq: $seriesSlug}}, limit: 1)' : 'series_by_pk(id: $seriesId)'} {
+
+          id
+
+          name
+
+          slug
+
+
+
+          book_series(
+
+            order_by: {
+
+              position: asc
+
+            }
+
+          ) {
+
+            position
+
+
+
+            book {
+
+              id
+
+              title
+
+              slug
+
+              release_date
+
+              cached_image
+
+              compilation
+
+
+
+              contributions {
+
+                author {
+
+                  id
+
+                  name
+
+                }
+
+              }
+
+
+
+              editions(limit: 100
+            where: { language: { code2: { _eq: "en" } } }
+            order_by: [{ release_date: asc_nulls_last }, { id: asc }]) {
+                id
+                title
+                image { url width height }
+                reading_format { format }
+                pages
+                release_date
+                compilation
+
+                isbn_10
+
+                isbn_13
+
+
+
+                language {
+
+                  code2
+
+                  code3
+
+                  language
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    `;
+
+    // Resolve verified series directly so a broader membership cannot take
+    // precedence. The same provider response can serve each volume.
+    const preferredSeries = preferredWork
+      ? (await hardcoverQuery(seriesQuery(true), {seriesSlug: preferredWork.slug}))?.series?.[0]
+      : null;
+    const preferredRows = preferredWork && preferredSeries?.slug === preferredWork.slug &&
+        Number.isSafeInteger(preferredSeries.id) && Array.isArray(preferredSeries.book_series)
+      ? verifiedPreferredSeriesRows(preferredSeries.book_series, preferredWork.slug)
+      : [];
+    const preferredMember = preferredRows.find(row => row.position === preferredWork?.position);
+    if (preferredWork && !preferredMember) throw new Error('The preferred Hardcover series response was incomplete.');
 
     const findBookQuery = `
 
@@ -951,10 +1065,10 @@ Deno.serve(async (req) => {
 
 
 
-    let currentBook: any = null;
+    let currentBook: any = preferredMember?.book ?? null;
     let lookupError: unknown = null;
     const isbns = requestedIsbns;
-    if (isbns.length) {
+    if (!currentBook && isbns.length) {
       try {
         const data = await hardcoverQuery(findBookQuery,{isbns});
         if (!Array.isArray(data?.editions)) throw new Error('Hardcover ISBN response was incomplete.');
@@ -1053,7 +1167,9 @@ Deno.serve(async (req) => {
     // Novori's English catalog must not inherit a mixed work's first edition language.
     const preferredLanguageKeys = expandLanguageKeys(['en', 'eng', 'english']);
 
-    const membership = verifiedSeriesMembership(currentBook, requestedIdentity, matchedByIsbn);
+    const membership = preferredMember
+      ? {position: preferredMember.position, series: preferredSeries}
+      : verifiedSeriesMembership(currentBook, requestedIdentity, matchedByIsbn);
     const series = membership?.series;
     if (!series) return {series:null,books:[]};
 
@@ -1069,158 +1185,12 @@ Deno.serve(async (req) => {
 
 
 
-    const seriesQuery = `
-
-      query GetSeries($seriesId: Int!) {
-
-        series_by_pk(id: $seriesId) {
-
-          id
-
-          name
-
-          slug
-
-
-
-          book_series(
-
-            order_by: {
-
-              position: asc
-
-            }
-
-          ) {
-
-            position
-
-
-
-            book {
-
-              id
-
-              title
-
-              slug
-
-              release_date
-
-              cached_image
-
-              compilation
-
-
-
-              contributions {
-
-                author {
-
-                  id
-
-                  name
-
-                }
-
-              }
-
-
-
-              editions(limit: 100
-            where: { language: { code2: { _eq: "en" } } }
-            order_by: [{ release_date: asc_nulls_last }, { id: asc }]) {
-                id
-                title
-                image { url width height }
-                reading_format { format }
-                pages
-                release_date
-                compilation
-
-                isbn_10
-
-                isbn_13
-
-
-
-                language {
-
-                  code2
-
-                  code3
-
-                  language
-
-                }
-
-              }
-
-            }
-
-          }
-
-        }
-
-      }
-
-    `;
-
-
-
-    const seriesResponse = await fetchHardcover("https://api.hardcover.app/v1/graphql",
-
-      {
-
-        method: "POST",
-
-        headers: {
-
-          "Content-Type": "application/json",
-
-          Authorization: `Bearer ${token}`,
-
-        },
-
-        body: JSON.stringify({
-
-          query: seriesQuery,
-
-          variables: {
-
-            seriesId: series.id,
-
-          },
-
-        }),
-
-      }
-
-    );
-
-
-
-    const seriesJson =
-
-      await seriesResponse.json();
-
-
-
-    const fullSeries = seriesJson?.data?.series_by_pk;
-    if (!seriesResponse.ok || seriesJson?.errors?.length ||
-        fullSeries?.id !== series.id || !Array.isArray(fullSeries.book_series)) {
+    const fullSeries = preferredSeries ?? (await hardcoverQuery(seriesQuery(), {seriesId: series.id}))?.series_by_pk;
+    if (fullSeries?.id !== series.id || !Array.isArray(fullSeries.book_series)) {
       throw new Error('Hardcover series response was incomplete.');
     }
-    await cacheSeriesEditionPages(supabaseAdmin,(fullSeries?.book_series ?? []).map((row: any)=>row.book).filter(Boolean),sourceExpiresAt);
-
-
-
-
-    const rawSeriesBooks =
-
-      fullSeries?.book_series ?? [];
-
-
+    const rawSeriesBooks = preferredWork ? preferredRows : fullSeries.book_series;
+    await cacheSeriesEditionPages(supabaseAdmin, rawSeriesBooks.map((row: any) => row.book).filter(Boolean), sourceExpiresAt);
 
     // -----------------------------------
 
@@ -2331,6 +2301,12 @@ Deno.serve(async (req) => {
         }
 
 
+
+        // The catalog correction also verifies the original English supplemental works.
+        if (preferredWork && preferredSeriesWork(book)?.slug === preferredWork.slug) {
+          languageCleanedBooks.push(book);
+          continue;
+        }
 
         const fallbackLanguages =
 
