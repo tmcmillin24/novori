@@ -1,5 +1,5 @@
 import { providerTrace } from '../_shared/provider-observability.ts';
-import { cleanCatalogBookTitle, catalogWorkTitleKey, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
+import { cleanCatalogBookTitle, stripCatalogSeriesPosition, catalogWorkTitleKey, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
 import { cacheDigest, cachedHardcoverFetch, cachedProviderValue, createCacheAdmin, readProviderCache, requireReader, writeProviderCache, recordHit } from '../_shared/provider-cache.ts';
 import { claimApiCacheRefresh, waitForApiCacheFill } from '../_shared/api-cache-guard.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -15,6 +15,7 @@ type InputBook = {
   title?: string;
   authors?: string[];
   isbns: string[];
+  seriesLabelAlias?: true;
 };
 
 type HardcoverAuthor = {
@@ -231,17 +232,15 @@ function authorsMatch(
 
 function titlesMatch(
   expectedTitle: string,
-  candidateTitle: string
+  candidateTitle: string,
+  seriesLabelAlias = false,
 ) {
   const expected =
     canonicalizeTitle(
       expectedTitle
     );
 
-  const candidate =
-    canonicalizeTitle(
-      candidateTitle
-    );
+  const candidate = canonicalizeTitle(seriesLabelAlias ? stripCatalogSeriesPosition(candidateTitle) : candidateTitle);
 
   return Boolean(expected && candidate && expected === candidate);
 }
@@ -262,7 +261,8 @@ function resolveCanonicalBook(
 function chooseBestBook(
   books: HardcoverBook[],
   title: string,
-  authors: string[]
+  authors: string[],
+  seriesLabelAlias = false,
 ) {
   const byCanonicalId =
     new Map<
@@ -277,7 +277,8 @@ function chooseBestBook(
     if (
       (title && !titlesMatch(
         title,
-        book.title
+        book.title,
+        seriesLabelAlias,
       )) ||
       !authorsMatch(
         authors,
@@ -295,7 +296,8 @@ function chooseBestBook(
     if (
       title && !titlesMatch(
         title,
-        resolved.title
+        resolved.title,
+        seriesLabelAlias,
       ) &&
       resolved.id !==
         book.id
@@ -418,6 +420,7 @@ Deno.serve(async request => {
       googleBookId: String(book?.googleBookId ?? ''), title: String(book?.title ?? '').trim(),
       authors: (Array.isArray(book?.authors) ? book.authors : []).filter((author: any) => typeof author === 'string' && author.trim()).map((author: string) => author.trim()),
       isbns: Array.from(new Set<string>((Array.isArray(book?.isbns) ? book.isbns : []).map(normalizeIsbn).filter(Boolean))),
+      ...(book?.seriesLabelAlias === true ? { seriesLabelAlias: true as const } : {}),
     })).filter((book: InputBook) => book.googleBookId && (book.isbns.length || (allowTitleFallback && book.title)));
     if (!books.length) return respond({ popularity: {} });
     const provider = 'hardcover_popularity';
@@ -429,8 +432,10 @@ Deno.serve(async request => {
     // ISBNdb response caches and all TTLs remain unchanged.
     const prepared = await Promise.all(books.map(async (book: InputBook) => {
       const identity = { title: canonicalizeTitle(book.title), authors: (book.authors ?? []).map(normalizeText).sort() };
-      return { book, key: 'book:v5:' + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
-        workKey: identity.title && identity.authors.length ? 'work:v5:' + await cacheDigest(identity) : null };
+      const bookPrefix = book.seriesLabelAlias ? 'author-series-book:v1:' : 'book:v5:';
+      const workPrefix = book.seriesLabelAlias ? 'author-series-work:v1:' : 'work:v5:';
+      return { book, key: bookPrefix + await cacheDigest({ ...identity, isbns: book.isbns.slice().sort(), allowTitleFallback }),
+        workKey: identity.title && identity.authors.length ? workPrefix + await cacheDigest(identity) : null };
     }));
     const batchKey = 'popularity:v6:' + await cacheDigest({ allowTitleFallback, books: books.slice().sort((a: InputBook, b: InputBook) => a.googleBookId.localeCompare(b.googleBookId)) });
     const payload = await cachedProviderValue({ admin, provider, key: batchKey, freshMs, staleMs, valueLifetime: value => Object.keys(value.popularity).length < books.length ? { freshMs: 6 * 3600000, staleMs: 6 * 3600000 } : { freshMs, staleMs }, leaseSeconds: 90, sourceExpiresAt: () => sourceExpiresAt, load: async () => {
@@ -469,7 +474,7 @@ Deno.serve(async request => {
         const wanted = new Set(item.book.isbns);
         const best = chooseBestBook(isbnBooks.filter(book => book.editions?.some(edition =>
           wanted.has(normalizeIsbn(edition.isbn_10)) || wanted.has(normalizeIsbn(edition.isbn_13))
-        )), item.book.title ?? '', item.book.authors ?? []);
+        )), item.book.title ?? '', item.book.authors ?? [], item.book.seriesLabelAlias);
         if (best) matches.set(item.key, best);
       }
       const titleMisses = pending.filter(item => {
@@ -495,7 +500,7 @@ Deno.serve(async request => {
         const candidates = new Map<string, HardcoverBook[]>();
         titleMisses.forEach((item, index) => {
           candidates.set(item.key, parseSearchBooks(response?.data?.['book' + index]?.results)
-            .filter(book => chooseBestBook([book], item.book.title ?? '', item.book.authors ?? []))
+            .filter(book => chooseBestBook([book], item.book.title ?? '', item.book.authors ?? [], item.book.seriesLabelAlias))
             .slice(0,5));
         });
         const ids = [...new Set([...candidates.values()].flat().map(book => book.id))].sort((a,b)=>a-b);
@@ -507,7 +512,7 @@ Deno.serve(async request => {
           titleMisses.forEach(item => {
             const wanted = new Set(candidates.get(item.key)?.map(book => book.id));
             const prior = matches.get(item.key);
-            const best = chooseBestBook([...(prior ? [prior] : []), ...hydrated.filter(book => wanted.has(book.id))], item.book.title ?? '', item.book.authors ?? []);
+            const best = chooseBestBook([...(prior ? [prior] : []), ...hydrated.filter(book => wanted.has(book.id))], item.book.title ?? '', item.book.authors ?? [], item.book.seriesLabelAlias);
             if (best) matches.set(item.key, best);
           });
         }

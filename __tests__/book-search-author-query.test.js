@@ -349,7 +349,7 @@ test('author cards use a clean verified title even when the catalog only returne
  expect(api.popularityCalls[0].books[0].title).toBe('The Well of Ascension');
 });
 
-test('author cards keep unverified titles, genuine subtitles and adaptations distinct', async () => {
+test('author cards omit unverified ratings and preserve genuine subtitles and adaptations', async () => {
  const author = 'Jane Writer';
  const unverified = book('unverified', author, 'Second Moon (Book Two of Silver Sky)');
  const genuine = book('genuine', author, 'Stars: A History of Light');
@@ -360,8 +360,30 @@ test('author cards keep unverified titles, genuine subtitles and adaptations dis
  });
  const rows = await api.searchAuthorBooks(author);
  expect(rows.find(row=>row.book.id==='unverified')).toMatchObject({
-   book:{volumeInfo:{title:unverified.volumeInfo.title}},rating:null,reviewsCount:null,ratingsCount:null,
+   book:{volumeInfo:{title:'Second Moon'}},rating:null,reviewsCount:null,ratingsCount:null,
  });
  expect(rows.find(row=>row.book.id==='genuine')).toMatchObject({book:{volumeInfo:{title:genuine.volumeInfo.title}}, reviewsCount:0});
  expect(rows.find(row=>row.book.id==='graphic')?.book.volumeInfo.title).toBe(graphic.volumeInfo.title);
+});
+
+test('author search verifies the published nested series label using the existing rating batch', async () => {
+ const author = 'Brandon Sanderson';
+ const alias = book('alias', author, 'The Well of Ascension: Book Two of Mistborn (Mistborn (2))');
+ alias.volumeInfo.industryIdentifiers = [{type:'ISBN_13',identifier:'9781250318572'}];
+ const counts = {hardcoverBookId: 32, usersCount: 8400, rating: 4.42, ratingsCount: 3500, reviewsCount: 140};
+ const api = load([alias], {}, () => {
+   const request = api.popularityCalls.at(-1).books[0];
+   return request.title === 'The Well of Ascension' && request.seriesLabelAlias ? {alias:counts} : {};
+ });
+ const [result] = await api.searchAuthorBooks(author);
+ expect(result).toMatchObject({
+   book:{id:'alias',volumeInfo:{title:'The Well of Ascension'}},
+   rating:4.42,ratingsCount:3500,reviewsCount:140,
+ });
+ expect(api.popularityCalls).toHaveLength(1);
+ expect(api.popularityCalls[0].books[0]).toMatchObject({isbns:['9781250318572'],seriesLabelAlias:true});
+
+ await api.searchNovoriBooks('The Well of Ascension');
+ expect(api.popularityCalls[1].books[0].title).toBe(alias.volumeInfo.title);
+ expect(api.popularityCalls[1].books[0]).not.toHaveProperty('seriesLabelAlias');
 });

@@ -34,6 +34,15 @@ export function cleanCatalogBookTitle(title: string) {
   .replace(/[\s:–—]+$/, '').trim() || title.trim();
 }
 
+/** Remove an explicit catalog label, including repeated series/volume metadata. */
+export function stripCatalogSeriesPosition(title: string) {
+  if (/\b(?:graphic novel|graphic adaptation|comic|manga|adaptation|abridged|dramatized|dramatised|audiobook|audio cd|summary|study guide|workbook)\b/i.test(title)) return title;
+  return title.replace(
+    /(?:\s+|\s*[:–—-]\s*|\s*[(\[]\s*)book\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+of\s+(?<series>[\p{L}\p{N}][^()[\]:\r\n]*?)(?:\s*\(\k<series>\s+\(\d+\)\))?[)\]]?\s*$/iu,
+    '',
+  ).trim() || title;
+}
+
 /** Compare work titles without conflating adaptations, recordings or arbitrary subtitles. */
 export function catalogWorkTitleKey(title: string, originalTitle = title) {
  const product = /\b(?:graphic novel|comic|manga|live in concert|dramatized|dramatised|audiobook|audio cd)\b/i.test(originalTitle);

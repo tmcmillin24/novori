@@ -3,7 +3,7 @@ import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genre
 import { bookWorkDetails, fillMissingBookSynopsis } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
-import { normalizeIsbnDbEdition, cleanCatalogBookTitle, displayBookTitle, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
+import { normalizeIsbnDbEdition, cleanCatalogBookTitle, stripCatalogSeriesPosition, displayBookTitle, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
 import { getCanonicalBookCover, getCanonicalBookCoverRevision, publishCatalogCovers, resolveCanonicalBookCover } from './canonical-book-covers';
 import { supabase } from './supabase';
 import { fetchGoogleBooksJson } from './google-books';
@@ -1078,27 +1078,17 @@ async function getHardcoverPopularity(
 ) {
   const preparedBooks =
     books
-      .map((book) => ({
-        googleBookId:
-          book.id,
-        title: useAuthorWorkTitle ? authorCatalogTitle(book) : book.volumeInfo.title ?? '',
-        authors:
-          book.volumeInfo.authors ??
-          [],
-        isbns:
-          Array.from(
-            new Set([
-              ...(
-                book.novoriWork
-                  ?.isbns ??
-                []
-              ),
-              ...getBookIsbns(
-                book
-              ),
-            ])
-          ),
-      }))
+      .map(book => {
+        const editionTitle = book.volumeInfo.title ?? '';
+        const title = useAuthorWorkTitle ? authorCatalogTitle(book) : editionTitle;
+        return {
+          googleBookId: book.id,
+          title,
+          authors: book.volumeInfo.authors ?? [],
+          isbns: [...new Set([...(book.novoriWork?.isbns ?? []), ...getBookIsbns(book)])],
+          ...(title !== editionTitle ? { seriesLabelAlias: true } : {}),
+        };
+      })
       .filter(
         (book) =>
           allowTitleFallback
@@ -1506,10 +1496,7 @@ function searchProductTier(book: GoogleBookSearchItem) {
 function authorCatalogTitle(book: GoogleBookSearchItem) {
   const title = book.volumeInfo.title ?? '';
   if (searchProductTier(book) || isGraphicAdaptation(book)) return title;
-  return title.replace(
-    /(?:\s+|\s*[:–—-]\s*|\s*[(\[]\s*)book\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+of\s+[\p{L}\p{N}][^()[\]\r\n]*[)\]]?$/iu,
-    '',
-  ).trim() || title;
+  return stripCatalogSeriesPosition(title);
 }
 
 function mergeAuthorCatalogWorks(
@@ -1522,14 +1509,14 @@ function mergeAuthorCatalogWorks(
     const hardcoverId = popularity[book.id]?.hardcoverBookId;
     const title = authorCatalogTitle(book);
     const plainTitle = title === book.volumeInfo.title;
+    const display = plainTitle ? book : {...book, volumeInfo: {...book.volumeInfo, title: displayBookTitle(title)}};
     if (!work || typeof hardcoverId !== 'number' || !Number.isSafeInteger(hardcoverId) || hardcoverId < 1 ||
         searchProductTier(book) || isGraphicAdaptation(book)) {
-      works.set(book.id, {book, plainTitle});
+      works.set(book.id, {book: display, plainTitle});
       continue;
     }
     const key = `hardcover:${hardcoverId}`;
     const previous = works.get(key);
-    const display = plainTitle ? book : {...book, volumeInfo: {...book.volumeInfo, title: displayBookTitle(title)}};
     if (!previous) {
       works.set(key, {book: display, plainTitle});
       continue;
