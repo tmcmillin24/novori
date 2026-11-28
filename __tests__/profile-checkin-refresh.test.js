@@ -8,6 +8,7 @@ jest.mock('expo-router',()=>({useRouter:()=>({push:jest.fn()}),useFocusEffect:ca
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('react-native',()=>({ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',Text:'Text',View:'View',StyleSheet:{create:v=>v},Platform:{select:v=>v.ios??v.default},Alert:{alert:jest.fn()},AppState:{get currentState(){return mockAppState;},addEventListener:(_event,callback)=>{mockListeners.add(callback);return{remove:()=>mockListeners.delete(callback)};}}}));
 jest.mock('../src/components/DailyCheckinSheet',()=> 'DailyCheckinSheet');
+jest.mock('../src/components/ReadingStreakCelebration',()=>({__esModule:true,default:'ReadingStreakCelebration'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
 jest.mock('../src/lib/reading-checkins',()=>({...jest.requireActual('../src/lib/reading-checkins'),getDailyReadingCheckinState:jest.fn(),ensureDailyReadingCheckin:jest.fn().mockResolvedValue('checkin')}));
 jest.mock('../src/lib/supabase',()=>({supabase:{}}));
@@ -75,4 +76,28 @@ test.each([false,true])('refocus keeps known checkedIn=%s stable while the refre
  expect(view.root.findByProps({accessibilityLabel:label})).toBeDefined();
  if(!checkedIn)expect(view.root.findByProps({accessibilityLabel:label}).props.disabled).toBe(false);
  await act(async()=>resolve({...checked,checkedIn}));
+});
+
+test('a confirmed milestone check-in celebrates once, and opening the profile does not replay it',async()=>{
+ getDailyReadingCheckinState.mockResolvedValue({...checked,currentStreak:2});
+ await render([{google_book_id:'book-1',status:'reading'},{google_book_id:'book-2',status:'reading'}]);
+ expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
+ await act(async()=>view.root.findByProps({accessibilityLabel:'Check in for today’s reading'}).props.onPress());
+ await act(async()=>view.root.findByType('DailyCheckinSheet').props.onToggleBook('book-1'));
+ getDailyReadingCheckinState.mockResolvedValue({...checked,checkedIn:true,currentStreak:3});
+ await act(async()=>view.root.findByType('DailyCheckinSheet').props.onConfirm());
+ const celebration=view.root.findByType('ReadingStreakCelebration');
+ const region = celebration.parent;
+ expect(region.findAllByType('View').some(node=>node.props.pointerEvents==='none' && node.props.accessibilityElementsHidden &&
+   node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);
+ await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:310,height:95}}}));
+ expect(celebration.props).toMatchObject({days:3,tier:{label:'Heating Up'},region:{width:310,height:95}});
+ await act(async()=>region.props.onLayout({nativeEvent:{layout:{width:700,height:102}}}));
+ expect(celebration.props.region).toEqual({width:700,height:102});
+ await act(async()=>celebration.props.onDismiss());
+ expect(view.root.findAllByType('View').some(node=>node.props.pointerEvents==='auto' &&
+   node.findAllByProps({accessibilityLabel:'Checked in for today’s reading'}).length>0)).toBe(true);
+ await act(async()=>view.unmount());
+ await render();
+ expect(view.root.findAllByType('ReadingStreakCelebration')).toHaveLength(0);
 });

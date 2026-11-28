@@ -54,6 +54,7 @@ import BookCoverImage from '../../components/BookCoverImage';
 import {
   getNovoriSearchBookCover,
   searchNovoriBooks,
+  prioritizeBookSearchProducts,
   searchNovoriBookByIsbn,
 } from '../../lib/book-search';
 import { useNovoriTheme } from '../../context/theme-context';
@@ -1528,6 +1529,19 @@ type DiscoverStyles =
     typeof createStyles
   >;
 
+type OpenBookOptions = {
+  coverUrl?: string;
+  title?: string;
+  subtitle?: string;
+  authors?: string[];
+  isbn?: string;
+  rating?: number | null;
+  ratingsCount?: number | null;
+  canonicalizeWork?: boolean;
+  trustedCover?: boolean;
+  discoveryId?: number;
+};
+
 const DiscoverBookCard = memo(
   function DiscoverBookCard({
     item,
@@ -1540,14 +1554,7 @@ const DiscoverBookCard = memo(
     goldColor: string;
     onOpenBook: (
       bookId: string,
-      options?: {
-        coverUrl?: string;
-        title?: string;
-        authors?: string[];
-        isbn?: string;
-        canonicalizeWork?: boolean;
-        trustedCover?: boolean;
-      }
+      options?: OpenBookOptions
     ) => void;
   }) {
     useSyncExternalStore(subscribeBookPublications, getPublicationVersion, getPublicationVersion);
@@ -1607,6 +1614,9 @@ const DiscoverBookCard = memo(
                 cover,
               title:
                 info.title,
+              subtitle: info.subtitle,
+              rating: item.novoriWork?.hardcoverRating,
+              ratingsCount: item.novoriWork?.hardcoverRatingsCount,
               authors:
                 info.authors,
               isbn,
@@ -2131,6 +2141,9 @@ export default function DiscoverScreen() {
           title:
             exactMatch.volumeInfo
               .title,
+          subtitle: exactMatch.volumeInfo.subtitle,
+          rating: exactMatch.novoriWork?.hardcoverRating,
+          ratingsCount: exactMatch.novoriWork?.hardcoverRatingsCount,
           authors:
             exactMatch.volumeInfo
               .authors,
@@ -3018,11 +3031,11 @@ export default function DiscoverScreen() {
       nextBookPage.current += 40;
       setBooks(previous => {
         const keys = new Set(previous.map(book => book.novoriWork?.key ?? book.id));
-        return [...previous, ...more.filter(book => {
+        return prioritizeBookSearchProducts([...previous, ...more.filter(book => {
           const key = book.novoriWork?.key ?? book.id;
           if (keys.has(key)) return false;
           keys.add(key); return true;
-        })];
+        })], term);
       });
       setVisibleBookCount(count => count + 10);
     } catch { /* Keep visible results; another scroll can retry the cached route. */ }
@@ -3275,15 +3288,7 @@ export default function DiscoverScreen() {
     useCallback(
       (
         bookId: string,
-        options?: {
-          coverUrl?: string;
-          title?: string;
-          authors?: string[];
-          isbn?: string;
-          canonicalizeWork?: boolean;
-          trustedCover?: boolean;
-          discoveryId?: number;
-        }
+        options?: OpenBookOptions
       ) => {
         if (activeBookSearch.current) recentSearches.remember(activeBookSearch.current);
         router.push({
@@ -3292,6 +3297,9 @@ export default function DiscoverScreen() {
           params: {
             id: bookId,
             source: 'discover',
+            ...(options?.subtitle ? { clickedSubtitle: options.subtitle } : {}),
+            ...(options?.rating != null ? { clickedRating: String(options.rating) } : {}),
+            ...(options?.ratingsCount != null ? { clickedRatingsCount: String(options.ratingsCount) } : {}),
             ...(options?.discoveryId ? { discoveryId: String(options.discoveryId) } : {}),
             ...(options?.coverUrl
               ? {
@@ -3345,6 +3353,7 @@ export default function DiscoverScreen() {
       openBook(bookId, {
         coverUrl: trendingBook.coverUrl ?? undefined,
         title: trendingBook.title,
+        rating: trendingBook.rating,
         authors: trendingBook.authors,
         isbn: trendingBook.isbns[0],
         canonicalizeWork: false,

@@ -1,3 +1,7 @@
+jest.mock('../src/components/ClubDiscussionPostAttachment',()=> 'ClubDiscussionPostAttachment');
+jest.mock('../src/components/BookStackPostAttachment',()=> 'BookStackPostAttachment');
+jest.mock('../src/lib/supabase',()=>({supabase:{}}));
+jest.mock('../src/lib/feed',()=>({}));
 jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
@@ -52,7 +56,7 @@ test('publishing to feed keeps the prepared snapshot and exits directly',async()
 });
 test('a joined club selection appears inside the editable card and is the publish destination',async()=>{
   await render();await destination('club-1');
-  expect(view.root.findAllByType('Text').some(n=>n.props.children==='in Readers Club')).toBe(true);
+  expect(view.root.findAllByType('Text').some(n=>Array.isArray(n.props.children) && n.props.children.includes('Readers Club'))).toBe(true);
   await press('Publish reading recap');expect(publishReadingRecap.mock.calls[0][2]).toBe('club-1');
 });
 test('rapid double taps create only one request while awaiting publication',async()=>{

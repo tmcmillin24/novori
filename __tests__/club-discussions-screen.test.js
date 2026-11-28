@@ -9,22 +9,31 @@ import PostDetailScreen from '../src/app/post/[id]';
 import {getClub} from '../src/lib/clubs';
 import {getClubRead,getClubReads} from '../src/lib/club-reads';
 import {getClubDiscussion,getClubDiscussions,saveClubDiscussion,voteClubPoll,closeClubPoll} from '../src/lib/club-discussions';
-import {getPostDetail} from '../src/lib/feed';
+import {deletePost,getPostDetail} from '../src/lib/feed';
+import {getFeedComposerPreview} from '../src/lib/club-composer-preview';
 import {getExplicitLanguagePreference} from '../src/lib/content-filter';
 import {supabase} from '../src/lib/supabase';
 import {blockReader} from '../src/lib/social';
 import {getPostComments,createPostComment,deletePostComment,toggleCommentVote,updatePostComment} from '../src/lib/comments';
 
+let mockFocused=true,mockPostMutation=0;
 let mockParams={};const mockRouter={back:jest.fn(),push:jest.fn(),replace:jest.fn(),setParams:jest.fn(),dismissTo:jest.fn()};
-jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(cb,[cb])}));
+jest.mock('expo-router',()=>({useRouter:()=>mockRouter,useLocalSearchParams:()=>mockParams,useFocusEffect:cb=>require('react').useEffect(()=>mockFocused?cb():undefined,[cb,mockFocused])}));
 jest.mock('react-native',()=>({
- useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
+ useWindowDimensions:()=>({width:390,height:844}),Platform:{OS:'ios',select:v=>v.ios??v.default},TurboModuleRegistry:{get:()=>null},ActivityIndicator:'ActivityIndicator',Text:'Text',TextInput:'TextInput',Switch:'Switch',View:'View',Image:'Image',Pressable:'Pressable',ScrollView:'ScrollView',RefreshControl:'RefreshControl',
  Modal:p=>p.visible?require('react').createElement('Modal',p,p.children):null,Alert:{alert:jest.fn()},Keyboard:{addListener:()=>({remove:()=>{}}),dismiss:jest.fn()},StyleSheet:{create:v=>v,absoluteFill:{},hairlineWidth:.5},
  Animated:{View:'AnimatedView',Value:class{setValue(){}stopAnimation(){}interpolate(){return 0;}},parallel:()=>({start:f=>f?.({finished:true})}),timing:()=>({start:f=>f?.({finished:true})}),spring:()=>({start:f=>f?.({finished:true})})},
  Easing:{out:v=>v,in:v=>v,inOut:v=>v,cubic:()=>{},quad:()=>{}},PanResponder:{create:()=>({panHandlers:{}})},
 }));
-jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardStickyView:'KeyboardStickyView'}));
-jest.mock('react-native-safe-area-context',()=>({SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
+jest.mock('../src/components/BrowsingNavigation',()=>({
+ useBrowsingNavigationScroll:()=>({onScroll:jest.fn(),onScrollBeginDrag:jest.fn()}),
+ useBrowsingBottomInsetCovered:()=>true,
+ usePostFooterTransition:jest.fn(),
+ PostBrowsingFooterSpace:()=>null,
+ useScreenBrowsingBottomBar:()=>require('react').createElement('DiscussionBottomBar'),
+}));
+jest.mock('react-native-keyboard-controller',()=>({KeyboardAwareScrollView:'KeyboardAwareScrollView',KeyboardAvoidingView:'KeyboardAvoidingView'}));
+jest.mock('react-native-safe-area-context',()=>({SafeAreaProvider:'SafeAreaProvider',SafeAreaView:'SafeAreaView',useSafeAreaInsets:()=>({bottom:0})}));
 jest.mock('expo-blur',()=>({BlurView:'BlurView'}));
 jest.mock('@expo/vector-icons',()=>({Ionicons:'Icon'}));
 jest.mock('../src/context/theme-context',()=>({useNovoriTheme:()=>({colors:require('../src/constants/novori-theme').DARK_COLORS})}));
@@ -38,7 +47,7 @@ jest.mock('../src/components/ClubEventPostAttachment',()=> 'ClubEventPostAttachm
 jest.mock('../src/lib/clubs',()=>({getClub:jest.fn()}));
 jest.mock('../src/lib/club-reads',()=>({getClubRead:jest.fn(),getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-discussions',()=>({CLUB_DISCUSSIONS_PAGE_SIZE:20,getClubDiscussion:jest.fn(),getClubDiscussions:jest.fn(),saveClubDiscussion:jest.fn(),voteClubPoll:jest.fn(),closeClubPoll:jest.fn(),newClubDiscussionRequestKey:()=> 'stable-discussion-request-key'}));
-jest.mock('../src/lib/feed',()=>({getPostDetail:jest.fn(),togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
+jest.mock('../src/lib/feed',()=>({deletePost:jest.fn(),getPostDetail:jest.fn(),getPostMutationVersion:()=>mockPostMutation,togglePostVote:jest.fn(),splitQuestionPostBody:()=>null}));
 jest.mock('../src/lib/comments',()=>({getPostComments:jest.fn(),createPostComment:jest.fn(),deletePostComment:jest.fn(),toggleCommentVote:jest.fn(),updatePostComment:jest.fn()}));
 jest.mock('../src/lib/content-filter',()=>({containsExplicitLanguage:()=>false,getExplicitLanguagePreference:jest.fn(async()=>false),isExplicitContentRevealed:()=>false,revealExplicitContentOnce:jest.fn(),setExplicitLanguagePreference:jest.fn()}));
 jest.mock('../src/lib/reports',()=>({submitCommentReport:jest.fn()}));
@@ -54,7 +63,7 @@ const club={id:'club-1',name:'Readers Club',membership_role:'member'};
 const post={id:'post-1',club_id:'club-1',author_id:'member-1',author_display_name:'A Reader',author_username:'reader',body:'Join this club discussion.',post_type:'post',created_at:topic.created_at,updated_at:topic.updated_at,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0,comment_count:1,club_discussion:topic};
 const comment={id:'comment-1',post_id:'post-1',author_id:'member-2',parent_comment_id:null,body:'Spoiler reply from a reader.',author_display_name:'Another Reader',author_username:'another',created_at:topic.created_at,updated_at:topic.updated_at,is_own:false,upvote_count:0,downvote_count:0,vote_score:0,viewer_vote:0};
 let view,silence;
-beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();getPostComments.mockReset();getPostDetail.mockReset();getExplicitLanguagePreference.mockReset();createPostComment.mockReset();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getExplicitLanguagePreference.mockResolvedValue(false);getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
+beforeEach(()=>{mockFocused=true;mockPostMutation=0;globalThis.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();jest.clearAllMocks();getPostComments.mockReset();getPostDetail.mockReset();getExplicitLanguagePreference.mockReset();createPostComment.mockReset();mockParams={clubId:'club-1'};getClub.mockResolvedValue(club);getClubRead.mockResolvedValue(read);getClubReads.mockResolvedValue({current:read,upcoming:[],past:[],upcoming_more:false,past_more:false});getClubDiscussion.mockResolvedValue(topic);getClubDiscussions.mockResolvedValue([]);saveClubDiscussion.mockResolvedValue('post-1');closeClubPoll.mockResolvedValue();voteClubPoll.mockImplementation(async(_,choice)=>({...poll,viewer_choice:choice,vote_counts:choice===null?[0,0]:[choice===0?1:0,choice===1?1:0],voting_started_at:topic.updated_at}));getExplicitLanguagePreference.mockResolvedValue(false);getPostDetail.mockResolvedValue(post);getPostComments.mockResolvedValue([comment]);silence=jest.spyOn(console,'error').mockImplementation(()=>{});});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());view=null;jest.useRealTimers();silence.mockRestore();});
 async function render(el){await act(async()=>{view=renderer.create(el);});}
 const button=label=>view.root.findAllByType('Pressable').find(n=>n.props.accessibilityLabel===label);
@@ -67,11 +76,11 @@ const text=()=>view.root.findAllByType('Text').map(n=>[n.props.children].flat(In
 test('member fills the discussion card directly and posts with the stored club read',async()=>{
  await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Our reading chat');await fill('Discussion prompt','What did you think?');await press('Publish club discussion');
  expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:'read-1',kind:'discussion',title:'Our reading chat',prompt:'What did you think?'}),undefined,'stable-discussion-request-key');
- expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).not.toContain('Preview');
+ expect(mockRouter.replace).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'post-1'}});expect(view.root.findByType(ClubDiscussionPostAttachment).findByType('BookCoverImage').props.existingCoverUrl).toBe(book.coverUrl);expect(text()).not.toContain('Post preview');
 });
-test('poll editor embeds choices and spoiler limit; save errors retain the whole draft',async()=>{
- mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await press('Discussion contains spoilers');await fill('Discussion spoiler limit','Through chapter 5');await press('Publish club discussion');
- expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,kind:'poll',options:['Fantasy','Mystery','Romance'],contains_spoilers:true,spoiler_label:'Through chapter 5'}),undefined,'stable-discussion-request-key');expect(field('Poll choice 3').props.value).toBe('Romance');expect(text()).toContain('Choose unique poll choices.');expect(mockRouter.replace).not.toHaveBeenCalled();
+test('poll editor embeds choices and a single spoiler switch; save errors retain the whole draft',async()=>{
+ mockParams={clubId:'club-1',kind:'poll'};saveClubDiscussion.mockRejectedValue(new Error('Choose unique poll choices.'));await render(<CreateClubDiscussionScreen/>);await fill('Discussion title','Next book');await fill('Poll choice 1','Fantasy');await fill('Poll choice 2','Mystery');await press('Add poll choice');await fill('Poll choice 3','Romance');await act(async()=>view.root.findByType('Switch').props.onValueChange(true));expect(field('Discussion spoiler limit')).toBeUndefined();expect(text()).not.toContain('Whole book');await press('Publish club discussion');
+ expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,kind:'poll',options:['Fantasy','Mystery','Romance'],contains_spoilers:true,spoiler_label:'Whole book'}),undefined,'stable-discussion-request-key');expect(field('Poll choice 3').props.value).toBe('Romance');expect(text()).toContain('Choose unique poll choices.');expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 test('visitors and locked poll editors cannot publish',async()=>{
  getClub.mockResolvedValue({...club,membership_role:null});await render(<CreateClubDiscussionScreen/>);expect(button('Publish club discussion').props.disabled).toBe(true);expect(field('Discussion title')).toBeUndefined();await act(async()=>view.unmount());view=null;
@@ -90,16 +99,16 @@ test('book-filtered board paginates without per-card API reads and passes select
  mockParams={clubId:'club-1',readId:'read-1'};getClubDiscussions.mockResolvedValueOnce(Array.from({length:20},(_,i)=>({...topic,id:'topic-'+i,post_id:'post-'+i}))).mockResolvedValueOnce([{...topic,id:'topic-20'}]);await render(<ClubDiscussionsScreen/>);expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','all');expect(getClubDiscussion).not.toHaveBeenCalled();await press('More club discussions');expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','all',20);await press('Start club poll');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',readId:'read-1',kind:'poll'}});await press('Show club poll');expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1','read-1','poll');
 });
 test('full post screen hides spoiler prompt, comments, and composer until explicit reveal',async()=>{
- mockParams={id:'post-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(topic.title);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(topic.prompt);expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(1);
+ mockParams={id:'post-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(topic.title);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(topic.prompt);expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(1);
 });
 test('refreshing a revised spoiler discussion resets reveal for the whole comment thread',async()=>{
- mockParams={id:'post-1'};await render(<PostDetailScreen/>);await press('Reveal club discussion spoilers');const revised={...topic,updated_at:'2026-10-03T11:00:00Z',prompt:'A revised spoiler.'};getPostDetail.mockResolvedValue({...post,club_discussion:revised});getClubDiscussion.mockResolvedValue(revised);await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).not.toContain(revised.prompt);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);
+ mockParams={id:'post-1'};await render(<PostDetailScreen/>);await press('Reveal club discussion spoilers');const revised={...topic,updated_at:'2026-10-03T11:00:00Z',prompt:'A revised spoiler.'};getPostDetail.mockResolvedValue({...post,club_discussion:revised});getClubDiscussion.mockResolvedValue(revised);await act(async()=>view.root.findByType('ScrollView').props.refreshControl.props.onRefresh());expect(text()).not.toContain(revised.prompt);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);
 });
 test('newer detail metadata can enable spoiler protection for comments loaded with an older post snapshot',async()=>{
- mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,contains_spoilers:false}});getClubDiscussion.mockResolvedValue({...topic,updated_at:'2026-10-03T11:00:00Z'});await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('Reveal club discussion spoilers')).toBeDefined();
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:{...topic,contains_spoilers:false}});getClubDiscussion.mockResolvedValue({...topic,updated_at:'2026-10-03T11:00:00Z'});await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(button('Reveal club discussion spoilers')).toBeDefined();
 });
 test('ordinary posts retain their comments and composer',async()=>{
- mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,body:'An ordinary post.',club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('An ordinary post.');expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(1);expect(getClubDiscussion).not.toHaveBeenCalled();
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,body:'An ordinary post.',club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('An ordinary post.');expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(1);expect(getClubDiscussion).not.toHaveBeenCalled();
 });
 
 const chain=()=>Array.from({length:6},(_,i)=>({...comment,id:'chain-'+i,parent_comment_id:i?'chain-'+(i-1):null,body:'Reply at depth '+i}));
@@ -119,10 +128,10 @@ test('deep notification targets open a readable branch automatically',async()=>{
  mockParams={id:'post-1',commentId:'chain-5'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue(chain());await render(<PostDetailScreen/>);expect(text()).toContain('Conversation');expect(text()).toContain('Reply at depth 5');expect(text()).not.toContain('Reply at depth 0');expect(text()).not.toContain('Reply at depth 4');
 });
 test('missing focused comments cannot accidentally publish to the post root',async()=>{
- mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(button('Back to post')).toBeDefined();
+ mockParams={id:'post-1',threadId:'deleted'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);expect(text()).toContain('This conversation is no longer available');expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(button('Back to post')).toBeDefined();
 });
 test('focused routes preserve spoiler protection for the comment branch',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
+ mockParams={id:'post-1',threadId:'comment-1'};await render(<PostDetailScreen/>);expect(text()).not.toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reveal club discussion spoilers');expect(text()).toContain(comment.body);
 });
 
 test.each(['name','avatar','empty space'])('notification thread opens comment actions when holding the %s',async area=>{
@@ -137,9 +146,9 @@ test.each(['name','avatar','empty space'])('notification thread opens comment ac
 test('focused notification replies use the Home placeholder and quote the parent comment',async()=>{
  mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});await render(<PostDetailScreen/>);
  expect(field('Comment reply text')).toBeUndefined();expect(text()).not.toContain('Replying to');await chooseReply('comment-1');expect(field('Comment reply text').props.placeholder).toBe('Write a reply…');
- const composer=view.root.findByType('KeyboardStickyView');const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
+ const composer=view.root.findByProps({testID:'post-comment-composer'});const composerText=composer.findAllByType('Text').map(n=>[n.props.children].flat(Infinity).join('')).join(' ');
  expect(composerText).toContain('Replying to Another Reader');expect(composerText).toContain(comment.body);
- const backdrop=composer.findAllByType('View').find(n=>n.props.pointerEvents==='none'&&n.props.style?.height===844);expect(backdrop).toBeDefined();expect(backdrop.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
+ expect(composer.props.style.backgroundColor).toBe(require('../src/constants/novori-theme').DARK_COLORS.background);
 });
 
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
@@ -239,7 +248,7 @@ test('a root conversation offers no parent action and preserves the reply label 
 });
 
 test('focused reading hides the post and composer until Reply is chosen, then cancellation restores reading mode',async()=>{
- mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null,body:'Original post only'});await render(<PostDetailScreen/>);expect(text()).not.toContain('Original post only');expect(text()).toContain(comment.body);expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);await press('Reply to comment: comment-1');expect(field('Comment reply text')).toBeDefined();await press('Cancel reply');expect(view.root.findAllByType('KeyboardStickyView')).toHaveLength(0);expect(text()).not.toContain('Choose a comment');
+ mockParams={id:'post-1',threadId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null,body:'Original post only'});await render(<PostDetailScreen/>);expect(text()).not.toContain('Original post only');expect(text()).toContain(comment.body);expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);await press('Reply to comment: comment-1');expect(field('Comment reply text')).toBeDefined();await press('Cancel reply');expect(view.root.findAllByProps({testID:'post-comment-composer'})).toHaveLength(0);expect(text()).not.toContain('Choose a comment');
 });
 test('comment deletion can be cancelled without issuing a write',async()=>{
  mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});getPostComments.mockResolvedValue([{...comment,is_own:true}]);await render(<PostDetailScreen/>);await act(async()=>button('Comment: comment-1').props.onLongPress());const action=view.root.findAllByType('Pressable').find(n=>n.findAllByType('Text').some(t=>t.props.children==='Delete'));await act(async()=>action.props.onPress());await act(async()=>jest.advanceTimersByTime(210));const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);await act(async()=>sheet.props.onDismiss());expect(view.root.findByType('DeletePostConfirmSheet').props.visible).toBe(false);expect(deletePostComment).not.toHaveBeenCalled();
@@ -255,4 +264,93 @@ test('conversation header uses balanced sides and groups its count with sorting'
 
 test('a loading conversation keeps its header at the top and does not schedule an entrance scroll',async()=>{
  mockParams={id:'post-1',threadId:'comment-1',commentId:'comment-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});const read=deferred();getPostComments.mockReturnValue(read.promise);const timers=jest.spyOn(global,'setTimeout');await render(<PostDetailScreen/>);expect(text()).toContain('Conversation');expect(text()).toContain('Loading conversation…');expect(button('Back to previous screen')).toBeDefined();expect(view.root.findAllByType('ActivityIndicator').map(node=>node.props.size)).toEqual(['small']);await act(async()=>read.resolve([comment]));expect(text()).toContain(comment.body);expect(text()).not.toContain('Loading conversation…');expect(timers.mock.calls.some(call=>call[1]===450)).toBe(false);timers.mockRestore();
+});
+
+test('standalone post keeps the draft while scrolling and reserves keyboard space around the whole thread',async()=>{
+ mockParams={id:'post-1'};getPostDetail.mockResolvedValue({...post,club_discussion:null});
+ await render(<PostDetailScreen/>);
+ const input=()=>field('Comment reply text');
+ await act(async()=>input().props.onChangeText('Draft comment'));
+ const scroll=view.root.findByType('ScrollView');
+ expect(scroll.props.onTouchStart).toBeUndefined();
+ expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
+ await act(async()=>scroll.props.onScrollBeginDrag({}));
+ expect(input().props.value).toBe('Draft comment');
+ expect(view.root.findByType('KeyboardAvoidingView').props).toMatchObject({behavior:'padding',automaticOffset:true});
+});
+
+test('discussion Edit and Delete live in the standalone post menu, and deletion requires confirmation',async()=>{
+ mockParams={id:'post-1'};deletePost.mockResolvedValue('post-1');
+ getPostDetail.mockResolvedValue({...post,author_avatar_url:'https://example.com/author-avatar.jpg',club_discussion:{...topic,viewer_can_manage:false}});
+ await render(<PostDetailScreen/>);
+ expect(button('Share post')).toBeDefined();
+ expect(button('Edit club discussion')).toBeUndefined();
+ await press('More post options');await press('Edit Post');
+ expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-discussion',params:{clubId:'club-1',discussionId:'discussion-1',previewKey:expect.any(String)}});
+ const {previewKey}=mockRouter.push.mock.calls.at(-1)[0].params;
+ expect(getFeedComposerPreview(previewKey)?.identity).toEqual({userId:'member-1',profile:{display_name:'A Reader',username:'reader',avatar_url:'https://example.com/author-avatar.jpg'}});
+ await press('More post options');await press('Delete Post');
+ expect(deletePost).not.toHaveBeenCalled();
+ const confirm=view.root.findAllByType('DeletePostConfirmSheet').find(node=>node.props.title==='Delete discussion?');
+ await act(async()=>confirm.props.onConfirm());
+ expect(deletePost).toHaveBeenCalledWith('post-1');expect(mockRouter.back).toHaveBeenCalled();
+});
+
+test.each([false,true])('create and edit put the fields inside one discussion card (editing: %s)',async editing=>{
+ mockParams={clubId:'club-1',...(editing?{discussionId:'discussion-1'}:{})};
+ await render(<CreateClubDiscussionScreen/>);
+ const preview=()=>view.root.findByType(ClubDiscussionPostAttachment);
+ expect(preview().props).toMatchObject({detail:true,draft:true,revealed:true});
+ expect(preview().findAllByType('TextInput').some(input=>input.props.accessibilityLabel==='Discussion title')).toBe(true);
+ expect(text()).not.toContain('Post preview');
+ expect(Boolean(button('Create discussion'))).toBe(!editing);
+ expect(Boolean(button('Create poll'))).toBe(!editing);
+ if(editing) expect(preview().props.discussion.title).toBe(topic.title);
+ await fill('Discussion title','A new chapter');
+ await fill('Discussion prompt','What did you think?');
+ expect(preview().props.discussion).toMatchObject({title:'A new chapter',prompt:'What did you think?'});
+});
+
+test('returning to club discussions keeps the active filter and loaded pages until posts change',async()=>{
+ mockParams={clubId:'club-1'};
+ const first=Array.from({length:20},(_,i)=>({...topic,id:'topic-'+i,post_id:'post-'+i,title:'Topic '+i,contains_spoilers:false}));
+ getClubDiscussions.mockImplementation(async(_club,_read,_scope,offset)=>offset?[{...first[0],id:'extra',title:'Older discussion'}]:first);
+ await render(<ClubDiscussionsScreen/>);
+ await press('Show club discussion');
+ await press('More club discussions');
+ expect(text()).toContain('Older discussion');
+ const calls=getClubDiscussions.mock.calls.length;
+ const footer=view.root.findByType('DiscussionBottomBar');
+ mockFocused=false;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(view.root.findByType('DiscussionBottomBar')).toBe(footer);
+ mockFocused=true;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(getClubDiscussions).toHaveBeenCalledTimes(calls);
+ expect(text()).toContain('Older discussion');
+ expect(button('Show club discussion').props.accessibilityState.selected).toBe(true);
+ mockFocused=false;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ mockFocused=true;mockPostMutation++;await act(async()=>view.update(<ClubDiscussionsScreen/>));
+ expect(getClubDiscussions).toHaveBeenLastCalledWith('club-1',null,'discussion',20);
+ expect(text()).toContain('Older discussion');
+});
+
+test('discussion book removal clears the club read without turning off spoilers',async()=>{
+ mockParams={clubId:'club-1',discussionId:'discussion-1'};
+ await render(<CreateClubDiscussionScreen/>);
+ expect(button('Choose discussion club read').findAllByType('Text')).toHaveLength(0);
+ await act(async()=>button('Remove attached book').props.onPress({stopPropagation:jest.fn()}));
+ expect(button('Remove attached book')).toBeUndefined();
+ expect(view.root.findByType('Switch').props.value).toBe(true);
+ await press('Publish club discussion');
+ expect(saveClubDiscussion).toHaveBeenCalledWith('club-1',expect.objectContaining({read_id:null,contains_spoilers:true}),topic,'stable-discussion-request-key');
+});
+
+test('the discussion book picker owns its full-screen safe area and can close',async()=>{
+ mockParams={clubId:'club-1',discussionId:'discussion-1'};
+ await render(<CreateClubDiscussionScreen/>);
+ await press('Choose discussion club read');
+ const modal=view.root.findByType('Modal');
+ expect(modal.props.presentationStyle).toBe('fullScreen');
+ expect(modal.findByType('SafeAreaProvider').findByType('SafeAreaView').props.edges).toContain('top');
+ await press('Close club read picker');
+ expect(button('Close club read picker')).toBeUndefined();
 });

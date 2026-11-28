@@ -1,3 +1,5 @@
+import ReadingStreakCelebration from './ReadingStreakCelebration';
+import { readingStreakTier, reachedReadingStreakTier, type StreakTier } from '../lib/reading-streak-tier';
 import {isAccountUnavailableError} from '../lib/account-session-errors';
 import {
   Ionicons,
@@ -125,6 +127,11 @@ export default function ProfileReadingModule({
     );
 
   const [localDate, setLocalDate] = useState(getLocalDateKey);
+  const [milestone, setMilestone] = useState<{tier: StreakTier; days: number} | null>(null);
+  const [checkinSize, setCheckinSize] = useState({ width: 0, height: 0 });
+  const currentStreak = checkinState?.currentStreak ?? 0;
+  const tier = readingStreakTier(currentStreak);
+
   const checkinMutationVersion = useRef(0);
   const knownCheckinState = useRef(checkinState);
   knownCheckinState.current = checkinState;
@@ -257,8 +264,7 @@ export default function ProfileReadingModule({
       ]
     );
 
-  const todayCheckinKey =
-    localDate;
+  const todayCheckinKey = localDate;
 
   function toggleCheckinBook(
     googleBookId:
@@ -343,7 +349,11 @@ export default function ProfileReadingModule({
           todayCheckinKey
         );
 
-      if (next.localDate === getLocalDateKey()) setCheckinState(next);
+      if (next.localDate === getLocalDateKey()) {
+        setCheckinState(next);
+        const reached = next.checkedIn && reachedReadingStreakTier(checkinState?.currentStreak ?? 0, next.currentStreak);
+        if (reached) setMilestone({tier:reached,days:next.currentStreak});
+      }
 
       setCheckinSheetVisible(
         false
@@ -581,7 +591,7 @@ export default function ProfileReadingModule({
               }
             >
               <Ionicons
-                name="flame-outline"
+                name={tier ? "flame" : "flame-outline"}
                 size={
                   16
                 }
@@ -595,11 +605,7 @@ export default function ProfileReadingModule({
                   styles.streakText
                 }
               >
-                {checkinState &&
-                checkinState.currentStreak >
-                  0
-                  ? `${checkinState.currentStreak} day${checkinState.currentStreak === 1 ? '' : 's'} streak`
-                  : 'Start your streak today'}
+                {currentStreak > 0 ? `${currentStreak} day${currentStreak === 1 ? '' : 's'} streak` : 'Start your streak today'}
               </Text>
             </View>
           </View>
@@ -607,8 +613,13 @@ export default function ProfileReadingModule({
           <View style={styles.moduleMark}><Ionicons name="book-outline" size={21} color={colors.gold} /></View>
         </View>
 
-        {checkinState
-          ?.checkedIn ? (
+        {tier && <Text style={{color:colors.gold,fontFamily:'Inter_700Bold',fontSize:11,marginTop:6}}>{tier.label}</Text>}
+        <View onLayout={({ nativeEvent: { layout: { width, height } } }) => {
+          setCheckinSize(current => current.width === width && current.height === height ? current : { width, height });
+        }}>
+          <View pointerEvents={milestone ? 'none' : 'auto'} accessibilityElementsHidden={Boolean(milestone)}
+            importantForAccessibility={milestone ? 'no-hide-descendants' : 'auto'}>
+        {checkinState?.checkedIn ? (
           <View
             style={
               styles.checkedInActionRow
@@ -684,11 +695,7 @@ export default function ProfileReadingModule({
         ) : (
           <Pressable
             disabled={
-              loadingCheckin ||
-              savingCheckin ||
-              Boolean(
-                checkinError
-              )
+              loadingCheckin || savingCheckin || Boolean(checkinError)
             }
             onPress={
               openDailyCheckin
@@ -701,14 +708,12 @@ export default function ProfileReadingModule({
               styles.checkinButton,
               (
                 pressed ||
-                loadingCheckin ||
-                savingCheckin
+                loadingCheckin || savingCheckin
               ) &&
                 styles.pressed,
             ]}
           >
-            {loadingCheckin ||
-            savingCheckin ? (
+            {loadingCheckin || savingCheckin ? (
               <ActivityIndicator
                 size="small"
                 color={
@@ -746,10 +751,7 @@ export default function ProfileReadingModule({
             (
               item
             ) => {
-              const checked =
-                checkedDateSet.has(
-                  item.key
-                );
+              const checked = checkedDateSet.has(item.key);
 
               const isToday =
                 item.key ===
@@ -809,6 +811,10 @@ export default function ProfileReadingModule({
               );
             }
           )}
+        </View>
+
+          </View>
+          {milestone && <ReadingStreakCelebration key={milestone.days} {...milestone} region={checkinSize} onDismiss={() => setMilestone(null)}/>}
         </View>
 
         {checkinError ? (

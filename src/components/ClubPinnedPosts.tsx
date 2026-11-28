@@ -5,9 +5,9 @@ import { useNovoriTheme } from '../context/theme-context';
 import type { FeedPost } from '../lib/feed';
 import { clubDiscussionPreview } from '../lib/club-discussion';
 
-type Props = { posts: FeedPost[]; canManage: boolean; busy: boolean; onOpen: (postId: string) => void; onManage: (post: FeedPost) => void };
+type Props = { posts: FeedPost[]; canManage: boolean; busy: boolean; onOpen: (postId: string) => void; onManage: (post: FeedPost) => void; onMore?: (post:FeedPost)=>void };
 
-export default function ClubPinnedPosts({ posts,canManage,busy,onOpen,onManage }: Props) {
+export default function ClubPinnedPosts({ posts,canManage,busy,onOpen,onManage,onMore }: Props) {
   const { colors } = useNovoriTheme();
   const styles = useMemo(() => StyleSheet.create({
     section: { marginBottom: 0 }, heading: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
@@ -29,7 +29,7 @@ export default function ClubPinnedPosts({ posts,canManage,busy,onOpen,onManage }
         <Text style={styles.body} numberOfLines={2}>{post.contains_spoilers ? 'Contains spoilers · Open to reveal' : post.club_discussion ? clubDiscussionPreview(post.club_discussion) : post.club_event?.title || post.body.trim() || post.book_title || 'Book stack'}</Text>
         <Text style={styles.author} numberOfLines={1}>{post.author_display_name || post.author_username || 'Novori Reader'}</Text>
       </Pressable>
-      {canManage ? <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Manage pin: ${post.id}`} onPress={() => onManage(post)} style={({ pressed }) => [styles.manage,pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={18} color={colors.mutedText} /></Pressable> : null}
+      {canManage || onMore ? <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={onMore ? `More pinned post options: ${post.id}` : `Manage pin: ${post.id}`} onPress={() => (onMore ?? onManage)(post)} style={({ pressed }) => [styles.manage,pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={18} color={colors.mutedText} /></Pressable> : null}
     </View>)}
   </View>;
 }

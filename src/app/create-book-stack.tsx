@@ -1,73 +1,70 @@
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
-import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
-import {resolveStackDragTarget} from '../lib/stack-drag-target';
-import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
+import { PostAttachmentControls } from '../components/PostAttachmentControls';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useLocalSearchParams,
-  useRouter,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useEffect,
-  useRef,
-  useState,
+useEffect,
+useRef,
+useState,
 } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+ActivityIndicator,
+Alert,
+Keyboard,
+Modal,
+Pressable,
+ScrollView,
+StyleSheet,
+Text,
+TextInput,
+View,
 } from 'react-native';
 import {
-  SafeAreaView,
+SafeAreaView,
 } from 'react-native-safe-area-context';
+import BookSearchRatings from '../components/BookSearchRatings';
+import { displayBookTitle } from '../lib/book-title';
+import { resolveCanonicalBookCover } from '../lib/canonical-book-covers';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
+import type { FeedPost } from '../lib/feed';
+import { resolveStackDragTarget } from '../lib/stack-drag-target';
 
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import BookCoverImage from '../components/BookCoverImage';
 import BookStackShowcase from '../components/BookStackShowcase';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
-import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
-import ValidationWarningSheet from '../components/ValidationWarningSheet';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import SortableBookStackRow, {
-  StackDropEdge,
+import SortableBookStackRow,{
+StackDropEdge,
 } from '../components/SortableBookStackRow';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import {
-  getNovoriSearchBookCover,
-  GoogleBookSearchItem,
-  searchNovoriBooks,
+getNovoriSearchBookCover,
+GoogleBookSearchItem,
+
 } from '../lib/book-search';
 import {
-  BookStackDraftItem,
-  saveBookStackSubmission,
-  getBookStack,
+BookStackDraftItem,
+getBookStack,
+saveBookStackSubmission,
 } from '../lib/book-stacks';
 import {
-  getPostDetail,
+getPostDetail,
 } from '../lib/feed';
-import {
-  supabase,
-} from '../lib/supabase';
 
 const MAX_STACK_BOOKS = 10;
 const MIN_STACK_BOOKS = 2;
-const MIN_BOOK_SEARCH_LENGTH = 2;
-const AUTO_BOOK_SEARCH_MIN_LENGTH = 4;
-const BOOK_SEARCH_DELAY_MS = 700;
 
 function getStackBookPrimaryIsbn(
   book: GoogleBookSearchItem
@@ -113,6 +110,7 @@ export default function CreateBookStackScreen() {
 
   const params =
     useLocalSearchParams<{
+      previewKey?: string;
       editPostId?: string;
       stackId?: string;
     }>();
@@ -170,25 +168,8 @@ export default function CreateBookStackScreen() {
   ] =
     useState('');
 
-  const [
-    results,
-    setResults,
-  ] =
-    useState<
-      GoogleBookSearchItem[]
-    >([]);
-
-  const [
-    searching,
-    setSearching,
-  ] =
-    useState(false);
-
-  const [
-    searchError,
-    setSearchError,
-  ] =
-    useState('');
+  const {results,busy:searching,error:searchError,submit:searchImmediately}
+    = useAttachmentBookSearch(searchOpen,query);
 
   const [
     resolvingBookIds,
@@ -207,7 +188,8 @@ export default function CreateBookStackScreen() {
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubName, setClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
-  const viewerProfile = usePostComposerProfile();
+  const viewerProfile = usePostComposerProfile(params.previewKey);
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [stackWarning, setStackWarning] = useState<{ title: string; message: string } | null>(null);
   async function showStackFailure(error: unknown, operation: 'save' | 'publish') {
     const details = error && typeof error === 'object'
@@ -287,16 +269,6 @@ export default function CreateBookStackScreen() {
       number | null
     >(null);
 
-  const timerRef =
-    useRef<
-      ReturnType<
-        typeof setTimeout
-      > | null
-    >(null);
-
-  const requestRef =
-    useRef(0);
-
   useEffect(() => {
     let active =
       true;
@@ -330,6 +302,7 @@ export default function CreateBookStackScreen() {
           return;
         }
 
+        setEditSource(post);
         setName(
           stack.name
         );
@@ -401,155 +374,6 @@ export default function CreateBookStackScreen() {
     isEditing,
     router,
   ]);
-
-  useEffect(() => {
-    if (
-      timerRef.current
-    ) {
-      clearTimeout(
-        timerRef.current
-      );
-    }
-
-    const searchTerm =
-      query.trim();
-
-    if (
-      !searchOpen
-    ) {
-      requestRef.current +=
-        1;
-      setSearching(false);
-      return;
-    }
-
-    if (
-      searchTerm.length <
-        MIN_BOOK_SEARCH_LENGTH
-    ) {
-      requestRef.current +=
-        1;
-      setResults([]);
-      setSearchError('');
-      setSearching(false);
-      return;
-    }
-
-    if (
-      searchTerm.length <
-        AUTO_BOOK_SEARCH_MIN_LENGTH
-    ) {
-      requestRef.current +=
-        1;
-      setSearching(false);
-      return;
-    }
-
-    const requestId =
-      ++requestRef.current;
-
-    timerRef.current =
-      setTimeout(() => {
-        void performSearch(
-          searchTerm,
-          requestId
-        );
-      }, BOOK_SEARCH_DELAY_MS);
-
-    return () => {
-      if (
-        timerRef.current
-      ) {
-        clearTimeout(
-          timerRef.current
-        );
-      }
-    };
-  }, [
-    query,
-    searchOpen,
-  ]);
-
-  async function performSearch(
-    searchTerm: string,
-    requestId: number
-  ) {
-    try {
-      setSearching(true);
-      setSearchError('');
-
-      const next =
-        await searchNovoriBooks(
-          searchTerm
-        );
-
-      if (
-        requestId !==
-        requestRef.current
-      ) {
-        return;
-      }
-
-      setResults(
-        next
-      );
-    } catch (
-      error
-    ) {
-      if (
-        requestId !==
-        requestRef.current
-      ) {
-        return;
-      }
-
-      console.error(
-        'Could not search books for stack:',
-        error
-      );
-
-      setSearchError(
-        'Could not search books. Please try again.'
-      );
-
-      setResults([]);
-    } finally {
-      if (
-        requestId ===
-        requestRef.current
-      ) {
-        setSearching(false);
-      }
-    }
-  }
-
-  function searchImmediately() {
-    if (
-      timerRef.current
-    ) {
-      clearTimeout(
-        timerRef.current
-      );
-    }
-
-    const searchTerm =
-      query.trim();
-
-    if (
-      searchTerm.length <
-        MIN_BOOK_SEARCH_LENGTH
-    ) {
-      return;
-    }
-
-    const requestId =
-      ++requestRef.current;
-
-    void performSearch(
-      searchTerm,
-      requestId
-    );
-  }
 
   function openBookSearch() {
     setSearchOpen(
@@ -907,7 +731,8 @@ export default function CreateBookStackScreen() {
 
       await saveBookStackSubmission({ name, items, stackId: isEditing ? editStackId : null,
         publish: Boolean(editPostId), body: postText, clubId, postId: editPostId || null });
-      router.replace(editPostId ? '/(tabs)' : '/(tabs)/profile');
+      if (editPostId) router.back();
+      else router.replace('/(tabs)/profile');
     } catch (
       error
     ) {
@@ -1089,7 +914,7 @@ export default function CreateBookStackScreen() {
       </View>
 
       <KeyboardAwareScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, styles.destinationAtTop]}
         scrollEnabled={!draggingBookId}
         keyboardShouldPersistTaps="handled"
         disableScrollOnKeyboardHide
@@ -1098,7 +923,7 @@ export default function CreateBookStackScreen() {
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={saving || publishing}
           clubId={clubId} clubName={clubName} onClubIdChange={setClubId} profile={viewerProfile} />
-        <EditablePostCard
+        <EditablePostCard source={editSource}
           postType="book_stack"
           author={viewerProfile}
           clubId={clubId}
@@ -1128,17 +953,11 @@ export default function CreateBookStackScreen() {
             compactTopSpacing
           >
             <View style={styles.cardStackControls} pointerEvents={saving || publishing ? 'none' : 'auto'}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add books to stack"
-                disabled={items.length >= MAX_STACK_BOOKS || saving || publishing}
-                onPress={openBookSearch}
-                style={({ pressed }) => [styles.addBookButton, items.length >= MAX_STACK_BOOKS && styles.disabled, pressed && styles.pressed]}
-              >
-                <Ionicons name="add" size={18} color={colors.gold} />
-                <Text style={styles.addBookText}>Add Books</Text>
+              <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                <PostAttachmentControls disabled={items.length >= MAX_STACK_BOOKS || saving || publishing}
+                  book={{label:'Add books to stack',onPress:openBookSearch}}/>
                 <Text style={styles.cardBookCount}>{items.length}/{MAX_STACK_BOOKS}</Text>
-              </Pressable>
+              </View>
               {items.length > 0 ? (
                 <>
                   <Text style={styles.sectionSubtext}>Hold the grip to rearrange your books.</Text>
@@ -1534,6 +1353,7 @@ function createStyles(
         colors.background,
     },
 
+    destinationAtTop: { paddingTop: 0 },
     header: {
       height: 54,
       flexDirection:
@@ -1584,33 +1404,6 @@ function createStyles(
         'Inter_400Regular',
       fontSize: 11,
       marginTop: 4,
-    },
-
-    addBookButton: {
-      minHeight: 45,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 4,
-      paddingHorizontal: 14,
-      marginTop: 14,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      borderRadius: 13,
-      backgroundColor:
-        colors.surface,
-    },
-
-    addBookText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_700Bold',
-      fontSize: 12,
     },
 
     arrangeList: {

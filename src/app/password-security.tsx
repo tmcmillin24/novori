@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DeletePostConfirmSheet from '../components/DeletePostConfirmSheet';
 import ValidationWarningSheet from '../components/ValidationWarningSheet';
-import { SettingsDivider, SettingsHeader, SettingsIntro, SettingsSection, settingsStyles } from '../components/SettingsPrimitives';
+import { SettingsDivider, SettingsHeader, SettingsSection, settingsStyles } from '../components/SettingsPrimitives';
 import { useNovoriTheme } from '../context/theme-context';
 import { supabase } from '../lib/supabase';
 
@@ -80,7 +80,6 @@ export default function PasswordSecurityScreen() {
   return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
     <SettingsHeader title="Password & Security" />
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <SettingsIntro icon="shield-checkmark-outline" title="Keep your reading space yours." detail="Manage your password and access to your Novori account." />
       {loading ? <View style={styles.centered}><ActivityIndicator color={colors.gold} /></View> : loadError ?
         <View style={styles.centered}><Text style={styles.errorText}>{loadError}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry account details" style={styles.retry} onPress={() => void loadAccount()}><Text style={styles.retryText}>Try again</Text></Pressable></View> : account ? <>
         <SettingsSection icon="person-circle-outline" title="Your account">
@@ -90,7 +89,6 @@ export default function PasswordSecurityScreen() {
         </SettingsSection>
         <SettingsSection icon="key-outline" title="Password">
           {action('key-outline', 'Change password', 'Send a secure reset link to your account email.', () => void sendResetEmail(), Boolean(busy) || !account.email, busy === 'reset')}
-          <View style={styles.note}><Ionicons name="lock-closed-outline" size={17} color={colors.gold} /><Text style={styles.noteText}>Open the newest reset email to choose your new password. Novori never displays your password.</Text></View>
         </SettingsSection>
         <SettingsSection icon="phone-portrait-outline" title="Signed-in devices">
           {action('log-out-outline', 'Sign out other devices', 'Keep this phone signed in and end other sessions.', () => { setSessionsError(''); setConfirmSessions(true); }, Boolean(busy), busy === 'sessions')}

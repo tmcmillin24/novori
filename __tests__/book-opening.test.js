@@ -3,14 +3,14 @@ const source = fs.readFileSync(path.join(__dirname, '../src/app/book/[id]/index.
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const flush = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
 
-function harness({ canonicalId = 'book', failStatus = false, discoveryId = undefined, cachedExtras = false } = {}) {
+function harness({ canonicalId = 'book', failStatus = false, discoveryId = undefined, cachedExtras = false, seriesSnapshot = undefined } = {}) {
   const state = {}, reader = deferred(), cover = deferred(), cart = deferred(), rating = deferred(), reviews = deferred(), work = deferred();
   const book = { id: 'book', volumeInfo: { title: 'Dune', authors: ['Frank Herbert'], industryIdentifiers: [] } };
   const setters = Object.fromEntries([...new Set(source.match(/\bset[A-Z]\w+/g))].map(name => [name, jest.fn(value => { state[name] = value; })]));
   let metadataOptions;
   const getUserBook = jest.fn(id => failStatus ? Promise.reject(Error('offline')) : reader.promise.then(row => ({ ...row, google_book_id: id })));
   const deps = {
-    ...setters, syncEditionPages: jest.fn(async()=>{}), applyEditionPages: require('../src/lib/edition-pages').applyEditionPages, discoveryId, rememberDiscoveryBookId: jest.fn(), id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
+    ...setters, seriesSnapshot, syncEditionPages: jest.fn(async()=>{}), applyEditionPages: require('../src/lib/edition-pages').applyEditionPages, discoveryId, rememberDiscoveryBookId: jest.fn(), id: 'book', source: 'library', canonicalizeWork: canonicalId === 'book' ? '0' : '1',
     clickedTitle: 'Dune', discoverClickedAuthors: ['Frank Herbert'], clickedIsbn: undefined, discoverCoverUrl: 'https://covers/current',
     savedStatusVersion: { current: 0 }, bookLoadGeneration: { current: 0 }, firstFocusBook: { current: null }, isSavedBookContext: true,
     getUserBook,
@@ -45,10 +45,11 @@ test('cached details and existing cover display before private, cover, and enric
   expect(h.deps.getBookCartItem).toHaveBeenCalledTimes(1);
   expect(h.deps.getCommunityBookReviews).toHaveBeenCalledTimes(1);
   expect(h.deps.resolveHardcoverRating).not.toHaveBeenCalled();
+  expect(h.deps.loadSeries).toHaveBeenCalledWith(h.book, expect.any(Function), h.work.promise, undefined);
   const enriched = { ...h.book, novoriDetails: { bookId: 'work', isbns: ['isbn'] } };
   h.enrich(enriched); h.work.resolve(enriched); await flush();
   expect(h.deps.resolveHardcoverRating.mock.calls[0][0].googleBookId).toBe('work');
-  expect(h.deps.loadSeries).toHaveBeenCalledWith(enriched, expect.any(Function));
+  expect(h.deps.loadSeries).toHaveBeenCalledTimes(1);
   h.reader.resolve({ status: 'reading' }); await flush();
   expect(h.state.setReaderStateReady).toBe(true);
   expect(h.state.setReadingStatus).toBe('reading');
@@ -106,5 +107,14 @@ test('persisted rating and series hits do not wait for work enrichment after res
  const h=harness({cachedExtras:true});h.open();await flush();
  expect(h.state.setHardcoverRating).toBe(4.2);expect(h.state.setHardcoverRatingsCount).toBe(150);
  expect(h.deps.resolveHardcoverRating).not.toHaveBeenCalled();
- expect(h.deps.loadSeries).toHaveBeenCalledWith(h.book,expect.any(Function));
+ expect(h.deps.loadSeries).toHaveBeenCalledWith(h.book,expect.any(Function),h.work.promise,undefined);
+});
+
+test('opening a sibling keeps the known series visible while fetching updated data', async () => {
+  const snapshot={series:{id:7,name:'Mapmakers',currentPosition:2},books:[{id:20,position:2,title:'Winter Charts'}]};
+  const h=harness({seriesSnapshot:snapshot});h.open();await flush();
+  expect(h.state.setSeries).toEqual(snapshot.series);
+  expect(h.state.setSeriesBooks).toEqual(snapshot.books);
+  expect(h.state.setSeriesLoading).toBe(false);
+  expect(h.deps.loadSeries).toHaveBeenCalledWith(h.book,expect.any(Function),h.work.promise,snapshot);
 });

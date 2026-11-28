@@ -1,3 +1,10 @@
+jest.mock('../src/components/usePostCommentsSheet',()=>({usePostCommentsSheet:()=>({openCommentsSheet:mockOpenComments,sheet:null})}));
+jest.mock('../src/components/BrowsingNavigation',()=>({useBrowsingNavigationScroll:()=>({onScroll:()=>{},onScrollBeginDrag:()=>{}})}));
+jest.mock('../src/hooks/use-feed-language-preference',()=>({useFeedLanguagePreference:()=>({})}));
+jest.mock('../src/components/CanonicalBookRating',()=> 'CanonicalBookRating');
+jest.mock('../src/components/ClubDiscussionPostAttachment',()=> 'ClubDiscussionPostAttachment');
+jest.mock('../src/components/ReadingRecapPostAttachment',()=> 'ReadingRecapPostAttachment');
+jest.mock('../src/components/ClubEventPostAttachment',()=> 'ClubEventPostAttachment');
 jest.mock('../src/components/PushNotificationSettings', () => 'PushNotificationSettings');
 jest.mock('expo-image', () => ({ Image: 'ExpoImage' }));
 jest.mock('../src/lib/dismiss-keyboard-before-warning',()=>({dismissKeyboardBeforeWarning:jest.fn().mockResolvedValue(undefined)}));
@@ -13,11 +20,13 @@ import NotificationSettingsScreen from '../src/app/notification-settings';
 import {getClubMemberExperience,setClubNotificationsEnabled,dismissClubWelcome} from '../src/lib/club-member-experience';
 import {getNotificationPreferences,updateNotificationPreference} from '../src/lib/notifications';
 import { getClub, getClubMembers, getPendingClubInvitesForManager, updateClub, createClub } from '../src/lib/clubs';
-import { getClubPosts } from '../src/lib/feed';
+import { deletePost, getClubPosts } from '../src/lib/feed';
+import { submitPostReport } from '../src/lib/reports';
 import { getClubEvents } from '../src/lib/club-events';
 import { getClubReads } from '../src/lib/club-reads';
 import { getClubConversation, getClubPins, setClubPostPin } from '../src/lib/club-posts';
 
+const mockOpenComments=jest.fn();
 const mockRouter={push:jest.fn(),back:jest.fn(),replace:jest.fn()};
 let mockClubParams={id:'club-1',clubId:'club-1'};
 let mockClubFocus, mockPostVersion=0;
@@ -51,11 +60,11 @@ jest.mock('../src/lib/notifications',()=>({getNotificationPreferences:jest.fn(),
 jest.mock('../src/lib/supabase',()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}})}}}));
 jest.mock('../src/lib/clubs',()=>({updateClub:jest.fn(),createClub:jest.fn(),uploadClubCover:jest.fn(),getClub:jest.fn(),getClubMembers:jest.fn(),getPendingClubInvite:async()=>null,getPendingPrivateClubRequest:async()=>null,
   getPendingClubInvitesForManager:jest.fn(),getPendingClubJoinRequestsForManager:async()=>[],searchClubInviteCandidates:jest.fn()}));
-jest.mock('../src/lib/feed',()=>({getClubPosts:jest.fn(),getPostMutationVersion:()=>mockPostVersion}));
+jest.mock('../src/lib/feed',()=>({deletePost:jest.fn().mockResolvedValue('post-1'),getClubPosts:jest.fn(),getPostMutationVersion:()=>mockPostVersion}));
 jest.mock('../src/lib/club-events',()=>({getClubEvents:jest.fn(),CLUB_EVENTS_PAGE_SIZE:20}));
 jest.mock('../src/lib/club-reads',()=>({getClubReads:jest.fn()}));
 jest.mock('../src/lib/club-posts',()=>({MAX_CLUB_PINS:3,getClubConversation:jest.fn(),getClubPins:jest.fn(),setClubPostPin:jest.fn(),resolveClubPinnedPosts:async(club,pins,posts)=>pins.flatMap(pin=>{const post=posts.find(p=>p.id===pin.post_id);return post?[post]:[];})}));
-jest.mock('../src/lib/reports',()=>({}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({shareClubLink:jest.fn(async()=>{})}));
+jest.mock('../src/lib/reports',()=>({submitPostReport:jest.fn().mockResolvedValue('report-1')}));jest.mock('../src/lib/social',()=>({}));jest.mock('../src/lib/share-links',()=>({shareClubLink:jest.fn(async()=>{})}));
 const base={id:'club-1',owner_id:'owner',name:'Readers Club',description:'A home for good books.',privacy:'public',genres:[],cover_url:'club-photo.jpg',rules:'Be kind.\nLabel spoilers.',member_count:2,membership_role:'owner'};
 let view,silence;
 const experience={notifications_enabled:true,global_notifications_enabled:true,welcome_seen_at:'2026-10-03T19:00:00Z',current_read_id:'read-1',current_read_title:'Stored shared read'};
@@ -82,7 +91,7 @@ test('returning without writes preserves the club; a successful write refreshes 
 });
 function text(){return view.root.findAllByType('Text').map(node=>[node.props.children].flat(Infinity).join('')).join(' ');}
 function button(label){return view.root.findAllByType('Pressable').find(node=>node.props.accessibilityLabel===label);}
-async function press(label){await act(async()=>button(label).props.onPress());}
+async function press(label){await act(async()=>button(label).props.onPress({stopPropagation:()=>{}}));}
 test('club home keeps management and member lists compact until opened',async()=>{
   await render();expect(view.root.findAllByType(ClubHomeCard)).toHaveLength(1);expect(text()).toContain('Club conversation');expect(text()).not.toContain('Founder Person');
   expect(button('Open club options')).toBeDefined();expect(button('Edit club')).toBeUndefined();
@@ -141,18 +150,18 @@ test('creating a club includes optional rules without a separate save flow',asyn
 });
 
 const postFixture={id:'post-1',author_id:'owner',club_id:'club-1',post_type:'post',body:'Next meeting on Friday.',book_title:null,author_display_name:'Founder Person',created_at:new Date().toISOString(),comment_count:0,vote_score:0,viewer_vote:0,is_club_announcement:true};
-test('manager can start an announcement and pin an existing post',async()=>{
+test('manager can directly pin an existing post',async()=>{
   getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[]});getClubPins.mockResolvedValue([{post_id:'post-1'}]);
-  await render();await press('Create club announcement');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{clubId:'club-1',announcement:'1'}});
-  await press('Pin options: post-1');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,undefined);
+  await render();
+  await press('More post options');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,undefined);
   expect(text()).toContain('PINNED');expect(button('Open pinned post: Next meeting on Friday.')).toBeDefined();
 });
 test('full pin picker replaces a chosen post and unpin uses the same animation',async()=>{
   const pins=[1,2,3].map(i=>({...postFixture,id:'old-'+i,body:'Old pin '+i}));getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:pins});
   getClubPins.mockResolvedValue([{post_id:'old-1'},{post_id:'old-3'},{post_id:'post-1'}]);await render();
-  await press('Pin options: post-1');expect(button('Pin post')).toBeUndefined();await press('Replace: Old pin 2');
+  await press('More post options');await press('Pin post');expect(button('Pin post')).toBeUndefined();await press('Replace: Old pin 2');
   expect(setClubPostPin).toHaveBeenCalledWith('club-1','post-1',true,'old-2');
-  await press('Manage pin: post-1');getClubPins.mockResolvedValue([]);await press('Unpin post');
+  await press('More pinned post options: post-1');getClubPins.mockResolvedValue([]);await press('Unpin post');
   expect(setClubPostPin).toHaveBeenLastCalledWith('club-1','post-1',false,undefined);expect(text()).not.toContain('PINNED');
 });
 test('members can open old pinned posts but have no announcement or pin controls',async()=>{
@@ -162,7 +171,7 @@ test('members can open old pinned posts but have no announcement or pin controls
 });
 test('pin failures preserve the visible pins',async()=>{
   getClubConversation.mockResolvedValue({posts:[postFixture],pinnedPosts:[postFixture]});setClubPostPin.mockRejectedValue(new Error('Permission changed.'));
-  await render();await press('Pin options: post-1');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
+  await render();await press('More post options');await press('Unpin post');expect(text()).toContain('PINNED');expect(getClubPins).not.toHaveBeenCalled();
 });
 
 test('large member lists scroll inside the card while small clubs stay natural height',async()=>{
@@ -242,7 +251,7 @@ test('club announcement cards and comment buttons open the existing post convers
  expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'announcement-1'}});
  mockRouter.push.mockClear();
  await press('Open club post comments');
- expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/post/[id]',params:{id:'announcement-1'}});
+ expect(mockOpenComments).toHaveBeenCalledWith(expect.objectContaining({id:'announcement-1'}));
  expect(text()).toContain('3');expect(text()).toContain('comments');
 });
 
@@ -252,3 +261,21 @@ test('club posts show the same stack attachment and suppress its duplicate outer
  expect(view.root.findByType('BookStackPostAttachment').props.stackId).toBe('stack-id');
  expect(view.root.findByType('PostTypeIdentifier').props.attachmentHasLabel).toBe(true);
 });
+
+test('club announcement owners can edit and delete directly from the feed',async()=>{
+ await renderWithPost({...postFixture,is_club_announcement:true,author_id:'owner'});
+ await press('More post options');expect(button('Delete Post')).toBeDefined();expect(button('Report Post')).toBeUndefined();
+ await press('Edit Post');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-post',params:{editPostId:'post-1',previewKey:expect.any(String)}});
+ await press('More post options');await press('Delete Post');
+ expect(deletePost).not.toHaveBeenCalled();
+ const confirmation=view.root.findAll(node=>node.props.title==='Delete post?'&&typeof node.props.onConfirm==='function')[0];
+ await act(async()=>confirmation.props.onConfirm());
+ expect(deletePost).toHaveBeenCalledWith('post-1');
+ expect(button('More post options')).toBeUndefined();
+});
+test('other club posts offer report and keep the manager pin action',async()=>{
+ await renderWithPost({...postFixture,author_id:'member'});
+ await press('More post options');expect(button('Edit Post')).toBeUndefined();expect(button('Delete Post')).toBeUndefined();
+ expect(button('Pin post')).toBeDefined();await press('Report Post');await press('Spam or fraud');expect(submitPostReport).toHaveBeenCalledWith('post-1','spam');
+});
+async function renderWithPost(post){getClubConversation.mockResolvedValue({posts:[post],pinnedPosts:[]});await render();}

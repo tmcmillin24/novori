@@ -1,20 +1,26 @@
+import { seriesIdentityMatches } from './series-lookup.ts';
 import { catalogWorkTitleKey, normalizeCatalogAuthor } from './book-edition-metadata.ts';
 const authorKey = (name: string) => normalizeCatalogAuthor(name).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]/g,'');
-const titleKey = (title: string, seriesName = '') => {
- const suffix = seriesName ? new RegExp('\\s*\\(' + seriesName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '(?:,?\\s*(?:book\\s*)?\\d+(?:\\.\\d+)?)?\\)\\s*$','i') : null;
- return catalogWorkTitleKey(suffix ? title.replace(suffix,'') : title);
-};
+const titleKey = (title: string) => catalogWorkTitleKey(title);
+const isbnKeys = (book: any) => (book.isbns ?? [])
+ .filter((isbn: unknown): isbn is string => typeof isbn === 'string' && /^(?:\d{9}[\dX]|\d{13})$/.test(isbn))
+ .map((isbn: string)=>`membership:v1:isbn:${isbn}`);
 export function memberMatches(book: any, requested: any, seriesName = '') {
- return titleKey(book.title ?? '',seriesName) === titleKey(requested.title ?? '',seriesName) &&
-  (requested.authors ?? []).some((name: string)=>(book.authors ?? []).some((other: string)=>authorKey(name) === authorKey(other)));
+ if (seriesIdentityMatches({title:book.title ?? '',authors:book.authors ?? []},
+     {title:requested.title ?? '',authors:requested.authors ?? []},seriesName)) return true;
+ if (!isbnKeys(book).some((key: string)=>isbnKeys(requested).includes(key))) return false;
+ return (!requested.title || titleKey(requested.title) === titleKey(book.title ?? '')) &&
+   (!requested.authors?.length || requested.authors.some((name: string)=>(book.authors ?? []).some((other: string)=>authorKey(name) && authorKey(name) === authorKey(other))));
 }
 export function seriesMemberKeys(book: any) {
- return [...new Set([...(book.coverBookId ? [`membership:v1:id:${book.coverBookId}`] : []),
+ return [...new Set([...isbnKeys(book), ...(book.coverBookId ? [`membership:v1:id:${book.coverBookId}`] : []),
   ...(book.authors ?? []).map((author: string)=>`membership:v1:${titleKey(book.title ?? '')}::${authorKey(author)}`)])];
 }
 export async function readSeriesMembership(admin: any, requested: any) {
  try {
-  const {data,error} = await admin.from('book_api_cache').select('response_json').eq('provider','hardcover_series').in('request_key',seriesMemberKeys(requested)).gt('expires_at',new Date().toISOString());
+  const keys = seriesMemberKeys(requested);
+  if (!keys.length) return null;
+  const {data,error} = await admin.from('book_api_cache').select('response_json').eq('provider','hardcover_series').in('request_key',keys).gt('expires_at',new Date().toISOString());
   if (error) return null;
   const verified = (data ?? []).map((row: any)=>row.response_json).filter((fact: any)=>Number.isSafeInteger(fact?.series?.id) && memberMatches(fact.member ?? {},requested,fact.series.name));
   const sourceKeys = [...new Set(verified.map((fact: any)=>fact.sourceKey).filter((key: any)=>typeof key === 'string' && key.startsWith('series:')))];
@@ -37,7 +43,7 @@ export async function cacheSeriesMembership(admin: any, payload: any, sourceKey:
   if (error || !source || Date.parse(source.expires_at) <= Date.now()) return;
   const facts = new Map<string,any>();
   for (const book of payload.books) if (book.position != null && book.authors?.length) {
-   for (const request_key of seriesMemberKeys(book)) facts.set(request_key,{series:payload.series,member:{title:book.title,authors:book.authors,position:book.position},sourceKey});
+   for (const request_key of seriesMemberKeys(book)) facts.set(request_key,{series:payload.series,member:{title:book.title,authors:book.authors,position:book.position,isbns:book.isbns},sourceKey});
   }
   const keys = [...facts.keys()];
   if (!keys.length) return;

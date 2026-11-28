@@ -1,3 +1,4 @@
+import { installNativePkceCrypto } from './auth-pkce-crypto';
 import { createCacheLoggedFetch } from './cache-terminal-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createModeratedFetch } from './moderated-fetch';
@@ -19,6 +20,8 @@ if (
     'Supabase environment variables are missing.'
   );
 }
+
+installNativePkceCrypto();
 
 export const supabase =
   createClient(

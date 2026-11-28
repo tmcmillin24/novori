@@ -1,6 +1,6 @@
 import { rememberEditionPages, applyEditionPages } from './edition-pages';
 import { normalizeBookGenres } from '../../supabase/functions/_shared/book-genres';
-import { bookWorkDetails } from './book-work-details';
+import { bookWorkDetails, fillMissingBookSynopsis } from './book-work-details';
 import { createBookReadCache } from './book-read-cache';
 import { rememberBookPublications } from './book-publication';
 import { normalizeIsbnDbEdition, cleanCatalogBookTitle, displayBookTitle, audioEditionPenalty, validPublicationDate, isCatalogCollection, isCatalogSupplement } from '../../supabase/functions/_shared/book-edition-metadata';
@@ -1225,6 +1225,35 @@ function getTitleAuthorRefinementQuery(books: GoogleBookSearchItem[], normalized
   return `intitle:"${title}" inauthor:"${author}"`;
 }
 
+const weakTitleWords = new Set(['the','and','for','with','from','into','of','in','an','a','to','on']);
+const isDistinctiveTitleWord = (word: string) => word.length >= 3 && !weakTitleWords.has(word);
+
+function isSmallTitleTypo(a: string, b: string) {
+  if (Math.min(a.length, b.length) < 3 || Math.abs(a.length - b.length) > 1) return false;
+  let difference = 0;
+  while (difference < Math.min(a.length,b.length) && a[difference] === b[difference]) difference++;
+  if (a.length !== b.length) {
+    const [longer, shorter] = a.length > b.length ? [a,b] : [b,a];
+    return longer.slice(difference + 1) === shorter.slice(difference);
+  }
+  return a.slice(difference + 1) === b.slice(difference + 1) ||
+    (a[difference] === b[difference + 1] && a[difference + 1] === b[difference] &&
+      a.slice(difference + 2) === b.slice(difference + 2));
+}
+
+function matchesOneMisspelledTitleWord(query: string, candidate: string) {
+  const words = stripLeadingTitleArticle(query).split(' ');
+  const title = stripLeadingTitleArticle(candidate).split(' ');
+  if (words.length < 2 || title.length < words.length) return false;
+  for (let start = 0; start <= title.length - words.length; start++) {
+    const differences = words.map((word,index)=>({word, actual:title[start+index]})).filter(pair=>pair.word!==pair.actual);
+    if (differences.length !== 1) continue;
+    const exactAnchors = words.filter((word,index)=>isDistinctiveTitleWord(word) && title[start+index]===word).length;
+    if (exactAnchors >= 2 || (exactAnchors >= 1 && isSmallTitleTypo(differences[0].word,differences[0].actual))) return true;
+  }
+  return false;
+}
+
 function getTitleSearchRelevance(
   book: GoogleBookSearchItem,
   normalizedQuery: string
@@ -1290,6 +1319,9 @@ function getTitleSearchRelevance(
   ) {
     return 100;
   }
+
+  if (matchesOneMisspelledTitleWord(normalizedQuery, title) ||
+      matchesOneMisspelledTitleWord(normalizedQuery, canonicalTitle)) return 95;
 
   const fuzzySimilarity =
     Math.max(
@@ -1466,7 +1498,18 @@ function isGraphicAdaptation(book: GoogleBookSearchItem) {
 
 // Product tier precedes popularity, so companion products cannot displace books.
 function searchProductTier(book: GoogleBookSearchItem) {
-  return Number(isLikelyDerivativeTitle(book) || isCatalogCollection(book));
+  return isLikelyCollectionTitle(book) ? 2 : Number(isLikelyDerivativeTitle(book));
+}
+
+function resultProductTier(book: GoogleBookSearchItem, collectionRequested: boolean) {
+  const tier = searchProductTier(book);
+  return collectionRequested && tier === 2 ? -1 : tier;
+}
+
+/** Keep newly loaded single books above collections from earlier pages. */
+export function prioritizeBookSearchProducts(books: GoogleBookSearchItem[], query: string) {
+  const collectionRequested = hasCollectionSearchIntent(normalizeTitle(query));
+  return [...books].sort((a, b) => resultProductTier(a, collectionRequested) - resultProductTier(b, collectionRequested));
 }
 
 function sortTitleSearchResults(
@@ -1486,6 +1529,7 @@ function sortTitleSearchResults(
       searchTerm
     );
 
+  const collectionRequested = hasCollectionSearchIntent(normalizedQuery);
   return [
     ...books,
   ].sort(
@@ -1493,7 +1537,7 @@ function sortTitleSearchResults(
       a,
       b
     ) => {
-      const tierDifference = searchProductTier(a) - searchProductTier(b);
+      const tierDifference = resultProductTier(a, collectionRequested) - resultProductTier(b, collectionRequested);
       if (tierDifference) return tierDifference;
       if (!/\b(?:graphic|comic|manga)\b/i.test(searchTerm)) {
         const adaptationDifference = Number(isGraphicAdaptation(a)) - Number(isGraphicAdaptation(b));
@@ -2772,7 +2816,7 @@ function collapseDuplicateEditions(
           isbns,
         };
 
-        return representative;
+        return fillMissingBookSynopsis(representative, sorted);
       }
     );
 
@@ -3003,11 +3047,18 @@ export function hasMoreBookSearchResults(term: string, startIndex: number) {
 
 const readCompletedSearch = createBookReadCache<GoogleBookSearchItem[]>();
 
+const completedSearchKey = (term: string, offset: number, mode?: 'author') =>
+  `${mode ?? 'auto'}:${searchQueryKey(term)}:${offset}`;
+
+export function peekNovoriBookSearch(title: string) {
+  return readCompletedSearch.peek(completedSearchKey(title, 0));
+}
+
+
 export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {mode?: 'author'; onProgress?: (books: GoogleBookSearchItem[]) => void} = {}) {
   const isbn = !options.mode && /^(?:isbn[:\s]*)?[\dXx -]+$/i.test(searchTerm.trim()) ? normalizeSearchIsbn(searchTerm) : null;
   const term = isbn ?? searchTerm;
-  const key = searchQueryKey(term);
-  return readCompletedSearch(`${options.mode ?? 'auto'}:${key}:${startIndex}`, publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
+  return readCompletedSearch(completedSearchKey(term, startIndex, options.mode), publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
 }
 
 async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author', onProgress?: (books: GoogleBookSearchItem[]) => void) {
@@ -3062,10 +3113,12 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
     initialResults = [...new Map([...initialResults, ...repairs.flat()].map(book => [book.id, book])).values()];
   }
 
+  let triedAuthorRefinement = false;
   let authorQualifiedResults = initialResults.filter(book => matchesTitleAndAuthorQuery(book, normalizedQuery));
   if (mode !== 'author' && startIndex === 0 && authorQualifiedResults.length === 0) {
     const refinement = getTitleAuthorRefinementQuery(initialResults, normalizedQuery);
     if (refinement) {
+      triedAuthorRefinement = true;
       // One bounded, shared-cache-backed fallback; never discard usable results on failure.
       const refined = await fetchSharedGoogleBooksSearch(refinement).catch(() => null);
       if (refined?.ok) authorQualifiedResults = (refined.data?.items ?? []).map(normalizeIsbnDbEdition)
@@ -3090,6 +3143,24 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
   if (looksLikeIsbnSearch) {
     const isbn = normalizeSearchIsbn(normalizedSearchIsbn);
     initialResults = initialResults.filter(book => getBookIsbns(book).some(value => normalizeSearchIsbn(value) === isbn));
+  }
+
+  // If the catalog found no reliable title or author match, retry at most two
+  // distinctive title words. Require an ordered close match before admitting a hit.
+  const queryAnchors = [...new Set(normalizedQuery.split(' ').filter(isDistinctiveTitleWord))];
+  if (!triedAuthorRefinement && !looksLikeIsbnSearch && !mode && startIndex === 0 && queryAnchors.length >= 2 &&
+      !hasCollectionSearchIntent(normalizedQuery) && !hasDerivativeSearchIntent(normalizedQuery) &&
+      !hasEditionSearchIntent(normalizedQuery) && !initialResults.some(book =>
+        getTitleSearchRelevance(book, normalizedQuery) >= 95 || getAuthorSearchRelevance(book,normalizedQuery) >= 100)) {
+    const anchors = [...queryAnchors].sort((a,b)=>b.length-a.length).slice(0,2);
+    const recovered = await Promise.all(anchors.map(async anchor => {
+      const alternate = await fetchSharedGoogleBooksSearch(anchor).catch(()=>null);
+      return (alternate?.ok ? alternate.data?.items ?? [] : []).map(normalizeIsbnDbEdition).filter(book =>
+        matchesOneMisspelledTitleWord(normalizedQuery, normalizeTitle(book.volumeInfo.title)) ||
+        matchesOneMisspelledTitleWord(normalizedQuery, getCanonicalWorkTitleForBook(book)));
+    }));
+    const closeMatches = recovered.flat();
+    if (closeMatches.length) initialResults = [...new Map(closeMatches.map(book=>[book.id,book])).values()];
   }
 
   let strongestTitleMatch =

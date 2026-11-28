@@ -7,7 +7,7 @@ const crypto = require('crypto').webcrypto;
 function harness() {
   const rows = new Map(), locks = new Map(), discover = new Map(), identities = new Map(), legacy = [];
   const errors = { read: false, lock: false, write: false, usage: false };
-  const catalogWrites = [];
+  const catalogWrites = [], seriesDetails = new Map();
   const calls = [], env = { SUPABASE_URL: 'https://cache.test', SUPABASE_SERVICE_ROLE_KEY: 'server', HARDCOVER_API_TOKEN: 'hardcover', GOOGLE_BOOKS_API_KEY: 'google' };
   let upstream = async () => ({ data: { books: [] } });
   let claims = 0, hardcoverRequests = 0, catalog = [], isbnRequests = 0;
@@ -29,22 +29,27 @@ function harness() {
     },
     from(table) {
       const filters = {};
+      const lowerBounds = {};
       const q = {
         update: () => q, select: () => q, eq: (k,v) => { filters[k] = v; return q; },
-        in: (k,v) => { filters[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
+        in: (k,v) => { filters[k] = v; return q; }, gt: (k,v) => { lowerBounds[k] = v; return q; }, or: () => q, ilike: () => q, order: () => q, limit: () => q,
         maybeSingle: async () => {
           if (errors.read) return { error: { message: 'offline' } };
-          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
+          return { data: table === 'book_api_cache' ? rows.get(filters.provider + ':' + filters.request_key) ?? null : table === 'novori_book_provider_ids' ? identities.get(filters.isbn13) ?? null : table === 'google_books_catalog' ? seriesDetails.get(filters.google_book_id) ?? catalog.find(row => row.google_book_id === filters.google_book_id) ?? null : null };
         },
         single: async () => ({data: identities.get(filters.isbn13) ?? null}),
         upsert: async data => {
           if (table === 'book_cover_candidates' || table === 'book_cover_selections') catalogWrites.push({ table, data });
           if (errors.write) return { error: { message: 'offline' } };
           if (table === 'novori_book_provider_ids') for (const row of Array.isArray(data) ? data : [data]) { if (!identities.has(row.isbn13)) identities.set(row.isbn13, {...row}); }
-          if (table === 'book_api_cache') rows.set(data.provider + ':' + data.request_key, { ...data });
+          if (table === 'google_books_catalog' && data.google_book_id?.startsWith('hardcover-series:'))
+            seriesDetails.set(data.google_book_id,data);
+          if (table === 'book_api_cache') for (const row of Array.isArray(data) ? data : [data]) rows.set(row.provider + ':' + row.request_key, { ...row });
           return { error: null };
         },
-        then: resolve => Promise.resolve({ data: table === 'novori_book_provider_ids' ? [...identities.values()].filter(row => !filters.isbn13 || filters.isbn13.includes(row.isbn13)) : table === 'book_editions' ? legacy.filter(row => (!filters.isbn_13 || (Array.isArray(filters.isbn_13) ? filters.isbn_13.includes(row.isbn_13) : row.isbn_13 === filters.isbn_13)) && (!filters.provider_book_id || row.provider_book_id === filters.provider_book_id)) : [], error: null }).then(resolve),
+        then: resolve => Promise.resolve({ data: table === 'book_api_cache' ? [...rows.values()].filter(row =>
+          Object.entries(filters).every(([key,value])=>Array.isArray(value)?value.includes(row[key]):value===row[key]) &&
+          Object.entries(lowerBounds).every(([key,value])=>row[key]>value)) : table === 'novori_book_provider_ids' ? [...identities.values()].filter(row => !filters.isbn13 || filters.isbn13.includes(row.isbn13)) : table === 'book_editions' ? legacy.filter(row => (!filters.isbn_13 || (Array.isArray(filters.isbn_13) ? filters.isbn_13.includes(row.isbn_13) : row.isbn_13 === filters.isbn_13)) && (!filters.provider_book_id || row.provider_book_id === filters.provider_book_id)) : [], error: null }).then(resolve),
       };
       return q;
     },
@@ -195,16 +200,17 @@ test('ISBN-only discovery popularity inputs produce matches',async()=>{
 
 test('series membership data is reused when a different book in the same series is opened',async()=>{
   const h=harness();
-  const language={code2:'en'};
-  const record=(id,title)=>({id,title,editions:[{isbn_13:'978'+id,language}],book_series:[{position:id,series:{id:50,name:'Series'}}]});
-  h.setUpstream(async(url,init,body)=>body.query.includes('FindBookByISBN')
-    ? {data:{editions:[{language,book:record(body.variables.isbn.endsWith('2')?2:1,'Book')}]}}
-    : {data:{series_by_pk:{id:50,name:'Series',book_series:[{position:1,book:record(1,'One')},{position:2,book:record(2,'Two')}]}}});
-  const first=await h.request('hardcover-series',{isbn:'9781111111111'});
-  const second=await h.request('hardcover-series',{isbn:'9782222222222'});
-  expect(first.series.id).toBe(50);expect(second.series.id).toBe(50);
-  expect(h.calls.filter(call=>call.body.query.includes('GetSeries')).length).toBe(1);
-  expect(h.calls.length).toBe(3);
+  const language={code2:'en'}, firstIsbn='9781111111111', secondIsbn='9782222222222';
+  const record=(id,title,isbn)=>({id,title,contributions:[{author:{name:'A. Writer'}}],editions:[{isbn_13:isbn,language}],book_series:[{position:id,series:{id:50,name:'Series'}}]});
+  const one=record(1,'One',firstIsbn), two=record(2,'Two',secondIsbn);
+  h.setUpstream(async(url,init,body)=>body.query.includes('FindSeriesBooksByISBN')
+    ? {data:{editions:[{isbn_13:firstIsbn,language,book:one}]}}
+    : {data:{series_by_pk:{id:50,name:'Series',book_series:[{position:1,book:one},{position:2,book:two}]}}});
+  const first=await h.request('hardcover-series',{isbn:firstIsbn});
+  const second=await h.request('hardcover-series',{isbn:secondIsbn});
+  expect(first.series).toMatchObject({id:50,currentPosition:1});
+  expect(second.series).toMatchObject({id:50,currentPosition:2});
+  expect(h.calls.map(call=>call.body.query.match(/query (\w+)/)[1])).toEqual(['FindSeriesBooksByISBN','GetSeries']);
 });
 
 test('a confirmed no-series result is cached and skips Google language lookup',async()=>{
@@ -494,8 +500,8 @@ test('series lookup tries a second verified duplicate and rejects another author
    image: { url: 'https://art/catching-fire.jpg' }, reading_format: { format: 'Physical Book' } }],
   book_series: series ? [{ position: 2, series: { id: 50, name: 'The Hunger Games' } }] : [] });
  h.setUpstream(async (_url, _init, body) => {
-  if (body.query.includes('FindBookByISBN')) return { data: { editions: [] } };
-  if (body.query.includes('HardcoverBookById')) return { data: { books: [make(body.variables.id, body.variables.id === 2)] } };
+  if (body.query.includes('FindSeriesBooksByISBN')) return { data: { editions: [] } };
+  if (body.query.includes('SeriesBooksById')) return { data: { books: body.variables.ids.map(id=>make(id,id===2)) } };
   if (body.query.includes('GetSeries')) return { data: { series_by_pk: { id: 50, name: 'The Hunger Games', book_series: [{ position: 2, book: make(2, true) }] } } };
   return { data: { search: { results: { hits: [
    { document: { id: 3, title: 'Catching Fire', author_names: ['Other Author'] } },
@@ -508,7 +514,7 @@ test('series lookup tries a second verified duplicate and rejects another author
  expect(result.series).toMatchObject({ id: 50, currentPosition: 2 });
  expect(h.catalogWrites).toEqual([]);
  expect(result.books[0]).toMatchObject({ title: 'Catching Fire', coverEdition: { language: 'en', url: 'https://art/catching-fire.jpg' } });
- expect(h.calls.filter(call => call.body.query.includes('HardcoverBookById')).map(call => call.body.variables.id)).toEqual([1, 2]);
+ expect(h.calls.filter(call => call.body.query.includes('SeriesBooksById')).map(call => call.body.variables.ids)).toEqual([[1, 2]]);
  const count = h.calls.length;
  await h.request('hardcover-series', body);
  await h.request('hardcover-series', { ...body, isbn: '9780545586177', isbns: ['9780545586177'] });
@@ -713,4 +719,125 @@ test('a cache filled after the initial read but before lease acquisition skips a
  };
  const load=jest.fn(async()=>({known:false}));
  expect(await h.api.cachedProviderValue({...options(h),load})).toEqual({known:true});expect(load).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
+});
+
+test('series taps route a verified edition through normal book detail and reuse both provider caches', async () => {
+  const h = isbnHarness();
+  const title = 'Winter Charts';
+  const author = 'Lena Grant';
+  const isbn = '9780134093413';
+  h.setUpstream(async (url, _init, body) => {
+    if (url.includes('hardcover.app')) {
+      expect(body.query).toContain('SeriesReadingEditions');
+      expect(body.variables).toEqual({bookId:17});
+      return {data:{books:[{
+        id:17,title,contributions:[{author:{name:author}}],
+        book_series:[{series:{id:36,name:'Mapmakers'}}],
+        editions:[{isbn_13:isbn,language:null,physical_format:'hardcover'}],
+      }]}};
+    }
+    if (url.endsWith('/book/' + isbn)) return {book:isbnBook({title,authors:[author],binding:'hardcover'})};
+    return {books:[],total:0};
+  });
+  const body = {mode:'resolve-edition',seriesId:36,bookId:17};
+  const response = await h.request('hardcover-series', body);
+  expect(response.book).toMatchObject({id:'nv_' + isbn,volumeInfo:{title,language:'en'}});
+  const detail = await h.request('google-books-detail', {volumeId:response.book.id});
+  expect(detail.data).toMatchObject({id:response.book.id,volumeInfo:{title,language:'en'}});
+  const exactCalls = h.calls.filter(row => row.url.endsWith('/book/' + isbn)).length;
+  expect((await h.request('hardcover-series', body)).book.id).toBe(response.book.id);
+  expect(h.calls.filter(row => row.url.endsWith('/book/' + isbn))).toHaveLength(exactCalls);
+  expect(exactCalls).toBe(1);
+  expect(h.hardcoverRequests).toBe(1);
+  expect(h.catalogWrites).toEqual([]);
+  expect((await h.request('hardcover-series', {...body,seriesId:99})).book).toBeNull();
+});
+
+test('a verified Hardcover reading edition takes a normal detail route when ISBNdb has no record', async () => {
+  const h = isbnHarness();
+  const isbn = '9781958968123';
+  h.setUpstream(async (url, _init, body) => {
+    if (url.includes('hardcover.app')) {
+      const hasEdition = body.variables.bookId === 31;
+      const title = hasEdition ? 'Curse The Heart' : 'Bleed The Vow';
+      return {data:{books:[{
+        id:body.variables.bookId,title,contributions:[{author:{name:'Emily Blackwood'}}],
+        book_series:[{series:{id:23,name:'Mystics of Ashora'}}],
+        editions:hasEdition ? [{title:'Curse the Heart: Mystics of Ashora Book 2',isbn_13:isbn,
+          language:{code2:'en'},physical_format:'Paperback',release_date:'2026-06-11'}] : [],
+      }]}};
+    }
+    if (url.includes('/book/')) return new Response(null,{status:404});
+    return {books:[],total:0};
+  });
+  const req = bookId => h.request('hardcover-series',{mode:'resolve-edition',seriesId:23,bookId});
+  const result = await req(31);
+  expect(result.book).toMatchObject({id:`nv_${isbn}`,source:{provider:'hardcover',isbn13:isbn},
+    volumeInfo:{title:'Curse The Heart',language:'en'}});
+  expect((await h.request('google-books-detail',{volumeId:result.book.id})).data).toEqual(result.book);
+  expect((await req(32)).book).toBeNull();
+  expect(h.catalogWrites).toEqual([]);
+});
+
+test('series resolver discovers an ISBN absent from Hardcover via scoped title search and full detail', async () => {
+ const h=isbnHarness();
+ const isbn='9798195073749', title='Curse the Heart', authors=['Emily Blackwood'];
+ h.setUpstream(async(url,_init,body)=>{
+  if(url.includes('hardcover.app')) return {data:{books:[{
+   id:31,title,contributions:[{author:{name:authors[0]}}],
+   book_series:[{series:{id:23,name:'Mystics of Ashora'}}],editions:[],
+  }]}};
+  if(url.endsWith('/book/'+isbn)) return {book:isbnBook({isbn13:isbn,title,authors,synopsis:'Full edition description'})};
+  if(new URL(url).searchParams.get('column')==='title') return {
+   books:[isbnBook({isbn13:isbn,title,authors,language:undefined})],total:1,
+  };
+  return {books:[],total:0};
+ });
+ const body={mode:'resolve-edition',seriesId:23,bookId:31};
+ expect((await h.request('hardcover-series',body)).book).toMatchObject({
+  id:'nv_'+isbn,volumeInfo:{language:'en',description:'Full edition description'},
+ });
+ const calls=h.calls.length;
+ expect((await h.request('hardcover-series',body)).book.id).toBe('nv_'+isbn);
+ expect(h.calls).toHaveLength(calls);
+});
+
+test('verified series corrections match exact editions and open members without Hardcover', async () => {
+ const h = isbnHarness();
+ const titles = [
+  'The Ballad of Phoenix and Monsters',
+  'The Ballad of Phoenix and the Cursed Heirs',
+  'The Ballad of Phoenix and Fallen Kings',
+ ];
+ const isbns = ['9798266280014', '9798196054730', '9798996944910'];
+ const authors = [['Robbins, M.N.'], ['Robbins, M. N.'], ['Robbins, Merry']];
+ const request = (body) => h.request('hardcover-series', body);
+ let series;
+ for (let i=0;i<3;i++) {
+  const result = await request({isbn:isbns[i],title:titles[i],authors:authors[i]});
+  expect(result.series).toMatchObject({name:'Ballad of Phoenix',currentPosition:i+1});
+  expect(result.books.map(book=>book.title)).toEqual(titles);
+  series = result;
+ }
+ expect(h.calls).toHaveLength(0);
+ const [,,third] = series.books;
+ h.setUpstream(async url => {
+  expect(url).toBe('https://api2.isbndb.com/book/'+isbns[2]);
+  return {book:isbnBook({isbn13:isbns[2],title:titles[2],authors:authors[2]})};
+ });
+ expect((await request({mode:'resolve-edition',seriesId:series.series.id,bookId:third.id})).book.id).toBe('nv_'+isbns[2]);
+ expect((await request({mode:'resolve-edition',seriesId:series.series.id,bookId:third.id+99})).book).toBeNull();
+ expect(h.calls).toHaveLength(1);
+});
+
+test('catalog corrections reject lookalike titles, conflicting metadata and mixed member ISBNs', () => {
+ const h = isbnHarness();
+ const {findCorrectedSeries} = h.load('supabase/functions/_shared/verified-series-corrections.ts');
+ const title = 'The Ballad of Phoenix and Monsters';
+ const author = ['M. N. Robbins'];
+ const isbn = '9798266280014';
+ expect(findCorrectedSeries([],title,author)).toBeNull();
+ expect(findCorrectedSeries([isbn],title,['Different Author'])).toBeNull();
+ expect(findCorrectedSeries([isbn],title+' Workbook',author)).toBeNull();
+ expect(findCorrectedSeries([isbn,'9798196054730'],title,author)).toBeNull();
 });

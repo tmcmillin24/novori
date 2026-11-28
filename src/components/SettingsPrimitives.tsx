@@ -44,13 +44,13 @@ export function SettingsSection({ icon, title, detail, children }: { icon: IconN
 }
 
 export function SettingsToggleRow({ icon, title, subtitle, value, disabled = false, onValueChange }: {
-  icon: IconName; title: string; subtitle: string; value: boolean; disabled?: boolean; onValueChange: (value: boolean) => void;
+  icon: IconName; title: string; subtitle?: string; value: boolean; disabled?: boolean; onValueChange: (value: boolean) => void;
 }) {
   const { colors } = useNovoriTheme();
   const styles = settingsStyles(colors);
   return <View style={[styles.row, disabled && styles.disabled]}>
     <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.gold}/></View>
-    <View style={styles.copy}><Text style={styles.rowTitle}>{title}</Text><Text style={styles.rowDetail}>{subtitle}</Text></View>
+    <View style={styles.copy}><Text style={styles.rowTitle}>{title}</Text>{subtitle ? <Text style={styles.rowDetail}>{subtitle}</Text> : null}</View>
     <Switch accessibilityLabel={title} value={value} disabled={disabled} onValueChange={onValueChange}
       trackColor={{ false: colors.border, true: colors.gold }} thumbColor={value ? colors.background : colors.secondaryText} ios_backgroundColor={colors.border}/>
   </View>;

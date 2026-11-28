@@ -1,3 +1,4 @@
+import { requireNativeModule } from 'expo';
 import {
   Platform,
   Share,
@@ -9,6 +10,21 @@ function shareContent(message: string, url: string) {
   return Platform.OS === 'ios'
     ? { message, url }
     : { message: `${message}\n${url}` };
+}
+
+type NovoriShareModule = { shareAsync(message: string, url: string): Promise<boolean> };
+
+async function shareLink(message: string, url: string) {
+  if (Platform.OS === 'ios') {
+    let nativeShare: NovoriShareModule | undefined;
+    try {
+      nativeShare = requireNativeModule<NovoriShareModule>('NovoriShare');
+    } catch {
+      // An older development build can still open React Native's share sheet.
+    }
+    if (nativeShare && await nativeShare.shareAsync(message, url)) return;
+  }
+  await Share.share(shareContent(message, url));
 }
 
 function cleanBaseUrl(
@@ -84,7 +100,7 @@ export async function sharePostLink(
       postId
     );
 
-  await Share.share(shareContent('Check out this post on Novori', url));
+  await shareLink('Check out this post on Novori', url);
 }
 
 export function getBookStackShareUrl(
@@ -112,12 +128,12 @@ export async function shareBookStackLink({
   const cleanName =
     name?.trim();
 
-  await Share.share(shareContent(
+  await shareLink(
     cleanName
       ? `Check out ${cleanName} on Novori`
       : 'Check out this Book Stack on Novori',
     url,
-  ));
+  );
 }
 
 export async function shareBookLink({
@@ -135,12 +151,12 @@ export async function shareBookLink({
   const cleanTitle =
     title?.trim();
 
-  await Share.share(shareContent(
+  await shareLink(
     cleanTitle
       ? `Check out ${cleanTitle} on Novori`
       : 'Check out this book on Novori',
     url,
-  ));
+  );
 }
 
 export function getProfileShareUrl(readerId: string) {
@@ -149,7 +165,7 @@ export function getProfileShareUrl(readerId: string) {
 
 export async function shareProfileLink({ readerId, name }: { readerId: string; name?: string | null }) {
   const label = name?.trim();
-  await Share.share(shareContent(label ? `Check out ${label} on Novori` : 'Check out this reader on Novori', getProfileShareUrl(readerId)));
+  await shareLink(label ? `Check out ${label} on Novori` : 'Check out this reader on Novori', getProfileShareUrl(readerId));
 }
 
 export function getClubShareUrl(clubId: string) {
@@ -158,7 +174,7 @@ export function getClubShareUrl(clubId: string) {
 
 export async function shareClubLink({ clubId, name }: { clubId: string; name?: string | null }) {
   const label = name?.trim();
-  await Share.share(shareContent(label ? `Join ${label} on Novori` : 'Check out this club on Novori', getClubShareUrl(clubId)));
+  await shareLink(label ? `Join ${label} on Novori` : 'Check out this club on Novori', getClubShareUrl(clubId));
 }
 
 export function getClubEventShareUrl(eventId: string) {
@@ -167,5 +183,5 @@ export function getClubEventShareUrl(eventId: string) {
 
 export async function shareClubEventLink({ eventId, title }: { eventId: string; title?: string | null }) {
   const label = title?.trim();
-  await Share.share(shareContent(label ? `Check out ${label} on Novori` : 'Check out this club event on Novori', getClubEventShareUrl(eventId)));
+  await shareLink(label ? `Check out ${label} on Novori` : 'Check out this club event on Novori', getClubEventShareUrl(eventId));
 }

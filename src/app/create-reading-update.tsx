@@ -1,46 +1,47 @@
-import { displayBookTitle } from '../lib/book-title';
-import SpoilerToggle from '../components/SpoilerToggle';
-import BookCoverImage from '../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
+useFocusEffect,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+useCallback,
+useEffect,
+useMemo,
+useRef,
+useState,
 } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator,Alert,Modal,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,useWindowDimensions,View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
-  SafeAreaView,
+SafeAreaView,
 } from 'react-native-safe-area-context';
+import BookCoverImage from '../components/BookCoverImage';
+import { PostAttachmentControls } from '../components/PostAttachmentControls';
+import { displayBookTitle } from '../lib/book-title';
+import type { FeedPost } from '../lib/feed';
 
 import CanonicalBookRating from '../components/CanonicalBookRating';
 import EditablePostCard from '../components/EditablePostCard';
 import PostDestinationPicker from '../components/PostDestinationPicker';
-import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
-import usePostComposerProfile from '../hooks/use-post-composer-profile';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import usePostDestinationClubs from '../hooks/use-post-destination-clubs';
 import {
-  getPostDetail,
+getPostDetail,
 } from '../lib/feed';
 import {
-  publishReadingUpdate,
-  updateReadingUpdate,
+publishReadingUpdate,
+updateReadingUpdate,
 } from '../lib/reading-updates';
 import {
-  getUserBooks,
-  UserBook,
+getUserBooks,
+UserBook,
 } from '../lib/user-books';
 
 function formatAuthors(
@@ -157,12 +158,14 @@ function parseReadingUpdateBody(
 }
 
 export default function CreateReadingUpdateScreen() {
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [containsSpoilers, setContainsSpoilers] = useState(false);
   const router =
     useRouter();
 
   const params =
     useLocalSearchParams<{
+      previewKey?: string;
       bookId?: string;
       progress?: string;
       chapter?: string;
@@ -296,7 +299,7 @@ export default function CreateReadingUpdateScreen() {
   const [postClubId, setPostClubId] = useState<string | null>(null);
   const [postClubName, setPostClubName] = useState<string | null>(null);
   const { clubs, loadingClubs } = usePostDestinationClubs();
-  const viewerProfile = usePostComposerProfile();
+  const viewerProfile = usePostComposerProfile(params.previewKey);
   const selectedClub = clubs.find((club) => club.id === postClubId);
 
   const [
@@ -548,6 +551,7 @@ export default function CreateReadingUpdateScreen() {
             );
           }
 
+        setEditSource(post);
           setContainsSpoilers(post.contains_spoilers === true);
           setPostClubId(post.club_id);
           setPostClubName(post.club_name);
@@ -757,7 +761,7 @@ export default function CreateReadingUpdateScreen() {
       </View>
       <KeyboardAwareScrollView
         style={styles.screen}
-        contentContainerStyle={[styles.editCardScroll, tablet && styles.contentTablet]}
+        contentContainerStyle={[styles.editCardScroll, tablet && styles.contentTablet, styles.destinationAtTop]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         bottomOffset={20}
@@ -765,7 +769,7 @@ export default function CreateReadingUpdateScreen() {
       >
         <PostDestinationPicker clubs={clubs} loading={loadingClubs} disabled={publishing || loadingEditPost}
           clubId={postClubId} clubName={postClubName} onClubIdChange={setPostClubId} profile={viewerProfile} />
-        <EditablePostCard postType="reading_update" clubId={postClubId} author={viewerProfile}
+        <EditablePostCard postType="reading_update" source={editSource} clubId={postClubId} author={viewerProfile}
           clubName={selectedClub?.name ?? postClubName} clubCoverUrl={selectedClub?.cover_url}>
           {loading || loadingEditPost ? (
             <View style={styles.stateCard}>
@@ -865,17 +869,7 @@ export default function CreateReadingUpdateScreen() {
                 style={styles.cardThoughtInput}
               />
               <Text style={styles.editCharacterCount}>{thought.length}/500</Text>
-              <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={publishing} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={selectedBook ? `Selected book: ${selectedBook.title}` : 'Choose a currently reading book'}
-                accessibilityHint={!isEditing && books.length > 1 ? 'Choose the book for this Reading Update.' : undefined}
-                disabled={publishing || isEditing || books.length === 1}
-                onPress={() => setBookPickerVisible(true)}
-                style={({ pressed }) => [styles.cardBook, pressed && styles.pressed]}
-              >
-                {selectedBook ? (
-                  <>
+              {selectedBook ? <View style={styles.cardBook}>
                     <BookCoverImage googleBookId={selectedBook.google_book_id} existingCoverUrl={selectedBook.cover_url} style={styles.cardBookCover} />
                     <View style={styles.cardBookCopy}>
                       <View style={styles.cardBookEyebrow}>
@@ -886,15 +880,10 @@ export default function CreateReadingUpdateScreen() {
                       <Text style={styles.cardBookAuthor} numberOfLines={1}>{formatAuthors(selectedBook.authors)}</Text>
                       <CanonicalBookRating googleBookId={selectedBook.google_book_id} title={selectedBook.title} authors={selectedBook.authors} />
                     </View>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="book-outline" size={22} color={colors.gold} />
-                    <Text style={[styles.cardBookTitle, styles.cardBookCopy]}>Choose a currently reading book</Text>
-                  </>
-                )}
-                {!isEditing && books.length > 1 ? <Ionicons name="chevron-down" size={17} color={colors.mutedText} /> : null}
-              </Pressable>
+              </View> : null}
+              <PostAttachmentControls disabled={publishing}
+                book={!isEditing && books.length > 1 ? {label:'Choose a currently reading book',attached:Boolean(selectedBook),onPress:()=>setBookPickerVisible(true)} : undefined}
+                spoilers={{value:containsSpoilers,onChange:setContainsSpoilers}}/>
             </>
           )}
         </EditablePostCard>
@@ -985,6 +974,7 @@ function createStyles(
       backgroundColor:
         colors.background,
     },
+    destinationAtTop: { paddingTop: 0 },
     header: {
       height:
         54,

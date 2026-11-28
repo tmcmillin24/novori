@@ -298,3 +298,27 @@ test('uploaded Lion catalog records retain publisher artwork through the shared 
  expect(results[0].volumeInfo.authors).toContain('Mark Batterson');
  expect(api.getNovoriSearchBookCover(results[0])).toMatch(/^https:\/\/images\.isbndb\.com\//);
 });
+
+test('single books beat popular collections in final and progressive search results',async()=>{
+ const novel=book('single','Alex Author','The Far Shore');
+ const set=book('bundle','Alex Author','The Far Shore: Books 1–3');
+ const api=load([set,novel],{},{bundle:{usersCount:15000,rating:5},single:{usersCount:20,rating:4}});
+ const early=[];
+ const rows=await api.searchNovoriBooks('The Far Shore',0,{onProgress:results=>early.push(results.map(row=>row.id))});
+ expect(rows[0].id).toBe('single');
+ expect(early[0][0]).toBe('single');
+ expect(api.prioritizeBookSearchProducts([set,novel],'The Far Shore').map(row=>row.id)).toEqual(['single','bundle']);
+ expect(api.prioritizeBookSearchProducts([novel,set],'The Far Shore box set').map(row=>row.id)).toEqual(['bundle','single']);
+});
+
+test.each(['Onyx Stomr','Onyx Strm','Cort of Thorns and Roses','Court of Thorns and Rzxx'])('recovers a title with one misspelled word: %s',async query=>{
+ const short=query.startsWith('Onyx');
+ const title=short?'Onyx Storm':'A Court of Thorns and Roses';
+ const intended=book('right','Alex Author',title);
+ const unrelated=book('other','Other Author',short?'Onyx Mystery':'A Court of Thorns and Glasses Extra');
+ // The initial provider query fails to find the intended title.
+ const api=load([],{onyx:[intended,unrelated],thorns:[intended],roses:[intended]});
+ const rows=await api.searchNovoriBooks(query);
+ expect(rows[0]?.id).toBe('right');
+ expect(api.searchCalls.length).toBeLessThanOrEqual(3);
+});

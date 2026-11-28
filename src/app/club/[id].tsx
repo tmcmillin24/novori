@@ -1,48 +1,44 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect,useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,Animated,Keyboard,Modal,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
+import { SafeAreaProvider,SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
+import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import CachedMediaImage from '../../components/CachedMediaImage';
-import { displayBookTitle } from '../../lib/book-title';
-import {PostSpoilerContent} from '../../components/PostSpoilerNotice';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import ClubEventCard from '../../components/ClubEventCard';
-import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubBooksBoard from '../../components/ClubBooksBoard';
-import ClubTabActions from '../../components/ClubTabActions';
-import useEventClock from '../../hooks/use-event-clock';
-import { getClubEvents } from '../../lib/club-events';
-import { isUpcomingClubEvent, type ClubEvent } from '../../lib/club-event';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import ClubPinnedPosts from '../../components/ClubPinnedPosts';
-import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
-import { getClubConversation, getClubPins, resolveClubPinnedPosts, setClubPostPin } from '../../lib/club-posts';
+import ClubEventsBoard from '../../components/ClubEventsBoard';
 import ClubHomeCard from '../../components/ClubHomeCard';
 import ClubOptionsSheet from '../../components/ClubOptionsSheet';
+import ClubPinActionsSheet from '../../components/ClubPinActionsSheet';
+import ClubPinnedPosts from '../../components/ClubPinnedPosts';
+import ClubTabActions from '../../components/ClubTabActions';
 import ClubWelcomeCard from '../../components/ClubWelcomeCard';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
-import { getClubMemberExperience, setClubNotificationsEnabled, dismissClubWelcome, type ClubMemberExperience } from '../../lib/club-member-experience';
-import { getClubHomeActions, type ClubHomeAction } from '../../lib/club-home';
-import BookCoverImage from '../../components/BookCoverImage';
-import BookStackPostAttachment from '../../components/BookStackPostAttachment';
-import { Ionicons } from '@expo/vector-icons';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import FeedPostImage from '../../components/FeedPostImage';
+import FeedPostCard from '../../components/FeedPostCard';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
-import PostTypeIdentifier from '../../components/PostTypeIdentifier';
-import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
 import LeaveClubConfirmSheet from '../../components/LeaveClubConfirmSheet';
+import PostActions from '../../components/PostActions';
+import { UiSheetBackdrop,UiSheetModal,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { acceptClubInvite, approveClubJoinRequest, cancelClubInvite, cancelPrivateClubRequest, ClubInvitation, ClubInviteCandidate, ClubJoinRequest, ClubMember, ClubWithMembership, declineClubInvite, declineClubJoinRequest, demoteClubAdmin, getClub, getClubMembers, getPendingClubInvite, getPendingClubInvitesForManager, getPendingClubJoinRequestsForManager, getPendingPrivateClubRequest, inviteReaderToClub, joinClub, kickClubMember, leaveClub, promoteClubMember, requestPrivateClubAccess, searchClubInviteCandidates } from '../../lib/clubs';
-import { FeedPost, PostVoteValue, splitQuestionPostBody, togglePostVote, getPostMutationVersion } from '../../lib/feed';
-import { ReportReason, submitProfileReport } from '../../lib/reports';
-import { blockReader } from '../../lib/social';
+import useEventClock from '../../hooks/use-event-clock';
+import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
+import { loadComposerProfile,prepareClubComposerPreview,warmComposerImage } from '../../lib/club-composer-preview';
+import { isUpcomingClubEvent,type ClubEvent } from '../../lib/club-event';
+import { getClubEvents } from '../../lib/club-events';
+import { getClubHomeActions,type ClubHomeAction } from '../../lib/club-home';
+import { dismissClubWelcome,getClubMemberExperience,setClubNotificationsEnabled,type ClubMemberExperience } from '../../lib/club-member-experience';
+import { MAX_CLUB_PINS,getClubConversation,getClubPins,resolveClubPinnedPosts,setClubPostPin } from '../../lib/club-posts';
+import { acceptClubInvite,approveClubJoinRequest,cancelClubInvite,cancelPrivateClubRequest,ClubInvitation,ClubInviteCandidate,ClubJoinRequest,ClubMember,ClubWithMembership,declineClubInvite,declineClubJoinRequest,demoteClubAdmin,getClub,getClubMembers,getPendingClubInvite,getPendingClubInvitesForManager,getPendingClubJoinRequestsForManager,getPendingPrivateClubRequest,inviteReaderToClub,joinClub,kickClubMember,leaveClub,promoteClubMember,requestPrivateClubAccess,searchClubInviteCandidates } from '../../lib/clubs';
+import { FeedPost,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import { ReportReason,submitProfileReport } from '../../lib/reports';
+import { shareClubLink,sharePostLink } from '../../lib/share-links';
+import { blockReader,getReaderConnections } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
-import { shareClubLink, sharePostLink } from '../../lib/share-links';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 function roleLabel(role: ClubMember['role']) {
     if (role === 'owner')
         return 'Owner';
@@ -87,6 +83,7 @@ const MEMBER_REPORT_REASONS: Array<{
     }
 ];
 export default function ClubDetailScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams<{
@@ -99,11 +96,20 @@ export default function ClubDetailScreen() {
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [clubPosts, setClubPosts] = useState<FeedPost[]>([]);
     const [loading, setLoading] = useState(true);
+    const [postsStatus, setPostsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [eventsLoading, setEventsLoading] = useState(true);
+    const [membersLoading, setMembersLoading] = useState(true);
+    const [accessLoading, setAccessLoading] = useState(true);
+    const clubLoadSequence = useRef(0);
     const [refreshing, setRefreshing] = useState(false);
     const [membershipLoading, setMembershipLoading] = useState(false);
     const [leaveConfirmVisible, setLeaveConfirmVisible,] = useState(false);
     const [votingPostId, setVotingPostId,] = useState<string | null>(null);
     const [error, setError] = useState('');
+    const composerWarm = useRef<{ userId: string; clubId: string; profile: ReturnType<typeof loadComposerProfile>; cover: Promise<void> } | null>(null);
+    const openingComposer = useRef(false);
+    const feedLanguage = useFeedLanguagePreference();
+    const [postOptions, setPostOptions] = useState<FeedPost | null>(null);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [memberActionTarget, setMemberActionTarget,] = useState<ClubMember | null>(null);
     const [memberReportTarget, setMemberReportTarget,] = useState<ClubMember | null>(null);
@@ -135,7 +141,11 @@ export default function ClubDetailScreen() {
     const [invitePanelOpen, setInvitePanelOpen,] = useState(false);
     const [inviteQuery, setInviteQuery,] = useState('');
     const [inviteResults, setInviteResults,] = useState<ClubInviteCandidate[]>([]);
+    const [inviteSearchError, setInviteSearchError] = useState(false);
+    const [inviteSearchAttempt, retryInviteSearch] = useState(0);
     const [inviteSearchLoading, setInviteSearchLoading,] = useState(false);
+    const inviteInFlight = useRef(false);
+    const [sentInviteIds, setSentInviteIds] = useState<Set<string>>(() => new Set());
     const [invitingReaderId, setInvitingReaderId,] = useState<string | null>(null);
     const [respondingToInvite, setRespondingToInvite,] = useState(false);
     const [cancellingInviteId, setCancellingInviteId,] = useState<string | null>(null);
@@ -143,9 +153,11 @@ export default function ClubDetailScreen() {
     const [joinRequestLoading, setJoinRequestLoading,] = useState(false);
     const clubScrollRef = useRef<ScrollView | null>(null);
     const [clubTab, setClubTab] = useState<'posts' | 'events' | 'books'>('posts');
+    const [visitedTabs, setVisitedTabs] = useState<{ clubId: string; books?: boolean; events?: boolean }>({ clubId: '' });
     const [booksRefreshVersion, setBooksRefreshVersion] = useState(0);
     const [upcomingEvents, setUpcomingEvents] = useState<ClubEvent[]>([]);
     const [pinnedPosts, setPinnedPosts] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: update => { setClubPosts(update); setPinnedPosts(update); }, onNavigate: () => { preserveClubStateOnNextFocus.current = true; }});
     const [pinTarget, setPinTarget] = useState<FeedPost | null>(null);
     const [pinBusy, setPinBusy] = useState(false);
     const [clubMenuVisible, setClubMenuVisible] = useState(false);
@@ -157,14 +169,19 @@ export default function ClubDetailScreen() {
     const [experienceBusy, setExperienceBusy] = useState(false);
     const [experienceWarning, setExperienceWarning] = useState('');
     const experienceMutation = useRef(false), experienceVersion = useRef(0);
-    const experienceMounted = useRef(true), requestedGuideShown = useRef(false);
+    const experienceMounted = useRef(true);
     useEffect(() => { experienceMounted.current = true; return () => { experienceMounted.current = false; experienceVersion.current++; }; }, []);
     const pendingMemberScroll = useRef(false);
     const membersSectionY = useRef(0);
-    const invitePanelY = useRef(0);
     const clubId = typeof params.id === 'string'
         ? params.id
         : '';
+    useEffect(() => {
+        if (clubTab === 'posts') return;
+        setVisitedTabs(current => current.clubId === clubId && current[clubTab]
+            ? current
+            : { ...(current.clubId === clubId ? current : {}), clubId, [clubTab]: true });
+    }, [clubId, clubTab]);
     const pinClubIdRef = useRef(clubId);
     pinClubIdRef.current = clubId;
     useEffect(() => {
@@ -182,9 +199,9 @@ export default function ClubDetailScreen() {
         setMemberExperience(null);
         setWelcomeOpen(false);
         setExperienceWarning('');
-        requestedGuideShown.current = false;
         experienceVersion.current++;
         setInvitePanelOpen(false);
+        setSentInviteIds(new Set());
         pendingMemberScroll.current = false;
     }, [clubId, (params as {
             tab?: string;
@@ -194,72 +211,119 @@ export default function ClubDetailScreen() {
     const visiblePinnedPosts = pinnedPosts.filter(post => !post.club_event || isUpcomingClubEvent(post.club_event, eventNow));
     const nextEvent = upcomingEvents.find(event => isUpcomingClubEvent(event, eventNow));
     const loadClub = useCallback(async () => {
+        const request = ++clubLoadSequence.current;
         const mutationAtStart = getPostMutationVersion();
         const experienceRequest = ++experienceVersion.current;
+        const isCurrent = () => experienceMounted.current && pinClubIdRef.current === clubId && request === clubLoadSequence.current;
         if (!clubId) {
             setError('This club could not be found.');
             setLoading(false);
             return;
         }
+        const authRequest = supabase.auth.getUser().catch(() => null);
         try {
             setError('');
-            const [authResult, clubData] = await Promise.all([supabase.auth.getUser(), getClub(clubId)]);
-            setCurrentUserId(authResult.data.user?.id ?? null);
-            if (clubData.cover_url && typeof Image.prefetch === 'function') {
-                const coverUrl = moderationMediaUrl(clubData.cover_url);
-                if (coverUrl) void Image.prefetch(coverUrl).catch(() => {});
+            if (loadedClub.current?.id !== clubId) {
+                setClubPosts([]);
+                setPinnedPosts([]);
+                setMembers([]);
+                setUpcomingEvents([]);
+                setPendingInvite(null);
+                setPendingJoinRequest(null);
+                setManagerInvites([]);
+                setManagerJoinRequests([]);
+                setPostsStatus('loading');
+                setMembersLoading(true);
+                setEventsLoading(true);
+                setAccessLoading(true);
             }
-            const canReadPrivateContent = clubData.privacy === 'public' || Boolean(clubData.membership_role);
-            const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';
-            const [pendingInviteData, pendingJoinRequestData, experienceData, memberData, conversation, eventData, outgoingInvites, joinRequests] = await Promise.all([
-                getPendingClubInvite(clubId),
-                getPendingPrivateClubRequest(clubId),
-                clubData.membership_role ? getClubMemberExperience(clubId).catch(error => {
-                    if (experienceMounted.current && experienceRequest === experienceVersion.current)
-                        setExperienceWarning(error?.message || 'Could not load your club preferences.');
-                    return null;
-                }) : Promise.resolve(null),
-                canReadPrivateContent ? getClubMembers(clubId) : Promise.resolve([]),
-                canReadPrivateContent ? getClubConversation(clubId) : Promise.resolve({ posts: [], pinnedPosts: [] }),
-                canReadPrivateContent ? getClubEvents(clubId) : Promise.resolve([]),
-                manager ? getPendingClubInvitesForManager(clubId) : Promise.resolve([]),
-                manager ? getPendingClubJoinRequestsForManager(clubId) : Promise.resolve([]),
-            ]);
-            const postData = conversation.posts;
-            const pinnedData = conversation.pinnedPosts;
+            const clubData = await getClub(clubId);
+            if (!isCurrent()) return;
             setClub(clubData);
-            if (experienceMounted.current && experienceRequest === experienceVersion.current) {
-                setMemberExperience(experienceData);
-                setWelcomeOpen(Boolean(experienceData && (!experienceData.welcome_seen_at || ((params as {
-                    guide?: string;
-                }).guide === '1' && !requestedGuideShown.current))));
-                requestedGuideShown.current = true;
+            setLoading(false);
+
+            const canRead = clubData.privacy === 'public' || Boolean(clubData.membership_role);
+            const manager = clubData.membership_role === 'owner' || clubData.membership_role === 'admin';
+            let failed = false;
+            async function section<T>(label: string, promise: Promise<T>, apply: (data: T) => void, onError?: () => void) {
+                try {
+                    const data = await promise;
+                    if (isCurrent()) apply(data);
+                } catch (error) {
+                    failed = true;
+                    if (isCurrent()) {
+                        console.warn(`Could not load club ${label}:`, error);
+                        onError?.();
+                    }
+                }
             }
-            setMembers(memberData);
-            setClubPosts(postData);
-            setPinnedPosts(pinnedData);
-            setUpcomingEvents(eventData);
+            void authRequest.then(auth => {
+                if (!isCurrent()) return;
+                const userId = auth?.data.user?.id ?? null;
+                setCurrentUserId(userId);
+                if (userId && clubData.membership_role && (composerWarm.current?.clubId !== clubId || composerWarm.current.userId !== userId)) {
+                    composerWarm.current = {
+                        userId,
+                        clubId,
+                        profile: loadComposerProfile(userId).catch(() => null),
+                        cover: warmComposerImage(clubData.cover_url).catch(() => {}),
+                    };
+                }
+            });
+
+            const access = clubData.membership_role ? [] : [
+                section('invitation', getPendingClubInvite(clubId), setPendingInvite),
+                section('access request', getPendingPrivateClubRequest(clubId), setPendingJoinRequest),
+            ];
+            const management = manager ? [
+                section('sent invitations', getPendingClubInvitesForManager(clubId), setManagerInvites),
+                section('join requests', getPendingClubJoinRequestsForManager(clubId), setManagerJoinRequests),
+            ] : [];
+            const content = canRead ? [
+                section('conversation', getClubConversation(clubId), conversation => {
+                    if (getPostMutationVersion() !== mutationAtStart) {
+                        failed = true;
+                        setPostsStatus(current => current === 'loading' ? 'error' : current);
+                        return;
+                    }
+                    setClubPosts(conversation.posts);
+                    setPinnedPosts(conversation.pinnedPosts);
+                    setPostsStatus('ready');
+                }, () => setPostsStatus(current => current === 'ready' ? current : 'error')),
+                section('events', getClubEvents(clubId), events => {
+                    setUpcomingEvents(current => JSON.stringify(current) === JSON.stringify(events) ? current : events);
+                }).finally(() => { if (isCurrent()) setEventsLoading(false); }),
+                section('members', getClubMembers(clubId), setMembers).finally(() => {
+                    if (isCurrent()) setMembersLoading(false);
+                }),
+            ] : [];
+            const experience = clubData.membership_role ? [
+                section('preferences', getClubMemberExperience(clubId), data => {
+                    if (experienceRequest !== experienceVersion.current) return;
+                    setMemberExperience(data);
+                    setWelcomeOpen(Boolean(data && !data.welcome_seen_at));
+                }, () => {
+                    if (experienceRequest === experienceVersion.current) setExperienceWarning('Could not load your club preferences.');
+                }),
+            ] : [];
+            await Promise.all([
+                ...content, ...management, ...experience,
+                Promise.all(access).then(() => { if (isCurrent()) setAccessLoading(false); }),
+            ]);
+            if (!isCurrent()) return;
             setBooksRefreshVersion(version => version + 1);
-            setPendingInvite(pendingInviteData);
-            setPendingJoinRequest(pendingJoinRequestData);
-            setManagerInvites(outgoingInvites);
-            setManagerJoinRequests(joinRequests);
-            loadedClub.current = { id: clubId, version: mutationAtStart };
-        }
-        catch (loadError) {
-            console.error('Could not load club:', loadError);
+            if (!failed) loadedClub.current = { id: clubId, version: mutationAtStart };
+        } catch (loadError) {
+            if (!isCurrent()) return;
+            console.warn('Could not load club:', loadError);
             setError('This club is unavailable or private.');
-        }
-        finally {
             setLoading(false);
         }
-    }, [clubId, (params as {
-            guide?: string;
-        }).guide]);
+    }, [clubId]);
     const loadedClub = useRef<{ id: string; version: number } | null>(null);
     useFocusEffect(useCallback(() => {
         const unchanged = loadedClub.current?.id === clubId && loadedClub.current.version === getPostMutationVersion();
-        if (unchanged && !((params as { guide?: string }).guide === '1' && !requestedGuideShown.current)) {
+        if (unchanged) {
             preserveClubStateOnNextFocus.current = false;
             return;
         }
@@ -282,49 +346,55 @@ export default function ClubDetailScreen() {
         loadClub,
         refreshing
     ]);
+    const inviteClubId = club?.id;
+    const canInvite = club?.membership_role === 'owner' || club?.membership_role === 'admin';
+    const inviteTerm = inviteQuery.trim().replace(/^@/, '');
     useEffect(() => {
-        if (!invitePanelOpen ||
-            !club) {
-            return;
-        }
-        const normalized = inviteQuery.trim();
-        if (normalized.length <
-            2) {
-            setInviteResults([]);
-            setInviteSearchLoading(false);
-            return;
-        }
+        if (!invitePanelOpen || !canInvite || !inviteClubId || !currentUserId) return;
         let active = true;
+        setInviteSearchLoading(true);
+        setInviteSearchError(false);
+        setInviteResults([]);
         const timer = setTimeout(async () => {
             try {
-                setInviteSearchLoading(true);
-                const results = await searchClubInviteCandidates(club.id, normalized);
-                if (active) {
-                    setInviteResults(results);
+                let results: ClubInviteCandidate[];
+                if (inviteTerm) {
+                    results = inviteTerm.length < 2 ? [] : await searchClubInviteCandidates(inviteClubId, inviteTerm);
+                } else {
+                    // Use public reader data only as a shortlist. The existing club
+                    // RPC checks eligibility and pending state before any row is shown.
+                    const memberIds = new Set(members.map(member => member.user_id));
+                    const following = await getReaderConnections(currentUserId, 'following', 30).catch(() => []);
+                    const shortlist = following.filter(reader => reader.username && !memberIds.has(reader.id)).slice(0, 8);
+                    if (shortlist.length < 8) {
+                        const { data, error } = await supabase.from('profiles')
+                            .select('id, username').neq('id', currentUserId).not('username', 'is', null)
+                            .order('id').limit(30);
+                        if (error && !shortlist.length) throw error;
+                        const seen = new Set(shortlist.map(reader => reader.id));
+                        for (const reader of data ?? []) {
+                            if (shortlist.length >= 8) break;
+                            if (!reader.username || memberIds.has(reader.id) || seen.has(reader.id)) continue;
+                            shortlist.push({ ...reader, display_name: null, avatar_url: null,
+                                is_following: false, is_self: false, is_private: false, follow_request_pending: false });
+                        }
+                    }
+                    if (!active) return;
+                    const found = await Promise.all(shortlist.map(async reader =>
+                        (await searchClubInviteCandidates(inviteClubId, reader.username!))
+                            .find(candidate => candidate.id === reader.id)));
+                    results = found.filter((candidate): candidate is ClubInviteCandidate => Boolean(candidate));
                 }
+                if (active) setInviteResults(results.filter(candidate => !candidate.is_member));
+            } catch {
+                if (active) setInviteSearchError(true);
+            } finally {
+                if (active) setInviteSearchLoading(false);
             }
-            catch (searchError) {
-                console.error('Could not search readers for club invite:', searchError);
-                if (active) {
-                    setInviteResults([]);
-                }
-            }
-            finally {
-                if (active) {
-                    setInviteSearchLoading(false);
-                }
-            }
-        }, 250);
-        return () => {
-            active =
-                false;
-            clearTimeout(timer);
-        };
-    }, [
-        club,
-        invitePanelOpen,
-        inviteQuery
-    ]);
+        }, inviteTerm ? 250 : 0);
+        return () => { active = false; clearTimeout(timer); };
+    }, [invitePanelOpen, canInvite, inviteClubId, currentUserId, inviteTerm, members, inviteSearchAttempt]);
+
     async function handleJoin() {
         if (!club)
             return;
@@ -350,12 +420,16 @@ export default function ClubDetailScreen() {
         if (!club ||
             candidate.is_member ||
             candidate.invite_pending ||
-            invitingReaderId) {
+            sentInviteIds.has(candidate.id) ||
+            inviteInFlight.current) {
             return;
         }
+        inviteInFlight.current = true;
         try {
             setInvitingReaderId(candidate.id);
             await inviteReaderToClub(club.id, candidate.id);
+            if (pinClubIdRef.current !== club.id) return;
+            setSentInviteIds(current => new Set(current).add(candidate.id));
             setInviteResults((current) => current.map((item) => item.id ===
                 candidate.id
                 ? {
@@ -363,7 +437,9 @@ export default function ClubDetailScreen() {
                     invite_pending: true,
                 }
                 : item));
-            setManagerInvites(await getPendingClubInvitesForManager(club.id));
+            void getPendingClubInvitesForManager(club.id).then(invites => {
+                if (pinClubIdRef.current === club.id) setManagerInvites(invites);
+            }).catch(() => {});
         }
         catch (inviteError) {
             console.error('Could not invite reader:', inviteError);
@@ -373,6 +449,7 @@ export default function ClubDetailScreen() {
                 : 'Please try again.');
         }
         finally {
+            inviteInFlight.current = false;
             setInvitingReaderId(null);
         }
     }
@@ -422,6 +499,11 @@ export default function ClubDetailScreen() {
         try {
             setCancellingInviteId(invitation.id);
             await cancelClubInvite(invitation.id);
+            setSentInviteIds(current => {
+                const next = new Set(current);
+                next.delete(invitation.invitee_id);
+                return next;
+            });
             setManagerInvites((current) => current.filter((item) => item.id !==
                 invitation.id));
             setInviteResults((current) => current.map((item) => item.id ===
@@ -861,30 +943,6 @@ export default function ClubDetailScreen() {
             },
         });
     }
-    function formatPostTime(createdAt: string) {
-        const created = new Date(createdAt);
-        const diffMs = Date.now() -
-            created.getTime();
-        const minutes = Math.max(0, Math.floor(diffMs / 60000));
-        if (minutes < 1) {
-            return 'now';
-        }
-        if (minutes < 60) {
-            return `${minutes}m`;
-        }
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) {
-            return `${hours}h`;
-        }
-        const days = Math.floor(hours / 24);
-        if (days < 7) {
-            return `${days}d`;
-        }
-        return created.toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-        });
-    }
     async function shareRenderedPost(postId: string) {
         try {
             await sharePostLink(postId);
@@ -939,234 +997,15 @@ export default function ClubDetailScreen() {
         }
     }
     function renderClubPost(post: FeedPost) {
-        const displayName = post.author_display_name?.trim() ||
-            post.author_username?.trim() ||
-            'Novori Reader';
-        const username = post.author_username?.trim()
-            ? `@${post.author_username.trim()}`
-            : '';
-        const authorInitial = displayName
-            .charAt(0)
-            .toUpperCase();
-        const questionContent = post.post_type ===
-            'question'
-            ? splitQuestionPostBody(post.body)
-            : null;
-        return (<Pressable key={post.id} accessibilityRole="button" accessibilityLabel="Open club post and comments" onPress={() => {
-            preserveClubStateOnNextFocus.current = true;
-            router.push({ pathname: '/post/[id]', params: { id: post.id } });
-        }} style={styles.postCard}>
-        <Pressable onPress={() => openReader(post.author_id)} style={({ pressed }) => [
-                styles.postHeader,
-                { paddingRight: club?.membership_role === 'owner' || club?.membership_role === 'admin' ? 66 : 32 },
-                pressed &&
-                    styles.pressed
-            ]}>
-          {post.author_avatar_url ? (<CachedMediaImage source={{
-                    uri: moderationMediaUrl(post.author_avatar_url),
-                }} style={styles.postAvatar}/>) : (<View style={styles.postAvatarFallback}>
-              <Text style={styles.postAvatarText}>
-                {authorInitial}
-              </Text>
-            </View>)}
-
-          <View style={styles.postAuthorCopy}>
-            <View style={styles.postAuthorRow}>
-              <Text style={styles.postAuthorName} numberOfLines={1}>
-                {displayName}
-              </Text>
-
-              <Text style={styles.postTime}>
-                · {formatPostTime(post.created_at)}
-              </Text>
-            </View>
-
-            {username ? (<Text style={styles.postUsername} numberOfLines={1}>
-                {username}
-              </Text>) : null}
-          </View>
-        </Pressable>
-
-        <Pressable onPress={() => void shareRenderedPost(post.id)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share post" style={({ pressed }) => [
-                styles.postHeaderShare,
-                pressed &&
-                    styles.pressed
-            ]}>
-          <Ionicons name="share-social-outline" size={18} color={colors.mutedText}/>
-        </Pressable>
-
-        {(club?.membership_role === 'owner' || club?.membership_role === 'admin') && (!post.club_event || isUpcomingClubEvent(post.club_event, eventNow)) ? <Pressable disabled={pinBusy} accessibilityRole="button" accessibilityLabel={`Pin options: ${post.id}`} hitSlop={8} onPress={() => { Keyboard.dismiss(); setPinTarget(post); }} style={({ pressed }) => [styles.postPinButton, pressed && styles.pressed]}>
-          <Ionicons name={pinnedPosts.some(pin => pin.id === post.id) ? 'pin' : 'pin-outline'} size={18} color={colors.gold}/>
-        </Pressable> : null}
-
-        <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} event={Boolean(post.club_event)} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
-
-        <PostSpoilerContent post={post}>
-        {questionContent ? (<>
-            <Text style={styles.questionPostTitle}>
-              {questionContent.question}
-            </Text>
-
-            {questionContent.context ? (<Text style={styles.questionPostContext}>
-                {questionContent.context}
-              </Text>) : null}
-          </>) : post.body.trim() && !post.club_discussion ? (<Text style={styles.postBody}>
-            {post.body}
-          </Text>) : null}
-
-        {post.club_discussion ? <ClubDiscussionPostAttachment discussion={post.club_discussion}/> : null}
-        {post.club_event ? <ClubEventPostAttachment event={post.club_event}/> : null}
-        {post.reading_recap ? <ReadingRecapPostAttachment snapshot={post.reading_recap}/> : null}
-
-        {post.post_image_url ? (<FeedPostImage uri={post.post_image_url} colors={colors}/>) : null}
-
-        </PostSpoilerContent>
-        {post.post_type === 'book_stack' && post.book_stack_id ? <BookStackPostAttachment stackId={post.book_stack_id} compactTopSpacing={!post.body.trim()}/> : null}
-        {post.book_title ? (post.post_image_url ? (<Pressable disabled={!post.google_book_id} onPress={() => {
-                    if (!post.google_book_id) {
-                        return;
-                    }
-                    router.push({
-                        pathname: '/book/[id]',
-                        params: {
-                            id: post.google_book_id,
-                        },
-                    });
-                }} style={({ pressed, }) => [
-                    styles.postCompactBookLink,
-                    pressed &&
-                        Boolean(post.google_book_id) &&
-                        styles.pressed
-                ]}>
-              <Ionicons name="book-outline" size={14} color={colors.gold}/>
-
-              <View style={styles.postCompactBookCopy}>
-                <Text style={styles.postCompactBookTitle} numberOfLines={1}>
-                  {displayBookTitle(post.book_title ?? '')}
-                </Text>
-
-                {(post.book_authors &&
-                    post.book_authors.length >
-                        0) ||
-                    post.book_series_name ? (<Text style={styles.postCompactBookMeta} numberOfLines={1}>
-                    {post.book_authors &&
-                        post.book_authors.length >
-                            0
-                        ? post.book_authors.join(', ')
-                        : ''}
-                    {post.book_authors &&
-                        post.book_authors.length >
-                            0 &&
-                        post.book_series_name
-                        ? ' · '
-                        : ''}
-                    {post.book_series_name
-                        ? `${post.book_series_name}${post.book_series_position !== null
-                            ? ` #${post.book_series_position}`
-                            : ''}`
-                        : ''}
-                  </Text>) : null}
-              </View>
-
-              {post.google_book_id ? (<Ionicons name="chevron-forward" size={15} color={colors.mutedText}/>) : null}
-            </Pressable>) : (<Pressable disabled={!post.google_book_id} onPress={() => {
-                    if (!post.google_book_id) {
-                        return;
-                    }
-                    router.push({
-                        pathname: '/book/[id]',
-                        params: {
-                            id: post.google_book_id,
-                        },
-                    });
-                }} style={({ pressed, }) => [
-                    styles.postBookCard,
-                    pressed &&
-                        Boolean(post.google_book_id) &&
-                        styles.pressed
-                ]}>
-              {(post.google_book_id || post.book_cover_url) ? (<BookCoverImage googleBookId={post.google_book_id} existingCoverUrl={post.book_cover_url} style={styles.postBookCover}/>) : (<View style={styles.postBookCoverFallback}>
-                  <Ionicons name="book-outline" size={18} color={colors.gold}/>
-                </View>)}
-
-              <View style={styles.postBookCopy}>
-                <Text style={styles.postBookTitle} numberOfLines={2}>
-                  {displayBookTitle(post.book_title ?? '')}
-                </Text>
-
-                {post.book_authors &&
-                    post.book_authors.length >
-                        0 ? (<Text style={styles.postBookAuthor} numberOfLines={1}>
-                    {post.book_authors.join(', ')}
-                  </Text>) : null}
-
-                {post.rating ? (<Text style={styles.postBookRating}>
-                    ★ {post.rating}
-                  </Text>) : null}
-              </View>
-            </Pressable>)) : null}
-
-        <View style={styles.postVoteRow}>
-          <Pressable disabled={votingPostId ===
-                post.id} onPress={() => handlePostVote(post.id, 1)} hitSlop={8} style={({ pressed }) => [
-                styles.postVoteButton,
-                post.viewer_vote ===
-                    1 &&
-                    styles.postVoteButtonActive,
-                pressed &&
-                    styles.pressed,
-                votingPostId ===
-                    post.id &&
-                    styles.postVoteButtonDisabled
-            ]}>
-            <Ionicons name={post.viewer_vote ===
-                1
-                ? 'arrow-up-circle'
-                : 'arrow-up-circle-outline'} size={20} color={post.viewer_vote ===
-                1
-                ? colors.gold
-                : colors.mutedText}/>
-          </Pressable>
-
-          <Text style={[
-                styles.postVoteScore,
-                post.viewer_vote !==
-                    0 &&
-                    styles.postVoteScoreActive
-            ]}>
-            {post.vote_score ??
-                0}
-          </Text>
-
-          <Pressable disabled={votingPostId ===
-                post.id} onPress={() => handlePostVote(post.id, -1)} hitSlop={8} style={({ pressed }) => [
-                styles.postVoteButton,
-                post.viewer_vote ===
-                    -1 &&
-                    styles.postVoteButtonActive,
-                pressed &&
-                    styles.pressed,
-                votingPostId ===
-                    post.id &&
-                    styles.postVoteButtonDisabled
-            ]}>
-            <Ionicons name={post.viewer_vote ===
-                -1
-                ? 'arrow-down-circle'
-                : 'arrow-down-circle-outline'} size={20} color={post.viewer_vote ===
-                -1
-                ? colors.gold
-                : colors.mutedText}/>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open club post comments" onPress={() => {
-              preserveClubStateOnNextFocus.current = true;
-              router.push({ pathname: '/post/[id]', params: { id: post.id } });
-          }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, marginLeft: 'auto', paddingHorizontal: 8 }}>
-            <Ionicons name="chatbubble-outline" size={17} color={colors.mutedText}/>
-            <Text style={{ color: colors.mutedText, fontFamily: 'Inter_500Medium', fontSize: 12 }}>{post.comment_count ?? 0} {(post.comment_count ?? 0) === 1 ? 'comment' : 'comments'}</Text>
-          </Pressable>
-        </View>
-      </Pressable>);
+        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={currentUserId}
+            openLabel="Open club post and comments" commentsLabel="Open club post comments"
+            votingPostId={votingPostId} onVote={handlePostVote} onReader={openReader} onClub={() => {}}
+            onOpen={item => {
+                preserveClubStateOnNextFocus.current = true;
+                router.push({pathname:'/post/[id]',params:{id:item.id}});
+            }}
+            onComments={openCommentsSheet} onShare={item => void shareRenderedPost(item.id)}
+            onMore={setPostOptions}/>;
     }
     function renderMember(member: ClubMember) {
         const displayName = member.display_name?.trim() ||
@@ -1218,7 +1057,8 @@ export default function ClubDetailScreen() {
         </Text>
       </Pressable>);
     }
-    function renderInviteCandidate(candidate: ClubInviteCandidate) {
+    function renderInviteCandidate(result: ClubInviteCandidate) {
+        const candidate = sentInviteIds.has(result.id) ? { ...result, invite_pending: true } : result;
         const displayName = candidate.display_name
             ?.trim() ||
             candidate.username
@@ -1233,15 +1073,9 @@ export default function ClubDetailScreen() {
             .toUpperCase();
         const busy = invitingReaderId ===
             candidate.id;
-        const disabled = busy ||
-            candidate.is_member ||
-            candidate.invite_pending;
+        const disabled = invitingReaderId !== null || candidate.invite_pending;
         return (<View key={candidate.id} style={styles.inviteReaderRow}>
-        <Pressable onPress={() => openReader(candidate.id)} style={({ pressed }) => [
-                styles.inviteReaderIdentity,
-                pressed &&
-                    styles.pressed
-            ]}>
+        <View style={styles.inviteReaderIdentity}>
           {candidate.avatar_url ? (<CachedMediaImage source={{
                     uri: moderationMediaUrl(candidate.avatar_url),
                 }} style={styles.inviteReaderAvatar}/>) : (<View style={styles.inviteReaderAvatarFallback}>
@@ -1259,9 +1093,9 @@ export default function ClubDetailScreen() {
                 {username}
               </Text>) : null}
           </View>
-        </Pressable>
+        </View>
 
-        <Pressable disabled={disabled} onPress={() => handleInviteReader(candidate)} style={({ pressed }) => [
+        <Pressable accessibilityRole="button" accessibilityLabel={candidate.invite_pending ? `Invitation sent to ${displayName}` : `Invite ${displayName}`} disabled={disabled} onPress={() => handleInviteReader(candidate)} style={({ pressed }) => [
                 styles.inviteReaderButton,
                 (candidate.is_member ||
                     candidate.invite_pending) &&
@@ -1442,7 +1276,7 @@ export default function ClubDetailScreen() {
             }
             setRemoveMemberConfirmTarget(null);
         } });
-    if (loading) {
+    if (loading || (club && club.id !== clubId && !error)) {
         return (<SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.centered}>
           <ActivityIndicator size="small" color={colors.gold}/>
@@ -1501,11 +1335,6 @@ export default function ClubDetailScreen() {
             return;
         setManagementVisible(next);
         setMembersVisible(next);
-        setInvitePanelOpen(next);
-        if (!next) {
-            setInviteQuery('');
-            setInviteResults([]);
-        }
     }
     async function handleShareClub() {
         if (!club)
@@ -1515,6 +1344,28 @@ export default function ClubDetailScreen() {
         }
         catch {
             Alert.alert('Could not share club', 'Please try again.');
+        }
+    }
+    async function openClubComposer(announcement = false) {
+        const warm = composerWarm.current;
+        if (!club?.membership_role || openingComposer.current) return;
+        const { id, name, cover_url } = club;
+        openingComposer.current = true;
+        try {
+            const matches = warm && warm.clubId === id && warm.userId === currentUserId;
+            const [profile] = await Promise.all([
+                matches ? warm.profile : currentUserId ? loadComposerProfile(currentUserId).catch(() => null) : null,
+                matches ? warm.cover : warmComposerImage(cover_url).catch(() => {}),
+            ]);
+            if (!experienceMounted.current || pinClubIdRef.current !== id) return;
+            const previewKey = currentUserId ? prepareClubComposerPreview({
+                clubId: id, clubName: name, clubCover: cover_url, userId: currentUserId, profile,
+            }) : undefined;
+            router.push({ pathname: '/create-post', params: {
+                clubId: id, clubName: name, previewKey, ...(announcement ? { announcement: '1' } : {}),
+            } });
+        } finally {
+            openingComposer.current = false;
         }
     }
     function handleClubAction(action: ClubHomeAction) {
@@ -1537,13 +1388,10 @@ export default function ClubDetailScreen() {
             toggleManagement(true);
             clubScrollRef.current?.scrollTo({ y: 0, animated: true });
         }
-        else if (action === 'guide') {
-            if (memberExperience)
-                setWelcomeOpen(true);
-            else
-                void updateClubExperience('guide');
-            clubScrollRef.current?.scrollTo({ y: 0, animated: true });
-        }
+        else if (action === 'announce' && isManager)
+            void openClubComposer(true);
+        else if (action === 'discussions' && club)
+            router.push({ pathname: '/club-discussions', params: { clubId: club.id } });
         else if (action === 'notification_settings')
             router.push('/notification-settings');
         else if (action === 'notifications')
@@ -1551,7 +1399,7 @@ export default function ClubDetailScreen() {
         else if (action === 'leave')
             confirmLeave();
     }
-    async function updateClubExperience(action: 'notifications' | 'welcome' | 'guide') {
+    async function updateClubExperience(action: 'notifications' | 'welcome') {
         if (!club?.membership_role || experienceMutation.current)
             return;
         const target = club.id;
@@ -1559,15 +1407,13 @@ export default function ClubDetailScreen() {
         setExperienceBusy(true);
         try {
             const previous = memberExperience ?? await getClubMemberExperience(target);
-            const next = action === 'notifications' ? await setClubNotificationsEnabled(target, !previous.notifications_enabled) : action === 'welcome' ? await dismissClubWelcome(target) : previous;
+            const next = action === 'notifications' ? await setClubNotificationsEnabled(target, !previous.notifications_enabled) : await dismissClubWelcome(target);
             if (experienceMounted.current && pinClubIdRef.current === target) {
                 experienceVersion.current++;
                 setMemberExperience(next);
                 setExperienceWarning('');
                 if (action === 'welcome')
                     setWelcomeOpen(false);
-                else if (action === 'guide')
-                    setWelcomeOpen(true);
             }
         }
         catch (error) {
@@ -1601,18 +1447,68 @@ export default function ClubDetailScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Share club" onPress={() => { Keyboard.dismiss(); void handleShareClub(); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
             <Ionicons name="share-social-outline" size={23} color={colors.text}/>
           </Pressable>
-          {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel="Open club options" onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/></Pressable> : <View style={styles.headerSpacer}/>}
+          {clubActions.length ? <Pressable accessibilityRole="button" accessibilityLabel={isManager && managerJoinRequests.length > 0 ? `Open club options, ${managerJoinRequests.length} pending join requests` : "Open club options"} onPress={() => { Keyboard.dismiss(); setClubMenuVisible(true); }} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}><Ionicons name="ellipsis-horizontal" size={23} color={colors.text}/>{isManager && managerJoinRequests.length > 0 ? <View pointerEvents="none" style={styles.clubOptionsDot}/> : null}</Pressable> : <View style={styles.headerSpacer}/>}
         </View>
       </View>
 
-      <ScrollView nestedScrollEnabled ref={clubScrollRef} contentContainerStyle={[
-            styles.content,
-            invitePanelOpen &&
-                styles.contentInviteOpen
-        ]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshClub} tintColor={colors.gold} colors={[
+      {isManager && invitePanelOpen ? (
+        <Modal animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setInvitePanelOpen(false)}>
+          <SafeAreaProvider style={styles.safeArea}>
+          <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+            <View style={styles.header}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Back to club" hitSlop={8} onPress={() => { Keyboard.dismiss(); setInvitePanelOpen(false); }} style={styles.headerButton}>
+                <Ionicons name="chevron-back" size={24} color={colors.text}/>
+              </Pressable>
+              <Text style={styles.headerTitle}>Invite readers</Text>
+              <View style={styles.headerSpacer}/>
+            </View>
+            <View style={styles.inviteScreenBody}>
+              <View style={styles.inviteSearchWrap}>
+                <Ionicons name="search-outline" size={18} color={colors.mutedText}/>
+                <View style={styles.inviteSearchField}>
+                  <TextInput accessibilityLabel="Search by name or username" value={inviteQuery} onChangeText={setInviteQuery}
+                    autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.inviteSearchInput}/>
+                </View>
+                {inviteQuery ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={() => setInviteQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.mutedText}/>
+                </Pressable> : null}
+                {!inviteQuery ? <View pointerEvents="none" accessible={false}
+                    accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.inviteSearchPlaceholder}>
+                    <Text numberOfLines={1} style={styles.inviteSearchPlaceholderText}>Search by name or @username</Text>
+                  </View> : null}
+              </View>
+              {!inviteTerm && !inviteSearchLoading && !inviteSearchError && inviteResults.length > 0
+                ? <Text style={styles.inviteResultsLabel}>Suggested readers</Text> : null}
+              {inviteSearchLoading ? <ActivityIndicator style={styles.inviteSearchHint} color={colors.gold}/>
+                : inviteSearchError ? <Pressable accessibilityRole="button" onPress={() => retryInviteSearch(value => value + 1)}>
+                  <Text style={styles.inviteSearchHint}>Couldn’t load readers. Tap to retry.</Text>
+                </Pressable>
+                : !inviteResults.length ? <Text style={styles.inviteSearchHint}>{inviteTerm.length === 1
+                  ? 'Enter at least two characters to search.'
+                  : inviteTerm ? 'No matching readers to invite.' : 'No suggestions yet. Search to find a reader.'}</Text>
+                : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets
+                    contentContainerStyle={styles.inviteResultsContent}>
+                    {inviteResults.map(renderInviteCandidate)}
+                  </ScrollView>}
+            </View>
+          </SafeAreaView>
+          </SafeAreaProvider>
+        </Modal>
+      ) : null}
+
+      <ScrollView {...browsingScroll} nestedScrollEnabled ref={clubScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshClub} tintColor={colors.gold} colors={[
                 colors.gold
             ]} progressBackgroundColor={colors.surface}/>}>
-        <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} managementVisible={managementVisible} pendingRequests={managerJoinRequests.length} pendingInvites={managerInvites.length} onPhoto={() => setClubImageOpen(true)} onRules={() => setRulesExpanded(value => !value)} onMembers={() => setMembersVisible(value => !value)} onManage={() => toggleManagement()} onEdit={editClub}/>
+        <ClubHomeCard key={club.id} club={club} canViewMembers={canViewMembers} rulesExpanded={rulesExpanded} membersVisible={membersVisible} onPhoto={() => setClubImageOpen(true)} onMembers={() => {
+            if (membersVisible && !managementVisible) setMembersVisible(false);
+            else handleClubAction('members');
+        }} onCloseRules={() => setRulesExpanded(false)} onEdit={editClub} onInvite={isManager ? () => {
+            setInviteQuery('');
+            setInviteResults([]);
+            setInviteSearchError(false);
+            setInviteSearchLoading(true);
+            setInvitePanelOpen(true);
+        } : undefined}/>
         {isMember && welcomeOpen && memberExperience ? <ClubWelcomeCard name={club.name} experience={memberExperience} eventTitle={nextEvent?.title} hasRules={Boolean(club.rules?.trim())} busy={experienceBusy} onBooks={() => setClubTab('books')} onDiscussion={() => router.push({ pathname: '/club-discussions', params: { clubId: club.id } })} onEvents={() => setClubTab('events')} onRules={() => { setRulesExpanded(true); clubScrollRef.current?.scrollTo({ y: 0, animated: true }); }} onDismiss={() => void updateClubExperience('welcome')}/> : null}
 
         {pendingInvite &&
@@ -1660,7 +1556,7 @@ export default function ClubDetailScreen() {
             </View>
           </View>) : null}
 
-        {isMember ? null : pendingInvite ? (null) : club.privacy ===
+        {isMember || accessLoading ? null : pendingInvite ? (null) : club.privacy ===
             'private' ? (<Pressable disabled={joinRequestLoading} onPress={pendingJoinRequest
                 ? handleCancelAccessRequest
                 : handleRequestAccess} style={({ pressed }) => [
@@ -1703,6 +1599,12 @@ export default function ClubDetailScreen() {
               </>)}
           </Pressable>)}
 
+        {isManager && managementVisible ? <View style={styles.clubManagementHeader}>
+          <Text style={styles.sectionTitle}>Manage club</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close club management" onPress={() => toggleManagement(false)} style={styles.headerButton}>
+            <Ionicons name="close" size={22} color={colors.text}/>
+          </Pressable>
+        </View> : null}
         {isManager && managementVisible &&
             managerJoinRequests.length >
                 0 ? (<View style={styles.joinRequestsSection}>
@@ -1729,82 +1631,7 @@ export default function ClubDetailScreen() {
             </View>
           </View>) : null}
 
-        {isManager && managementVisible ? (<View onLayout={(event) => {
-                invitePanelY.current =
-                    event.nativeEvent.layout.y;
-            }} style={styles.inviteSection}>
-            <Pressable onPress={() => {
-                setInvitePanelOpen((current) => !current);
-                if (invitePanelOpen) {
-                    setInviteQuery('');
-                    setInviteResults([]);
-                }
-            }} style={({ pressed }) => [
-                styles.inviteToggleButton,
-                pressed &&
-                    styles.pressed
-            ]}>
-              <View style={styles.inviteToggleIcon}>
-                <Ionicons name="person-add-outline" size={18} color={colors.gold}/>
-              </View>
-
-              <View style={styles.inviteToggleCopy}>
-                <Text style={styles.inviteToggleTitle}>
-                  Invite Readers
-                </Text>
-
-                <Text style={styles.inviteToggleText}>
-                  Search Novori and invite readers to this club.
-                </Text>
-              </View>
-
-              <Ionicons name={invitePanelOpen
-                ? 'chevron-up'
-                : 'chevron-down'} size={18} color={colors.mutedText}/>
-            </Pressable>
-
-            {invitePanelOpen ? (<View style={styles.invitePanel}>
-                <View style={styles.inviteSearchWrap}>
-                  <Ionicons name="search-outline" size={18} color={colors.mutedText}/>
-
-                  <TextInput value={inviteQuery} onChangeText={setInviteQuery} placeholder="Search by name or @username" placeholderTextColor={colors.mutedText} autoCapitalize="none" autoCorrect={false} returnKeyType="search" onFocus={() => {
-                    requestAnimationFrame(() => {
-                        const targetY = Math.max(0, invitePanelY.current -
-                            12);
-                        clubScrollRef.current?.scrollTo({
-                            y: targetY,
-                            animated: true,
-                        });
-                        setTimeout(() => {
-                            clubScrollRef.current?.scrollTo({
-                                y: targetY,
-                                animated: true,
-                            });
-                        }, 220);
-                    });
-                }} style={styles.inviteSearchInput}/>
-
-                  {inviteSearchLoading ? (<ActivityIndicator size="small" color={colors.gold}/>) : inviteQuery ? (<Pressable onPress={() => {
-                        setInviteQuery('');
-                        setInviteResults([]);
-                    }} hitSlop={8}>
-                      <Ionicons name="close-circle" size={18} color={colors.mutedText}/>
-                    </Pressable>) : null}
-                </View>
-
-                {inviteQuery.trim().length <
-                    2 ? (<Text style={styles.inviteSearchHint}>
-                    Enter at least two characters to search.
-                  </Text>) : !inviteSearchLoading &&
-                    inviteResults.length ===
-                        0 ? (<Text style={styles.inviteSearchHint}>
-                    No matching readers found.
-                  </Text>) : (<ScrollView style={styles.inviteResults} contentContainerStyle={styles.inviteResultsContent} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={inviteResults.length >
-                        4}>
-                    {inviteResults.map(renderInviteCandidate)}
-                  </ScrollView>)}
-              </View>) : null}
-
+        {isManager && managementVisible ? (<View style={styles.inviteSection}>
             {managerInvites.length >
                 0 ? (<View style={styles.pendingInvitesBlock}>
                 <View style={styles.pendingInvitesHeader}>
@@ -1859,7 +1686,7 @@ export default function ClubDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          {ownerMember ? <>
+          {membersLoading && !ownerMember ? <ActivityIndicator color={colors.gold} style={{ padding: 16 }}/> : ownerMember ? <>
             <ScrollView accessibilityLabel="Club members" nestedScrollEnabled directionalLockEnabled scrollEnabled={members.length > 5} showsVerticalScrollIndicator={members.length > 5} bounces={false} keyboardShouldPersistTaps="handled" style={members.length > 5 ? styles.membersScroll : undefined}>
               {[ownerMember, ...otherMembers].map((member, index) => <View key={member.user_id}>
                 {index ? <View style={styles.rowDivider}/> : null}
@@ -1872,14 +1699,20 @@ export default function ClubDetailScreen() {
 
         </View> : null}
 
-        <View style={styles.clubTabBar}>{(['posts', 'events', 'books'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Ionicons name={tab === 'posts' ? 'chatbubbles-outline' : tab === 'events' ? 'calendar-outline' : 'book-outline'} size={16} color={clubTab === tab ? colors.gold : colors.mutedText}/><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
-        <ClubTabActions clubId={club.id} tab={clubTab} isMember={isMember} canManage={isManager}/>
-        {clubTab === 'books' ? <ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/> : clubTab === 'events' ? <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/> : <>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open club discussions and polls" onPress={() => router.push({ pathname: '/club-discussions', params: { clubId: club.id } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginBottom: 12, paddingHorizontal: 13, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}><Ionicons name="chatbubbles-outline" size={17} color={colors.gold}/><Text style={{ flex: 1, color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Discussions & polls</Text><Ionicons name="chevron-forward" size={16} color={colors.mutedText}/></Pressable>
-        {nextEvent ? <ClubEventCard event={nextEvent} next now={eventNow} onOpen={() => router.push({ pathname: '/club-event/[id]', params: { id: nextEvent.id } })}/> : null}
-        <ClubPinnedPosts posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => { Keyboard.dismiss(); setPinTarget(post); }}/>
+        <View style={styles.clubToolsRow}>
+        <View style={styles.clubTabBar} accessibilityRole="tablist">{(['posts', 'books', 'events'] as const).map(tab => <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={tab === 'posts' ? 'Club Posts tab' : tab === 'events' ? 'Club Events tab' : 'Club Books tab'} accessibilityState={{ selected: clubTab === tab }} onPress={() => setClubTab(tab)} style={[styles.clubTab, clubTab === tab && styles.clubTabSelected]}><Text style={[styles.clubTabText, clubTab === tab && { color: colors.gold }]}>{tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Books'}</Text></Pressable>)}</View>
+        <ClubTabActions clubId={club.id} clubName={club.name} onPost={() => void openClubComposer()} tab={clubTab} isMember={isMember} canManage={isManager} compact/>
+        </View>
+        {(clubTab === 'books' || (visitedTabs.clubId === club.id && visitedTabs.books)) ? (
+          <View style={clubTab !== 'books' ? styles.hiddenClubTab : undefined}><ClubBooksBoard key={club.id} clubId={club.id} canManage={isManager} refreshVersion={booksRefreshVersion} showAddAction={false}/></View>
+        ) : null}
+        {(clubTab === 'events' || (visitedTabs.clubId === club.id && visitedTabs.events)) ? (
+          <View style={clubTab !== 'events' ? styles.hiddenClubTab : undefined}>{eventsLoading ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/> : <ClubEventsBoard key={club.id} clubId={club.id} upcoming={upcomingEvents} canManage={isManager} now={eventNow} showCreateAction={false}/>}</View>
+        ) : null}
+        <View style={clubTab !== 'posts' ? styles.hiddenClubTab : undefined}>
+        <ClubPinnedPosts onMore={setPostOptions} posts={visiblePinnedPosts} canManage={isManager} busy={pinBusy} onOpen={postId => router.push({ pathname: '/post/[id]', params: { id: postId } })} onManage={post => void handleClubPin(post.id, false)}/>
 
-        <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && !nextEvent && styles.conversationAfterMembers]}>
+        <View style={[styles.sectionHeader, styles.conversationHeader, membersVisible && !visiblePinnedPosts.length && styles.conversationAfterMembers]}>
           <Text style={styles.sectionTitle}>
             Club conversation
           </Text>
@@ -1889,7 +1722,11 @@ export default function ClubDetailScreen() {
           </Text>
         </View>
 
-        {clubPosts.length > 0 ? (<View style={styles.postList}>
+        {postsStatus === 'loading' ? <ActivityIndicator color={colors.gold} style={{ padding: 20 }}/>
+        : postsStatus === 'error' ? <Pressable accessibilityRole="button" onPress={() => void refreshClub()} style={styles.activityPlaceholder}>
+            <Text style={styles.activityText}>Couldn’t load club posts. Tap to retry.</Text>
+          </Pressable>
+        : clubPosts.length > 0 ? (<View style={styles.postList}>
             {clubPosts.map(renderClubPost)}
           </View>) : (<View style={styles.activityPlaceholder}>
             <Ionicons name="chatbubbles-outline" size={27} color={colors.gold}/>
@@ -1904,12 +1741,7 @@ export default function ClubDetailScreen() {
                         : 'Club posts will appear here when members start the conversation.'}
             </Text>
 
-            {isMember ? (<Pressable onPress={() => router.push({
-                            pathname: '/create-post',
-                            params: {
-                                clubId: club.id,
-                            },
-                        })} style={({ pressed }) => [
+            {isMember ? (<Pressable onPress={() => void openClubComposer()} style={({ pressed }) => [
                             styles.emptyPostButton,
                             pressed && styles.pressed
                         ]}>
@@ -1920,10 +1752,20 @@ export default function ClubDetailScreen() {
                 </Text>
               </Pressable>) : null}
           </View>)}
-        </>}
+        </View>
           </>)}
       </ScrollView>
 
+      <PostActions post={postOptions} currentUserId={currentUserId} onDismiss={() => setPostOptions(null)}
+        isPinned={visiblePinnedPosts.some(post => post.id === postOptions?.id)}
+        onPin={!pinBusy && isManager && postOptions && (!postOptions.club_event || isUpcomingClubEvent(postOptions.club_event,eventNow)) ? (post, pinned) => {
+          if (pinned && visiblePinnedPosts.length >= MAX_CLUB_PINS) setPinTarget(post);
+          else void handleClubPin(post.id, pinned);
+        } : undefined}
+        onDeleted={post => {
+          setClubPosts(current => current.filter(item => item.id !== post.id));
+          setPinnedPosts(current => current.filter(item => item.id !== post.id));
+        }}/>
       <ClubPinActionsSheet visible={Boolean(pinTarget)} post={pinTarget} pinnedPosts={visiblePinnedPosts} busy={pinBusy} onPin={(postId, pinned, replacePostId) => void handleClubPin(postId, pinned, replacePostId)} onDismiss={() => setPinTarget(null)}/>
 
       <ClubOptionsSheet visible={clubMenuVisible} clubName={club.name} role={role} canViewMembers={canViewMembers} notificationsEnabled={memberExperience?.notifications_enabled} globalNotificationsEnabled={memberExperience?.global_notifications_enabled} notificationsBusy={experienceBusy} hasRules={Boolean(club.rules?.trim())} busy={membershipLoading} onAction={handleClubAction} onDismiss={() => setClubMenuVisible(false)}/>
@@ -2295,6 +2137,7 @@ export default function ClubDetailScreen() {
 
       <FullScreenImageViewer visible={clubImageOpen} uri={club.cover_url} onClose={() => setClubImageOpen(false)} shape="rounded-square"/>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
+    {sheet}
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors) {
@@ -2336,9 +2179,6 @@ function createStyles(colors: NovoriColors) {
             paddingHorizontal: 20,
             paddingTop: 14,
             paddingBottom: 90,
-        },
-        contentInviteOpen: {
-            paddingBottom: 500,
         },
         clubCover: {
             width: 116,
@@ -2578,50 +2418,10 @@ function createStyles(colors: NovoriColors) {
         inviteSection: {
             marginTop: 12,
         },
-        inviteToggleButton: {
-            minHeight: 64,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 11,
-            paddingHorizontal: 13,
-            paddingVertical: 10,
-            borderRadius: 14,
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-        },
-        inviteToggleIcon: {
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        inviteToggleCopy: {
-            flex: 1,
-            minWidth: 0,
-        },
-        inviteToggleTitle: {
-            color: colors.text,
-            fontFamily: 'Inter_700Bold',
-            fontSize: 13,
-        },
-        inviteToggleText: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 11,
-            lineHeight: 16,
-            marginTop: 2,
-        },
-        invitePanel: {
-            marginTop: 8,
-            padding: 11,
-            borderRadius: 14,
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border,
-        },
+        clubOptionsDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
+        clubManagementHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+        inviteScreenBody: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
+        inviteResultsLabel: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 18 },
         inviteSearchWrap: {
             minHeight: 44,
             flexDirection: 'row',
@@ -2633,12 +2433,24 @@ function createStyles(colors: NovoriColors) {
             borderRadius: 12,
             paddingHorizontal: 11,
         },
+        inviteSearchField: { flex: 1, minWidth: 0, minHeight: 42, justifyContent: 'center' },
+        inviteSearchPlaceholder: { position: 'absolute', top: 0, bottom: 0, left: 34, right: 34, justifyContent: 'center' },
+        inviteSearchPlaceholderText: {
+            textAlign: 'center',
+            color: colors.mutedText,
+            fontFamily: 'Inter_400Regular',
+            fontSize: 13,
+            includeFontPadding: false,
+        },
         inviteSearchInput: {
             flex: 1,
             color: colors.text,
             fontFamily: 'Inter_400Regular',
             fontSize: 13,
-            paddingVertical: 9,
+            minHeight: 42,
+            paddingVertical: 0,
+            textAlignVertical: 'center',
+            includeFontPadding: false,
         },
         inviteSearchHint: {
             color: colors.mutedText,
@@ -2648,10 +2460,6 @@ function createStyles(colors: NovoriColors) {
             textAlign: 'center',
             paddingVertical: 14,
             paddingHorizontal: 8,
-        },
-        inviteResults: {
-            marginTop: 8,
-            maxHeight: 194,
         },
         inviteResultsContent: {
             gap: 6,
@@ -3007,9 +2815,11 @@ function createStyles(colors: NovoriColors) {
             marginBottom: 10,
             paddingHorizontal: 2,
         },
-        clubTabBar: { flexDirection: 'row', gap: 8, marginBottom: 14, marginTop: 4, backgroundColor: colors.surface, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: colors.border },
+        hiddenClubTab: { display: 'none' },
+        clubToolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 },
+        clubTabBar: { flex: 1, flexDirection: 'row', gap: 4, backgroundColor: colors.surface, borderRadius: 13, padding: 4, borderWidth: 1, borderColor: colors.border },
         clubTab: { flex: 1, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', minHeight: 40, borderRadius: 10 },
-        clubTabSelected: { backgroundColor: `${colors.gold}13` },
+        clubTabSelected: { backgroundColor: colors.elevated },
         clubTabText: { color: colors.mutedText, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
         membersSection: { marginBottom: 22 },
         membersSectionHeader: { marginTop: 0 },
@@ -3037,25 +2847,52 @@ function createStyles(colors: NovoriColors) {
         postVoteRow: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 3,
-            marginTop: 14,
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            marginTop: 15,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+        },
+        postVotePill: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            minHeight: 36,
+            backgroundColor: colors.elevated,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 18,
+            paddingHorizontal: 4,
+        },
+        postCommentPill: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            minHeight: 36,
+            paddingHorizontal: 12,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.elevated,
         },
         postVoteButton: {
-            width: 32,
-            height: 32,
-            borderRadius: 16,
+            width: 30,
+            height: 34,
+            borderRadius: 17,
             alignItems: 'center',
             justifyContent: 'center',
         },
         postVoteButtonActive: {
-            backgroundColor: colors.elevated,
+            backgroundColor: colors.surface,
         },
         postVoteButtonDisabled: {
             opacity: 0.55,
         },
         postVoteScore: {
-            minWidth: 24,
-            color: colors.secondaryText,
+            minWidth: 20,
+            color: colors.mutedText,
             fontFamily: 'Inter_600SemiBold',
             fontSize: 12,
             textAlign: 'center',
@@ -3400,6 +3237,7 @@ function createStyles(colors: NovoriColors) {
             lineHeight: 20,
             marginTop: 7,
         },
+        plainPostBody: { marginTop: 0 },
         postBody: {
             color: colors.text,
             fontFamily: 'Inter_400Regular',

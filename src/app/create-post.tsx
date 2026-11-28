@@ -1,78 +1,75 @@
-import CachedMediaImage from '../components/CachedMediaImage';
-import BookSearchRatings from '../components/BookSearchRatings';
-import { displayBookTitle } from '../lib/book-title';
-import SpoilerToggle from '../components/SpoilerToggle';
-import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
-import ValidationWarningSheet from '../components/ValidationWarningSheet';
-import { moderationMediaUrl } from '../lib/moderation-media-url';
-import PostTypeIdentifier from '../components/PostTypeIdentifier';
-import { canManageClubPosts } from '../lib/club-posts';
+import { useAttachmentBookSearch } from '../hooks/use-attachment-book-search';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  useLocalSearchParams,
-  useRouter,
+useLocalSearchParams,
+useRouter,
 } from 'expo-router';
 import {
-  useEffect,
-  useMemo,
-  useState,
+useEffect,
+useMemo,
+useState,
 } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+ActivityIndicator,
+Alert,
+Modal,
+Platform,
+Pressable,
+ScrollView,
+StyleSheet,
+Text,
+TextInput,
+View
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+SafeAreaView,
+useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import BookSearchRatings from '../components/BookSearchRatings';
+import CachedMediaImage from '../components/CachedMediaImage';
+import EditablePostCard from '../components/EditablePostCard';
+import { PostAttachmentControls, RemovablePostAttachment } from '../components/PostAttachmentControls';
+import ValidationWarningSheet from '../components/ValidationWarningSheet';
+import usePostComposerProfile from '../hooks/use-post-composer-profile';
+import { displayBookTitle } from '../lib/book-title';
+import { getClubComposerPreview } from '../lib/club-composer-preview';
+import { canManageClubPosts } from '../lib/club-posts';
+import { dismissKeyboardBeforeWarning } from '../lib/dismiss-keyboard-before-warning';
+import type { FeedPost } from '../lib/feed';
+import { moderationMediaUrl } from '../lib/moderation-media-url';
 
 import BookCoverImage from '../components/BookCoverImage';
 import PhotoSourceSheet from '../components/PhotoSourceSheet';
-import PostPhotoCropper, { PostCropAsset } from '../components/PostPhotoCropper';
+import PostPhotoCropper,{ PostCropAsset } from '../components/PostPhotoCropper';
 import {
-  NovoriColors,
+NovoriColors,
 } from '../constants/novori-theme';
 import {
-  useNovoriTheme,
+useNovoriTheme,
 } from '../context/theme-context';
 import {
-  ClubWithMembership,
-  getMyClubs,
-} from '../lib/clubs';
-import {
-  createPost,
-  getPostDetail,
-  PostImageUpload,
-  updatePost,
-  uploadPostImage,
-} from '../lib/feed';
-import {
-  getNovoriSearchBookCover,
-  getNovoriSearchBookIsbn,
-  GoogleBookSearchItem,
-  resolveNovoriSearchBookCover,
-  searchNovoriBooks,
+getNovoriSearchBookCover,
+getNovoriSearchBookIsbn,
+GoogleBookSearchItem,
+resolveNovoriSearchBookCover,
+
 } from '../lib/book-search';
 import {
-  supabase,
+ClubWithMembership,
+getMyClubs,
+} from '../lib/clubs';
+import {
+createPost,
+getPostDetail,
+PostImageUpload,
+updatePost,
+uploadPostImage,
+} from '../lib/feed';
+import {
+supabase,
 } from '../lib/supabase';
-
-type ViewerProfile = {
-  display_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
-};
 
 type Destination =
   | {
@@ -109,7 +106,7 @@ async function getSeriesMetadata(
       item
     );
 
-  if (!isbn) {
+  if (!isbn && !item.volumeInfo.title) {
     return {
       name: null,
       position: null,
@@ -126,6 +123,9 @@ async function getSeriesMetadata(
         {
           body: {
             isbn,
+            googleBookId: item.id,
+            title: item.volumeInfo.title,
+            authors: item.volumeInfo.authors ?? [],
           },
         }
       );
@@ -180,11 +180,14 @@ export default function CreatePostScreen() {
   const params =
     useLocalSearchParams<{
       clubId?: string;
+      clubName?: string;
+      previewKey?: string;
       announcement?: string;
       editPostId?: string;
     }>();
 
   const requestedAnnouncement = params.announcement === '1';
+  const [editSource, setEditSource] = useState<FeedPost | null>(null);
   const [containsSpoilers, setContainsSpoilers] = useState(false);
   const [announcement, setAnnouncement] = useState(requestedAnnouncement);
 
@@ -257,13 +260,8 @@ export default function CreatePostScreen() {
       )
     );
 
-  const [
-    viewerProfile,
-    setViewerProfile,
-  ] =
-    useState<ViewerProfile | null>(
-      null
-    );
+  const [clubPreview] = useState(() => getClubComposerPreview(params.previewKey, requestedClubId));
+  const viewerProfile = usePostComposerProfile(params.previewKey, clubPreview);
 
   const [
     destinationExpanded,
@@ -275,12 +273,9 @@ export default function CreatePostScreen() {
     destination,
     setDestination,
   ] =
-    useState<Destination>({
-      type:
-        'profile',
-      clubId:
-        null,
-    });
+    useState<Destination>(() => requestedClubId && !isEditing
+      ? { type: 'club', clubId: requestedClubId }
+      : { type: 'profile', clubId: null });
 
   const [
     photoSourceVisible,
@@ -344,30 +339,14 @@ export default function CreatePostScreen() {
   ] =
     useState('');
 
-  const [
-    bookResults,
-    setBookResults,
-  ] =
-    useState<
-      GoogleBookSearchItem[]
-    >([]);
-
-  const [
-    bookSearching,
-    setBookSearching,
-  ] =
-    useState(false);
-
-  const [
-    bookSearchError,
-    setBookSearchError,
-  ] =
-    useState('');
+  const {results:bookResults,busy:bookSearching,error:bookSearchError,submit:submitBookSearch}
+    = useAttachmentBookSearch(bookPickerVisible,bookQuery);
 
   useEffect(() => {
     let active =
       true;
 
+    const authRequest = supabase.auth.getUser();
     async function load() {
       try {
         const [
@@ -384,7 +363,7 @@ export default function CreatePostScreen() {
               : Promise.resolve(
                   null
                 ),
-            supabase.auth.getUser(),
+            authRequest,
           ]);
 
         if (
@@ -399,38 +378,6 @@ export default function CreatePostScreen() {
 
         const user =
           authResult.data.user;
-
-        if (
-          user
-        ) {
-          const {
-            data:
-              profileData,
-            error:
-              profileError,
-          } =
-            await supabase
-              .from(
-                'profiles'
-              )
-              .select(
-                'display_name, username, avatar_url'
-              )
-              .eq(
-                'id',
-                user.id
-              )
-              .single();
-
-          if (
-            !profileError &&
-            active
-          ) {
-            setViewerProfile(
-              profileData
-            );
-          }
-        }
 
         if (
           editingPost
@@ -456,6 +403,7 @@ export default function CreatePostScreen() {
             return;
           }
 
+          setEditSource(editingPost);
           setContainsSpoilers(editingPost.contains_spoilers === true);
           setAnnouncement(editingPost.is_club_announcement === true);
 
@@ -508,20 +456,6 @@ export default function CreatePostScreen() {
                 null,
             });
           }
-        } else if (
-          requestedClubId &&
-          myClubs.some(
-            (club) =>
-              club.id ===
-              requestedClubId
-          )
-        ) {
-          setDestination({
-            type:
-              'club',
-            clubId:
-              requestedClubId,
-          });
         }
       } catch (
         error
@@ -591,91 +525,6 @@ export default function CreatePostScreen() {
     router,
   ]);
 
-  useEffect(() => {
-    const query =
-      bookQuery.trim();
-
-    if (
-      !bookPickerVisible ||
-      query.length <
-        2
-    ) {
-      setBookResults(
-        []
-      );
-      setBookSearchError(
-        ''
-      );
-      setBookSearching(
-        false
-      );
-      return;
-    }
-
-    let active =
-      true;
-
-    const timer =
-      setTimeout(
-        async () => {
-          try {
-            setBookSearching(
-              true
-            );
-            setBookSearchError(
-              ''
-            );
-
-            const results =
-              await searchNovoriBooks(
-                query
-              );
-
-            if (
-              active
-            ) {
-              setBookResults(
-                results
-              );
-            }
-          } catch (
-            error
-          ) {
-            if (
-              active
-            ) {
-              setBookResults(
-                []
-              );
-              setBookSearchError(
-                'Could not search books. Please try again.'
-              );
-            }
-          } finally {
-            if (
-              active
-            ) {
-              setBookSearching(
-                false
-              );
-            }
-          }
-        },
-        300
-      );
-
-    return () => {
-      active =
-        false;
-      clearTimeout(
-        timer
-      );
-    };
-  }, [
-    bookPickerVisible,
-    bookQuery,
-  ]);
-
   const [submissionWarning, setSubmissionWarning] = useState<{ title: string; message: string } | null>(null);
 
   const trimmedBody =
@@ -688,6 +537,7 @@ export default function CreatePostScreen() {
       4000 &&
     !saving &&
     !loadingEditPost &&
+    (destination.type !== 'club' || (!loadingClubs && clubs.some(club => club.id === destination.clubId))) &&
     (!announcement || (!loadingClubs && destination.type === 'club' && clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role))));
 
   const profileSelected =
@@ -697,13 +547,13 @@ export default function CreatePostScreen() {
   const profileName =
     viewerProfile?.display_name?.trim() ||
     viewerProfile?.username?.trim() ||
-    'Your feed';
+    '';
 
   const profileInitial =
     profileName
       .charAt(0)
       .toUpperCase() ||
-    'N';
+    '';
 
   const selectedClub =
     destination.type ===
@@ -716,12 +566,20 @@ export default function CreatePostScreen() {
         null
       : null;
 
+  const selectedClubCover = selectedClub
+    ? selectedClub.cover_url
+    : destination.type === 'club' && destination.clubId === clubPreview?.clubId
+      ? clubPreview.clubCover
+      : null;
+
   const selectedTitle =
     profileSelected
       ? 'Your feed'
       : selectedClub
           ?.name ??
-        'Choose destination';
+        (destination.type === 'club' && destination.clubId === requestedClubId
+          ? clubPreview?.clubName || params.clubName?.trim() || 'Club'
+          : 'Choose destination');
 
   const selectedSubtitle =
     profileSelected
@@ -943,9 +801,6 @@ export default function CreatePostScreen() {
     setBookQuery(
       ''
     );
-    setBookResults(
-      []
-    );
 
     const [
       series,
@@ -1063,9 +918,7 @@ export default function CreatePostScreen() {
       if (
         isEditing
       ) {
-        router.replace(
-          '/(tabs)'
-        );
+        router.back();
       } else if (
         destination.type ===
           'club' &&
@@ -1249,10 +1102,12 @@ export default function CreatePostScreen() {
             showsVerticalScrollIndicator={
               false
             }
-            contentContainerStyle={
-              styles.content
-            }
+            contentContainerStyle={[
+              styles.content,
+              !isEditing && !announcement && styles.destinationAtTop,
+            ]}
           >
+            {!announcement && destination.type === 'club' && !loadingClubs && !selectedClub ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>You can’t post to this club right now. Choose another destination to continue.</Text> : null}
             {announcement && !loadingClubs && !clubs.some(club => club.id === destination.clubId && canManageClubPosts(club.membership_role)) ? <Text style={{ color: colors.danger,fontFamily: 'Inter_500Medium',fontSize: 12,marginBottom: 12 }}>Only the club owner and admins can publish announcements.</Text> : null}
             {!isEditing && !announcement ? (
               <>
@@ -1275,39 +1130,14 @@ export default function CreatePostScreen() {
                   styles.pressed,
               ]}
             >
-              {profileSelected ? null : selectedClub
-                  ?.cover_url ? (
-                <CachedMediaImage
-                  source={{
-                    uri:
-                      moderationMediaUrl(selectedClub.cover_url),
-                  }}
-                  style={[
-                    styles.destinationAvatar,
-                    styles.clubDestinationAvatar,
-                  ]}
-                />
-              ) : (
-                <View
-                  style={
-                    styles.clubAvatarFallback
-                  }
-                >
-                  <Text
-                    style={
-                      styles.clubAvatarText
-                    }
-                  >
-                    {selectedClub
-                      ?.name
-                      .charAt(
-                        0
-                      )
-                      .toUpperCase() ??
-                      'C'}
-                  </Text>
+              {!profileSelected ? (
+                <View style={styles.clubDestinationMedia}>
+                  {selectedClubCover ? (
+                    <CachedMediaImage source={{ uri: moderationMediaUrl(selectedClubCover) }}
+                      style={styles.clubDestinationImage}/>
+                  ) : null}
                 </View>
-              )}
+              ) : null}
 
               <View
                 style={
@@ -1345,34 +1175,9 @@ export default function CreatePostScreen() {
                 </Text>
               </View>
 
-              {loadingClubs ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    colors.gold
-                  }
-                />
-              ) : (
-                <View
-                  style={
-                    styles.destinationChevron
-                  }
-                >
-                  <Ionicons
-                    name={
-                      destinationExpanded
-                        ? 'chevron-up'
-                        : 'chevron-down'
-                    }
-                    size={
-                      18
-                    }
-                    color={
-                      colors.gold
-                    }
-                  />
-                </View>
-              )}
+              <View style={styles.destinationChevron}>
+                <Ionicons name={destinationExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.gold}/>
+              </View>
             </Pressable>
 
             {destinationExpanded ? (
@@ -1581,135 +1386,14 @@ export default function CreatePostScreen() {
               </>
             ) : null}
 
-            <View
-              style={
-                styles.feedPreviewCard
-              }
-            >
-              <View
-                style={
-                  styles.feedPreviewHeader
-                }
-              >
-                {viewerProfile
-                  ?.avatar_url ? (
-                  <CachedMediaImage
-                    source={{
-                      uri:
-                        moderationMediaUrl(viewerProfile.avatar_url),
-                    }}
-                    style={
-                      styles.feedPreviewAvatar
-                    }
-                  />
-                ) : (
-                  <View
-                    style={
-                      styles.feedPreviewAvatarFallback
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.feedPreviewAvatarText
-                      }
-                    >
-                      {profileInitial}
-                    </Text>
-                  </View>
-                )}
-
-                <View
-                  style={
-                    styles.feedPreviewAuthorCopy
-                  }
-                >
-                  <View
-                    style={
-                      styles.feedPreviewIdentity
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.feedPreviewAuthorName
-                      }
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      {profileName}
-                    </Text>
-
-                    {viewerProfile
-                      ?.username
-                      ?.trim() ? (
-                      <Text
-                        style={
-                          styles.feedPreviewUsername
-                        }
-                        numberOfLines={
-                          1
-                        }
-                      >
-                        @{viewerProfile.username.trim()}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  {destination.type ===
-                    'club' &&
-                  selectedClub ? (
-                    <Text
-                      style={
-                        styles.feedPreviewAudienceText
-                      }
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      in {selectedClub.name}{' '}
-                      <Text
-                        style={
-                          styles.feedPreviewTime
-                        }
-                      >
-                        · now
-                      </Text>
-                    </Text>
-                  ) : (
-                    <Text
-                      style={
-                        styles.feedPreviewAudienceText
-                      }
-                    >
-                      posted to their profile{' '}
-                      <Text
-                        style={
-                          styles.feedPreviewTime
-                        }
-                      >
-                        · now
-                      </Text>
-                    </Text>
-                  )}
-                </View>
-
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={
-                    20
-                  }
-                  color={
-                    colors.mutedText
-                  }
-                />
-              </View>
-
+            <EditablePostCard postType="post" author={viewerProfile} source={editSource}
+              announcement={announcement} clubId={destination.type === 'club' ? destination.clubId : null}
+              clubName={destination.type === 'club' ? selectedTitle : null} clubCoverUrl={selectedClub?.cover_url}>
               <View
                 style={
                   styles.feedPreviewContent
                 }
               >
-                {announcement ? <PostTypeIdentifier postType="post" announcement colors={colors} /> : null}
                 <TextInput
                   value={
                     body
@@ -1735,8 +1419,8 @@ export default function CreatePostScreen() {
                   }
                 />
 
-                <SpoilerToggle value={containsSpoilers} onChange={setContainsSpoilers} disabled={saving} />
                 {visibleImageUrl ? (
+                  <RemovablePostAttachment label="Remove photo" onRemove={removePhoto} disabled={saving} style={{marginTop:6,marginHorizontal:-16}}>
                   <View
                     style={
                       styles.feedPreviewPhotoWrap
@@ -1753,10 +1437,12 @@ export default function CreatePostScreen() {
                       resizeMode="cover"
                     />
                   </View>
+                  </RemovablePostAttachment>
                 ) : null}
 
                 {attachedBook ? (
-                  visibleImageUrl ? (
+                  <RemovablePostAttachment label="Remove attached book" onRemove={() => setAttachedBook(null)} disabled={saving} style={{marginTop:7}}>
+                  {visibleImageUrl ? (
                     <Pressable
                       disabled={
                         !attachedBook.id
@@ -1780,7 +1466,7 @@ export default function CreatePostScreen() {
                       style={({
                         pressed,
                       }) => [
-                        styles.feedPreviewCompactBook,
+                        styles.feedPreviewCompactBook, {paddingRight:36},
                         pressed &&
                           Boolean(
                             attachedBook.id
@@ -1850,18 +1536,6 @@ export default function CreatePostScreen() {
                           </Text>
                         ) : null}
                       </View>
-
-                      {attachedBook.id ? (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={
-                            15
-                          }
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                      ) : null}
                     </Pressable>
                   ) : (
                     <Pressable
@@ -1887,7 +1561,7 @@ export default function CreatePostScreen() {
                       style={({
                         pressed,
                       }) => [
-                        styles.feedPreviewBookCard,
+                        styles.feedPreviewBookCard, {paddingRight:36},
                         pressed &&
                           Boolean(
                             attachedBook.id
@@ -1979,355 +1653,19 @@ export default function CreatePostScreen() {
                           </Text>
                         ) : null}
                       </View>
-
-                      {attachedBook.id ? (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={
-                            17
-                          }
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                      ) : null}
                     </Pressable>
-                  )
+                  )}
+                  </RemovablePostAttachment>
                 ) : null}
               </View>
 
-              {isEditing ? (
-                <View
-                  style={
-                    styles.editCardToolbar
-                  }
-                >
-                  <Text
-                    style={
-                      styles.editCardCount
-                    }
-                  >
-                    {body.length}/4000
-                  </Text>
-
-                  <View
-                    style={
-                      styles.editCardActions
-                    }
-                  >
-                    <Pressable
-                      onPress={() =>
-                        setPhotoSourceVisible(
-                          true
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.editCardAction,
-                        visibleImageUrl &&
-                          styles.editCardActionActive,
-                        pressed &&
-                          styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          visibleImageUrl
-                            ? 'image'
-                            : 'image-outline'
-                        }
-                        size={18}
-                        color={
-                          colors.gold
-                        }
-                      />
-                      <Text
-                        style={
-                          styles.editCardActionText
-                        }
-                      >
-                        {visibleImageUrl
-                          ? 'Replace'
-                          : 'Photo'}
-                      </Text>
-                    </Pressable>
-
-                    {visibleImageUrl ? (
-                      <Pressable
-                        onPress={
-                          removePhoto
-                        }
-                        style={({ pressed }) => [
-                          styles.editCardAction,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={17}
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                        <Text
-                          style={
-                            styles.editCardActionText
-                          }
-                        >
-                          Remove photo
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    <Pressable
-                      onPress={() =>
-                        setBookPickerVisible(
-                          true
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.editCardAction,
-                        attachedBook &&
-                          styles.editCardActionActive,
-                        pressed &&
-                          styles.pressed,
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          attachedBook
-                            ? 'book'
-                            : 'book-outline'
-                        }
-                        size={18}
-                        color={
-                          colors.gold
-                        }
-                      />
-                      <Text
-                        style={
-                          styles.editCardActionText
-                        }
-                      >
-                        {attachedBook
-                          ? 'Change book'
-                          : 'Book'}
-                      </Text>
-                    </Pressable>
-
-                    {attachedBook ? (
-                      <Pressable
-                        onPress={() =>
-                          setAttachedBook(
-                            null
-                          )
-                        }
-                        style={({ pressed }) => [
-                          styles.editCardAction,
-                          pressed &&
-                            styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={17}
-                          color={
-                            colors.mutedText
-                          }
-                        />
-                        <Text
-                          style={
-                            styles.editCardActionText
-                          }
-                        >
-                          Remove book
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-
-            </View>
-
-            {!isEditing ? (
-              <>
-            <View
-              style={
-                styles.previewAttachmentManagement
-              }
-            >
-              <Text
-                style={
-                  styles.previewAttachmentManagementText
-                }
-              >
-                {body.length}/4000
-              </Text>
-
-              {visibleImageUrl ? (
-                <Pressable
-                  onPress={
-                    removePhoto
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.previewManageButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.previewManageButtonText
-                    }
-                  >
-                    Remove photo
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {attachedBook ? (
-                <Pressable
-                  onPress={() =>
-                    setAttachedBook(
-                      null
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.previewManageButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.previewManageButtonText
-                    }
-                  >
-                    Remove book
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View
-              style={
-                styles.attachmentToolbar
-              }
-            >
-              <Text
-                style={
-                  styles.attachmentToolbarTitle
-                }
-              >
-                Add to your post
-              </Text>
-
-              <View
-                style={
-                  styles.attachmentActions
-                }
-              >
-                <Pressable
-                  onPress={() =>
-                    setPhotoSourceVisible(
-                      true
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.attachmentAction,
-                    visibleImageUrl &&
-                      styles.attachmentActionActive,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.attachmentIcon
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        visibleImageUrl
-                          ? 'image'
-                          : 'image-outline'
-                      }
-                      size={
-                        20
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={
-                      styles.attachmentActionText
-                    }
-                  >
-                    {visibleImageUrl
-                      ? 'Replace photo'
-                      : 'Photo'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() =>
-                    setBookPickerVisible(
-                      true
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.attachmentAction,
-                    attachedBook &&
-                      styles.attachmentActionActive,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.attachmentIcon
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        attachedBook
-                          ? 'book'
-                          : 'book-outline'
-                      }
-                      size={
-                        20
-                      }
-                      color={
-                        colors.gold
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={
-                      styles.attachmentActionText
-                    }
-                  >
-                    {attachedBook
-                      ? 'Change book'
-                      : 'Book'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-              </>
-            ) : null}
+              <PostAttachmentControls
+                disabled={saving}
+                photo={{label: visibleImageUrl ? 'Replace photo' : 'Attach photo', attached: Boolean(visibleImageUrl), onPress: () => setPhotoSourceVisible(true)}}
+                book={{label: attachedBook ? 'Change attached book' : 'Attach book', attached: Boolean(attachedBook), onPress: () => setBookPickerVisible(true)}}
+                spoilers={{value: containsSpoilers, onChange: setContainsSpoilers}}
+              />
+            </EditablePostCard>
 
             {!isEditing ? (
             <View
@@ -2351,7 +1689,7 @@ export default function CreatePostScreen() {
               >
                 {profileSelected
                   ? 'This will appear to readers who follow you.'
-                  : `This will be shared with ${selectedClub?.name ?? 'this club'}.`}
+                  : `This will be shared with ${selectedTitle}.`}
               </Text>
             </View>
             ) : null}
@@ -2511,6 +1849,7 @@ export default function CreatePostScreen() {
               onChangeText={
                 setBookQuery
               }
+              returnKeyType="search" onSubmitEditing={submitBookSearch}
               placeholder="Search title or author"
               placeholderTextColor={
                 colors.mutedText
@@ -2850,9 +2189,10 @@ function createStyles(
       paddingBottom:
         80,
     },
+    destinationAtTop: { paddingTop: 0 },
     destinationBar: {
       minHeight:
-        56,
+        64,
       flexDirection:
         'row',
       alignItems:
@@ -2860,7 +2200,7 @@ function createStyles(
       paddingHorizontal:
         10,
       paddingVertical:
-        7,
+        10,
       borderBottomWidth:
         StyleSheet.hairlineWidth,
       borderBottomColor:
@@ -2882,6 +2222,8 @@ function createStyles(
       marginRight:
         11,
     },
+    clubDestinationMedia: { width: 42, height: 42, marginRight: 11 },
+    clubDestinationImage: { width: 42, height: 42, borderRadius: 13 },
     clubDestinationAvatar: {
       borderRadius:
         13,
@@ -2945,6 +2287,7 @@ function createStyles(
     destinationCopy: {
       flex: 1,
       minWidth: 0,
+      justifyContent: 'center',
     },
     destinationEyebrow: {
       color:
@@ -2955,8 +2298,7 @@ function createStyles(
         9,
       letterSpacing:
         1.1,
-      marginBottom:
-        2,
+      lineHeight: 12,
     },
     destinationTitle: {
       color:
@@ -2965,6 +2307,7 @@ function createStyles(
         'Inter_600SemiBold',
       fontSize:
         15,
+      lineHeight: 19,
     },
     destinationSubtitle: {
       color:
@@ -2973,8 +2316,7 @@ function createStyles(
         'Inter_400Regular',
       fontSize:
         10.5,
-      marginTop:
-        2,
+      lineHeight: 14,
     },
     destinationChevron: {
       width:
@@ -3424,6 +2766,7 @@ function createStyles(
       paddingTop:
         15,
     },
+    previewAvatarSpace: { width: 46, height: 46, marginRight: 12 },
     feedPreviewAvatar: {
       width:
         46,
@@ -3551,10 +2894,6 @@ function createStyles(
         'stretch',
       aspectRatio:
         1,
-      marginTop:
-        6,
-      marginHorizontal:
-        -16,
       borderRadius:
         0,
       overflow:
@@ -3583,8 +2922,6 @@ function createStyles(
         'center',
       gap:
         8,
-      marginTop:
-        7,
       paddingHorizontal:
         2,
       paddingVertical:
@@ -3755,173 +3092,6 @@ function createStyles(
         'Inter_500Medium',
       fontSize:
         10.5,
-    },
-    editCardToolbar: {
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      gap: 10,
-    },
-    editCardCount: {
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_400Regular',
-      fontSize: 10,
-      textAlign:
-        'right',
-    },
-    editCardActions: {
-      flexDirection:
-        'row',
-      flexWrap:
-        'wrap',
-      gap: 8,
-    },
-    editCardAction: {
-      minHeight: 34,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 6,
-      borderWidth: 1,
-      borderColor:
-        colors.border,
-      backgroundColor:
-        colors.elevated,
-      borderRadius: 17,
-      paddingHorizontal: 10,
-    },
-    editCardActionActive: {
-      borderColor:
-        colors.gold,
-    },
-    editCardActionText: {
-      color:
-        colors.secondaryText,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize: 10.5,
-    },
-
-    previewAttachmentManagement: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'flex-end',
-      flexWrap:
-        'wrap',
-      gap:
-        8,
-      marginTop:
-        8,
-    },
-    previewAttachmentManagementText: {
-      marginRight:
-        'auto',
-      color:
-        colors.mutedText,
-      fontFamily:
-        'Inter_500Medium',
-      fontSize:
-        10,
-    },
-    previewManageButton: {
-      paddingHorizontal:
-        8,
-      paddingVertical:
-        6,
-      borderRadius:
-        9,
-    },
-    previewManageButtonText: {
-      color:
-        colors.gold,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        10.5,
-    },
-
-    attachmentToolbar: {
-      marginTop:
-        22,
-      paddingTop:
-        16,
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-      borderTopColor:
-        colors.border,
-    },
-    attachmentToolbarTitle: {
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        12,
-      marginBottom:
-        11,
-    },
-    attachmentActions: {
-      flexDirection:
-        'row',
-      gap:
-        10,
-    },
-    attachmentAction: {
-      flex: 1,
-      minHeight:
-        58,
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      borderWidth:
-        1,
-      borderColor:
-        colors.border,
-      borderRadius:
-        16,
-      paddingHorizontal:
-        12,
-      backgroundColor:
-        colors.surface,
-    },
-    attachmentActionActive: {
-      borderColor:
-        colors.gold,
-    },
-    attachmentIcon: {
-      width:
-        34,
-      height:
-        34,
-      borderRadius:
-        12,
-      backgroundColor:
-        colors.elevated,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      marginRight:
-        9,
-    },
-    attachmentActionText: {
-      flex: 1,
-      color:
-        colors.text,
-      fontFamily:
-        'Inter_600SemiBold',
-      fontSize:
-        11,
     },
     footerNote: {
       flexDirection:

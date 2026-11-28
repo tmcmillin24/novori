@@ -2,6 +2,7 @@ import {
   GoogleBookSearchItem,
   getBestSearchCover,
 } from './book-search';
+import { getSessionReadScope, invalidateSessionReads, peekSessionRead, sessionRead } from './session-read-cache';
 import { supabase } from './supabase';
 
 export type BookStackVisibility =
@@ -209,6 +210,7 @@ export async function saveBookStackSubmission({ name, items, stackId = null, pub
     p_publish: publish, p_body: body.trim(), p_club_id: clubId, p_post_id: postId,
   });
   if (error) throw error;
+  if (stackId) invalidateSessionReads(`stack-attachment:${stackId}|`);
   return { ...data, items: normalizeItems(data.items ?? []) } as BookStack;
 }
 
@@ -362,9 +364,20 @@ export async function deleteBookStack(
   if (error) {
     throw error;
   }
+  invalidateSessionReads(`stack-attachment:${stackId}|`);
 }
 
 
 export async function updateBookStack(stackId: string, name: string, items: BookStackDraftItem[]): Promise<BookStack> {
   return saveBookStackSubmission({ name, items, stackId });
+}
+
+export function peekBookStackAttachment(stackId: string) {
+  return peekSessionRead<BookStack>(`stack-attachment:${stackId}`);
+}
+
+export async function getBookStackAttachment(stackId: string) {
+  const scope = await getSessionReadScope();
+  if (!scope.userId) return getBookStack(stackId);
+  return sessionRead(scope.key, `stack-attachment:${stackId}`, () => getBookStack(stackId), { ttlMs: 60000 });
 }

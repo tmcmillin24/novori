@@ -14,9 +14,10 @@ export default function ClubBooksBoard({clubId,canManage,refreshVersion=0,showAd
   const router=useRouter(),{colors}=useNovoriTheme();const [reads,setReads]=useState<ClubReads>(EMPTY),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState(false),[warning,setWarning]=useState('');
   const [target,setTarget]=useState<ClubRead|null>(null),[removing,setRemoving]=useState<ClubRead|null>(null);
   const active=useRef(true),sequence=useRef(0),mutationBusy=useRef(false),pageBusy=useRef(false),offsets=useRef({upcoming:0,past:0});
-  const load=useCallback(async()=>{const version=++sequence.current;setLoading(true);setError('');try{
-    const data=await getClubReads(clubId);if(active.current&&version===sequence.current){setReads(data);offsets.current={upcoming:data.upcoming.length,past:data.past.length};}
-  }catch(error){if(active.current&&version===sequence.current)setError((error as {message?:string})?.message||'Could not load the club’s books.');}finally{if(active.current&&version===sequence.current)setLoading(false);}},[clubId]);
+  const firstPage = useRef<ClubReads | null>(null);
+  const load=useCallback(async()=>{const version=++sequence.current;if (!firstPage.current) setLoading(true);setError('');try{
+    const data=await getClubReads(clubId);if(active.current&&version===sequence.current){if (JSON.stringify(firstPage.current) !== JSON.stringify(data)) { firstPage.current=data; setReads(data); offsets.current={upcoming:data.upcoming.length,past:data.past.length}; }}
+  }catch(error){if(active.current&&version===sequence.current&&!firstPage.current)setError((error as {message?:string})?.message||'Could not load the club’s books.');}finally{if(active.current&&version===sequence.current)setLoading(false);}},[clubId]);
   useFocusEffect(useCallback(()=>{active.current=true;void load();return()=>{active.current=false;sequence.current++;};},[load,refreshVersion]));
   async function more(scope:'upcoming'|'past'){if(pageBusy.current||mutationBusy.current)return;const version=sequence.current;pageBusy.current=true;setBusy(true);
     try{const data=await getClubReads(clubId,scope,offsets.current[scope]);if(active.current&&version===sequence.current){offsets.current[scope]+=data[scope].length;setReads(current=>({...current,[scope]:[...new Map([...current[scope],...data[scope]].map(read=>[read.id,read])).values()],[`${scope}_more`]:data[`${scope}_more`]}));}}

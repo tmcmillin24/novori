@@ -137,6 +137,25 @@ async function attachIdentities(admin: SupabaseClient, books: Book[]): Promise<B
   return books.map(book => ({ ...book, id: ids.get(book.source.isbn13)! }));
 }
 
+// Save the verified Hardcover edition as detail-only metadata. The regular
+// ISBNdb result can supersede it later. This does not write cover or work rows.
+export async function saveHardcoverSeriesEdition(admin: SupabaseClient, edition: Book): Promise<Book> {
+  const [book] = await attachIdentities(admin, [edition]);
+  const {error} = await admin.from('google_books_catalog').upsert({
+    google_book_id:`hardcover-series:${book.id}`, metadata:book, detail_complete:true, fetched_at:new Date().toISOString(),
+  }, {onConflict:'google_book_id'});
+  if (error) throw new Error('Could not save the verified Hardcover edition.');
+  return book;
+}
+
+async function readHardcoverSeriesEdition(admin: SupabaseClient, id: string): Promise<Book | null> {
+  const {data,error} = await admin.from('google_books_catalog').select('metadata').eq('google_book_id',`hardcover-series:${id}`).maybeSingle();
+  if (error) return null;
+  const book = data?.metadata;
+  return book?.source?.provider === 'hardcover' && validIsbn13(book.source.isbn13) &&
+    book.volumeInfo?.language === 'en' && book.volumeInfo?.title && book.id === id ? book : null;
+}
+
 async function ingest(admin: SupabaseClient, raw: any): Promise<Book | null> {
   const mapped = adaptIsbnDbBook(raw);
   if (!mapped) return null;
@@ -153,7 +172,7 @@ async function catalog(admin: SupabaseClient, books: Book[], complete = true) {
   await recordGoogleBooksInCatalog(admin, { items: books }, complete, 'isbndb_lookup', PROVIDER);
 }
 
-async function lookup(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
+export async function lookupIsbnDbEdition(admin: SupabaseClient, userId: string, isbn: string): Promise<Book | null> {
   const book = await cachedProviderValue<Book | null>({ admin, provider: PROVIDER, key: `book:v2:${isbn}`, leaseSeconds: 60, freshMs: 30 * DAY, staleMs: 60 * DAY,
     valueLifetime: value => value === null ? { freshMs: 6 * 3600000, staleMs: 6 * 3600000 } : { freshMs: 30 * DAY, staleMs: 60 * DAY },
     load: async () => {
@@ -177,18 +196,19 @@ async function lookup(admin: SupabaseClient, userId: string, isbn: string): Prom
   return book ? normalizeIsbnDbEdition(book) : null;
 }
 
-export async function isbnDbSearch(admin: SupabaseClient, userId: string, query: string, startIndex = 0) {
+export async function isbnDbSearch(admin: SupabaseClient, userId: string, query: string, startIndex = 0, { resolvePreferredCover = true, titleOnly = false } = {}) {
   if (typeof query !== 'string' || query.length < 2 || query.length > 200 || !Number.isInteger(startIndex) || startIndex < 0 || startIndex > 1000) throw new Error('Invalid book search.');
   const isbnText = query.replace(/^isbn:/i, '').trim();
   const isbn = validIsbn13(isbnText) ?? isbn13From10(isbnText);
-  if (isbn) { const book = await lookup(admin, userId, isbn); return { items: book ? [book] : [], totalItems: book ? 1 : 0 }; }
+  if (isbn) { const book = await lookupIsbnDbEdition(admin, userId, isbn); return { items: book ? [book] : [], totalItems: book ? 1 : 0 }; }
   const text = query.replace(/\b(?:intitle|inauthor):/gi, '').replace(/"/g, '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!text || text.length > 150) throw new Error('Book search must be no longer than 150 characters.');
   const page = Math.floor(startIndex / 40) + 1;
-  const response = await cachedProviderValue({ admin, provider: PROVIDER, key: `search:v2:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
+  const response = await cachedProviderValue({ admin, provider: PROVIDER, key: `${titleOnly ? "title-search:v1" : "search:v2"}:${text.toLowerCase()}:${page}`, leaseSeconds: 60, freshMs: 7 * DAY, staleMs: 14 * DAY,
     load: async () => {
-      const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40`);
-      if (!raw || !Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
+      const raw = await upstream(admin, userId, `/books/${encodeURIComponent(text)}?page=${page}&pageSize=40${titleOnly ? "&column=title&shouldMatchAll=true" : ""}`);
+      if (raw === null) return {items: [] as Book[], totalItems: 0};
+      if (!Array.isArray(raw.books)) throw new Error('ISBNdb returned an invalid search response.');
       const mapped = raw.books.map((item: any) => adaptIsbnDbBook(item)).filter((book: Book | null): book is Book => Boolean(book));
       const linked = await attachIdentities(admin, mapped);
       const books = [...new Map(linked.map(book => [book.id, book])).values()];
@@ -198,10 +218,10 @@ export async function isbnDbSearch(admin: SupabaseClient, userId: string, query:
   });
   // Resolve an explicit owner's edition preference through the normal cache and
   // quota path. Preserve search IDs and metadata; only ingest its publisher art.
-  for (const item of response.items) {
+  for (const item of resolvePreferredCover ? response.items : []) {
     const preferred = preferredCoverIsbn(item.volumeInfo);
     if (preferred && preferred !== item.source.isbn13) {
-      try { await lookup(admin, userId, preferred); } catch { /* Keep usable cached search results. */ }
+      try { await lookupIsbnDbEdition(admin, userId, preferred); } catch { /* Keep usable cached search results. */ }
       break;
     }
   }
@@ -228,12 +248,14 @@ async function detail(admin: SupabaseClient, userId: string, id: string) {
   }
   const isbn = validIsbn13(id.replace(/^nv_/, '')) ??
     (rows ?? []).map((row: any) => validIsbn13(row.isbn_13) ?? isbn13From10(row.isbn_10 ?? '')).find(Boolean);
-  if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+  if (!isbn) return cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : await readHardcoverSeriesEdition(admin,id);
   try {
-    const book = await lookup(admin, userId, isbn);
-    return book ? { ...book, id } : cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : null;
+    const book = await lookupIsbnDbEdition(admin, userId, isbn);
+    return book ? { ...book, id } : cached ? { ...normalizeIsbnDbEdition(cached.metadata), id } : await readHardcoverSeriesEdition(admin,id);
   } catch (error) {
     if (cached) return { ...normalizeIsbnDbEdition(cached.metadata), id };
+    const fallback = await readHardcoverSeriesEdition(admin,id);
+    if (fallback) return fallback;
     throw error;
   }
 }
@@ -261,11 +283,11 @@ export async function handleIsbnDbRequest(request: Request, kind: 'search' | 'de
       if (body.mode === 'isbn') {
         const isbn = validIsbn13(body.isbn) ?? isbn13From10(String(body.isbn ?? ''));
         if (!isbn) throw new Error('Invalid ISBN.');
-        data = { kind: 'isbn', book: await lookup(admin, user.id, isbn) };
+        data = { kind: 'isbn', book: await lookupIsbnDbEdition(admin, user.id, isbn) };
       } else {
         if (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 150 || (body.author != null && (typeof body.author !== 'string' || body.author.length > 150))) throw new Error('Invalid book identity.');
         const isbn = validIsbn13(body.isbn) ?? isbn13From10(String(body.isbn ?? ''));
-        let book = isbn ? await lookup(admin, user.id, isbn) : null;
+        let book = isbn ? await lookupIsbnDbEdition(admin, user.id, isbn) : null;
         if (book && !identityMatches(book, body.title, body.author)) book = null;
         if (!book) {
           const found = await isbnDbSearch(admin, user.id, [body.title, body.author].filter(Boolean).join(' '));

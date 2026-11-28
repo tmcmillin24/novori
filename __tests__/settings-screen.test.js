@@ -33,33 +33,44 @@ const toggle=label=>view.root.findAllByType('Switch').find(n=>n.props.accessibil
 async function press(label){expect(button(label)).toBeDefined();await act(async()=>button(label).props.onPress());}
 async function change(label,value){await act(async()=>toggle(label).props.onValueChange(value));}
 
-test('existing readers can preview the tutorial from Settings',async()=>{
-  await render(<SettingsScreen/>);await press('View tutorial');expect(mockRouter.push).toHaveBeenCalledWith('/tutorial');
-});
-
-test('Settings keeps real destinations together and marks unavailable account options',async()=>{
- await render(<SettingsScreen/>);expect(text()).toContain('reader@example.com');expect(button('Edit Profile')).toBeUndefined();
- for(const [title,path] of [['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers'],['About Novori','/about-novori'],['Help & Support','/help-support'],['Password & Security','/password-security']]){expect(button(title).props.disabled).not.toBe(true);await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);}
- expect(button('Recovery Phone')).toBeUndefined();expect(button('Delete account').props.disabled).not.toBe(true);expect(button('Email').props.disabled).toBe(true);
+test('Settings exposes controls directly and has each destination one tap away',async()=>{
+ await render(<SettingsScreen/>);
+ for(const [title,path] of [['Password & Security','/password-security'],['Notifications','/notification-settings'],['Appearance','/appearance'],['Privacy','/privacy'],['Blocked Readers','/blocked-readers'],['Help & Support','/help-support'],['About Novori','/about-novori'],['Delete account','/delete-account']]){
+  await press(title);expect(mockRouter.push).toHaveBeenLastCalledWith(path);
+ }
+ expect(button('View tutorial')).toBeUndefined();
+ expect(toggle('Allow explicit language')).toBeDefined();
+ expect(supabase.auth.getUser).not.toHaveBeenCalled();
  await press('Go back');expect(mockRouter.back).toHaveBeenCalled();
 });
+
 test('explicit-language preference preserves save, error recovery, and sign-out confirmation',async()=>{
  await render(<SettingsScreen/>);await change('Allow explicit language',true);expect(setExplicitLanguagePreference).toHaveBeenCalledWith(true);expect(toggle('Allow explicit language').props.value).toBe(true);
  setExplicitLanguagePreference.mockRejectedValue(new Error('Offline'));await change('Allow explicit language',false);expect(toggle('Allow explicit language').props.value).toBe(true);
  await press('Sign Out');expect(supabase.auth.signOut).not.toHaveBeenCalled();const sheet=view.root.findByType('DeletePostConfirmSheet');expect(sheet.props.visible).toBe(true);expect(Alert.alert).not.toHaveBeenCalledWith('Sign Out',expect.anything(),expect.anything());await act(async()=>sheet.props.onConfirm());expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);expect(mockRouter.replace).toHaveBeenCalledWith('/auth');
 });
 test('notification preferences preserve existing opt-outs and expose only working switches',async()=>{
- await render(<NotificationSettingsScreen/>);expect(text()).toContain('4 of 6 activity alerts on');expect(toggle('New Followers').props.value).toBe(false);expect(toggle('Weekly Recap').props.value).toBe(false);
+ await render(<NotificationSettingsScreen/>);expect(text()).not.toContain('When a reader follows you.');expect(toggle('New Followers').props.value).toBe(false);expect(toggle('Weekly Recap').props.value).toBe(false);
  expect(toggle('Push Notifications')).toBeUndefined();expect(toggle('Sounds')).toBeUndefined();expect(toggle('Group Similar Activity')).toBeUndefined();
- expect(getNotificationPreferences).toHaveBeenCalledTimes(1);expect(getReadingReminderPreferences).toHaveBeenCalledTimes(1);expect(text()).toContain('6 p.m.');expect(text()).toContain('America/Chicago');expect(view.root.findAllByType('TextInput')).toHaveLength(0);
- await change('Club Notifications',false);expect(updateNotificationPreference).toHaveBeenCalledWith('club_activity',false);expect(text()).toContain('off for every club');expect(toggle('Club Invites').props.value).toBe(true);expect(toggle('Likes & Replies').props.value).toBe(true);
+ expect(getNotificationPreferences).toHaveBeenCalledTimes(1);expect(getReadingReminderPreferences).toHaveBeenCalledTimes(1);expect(text()).not.toContain('6 p.m.');expect(text()).not.toContain('America/Chicago');expect(view.root.findAllByType('TextInput')).toHaveLength(0);
+ await change('Club Notifications',false);expect(updateNotificationPreference).toHaveBeenCalledWith('club_activity',false);expect(toggle('Club Notifications').props.value).toBe(false);expect(toggle('Club Invites').props.value).toBe(true);expect(toggle('Likes & Replies').props.value).toBe(true);
  updateNotificationPreference.mockRejectedValue(new Error('Offline'));await change('Club Notifications',true);expect(toggle('Club Notifications').props.value).toBe(false);
 });
 test('individual reminder saves change only the selected preference and retain the fixed schedule',async()=>{
- await render(<NotificationSettingsScreen/>);await change('Daily Check-in',false);expect(updateReadingReminderPreferences).toHaveBeenCalledWith({daily_checkin:false});expect(toggle('Daily Check-in').props.value).toBe(false);expect(toggle('Still Reading?').props.value).toBe(true);expect(text()).toContain('6 p.m.');
+ await render(<NotificationSettingsScreen/>);await change('Daily Check-in',false);expect(updateReadingReminderPreferences).toHaveBeenCalledWith({daily_checkin:false});expect(toggle('Daily Check-in').props.value).toBe(false);expect(toggle('Still Reading?').props.value).toBe(true);expect(text()).not.toContain('6 p.m.');
  updateReadingReminderPreferences.mockRejectedValue(new Error('Offline'));await change('Monthly Recap',false);expect(toggle('Monthly Recap').props.value).toBe(true);expect(Alert.alert).toHaveBeenCalledWith('Could not save reminder','Offline');
 });
 test('unavailable preferences show a retry instead of trapping the user in a spinner',async()=>{
  getNotificationPreferences.mockRejectedValueOnce(new Error('Offline'));getReadingReminderPreferences.mockRejectedValueOnce(new Error('Offline'));await render(<NotificationSettingsScreen/>);
  expect(text()).toContain('couldn’t be loaded');expect(toggle('Club Notifications')).toBeUndefined();expect(button('Go back')).toBeDefined();await press('Retry notification preferences');expect(toggle('Club Notifications').props.value).toBe(true);await press('Retry reading reminders');expect(toggle('Daily Check-in').props.value).toBe(true);
+});
+
+test('explicit language shows an in-place retry after a timeout and restores the saved choice', async () => {
+ getExplicitLanguagePreference.mockRejectedValueOnce(Object.assign(new Error('Timed out'), {code:'READ_TIMEOUT'}));
+ getExplicitLanguagePreference.mockResolvedValueOnce(true);
+ await render(<SettingsScreen/>);
+ expect(toggle('Allow explicit language')).toBeUndefined();
+ await press('Retry explicit-language preference');
+ expect(toggle('Allow explicit language').props.value).toBe(true);
+ expect(toggle('Allow explicit language').props.disabled).toBe(false);
 });

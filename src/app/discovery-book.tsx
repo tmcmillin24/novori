@@ -42,6 +42,7 @@ export default function DiscoveryBookScreen() {
               detailHandoff: "1",
               clickedTitle: book.title,
               clickedAuthors: JSON.stringify(book.authors),
+              ...(book.rating != null ? { clickedRating: String(book.rating) } : {}),
               discoveryId: String(book.id),
               canonicalizeWork: "0",
               ...(book.coverUrl ? { coverUrl: book.coverUrl } : {}),

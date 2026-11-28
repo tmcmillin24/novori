@@ -63,3 +63,21 @@ test('preview is not persisted as complete when the final lookup fails',async()=
  expect(load).toHaveBeenCalledTimes(2);
  expect(progress).toHaveBeenCalledTimes(1);
 });
+
+test('a cache-only read never starts or waits for a load, and ignores expired data', async () => {
+  jest.useFakeTimers();
+  try {
+    const read = createBookReadCache<string[]>(100);
+    let finish!: (value: string[]) => void;
+    const pending = read('series-book', () => new Promise(resolve => { finish = resolve; }));
+    await Promise.resolve();
+    expect(read.peek('series-book')).toBeUndefined();
+    finish(['verified']);
+    await pending;
+    expect(read.peek('series-book')).toEqual(['verified']);
+    jest.advanceTimersByTime(100);
+    expect(read.peek('series-book')).toBeUndefined();
+  } finally {
+    jest.useRealTimers();
+  }
+});

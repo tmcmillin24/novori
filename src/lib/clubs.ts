@@ -742,70 +742,17 @@ export async function searchClubs(
   );
 }
 
-export async function getClub(
-  clubId: string
-): Promise<ClubWithMembership> {
-  const userId =
-    await getCurrentUserId();
-
-  const {
-    data:
-      club,
-    error:
-      clubError,
-  } =
-    await supabase
-      .from('clubs')
-      .select('*')
-      .eq(
-        'id',
-        clubId
-      )
-      .single();
-
-  if (
-    clubError
-  ) {
-    throw clubError;
-  }
-
-  const {
-    data:
-      membership,
-    error:
-      membershipError,
-  } =
-    await supabase
-      .from(
-        'club_members'
-      )
-      .select(
-        'role'
-      )
-      .eq(
-        'club_id',
-        clubId
-      )
-      .eq(
-        'user_id',
-        userId
-      )
-      .maybeSingle();
-
-  if (
-    membershipError
-  ) {
-    throw membershipError;
-  }
-
+export async function getClub(clubId: string): Promise<ClubWithMembership> {
+  const [clubResult, membershipResult] = await Promise.all([
+    supabase.from('clubs').select('*').eq('id', clubId).single(),
+    getCurrentUserId().then(userId => supabase.from('club_members')
+      .select('role').eq('club_id', clubId).eq('user_id', userId).maybeSingle()),
+  ]);
+  if (clubResult.error) throw clubResult.error;
+  if (membershipResult.error) throw membershipResult.error;
   return {
-    ...(club as Club),
-    membership_role:
-      (
-        membership?.role ??
-        null
-      ) as
-        ClubRole | null,
+    ...(clubResult.data as Club),
+    membership_role: (membershipResult.data?.role ?? null) as ClubRole | null,
   };
 }
 

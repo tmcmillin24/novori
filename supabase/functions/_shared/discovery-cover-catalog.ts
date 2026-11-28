@@ -12,8 +12,11 @@ export async function attachDiscoveryCatalogCovers(admin: any, payload: any) {
     .select('id,provider,provider_book_id,work_id,isbn_10,isbn_13,language,metadata')
     .in('provider', ['google_books', 'isbndb']).in('provider_book_id', ids);
   if (error) throw error;
-  const choices = await readEditionCovers(admin, editions ?? [], payload.books ?? [], payload.series);
-  return { ...verified, pageCounts: await readEditionPages(admin, editions ?? []), books: verified.books.flatMap((book: any) => {
+  const [choices, pageCounts] = await Promise.all([
+    readEditionCovers(admin, editions ?? [], payload.books ?? [], payload.series),
+    readEditionPages(admin, editions ?? []),
+  ]);
+  return { ...verified, pageCounts, books: verified.books.flatMap((book: any) => {
     const candidates = choices.get(book.coverBookId) ?? [];
     const cover = candidates[0];
     if (!cover) return [discoveryArtOnly(book)];

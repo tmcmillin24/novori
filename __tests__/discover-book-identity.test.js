@@ -19,8 +19,8 @@ test('tapping the rendered search card keeps its verified edition ID and does no
   Pressable: 'Pressable', View: 'View', Text: 'Text', BookCoverImage: 'BookCoverImage', Ionicons: 'Ionicons',
  });
  const open = jest.fn();
- const item = { id: 'nv_verified', volumeInfo: { title: 'Catching Fire', authors: ['Suzanne Collins'], industryIdentifiers: [{ type: 'ISBN_13', identifier: '9780439023498' }] } };
+ const item = { id: 'nv_verified', novoriWork: { hardcoverRating: 4.29, hardcoverRatingsCount: 7348 }, volumeInfo: { title: 'Catching Fire', authors: ['Suzanne Collins'], industryIdentifiers: [{ type: 'ISBN_13', identifier: '9780439023498' }] } };
  const card = exports.Card({ item, styles: {}, goldColor: '#b09050', onOpenBook: open });
  card.props.onPress();
- expect(open).toHaveBeenCalledWith('nv_verified', expect.objectContaining({ canonicalizeWork: false, title: 'Catching Fire', isbn: '9780439023498' }));
+ expect(open).toHaveBeenCalledWith('nv_verified', expect.objectContaining({ canonicalizeWork: false, title: 'Catching Fire', isbn: '9780439023498', coverUrl: 'https://art/catching-fire.jpg', rating: 4.29, ratingsCount: 7348 }));
 });

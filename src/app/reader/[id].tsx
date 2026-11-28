@@ -1,43 +1,38 @@
-import { useReaderProfileVisit } from '../../lib/use-reader-profile-visit';
-import { getReaderProfile, isReaderBlockedByViewer } from '../../lib/social';
-import { isTransientReadError } from '../../lib/session-read-cache';
-import { createReaderProfileLoad } from '../../lib/reader-profile-loader';
-import CachedMediaImage from '../../components/CachedMediaImage';
-import { displayBookTitle } from '../../lib/book-title';
-import { getProfileBookWidth } from '../../lib/book-layout';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
-import FeedPostCard from '../../components/FeedPostCard';
-import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
-import { getPostEditRoute } from '../../lib/post-edit-route';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,Modal,Pressable,RefreshControl,ScrollView,StyleSheet,Text,useWindowDimensions,View } from 'react-native';
+import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
-import BookStackPostAttachment from '../../components/BookStackPostAttachment';
+import BookCoverImage from '../../components/BookCoverImage';
 import BookStackVisual from '../../components/BookStackVisual';
-import FeedPostImage from '../../components/FeedPostImage';
+import { useBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
+import CachedMediaImage from '../../components/CachedMediaImage';
+import FeedPostCard from '../../components/FeedPostCard';
 import FullScreenImageViewer from '../../components/FullScreenImageViewer';
-import PostTypeIdentifier from '../../components/PostTypeIdentifier';
+import PostActions from '../../components/PostActions';
 import ReaderProfileActionsSheet from '../../components/ReaderProfileActionsSheet';
+import { UiSheetBackdrop,UiSheetModal,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
+import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
+import { getProfileBookWidth } from '../../lib/book-layout';
 import { BookStack } from '../../lib/book-stacks';
-import { ClubWithMembership, inviteReaderToClub } from '../../lib/clubs';
-import { cancelFollowRequest, FeedPost, followReader, PostVoteValue, togglePostVote, deletePost, unfollowReader } from '../../lib/feed';
-import { shareProfileLink, sharePostLink } from '../../lib/share-links';
+import { displayBookTitle } from '../../lib/book-title';
+import { ClubWithMembership,inviteReaderToClub } from '../../lib/clubs';
+import { cancelFollowRequest,FeedPost,followReader,PostVoteValue,togglePostVote,unfollowReader } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import { PROFILE_BOOK_STATUS_LABELS } from '../../lib/profile-book-order';
-import { ReportReason, submitProfileReport, submitPostReport } from '../../lib/reports';
-import { blockReader, PublicReaderBook, PublicReaderReview, ReaderSocialProfile, unblockReader } from '../../lib/social';
+import { createReaderProfileLoad } from '../../lib/reader-profile-loader';
+import { ReportReason,submitProfileReport } from '../../lib/reports';
+import { isTransientReadError } from '../../lib/session-read-cache';
+import { sharePostLink,shareProfileLink } from '../../lib/share-links';
+import { blockReader,getReaderProfile,isReaderBlockedByViewer,PublicReaderBook,PublicReaderReview,ReaderSocialProfile,unblockReader } from '../../lib/social';
+import { supabase } from '../../lib/supabase';
+import { useReaderProfileVisit } from '../../lib/use-reader-profile-visit';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 type ReaderTab = 'library' | 'activity' | 'clubs';
 type ReaderLibraryTab = 'books' | 'reviews' | 'stacks';
 const PROFILE_REPORT_REASONS: Array<{
@@ -77,6 +72,7 @@ const PROFILE_REPORT_REASONS: Array<{
     }
 ];
 export default function ReaderProfileScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
     const feedLanguage = useFeedLanguagePreference();
     const router = useRouter();
     const params = useLocalSearchParams<{
@@ -95,6 +91,7 @@ export default function ReaderProfileScreen() {
     const [books, setBooks,] = useState<PublicReaderBook[]>([]);
     const [reviews, setReviews,] = useState<PublicReaderReview[]>([]);
     const [posts, setPosts,] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: setPosts});
     const [clubs, setClubs,] = useState<ClubWithMembership[]>([]);
     const [stacks, setStacks,] = useState<BookStack[]>([]);
     const [votingPostId, setVotingPostId,] = useState<string | null>(null);
@@ -120,10 +117,13 @@ export default function ReaderProfileScreen() {
     const reportSheetAnimating = useRef(false);
     const reportSheetClosing = useRef(false);
     const reportEntranceStarted = useRef(false);
-    const [reportPostTarget, setReportPostTarget] = useState<FeedPost | null>(null);
-    const [ownPostTarget, setOwnPostTarget] = useState<FeedPost | null>(null);
-    const [ownPostDeleting, setOwnPostDeleting] = useState(false);
-    const [ownDeleteConfirmation, setOwnDeleteConfirmation] = useState(false);
+    const [postOptions, setPostOptions] = useState<FeedPost | null>(null);
+    const [viewerId, setViewerId] = useState<string | null>(null);
+    useEffect(() => {
+      let active = true;
+      void supabase.auth.getSession().then(({data}) => { if (active) setViewerId(data.session?.user.id ?? null); }).catch(() => {});
+      return () => { active = false; };
+    }, []);
     const loadVersion = useRef(0);
     const profileRef=useRef(profile);profileRef.current=profile;
     const blockedRef=useRef(isBlocked);blockedRef.current=isBlocked;
@@ -191,7 +191,7 @@ export default function ReaderProfileScreen() {
             });
         },
     });
-    function openProfileReport(post?: FeedPost) {
+    function openProfileReport() {
         if (!profile ||
             profile.is_self ||
             reportSubmitting ||
@@ -207,7 +207,6 @@ export default function ReaderProfileScreen() {
             false;
         reportSheetClosing.current =
             false;
-        setReportPostTarget(post ?? null);
         setReportTargetProfile(profile);
     }
     function closeProfileReport() {
@@ -235,10 +234,7 @@ export default function ReaderProfileScreen() {
         }
         try {
             setReportSubmitting(true);
-            if (reportPostTarget)
-                await submitPostReport(reportPostTarget.id, reason);
-            else
-                await submitProfileReport(reportTargetProfile.id, reason);
+            await submitProfileReport(reportTargetProfile.id, reason);
             dismissProfileReport(() => {
                 reportConfirmation.queue();
             });
@@ -476,12 +472,7 @@ export default function ReaderProfileScreen() {
         }
     }
     function renderPost(post: FeedPost) {
-        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.is_self ? profile.id : null} votingPostId={votingPostId} onComments={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onVote={handlePostVote} onMore={post => {
-                if (profile?.is_self)
-                    setOwnPostTarget(post);
-                else
-                    openProfileReport(post);
-            }} onShare={post => { void shareRenderedPost(post.id); }}/>;
+        return <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.is_self ? profile.id : null} votingPostId={votingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handlePostVote} onMore={setPostOptions} onShare={post => { void shareRenderedPost(post.id); }}/>;
     }
     function renderBook(book: PublicReaderBook) {
         const statusLabel = book.status
@@ -694,7 +685,8 @@ export default function ReaderProfileScreen() {
           </Pressable>)}
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical scrollEventThrottle={120} onScroll={({nativeEvent})=>{
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} alwaysBounceVertical scrollEventThrottle={32} onScrollBeginDrag={browsingScroll.onScrollBeginDrag} onScroll={({nativeEvent})=>{
+          browsingScroll.onScroll({nativeEvent});
         if(nativeEvent.contentOffset.y+nativeEvent.layoutMeasurement.height<nativeEvent.contentSize.height-350)return;
         if(activeTab==='library'&&libraryTab==='books'&&books.length>0)setVisibleBookCount(count=>Math.min(books.length,count+12));
         if(activeTab==='library'&&libraryTab==='reviews'&&reviews.length>0)setVisibleReviewCount(count=>Math.min(reviews.length,count+10));
@@ -1171,11 +1163,11 @@ export default function ReaderProfileScreen() {
               <View style={styles.reportHeadingRow}>
                 <View style={styles.reportHeadingCopy}>
                   <Text style={styles.reportTitle}>
-                    {reportPostTarget ? 'Report post' : 'Report profile'}
+                    Report profile
                   </Text>
 
                   <Text style={styles.reportSubtitle}>
-                    {reportPostTarget ? 'Why are you reporting this post?' : 'Why are you reporting this profile?'}
+                    Why are you reporting this profile?
                   </Text>
                 </View>
 
@@ -1219,35 +1211,11 @@ export default function ReaderProfileScreen() {
       </UiSheetModal>
 
       <FullScreenImageViewer visible={profileImageOpen} uri={profile.avatar_url} onClose={() => setProfileImageOpen(false)} shape="circle"/>
-      <DeletePostConfirmSheet visible={!!ownPostTarget} icon="ellipsis-horizontal" title={ownDeleteConfirmation ? 'Delete post?' : 'Post options'} message={ownDeleteConfirmation ? 'This post and its comments will be permanently deleted. This cannot be undone.' : 'Manage your post.'} confirmLabel={ownDeleteConfirmation ? 'Delete permanently' : 'Delete post'} busy={ownPostDeleting} onDismiss={() => {
-            if (!ownPostDeleting) {
-                setOwnPostTarget(null);
-                setOwnDeleteConfirmation(false);
-            }
-        }} onConfirm={async () => {
-            if (!ownPostTarget)
-                return;
-            if (!ownDeleteConfirmation) {
-                setOwnDeleteConfirmation(true);
-                return;
-            }
-            setOwnPostDeleting(true);
-            try {
-                await deletePost(ownPostTarget.id);
-                setPosts(current => current.filter(post => post.id !== ownPostTarget.id));
-                setOwnPostTarget(null);
-                setOwnDeleteConfirmation(false);
-            }
-            catch {
-                Alert.alert('Could not delete post', 'Please try again.');
-            }
-            finally {
-                setOwnPostDeleting(false);
-            }
-        }}>
-        {!ownDeleteConfirmation && ownPostTarget ? <Pressable accessibilityRole="button" accessibilityLabel="Edit post" onPress={() => { const route = getPostEditRoute(ownPostTarget); setOwnPostTarget(null); router.push(route); }} style={{ paddingVertical: 14, alignItems: 'center' }}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold' }}>Edit post</Text></Pressable> : null}
-      </DeletePostConfirmSheet>
+      <PostActions post={postOptions} currentUserId={viewerId ?? (profile?.is_self ? profile.id : null)}
+        onDismiss={() => setPostOptions(null)}
+        onDeleted={post => setPosts(current => current.filter(item => item.id !== post.id))}/>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
+    {sheet}
     </SafeAreaView>);
 }
 function createStyles(colors: NovoriColors, windowWidth = 390) {

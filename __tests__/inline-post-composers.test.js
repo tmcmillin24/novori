@@ -178,7 +178,7 @@ test('stack Save & Post uses inline text, destination and reordered books withou
   await act(async () => clubOption.props.onPress());
   const card = view.root.findByType(EditablePostCard);
   expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
-  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(card.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(getMyClubs).toHaveBeenCalledTimes(1);
   const firstRow = view.root.findAllByType('SortableBookStackRow')[0];
   await act(async () => firstRow.props.onDragStart('book-a', 0));
@@ -262,7 +262,7 @@ test('Reading Update can choose a joined club and shows its cached photo', async
   await act(async () => club.props.onPress());
   const card = view.root.findByType(EditablePostCard);
   expect(card.findAllByType(PostDestinationPicker)).toHaveLength(0);
-  expect(card.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(card.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(getMyClubs).toHaveBeenCalledTimes(1);
   await fill('Current page', '123');
   await press('Publish Reading Update');
@@ -274,7 +274,7 @@ test('Ask Readers chooses a destination above the card and publishes the display
   await fill('Your question', 'What should I read next?');
   await press('Post to Your feed');
   await press('Choose Our readers');
-  expect(view.root.findAllByType('Text').some((node) => node.props.children === 'in Our readers')).toBe(true);
+  expect(view.root.findAllByType('Text').some((node) => Array.isArray(node.props.children) && node.props.children.includes('Our readers'))).toBe(true);
   expect(button('Post to Our readers')).toBeDefined();
   await press('Publish Ask Readers post');
   expect(createPost).toHaveBeenCalledWith(expect.objectContaining({ body: 'What should I read next?', clubId: 'club-1', postType: 'question' }));
@@ -340,4 +340,30 @@ test('editing an announcement preserves stored covers, authors, and the fixed de
   getPostDetail.mockResolvedValue({id:'post-1',author_id:'reader',club_id:'club-1',is_club_announcement:true,body:'Original',book_title:'Book',google_book_id:'cached-book',book_cover_url:'cached-cover',book_authors:['Stored author']});
   await renderScreen(CreatePostScreen);expect(field('Post text').props.value).toBe('Original');await fill('Post text','Updated');await press('Save post');
   expect(updatePost).toHaveBeenCalledWith('post-1',expect.objectContaining({clubId:'club-1',body:'Updated',bookCoverUrl:'cached-cover',bookAuthors:['Stored author']}));expect(searchNovoriBooks).not.toHaveBeenCalled();
+});
+
+test('post attachments use icons beside the spoiler switch and their X buttons clear the saved attachments',async()=>{
+  mockParams={editPostId:'post-1'};
+  getPostDetail.mockResolvedValue({
+    id:'post-1',author_id:'reader',club_id:null,body:'Original',
+    post_image_url:'https://example.com/post-photo.jpg',
+    google_book_id:'cached-book',book_title:'Attached novel',book_cover_url:'cached-cover',book_authors:['Author'],
+  });
+  await renderScreen(CreatePostScreen);
+  const replace=button('Replace photo');
+  expect(replace.findAllByType('Text')).toHaveLength(0);
+  expect(button('Change attached book').findAllByType('Text')).toHaveLength(0);
+  const toolbar=replace.parent;
+  expect(toolbar.findAllByType('Switch')).toHaveLength(1);
+  await act(async()=>toolbar.findByType('Switch').props.onValueChange(true));
+  for(const label of ['Remove photo','Remove attached book']){
+    await act(async()=>button(label).props.onPress({stopPropagation:jest.fn()}));
+    expect(button(label)).toBeUndefined();
+  }
+  expect(button('Attach photo')).toBeDefined();
+  expect(button('Attach book')).toBeDefined();
+  await press('Save post');
+  expect(updatePost).toHaveBeenCalledWith('post-1',expect.objectContaining({
+    imageUrl:null,googleBookId:null,bookTitle:null,containsSpoilers:true,
+  }));
 });

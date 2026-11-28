@@ -40,6 +40,12 @@ export async function getSessionReadScope() {
   return { userId: session?.user.id ?? null, key: currentScope };
 }
 
+export function peekSessionRead<T>(key: string): T | undefined {
+  if (!currentScope) return undefined;
+  const entry = entries.get(`${key}|${currentScope}`);
+  return entry?.ready && entry.expiresAt > Date.now() ? entry.value as T : undefined;
+}
+
 export function invalidateSessionReads(prefix = '') {
   for (const key of entries.keys()) {
     if (key.startsWith(prefix)) entries.delete(key);

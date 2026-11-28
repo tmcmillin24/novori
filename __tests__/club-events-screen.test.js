@@ -1,3 +1,7 @@
+jest.mock('../src/components/BookStackPostAttachment',()=> 'BookStackPostAttachment');
+jest.mock('../src/lib/supabase',()=>({supabase:{}}));
+jest.mock('../src/hooks/use-post-composer-profile',()=>()=>({display_name:'Reader'}));
+jest.mock('expo-image',()=>({Image:'ExpoImage'}));
 jest.mock('../src/components/UiSheet',()=>require('./helpers/ui-sheet-mock.cjs'));
 import React from 'react';
 import renderer,{act} from 'react-test-renderer';
@@ -59,7 +63,7 @@ test('event editor preserves cached book data while editing and allows virtual d
 });
 test('book search uses the shared search only after input and stores canonical identity on selection',async()=>{
  await render(<CreateClubEventScreen/>);await press('Choose event book');await fill('Event book search','Searched Book');await act(async()=>jest.advanceTimersByTime(350));await press('Choose book: Searched Book');
- expect(searchNovoriBooks).toHaveBeenCalledWith('Searched Book');expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('searched-book');expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe('resolved-canonical-cover');
+ expect(searchNovoriBooks).toHaveBeenCalledWith('Searched Book',0,expect.objectContaining({onProgress:expect.any(Function)}));expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('searched-book');expect(view.root.findByType('BookCoverImage').props.existingCoverUrl).toBe('resolved-canonical-cover');
 });
 test('calendar date selection and time fields remain in the editable card',async()=>{
  await render(<CreateClubEventScreen/>);await press('Choose start date');expect(button('Next start month')).toBeDefined();await fill('Start hour','7');await fill('Start minute','30');await press('Start PM');
@@ -78,9 +82,10 @@ test('visitors can view public events but cannot RSVP; cancelled events close re
  mockParams={id:'event-1'};getClub.mockResolvedValue({...club,membership_role:null});await render(<ClubEventScreen/>);expect(button('RSVP Going')).toBeUndefined();expect(text()).toContain('Join this club to RSVP.');
  await act(async()=>view.unmount());view=null;getClub.mockResolvedValue(club);getClubEvent.mockResolvedValue({...event,cancelled_at:'2026-10-03T10:00Z'});await render(<ClubEventScreen/>);expect(button('RSVP Going').props.disabled).toBe(true);expect(button('Open event options')).toBeUndefined();expect(text()).toContain('CANCELLED');
 });
-test('event options use manager editor, pin picker, and cancellation confirmation',async()=>{
+test('event options use manager editor, direct pin actions, and cancellation confirmation',async()=>{
  mockParams={id:'event-1'};await render(<ClubEventScreen/>);await press('Open event options');await press('Edit event');expect(mockRouter.push).toHaveBeenCalledWith({pathname:'/create-club-event',params:{clubId:'club-1',eventId:'event-1'}});
- await press('Open event options');await press('Pin options');await press('Pin post');expect(setClubPostPin).toHaveBeenCalledWith('club-1','event-post',true,undefined);
+ await press('Open event options');await press('Pin event');expect(setClubPostPin).toHaveBeenCalledWith('club-1','event-post',true,undefined);
+ getClubPins.mockResolvedValue([{post_id:'event-post'}]);await press('Open event options');expect(button('Pin event')).toBeUndefined();await press('Unpin event');expect(setClubPostPin).toHaveBeenLastCalledWith('club-1','event-post',false,undefined);
  await press('Open event options');await press('Cancel event');const confirm=view.root.findByType('DeletePostConfirmSheet');expect(confirm.props.visible).toBe(true);expect(confirm.props.confirmLabel).toBe('Cancel event');getClubEvent.mockResolvedValue({...event,cancelled_at:'2026-10-03T10:00Z'});
  await act(async()=>confirm.props.onConfirm());expect(cancelClubEvent).toHaveBeenCalledWith('event-1');expect(text()).toContain('CANCELLED');expect(button('View event discussion')).toBeDefined();
 });
@@ -93,4 +98,20 @@ test('a visitor can share the exact loaded event without editing or fetching boo
  mockParams={id:'event-1'};getClub.mockResolvedValue({...club,membership_role:null});await render(<ClubEventScreen/>);
  await press('Share club event');expect(shareClubEventLink).toHaveBeenCalledWith({eventId:event.id,title:event.title});
  expect(button('Open event options')).toBeUndefined();expect(searchNovoriBooks).not.toHaveBeenCalled();
+});
+
+test('attachment results can be selected before background enrichment finishes',async()=>{
+ let resolveSearch;
+ searchNovoriBooks.mockImplementationOnce((_query,_offset,{onProgress}) => {
+   onProgress([{id:'early',volumeInfo:{title:'Early book',authors:[]}}]);
+   return new Promise(resolve=>{resolveSearch=resolve;});
+ });
+ await render(<CreateClubEventScreen/>);await press('Choose event book');await fill('Event book search','Early book');
+ const input=view.root.findAllByType('TextInput').find(node=>node.props.accessibilityLabel==='Event book search');
+ await act(async()=>input.props.onSubmitEditing());
+ expect(button('Choose book: Early book')).toBeDefined();
+ await press('Choose book: Early book');
+ await act(async()=>resolveSearch([{id:'late',volumeInfo:{title:'Late book'}}]));
+ expect(button('Choose book: Late book')).toBeUndefined();
+ expect(view.root.findByType('BookCoverImage').props.googleBookId).toBe('early');
 });

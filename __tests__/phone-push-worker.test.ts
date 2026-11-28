@@ -47,3 +47,15 @@ it('does not turn a database persistence failure into a second send', async () =
  await expect(runPushWorker(async(name,args)=>{if(name==='novori_finish_push')throw Error('db');return h.rpc(name,args);},transport)).rejects.toThrow('db');
  expect(transport).toHaveBeenCalledTimes(1);
 });
+it.each([null, '  get a few pages in today? 📖 ', ''])('omits an empty or duplicate body (%s)', async body => {
+ const title = 'Get a few pages in today? 📖';
+ const h = harness([{ ...job, title, body }]);
+ const transport = jest.fn(async (_url: string, init: RequestInit) => {
+  const payload = JSON.parse(init.body as string);
+  expect(payload.title).toBe(title);
+  expect(payload).not.toHaveProperty('body');
+  return response({ data: { status: 'ok', id: 'ticket' } });
+ });
+ const result = await runPushWorker(h.rpc, transport);
+ expect(result.tickets).toBe(1);
+});

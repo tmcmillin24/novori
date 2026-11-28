@@ -9,16 +9,18 @@ type Action = 'edit' | 'pin' | 'cancel';
 type Props = {
     visible: boolean;
     eventTitle: string;
+    isPinned: boolean;
     onAction: (action: Action) => void;
     onDismiss: () => void;
 };
-const actionDetails = { edit: { label: 'Edit event', icon: 'create-outline' }, pin: { label: 'Pin options', icon: 'pin-outline' }, cancel: { label: 'Cancel event', icon: 'close-circle-outline' } } as const;
-export default function ClubEventActionsSheet({ visible, eventTitle, onAction, onDismiss }: Props) {
+const actionDetails = { edit: { label: 'Edit event', icon: 'create-outline' }, pin: { label: 'Pin event', icon: 'pin-outline' }, cancel: { label: 'Cancel event', icon: 'close-circle-outline' } } as const;
+export default function ClubEventActionsSheet({ visible, eventTitle, isPinned, onAction, onDismiss }: Props) {
     const { colors } = useNovoriTheme();
     const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const motion = useUiSheetMotion({ visible, busy: false, onDismiss: onDismiss });
     const closeSmoothly = motion.close;
+  const actionLabel = (action: Action) => action === 'pin' && isPinned ? 'Unpin event' : actionDetails[action].label;
     // Match Novori's existing fade, slide, and drag dismissal behavior.
     return (<UiSheetModal visible={visible} transparent animationType="none" onRequestClose={() => closeSmoothly()} motion={motion}>
       <Pressable style={styles.backdrop} onPress={() => closeSmoothly()}>
@@ -28,9 +30,9 @@ export default function ClubEventActionsSheet({ visible, eventTitle, onAction, o
             <View style={styles.handle}/>
             <Text style={styles.title} accessibilityRole="header">{eventTitle}</Text>
             <Text style={styles.period}>Event options</Text>
-            {(['edit', 'pin', 'cancel'] as const).map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={actionDetails[action].label} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            {(['edit', 'pin', 'cancel'] as const).map(action => <Pressable key={action} accessibilityRole="button" accessibilityLabel={actionLabel(action)} onPress={() => closeSmoothly(() => onAction(action))} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
               <View style={styles.actionIcon}><Ionicons name={actionDetails[action].icon} size={20} color={action === 'cancel' ? colors.danger : colors.gold}/></View>
-              <Text style={[styles.actionText, action === 'cancel' && { color: colors.danger }]}>{actionDetails[action].label}</Text>
+              <Text style={[styles.actionText, action === 'cancel' && { color: colors.danger }]}>{actionLabel(action)}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.mutedText}/>
             </Pressable>)}
             <Pressable accessibilityRole="button" accessibilityLabel="Close event options" onPress={() => closeSmoothly()} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>

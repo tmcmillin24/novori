@@ -173,11 +173,12 @@ export async function fetchJsonWithTimeout(url: string, init: RequestInit = {}) 
 export async function cachedHardcoverFetch(
   admin: SupabaseClient, url: string, init: RequestInit,
   freshMs: number, staleMs: number, provider = 'hardcover_series', onCacheRead?: (row: any) => void,
+  valueLifetime?: (payload: any) => { freshMs: number; staleMs: number },
 ) {
   const request = JSON.parse(String(init.body));
   // Normalize formatting only; preserve string literals and GraphQL semantics.
   const key = 'graphql:v1:' + await cacheDigest({ query: request.query, variables: request.variables ?? {} });
-  const data = await cachedProviderValue({ admin, provider, key, freshMs, staleMs, allowStale: false, onCacheRead, load: async () => {
+  const data = await cachedProviderValue({ admin, provider, key, freshMs, staleMs, allowStale: false, onCacheRead, valueLifetime, load: async () => {
     const response = await fetchHardcoverUpstream(admin, url, init, provider);
     if (!response.ok) throw new Error('Hardcover request failed (' + response.status + ').');
     const payload = await response.json();

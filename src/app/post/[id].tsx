@@ -1,42 +1,44 @@
-import { applyCommentDeletion } from '../../lib/comment-deletion';
-import CachedMediaImage from '../../components/CachedMediaImage';
-import { displayBookTitle } from '../../lib/book-title';
-import {PostSpoilerNotice,usePostSpoiler} from '../../components/PostSpoilerNotice';
-import { useReportConfirmation } from '../../lib/use-report-confirmation';
-import ValidationWarningSheet from '../../components/ValidationWarningSheet';
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { useUiSheetMotion, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import { openCommentConversation } from '../../lib/open-comment-conversation';
-import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
-import CommentBranchGuide from '../../components/CommentBranchGuide';
-import { getSessionReadScope, isTransientReadError } from '../../lib/session-read-cache';
-import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
-import ReplyComposerContext from '../../components/ReplyComposerContext';
-import { COMMENT_REPLY_BATCH_SIZE, buildCommentThreads, getCommentDepthLimit, getFocusedConversationId, countThreadReplies, type CommentThread } from '../../lib/comment-conversations';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import { discussionRevealKey } from '../../lib/club-discussion';
-import BookCoverImage from '../../components/BookCoverImage';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { useFocusEffect,useLocalSearchParams,useRouter } from 'expo-router';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,Animated,Easing,Keyboard,Modal,Platform,Pressable,RefreshControl,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BlockReaderConfirmSheet from '../../components/BlockReaderConfirmSheet';
+import BookCoverImage from '../../components/BookCoverImage';
 import BookStackPostAttachment from '../../components/BookStackPostAttachment';
+import { PostBrowsingFooterSpace,useBrowsingBottomInsetCovered,useBrowsingNavigationScroll,usePostFooterTransition } from '../../components/BrowsingNavigation';
+import CachedMediaImage from '../../components/CachedMediaImage';
 import CanonicalBookRating from '../../components/CanonicalBookRating';
+import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
+import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
+import CommentBranchGuide from '../../components/CommentBranchGuide';
+import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
+import PostActions from '../../components/PostActions';
+import { PostSpoilerNotice,usePostSpoiler } from '../../components/PostSpoilerNotice';
 import PostTypeIdentifier from '../../components/PostTypeIdentifier';
+import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
+import ReplyComposerContext from '../../components/ReplyComposerContext';
+import { UiSheetBackdrop,UiSheetSurface,useUiSheetMotion } from '../../components/UiSheet';
+import ValidationWarningSheet from '../../components/ValidationWarningSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { CommentVoteValue, createPostComment, deletePostComment, getPostComments, PostComment, toggleCommentVote, updatePostComment } from '../../lib/comments';
-import { containsExplicitLanguage, getExplicitLanguagePreference, isExplicitContentRevealed, revealExplicitContentOnce, setExplicitLanguagePreference } from '../../lib/content-filter';
-import { FeedPost, getPostDetail, PostVoteValue, splitQuestionPostBody, togglePostVote } from '../../lib/feed';
-import { ReportReason, submitCommentReport } from '../../lib/reports';
-import { blockReader } from '../../lib/social';
+import { displayBookTitle } from '../../lib/book-title';
+import { discussionRevealKey } from '../../lib/club-discussion';
+import { buildCommentThreads,COMMENT_REPLY_BATCH_SIZE,countThreadReplies,getCommentDepthLimit,getFocusedConversationId,type CommentThread } from '../../lib/comment-conversations';
+import { applyCommentDeletion } from '../../lib/comment-deletion';
+import { CommentVoteValue,createPostComment,deletePostComment,getPostComments,PostComment,toggleCommentVote,updatePostComment } from '../../lib/comments';
+import { containsExplicitLanguage,getExplicitLanguagePreference,isExplicitContentRevealed,revealExplicitContentOnce,setExplicitLanguagePreference } from '../../lib/content-filter';
+import { conversationDestinationLaidOut } from '../../lib/conversation-handoff';
+import { FeedPost,getPostDetail,PostVoteValue,splitQuestionPostBody,togglePostVote } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import { openCommentConversation } from '../../lib/open-comment-conversation';
+import { ReportReason,submitCommentReport } from '../../lib/reports';
+import { getSessionReadScope,isTransientReadError } from '../../lib/session-read-cache';
 import { sharePostLink } from '../../lib/share-links';
+import { blockReader } from '../../lib/social';
+import { useReportConfirmation } from '../../lib/use-report-confirmation';
 type ThreadComment = CommentThread;
 type ReplyTarget = {
     id: string;
@@ -109,6 +111,8 @@ function formatRelativeTime(value: string) {
     });
 }
 export default function PostDetailScreen() {
+  const browsingScroll = useBrowsingNavigationScroll();
+  usePostFooterTransition();
     const router = useRouter();
     const params = useLocalSearchParams<{
         id?: string;
@@ -130,6 +134,7 @@ export default function PostDetailScreen() {
     const [revealedDiscussion, setRevealedDiscussion] = useState('');
     const {hidden:postSpoilersHidden,reveal:revealPostSpoilers}=usePostSpoiler(post);
     const discussionSpoilersHidden = Boolean(post?.club_discussion?.contains_spoilers && revealedDiscussion !== discussionRevealKey(post.club_discussion));
+    const [postOptionsOpen, setPostOptionsOpen] = useState(false);
     const [currentUserId, setCurrentUserId,] = useState<string | null>(null);
     const [allowExplicitLanguage, setAllowExplicitLanguage,] = useState(false);
     const [revealedExplicitPosts, setRevealedExplicitPosts,] = useState<Record<string, boolean>>({});
@@ -139,8 +144,6 @@ export default function PostDetailScreen() {
     const [error, setError,] = useState('');
     const [voting, setVoting,] = useState(false);
     const [commentBody, setCommentBody,] = useState('');
-    const [composerResetting, setComposerResetting,] = useState(false);
-    const [replyResetting, setReplyResetting,] = useState(false);
     const [replyTo, setReplyTo,] = useState<ReplyTarget | null>(null);
     const [commentActionTarget, setCommentActionTarget,] = useState<ThreadComment | null>(null);
     const [blockConfirmTarget, setBlockConfirmTarget,] = useState<ThreadComment | null>(null);
@@ -179,15 +182,6 @@ export default function PostDetailScreen() {
     }, [
         commentActionTarget
     ]);
-    useEffect(() => {
-        const hide = Keyboard.addListener('keyboardDidHide', () => {
-            setComposerResetting(false);
-            setReplyResetting(false);
-        });
-        return () => {
-            hide.remove();
-        };
-    }, []);
     const loadSequence = useRef(0);
     const viewPostId = useRef(postId);
     viewPostId.current = postId;
@@ -252,7 +246,13 @@ export default function PostDetailScreen() {
     }, [postId]);
     useFocusEffect(useCallback(() => {
         void loadData(true);
-        return () => { loadSequence.current += 1; };
+        return () => {
+            loadSequence.current += 1;
+            // Only release this route's input. A late global dismiss can
+            // interrupt the next screen's keyboard if the reader reopens quickly.
+            const input = commentInputRef.current;
+            if (input?.isFocused()) input.blur();
+        };
     }, [loadData]));
     useEffect(() => {
         if (!targetCommentId ||
@@ -276,7 +276,7 @@ export default function PostDetailScreen() {
         commentSort,
         discussionSpoilersHidden
     ]);
-    const { height: windowHeight } = useWindowDimensions();
+    const bottomInsetCovered = useBrowsingBottomInsetCovered();
     const [commentAreaWidth, setCommentAreaWidth] = useState(360);
     const commentDepthLimit = getCommentDepthLimit(commentAreaWidth);
     const requestedThreadId = typeof params.threadId === 'string' ? params.threadId : '';
@@ -598,8 +598,6 @@ export default function PostDetailScreen() {
         uiCommentAction.closeAfterActionWithCallback(afterClose);
     }
     function startComposerWithKeyboard(action: () => void) {
-        setComposerResetting(false);
-        setReplyResetting(false);
         action();
         requestAnimationFrame(() => {
             commentInputRef
@@ -668,14 +666,6 @@ export default function PostDetailScreen() {
             !replyTo) {
             return;
         }
-        setComposerResetting(true);
-        setReplyResetting(Boolean(replyTo));
-        commentInputRef
-            .current
-            ?.clear();
-        commentInputRef
-            .current
-            ?.blur();
         setCommentBody('');
         setEditingComment(null);
         setReplyTo(null);
@@ -683,14 +673,6 @@ export default function PostDetailScreen() {
     }
     function cancelCommentEdit() {
         resetTemporaryCommentComposer();
-    }
-    function handleCommentComposerOutsideTouch() {
-        if (editingComment ||
-            replyTo) {
-            resetTemporaryCommentComposer();
-            return;
-        }
-        Keyboard.dismiss();
     }
     function reportSelectedComment() {
         if (!commentActionTarget ||
@@ -1043,12 +1025,9 @@ export default function PostDetailScreen() {
             .length <=
             2000 &&
         !submitting && Boolean(!focusedThreadId || replyTo || editingComment);
-    return (<SafeAreaView onLayout={() => conversationDestinationLaidOut(postId, requestedThreadId || targetCommentId)} style={styles.safeArea} edges={[
-            'top',
-            'bottom'
-        ]}>
+    return (<SafeAreaView onLayout={() => conversationDestinationLaidOut(postId, requestedThreadId || targetCommentId)} style={styles.safeArea} edges={bottomInsetCovered ? ['top'] : ['top', 'bottom']}>
       <View style={[styles.header, focusedThreadId && styles.conversationHeader]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to previous screen" onPress={() => { commentInputRef.current?.blur(); router.back(); }} hitSlop={10} style={({ pressed }) => [
             styles.headerButton,
             focusedThreadId && styles.focusedHeaderBack,
             pressed &&
@@ -1065,12 +1044,13 @@ export default function PostDetailScreen() {
       </View>
 
       {loadWarning ? <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.background }}><Text style={{ color: colors.mutedText, fontFamily: 'Inter_400Regular', fontSize: 12 }}>{loadWarning}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry refreshing thread" onPress={() => void loadData(false, true)}><Text style={{ color: colors.gold, fontFamily: 'Inter_600SemiBold', paddingVertical: 6 }}>Try again</Text></Pressable></View> : null}
-      <View style={styles.keyboardView}>
-        <ScrollView ref={scrollRef} onTouchStart={handleCommentComposerOutsideTouch} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.keyboardView}>
+        <ScrollView onScrollBeginDrag={browsingScroll.onScrollBeginDrag} ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
+          browsingScroll.onScroll(event);
             scrollYRef.current =
                 event.nativeEvent
                     .contentOffset.y;
-        }} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" keyboardDismissMode={Platform.OS ===
+        }} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS ===
             'ios'
             ? 'interactive'
             : 'on-drag'} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.gold}/>}>
@@ -1143,9 +1123,14 @@ export default function PostDetailScreen() {
             ]}>
                 <Ionicons name="share-social-outline" size={19} color={colors.mutedText}/>
               </Pressable>
+              {currentUserId ? <Pressable accessibilityRole="button" accessibilityLabel="More post options" hitSlop={6} onPress={() => { Keyboard.dismiss(); setPostOptionsOpen(true); }} style={({pressed}) => [styles.postHeaderShare, pressed && styles.pressed]}>
+                <Ionicons name="ellipsis-horizontal" size={21} color={colors.mutedText}/>
+              </Pressable> : null}
             </View>
 
-            <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+            <View style={post.is_club_announcement ? styles.announcementLabelSpacing : undefined}>
+              <PostTypeIdentifier attachmentHasLabel={Boolean(post.club_discussion || (post.post_type === 'book_stack' && post.book_stack_id))} event={Boolean(post.club_event)} discussion={Boolean(post.club_discussion)} poll={post.club_discussion?.kind === 'poll'} announcement={post.is_club_announcement} readingRecap={Boolean(post.reading_recap)} postType={post.post_type} rating={post.rating} colors={colors}/>
+            </View>
 
             {postSpoilersHidden ? <PostSpoilerNotice onReveal={revealPostSpoilers}/> : post.post_type ===
                 'question' ? ((() => {
@@ -1312,12 +1297,7 @@ export default function PostDetailScreen() {
           </> : null}
         </ScrollView>
 
-        {!discussionSpoilersHidden && (!focusedThreadId || (focusedThread && (activeReplyTarget || editingComment))) ? <KeyboardStickyView offset={{
-                closed: 0,
-                opened: 0,
-            }}>
-          <View style={styles.composerWrap}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: windowHeight, backgroundColor: colors.background }}/>
+        {!discussionSpoilersHidden && (!focusedThreadId || (focusedThread && (activeReplyTarget || editingComment))) ? <View testID="post-comment-composer" style={styles.composerWrap}>
           {editingComment ? (<View style={styles.replyingRow}>
               <Text style={styles.replyingText}>
                 Editing comment
@@ -1326,25 +1306,14 @@ export default function PostDetailScreen() {
               <Pressable onPress={cancelCommentEdit} hitSlop={8}>
                 <Ionicons name="close-circle" size={18} color={colors.mutedText}/>
               </Pressable>
-            </View>) : activeReplyTarget ? (<ReplyComposerContext name={activeReplyTarget.name} body={activeReplyComment?.body ?? ''} hideBody={Boolean(activeReplyComment && !activeReplyComment.is_own && !allowExplicitLanguage && containsExplicitLanguage(activeReplyComment.body) && !isExplicitContentRevealed('comment', activeReplyComment.id))} onCancel={replyTo ? resetTemporaryCommentComposer : undefined}/>) : composerResetting ? (<View pointerEvents="none" style={[
-                    styles.replyingRow,
-                    styles.replyingRowSpacer
-                ]}>
-              <Text style={styles.replyingText} numberOfLines={1}>
-                Replying to reader
-              </Text>
-
-              <View style={styles.replyingSpacerIcon}/>
-            </View>) : null}
+            </View>) : activeReplyTarget ? (<ReplyComposerContext name={activeReplyTarget.name} body={activeReplyComment?.body ?? ''} hideBody={Boolean(activeReplyComment && !activeReplyComment.is_own && !allowExplicitLanguage && containsExplicitLanguage(activeReplyComment.body) && !isExplicitContentRevealed('comment', activeReplyComment.id))} onCancel={replyTo ? resetTemporaryCommentComposer : undefined}/>) : null}
 
           <View style={styles.composer}>
-            <TextInput accessibilityLabel="Comment reply text" editable={!submitting && Boolean(!focusedThreadId || activeReplyTarget || editingComment)} ref={commentInputRef} value={commentBody} onChangeText={setCommentBody} placeholder={composerResetting
-                ? ''
-                : editingComment
+            <TextInput accessibilityLabel="Comment reply text" editable={!submitting && Boolean(!focusedThreadId || activeReplyTarget || editingComment)} ref={commentInputRef} value={commentBody} onChangeText={setCommentBody} placeholder={editingComment
                     ? 'Edit your comment…'
                     : activeReplyTarget
                         ? 'Write a reply…'
-                        : 'Add a comment…'} placeholderTextColor={colors.mutedText} multiline maxLength={2000} style={styles.commentInput}/>
+                        : 'Add a comment…'} placeholderTextColor={colors.mutedText} multiline textAlignVertical="top" maxLength={2000} style={styles.commentInput}/>
 
             <Pressable accessibilityRole="button" accessibilityLabel="Send comment" disabled={!canSubmit} onPress={submitComment} style={({ pressed }) => [
                 styles.sendButton,
@@ -1359,11 +1328,11 @@ export default function PostDetailScreen() {
                     : 'arrow-up'} size={19} color={colors.background}/>)}
             </Pressable>
           </View>
-          </View>
-        </KeyboardStickyView> : null}
+        </View> : null}
         <ValidationWarningSheet visible={commentWarning !== null} title={commentWarning?.title ?? "Could not comment"} message={commentWarning?.message ?? ""} dismissLabel="Got it" onDismiss={() => setCommentWarning(null)}/>
 
-      </View>
+      </KeyboardAvoidingView>
+      <PostBrowsingFooterSpace/>
 
       {commentActionTarget ? (<View style={styles.commentActionModal}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => {
@@ -1581,6 +1550,8 @@ export default function PostDetailScreen() {
             }
         }}/>
 
+      <PostActions post={postOptionsOpen ? post : null} currentUserId={currentUserId}
+        onDismiss={() => setPostOptionsOpen(false)} onDeleted={() => router.back()}/>
       <ValidationWarningSheet visible={reportConfirmation.visible} title="Report submitted" message="Thanks for letting us know. Your report has been submitted for review." icon="checkmark-circle-outline" dismissLabel="Got it" onDismiss={reportConfirmation.dismiss}/>
     </SafeAreaView>);
 }
@@ -1664,6 +1635,7 @@ function createStyles(colors: NovoriColors) {
             borderRadius: 18,
             padding: 15,
         },
+        announcementLabelSpacing: { marginTop: 8 },
         postHeader: {
             flexDirection: 'row',
             alignItems: 'flex-start',
@@ -2097,12 +2069,11 @@ function createStyles(colors: NovoriColors) {
             marginTop: 3,
         },
         composerWrap: {
-            borderTopWidth: 1,
+            borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: colors.border,
             backgroundColor: colors.background,
             paddingHorizontal: 14,
-            paddingTop: 8,
-            paddingBottom: 8,
+            paddingVertical: 6,
         },
         replyingRow: {
             flexDirection: 'row',
@@ -2117,13 +2088,6 @@ function createStyles(colors: NovoriColors) {
             fontFamily: 'Inter_500Medium',
             fontSize: 10,
             marginRight: 8,
-        },
-        replyingRowSpacer: {
-            opacity: 0,
-        },
-        replyingSpacerIcon: {
-            width: 18,
-            height: 18,
         },
         composer: {
             minHeight: 52,

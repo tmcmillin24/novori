@@ -1,14 +1,17 @@
+import { findCorrectedSeries, isCorrectedSeriesId, resolveCorrectedSeriesEdition } from '../_shared/verified-series-corrections.ts';
+import { findSeriesBookByTitle, seriesResultLifetime, verifiedSeriesMembership } from '../_shared/series-lookup.ts';
 import { providerTrace, noteProviderCache } from '../_shared/provider-observability.ts';
 import { cacheSeriesEditionPages } from '../_shared/edition-pages.ts';
 import { readSeriesMembership, cacheSeriesMembership } from '../_shared/series-membership-cache.ts';
-import { cleanCatalogBookTitle, normalizeCatalogAuthor, catalogWorkTitleKey } from '../_shared/book-edition-metadata.ts';
+import { cleanCatalogBookTitle, normalizeCatalogAuthor } from '../_shared/book-edition-metadata.ts';
 import { verifiedEnglishSeriesArt } from '../_shared/verified-series-covers.ts';
 import { getServerKey } from "../_shared/supabase-keys.mjs";
 import { attachDiscoveryCatalogCovers } from '../_shared/discovery-cover-catalog.ts';
 import { hardcoverTextEdition } from '../_shared/hardcover-discovery-policy.ts';
 import { hardcoverDiscoveryArt } from '../_shared/hardcover-discovery-covers.ts';
 import { cacheSeriesPublications } from '../_shared/book-publication-cache.ts';
-import { isbnDbEnabled } from '../_shared/isbndb.ts';
+import { isbnDbEnabled, isbnDbSearch, lookupIsbnDbEdition, saveHardcoverSeriesEdition } from '../_shared/isbndb.ts';
+import { resolveSeriesEdition } from '../_shared/series-edition-resolver.ts';
 import { englishEditionIsbns, isEnglishBookLanguage } from '../_shared/book-language.ts';
 import { cachedProviderValue, cachedHardcoverFetch, cachedGoogleQuery, createCacheAdmin, requireReader } from '../_shared/provider-cache.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -45,6 +48,16 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
 
+    const startedAt = Date.now();
+    const resolveEdition = body?.mode === 'resolve-edition';
+    const editionResponse = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
+      status, headers: {...corsHeaders, 'Content-Type': 'application/json'},
+    });
+    if (resolveEdition && ![body.seriesId, body.bookId].every(id =>
+      Number.isInteger(id) && id > 0 && id <= 2147483647)) {
+      return editionResponse({error: 'A valid series and book are required.'}, 400);
+    }
+
     const requestedIsbns = Array.from(
       new Set(
         [
@@ -59,9 +72,9 @@ Deno.serve(async (req) => {
               .replace(/[^0-9Xx]/g, "")
               .toUpperCase()
           )
-          .filter(Boolean)
+          .filter(isbn => /^(?:\d{9}[\dX]|\d{13})$/.test(isbn))
       )
-    );
+    ).slice(0,8);
 
     const requestedTitle =
       typeof body?.title === "string"
@@ -86,10 +99,7 @@ Deno.serve(async (req) => {
         ? body.googleBookId.trim()
         : "";
 
-    if (
-      requestedIsbns.length === 0 &&
-      !requestedTitle
-    ) {
+    if (!resolveEdition && requestedIsbns.length === 0 && !requestedTitle) {
 
       return new Response(
 
@@ -217,11 +227,87 @@ Deno.serve(async (req) => {
 
 
     const supabaseAdmin = createCacheAdmin();requestTrace=providerTrace(supabaseAdmin);
-    await requireReader(supabaseAdmin, req);
+    const reader = await requireReader(supabaseAdmin, req);
+    if (resolveEdition) {
+      const trace = (stage: string, facts: Record<string, unknown> = {}) => console.info(
+        '[series-edition:v1]', JSON.stringify({stage, seriesId:body.seriesId, bookId:body.bookId, ms:Date.now()-startedAt,...facts}),
+      );
+      trace('start');
+      try {
+        if (!isbnDbEnabled()) return editionResponse({error: 'Edition lookup is unavailable.'}, 503);
+        if (isCorrectedSeriesId(body.seriesId)) {
+          const book = await resolveCorrectedSeriesEdition(body.seriesId, body.bookId,
+            isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn));
+          trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
+          return editionResponse({book,cacheTrace:providerTrace(supabaseAdmin)});
+        }
+        const query = `
+          query SeriesReadingEditions($bookId: Int!) {
+            books(where: {id: {_eq: $bookId}}, limit: 1) {
+              id title compilation
+              contributions { author { name } }
+              book_series { series { id name } }
+              editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
+                title pages release_date isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
+                reading_format { format }
+                language { code2 code3 language }
+              }
+            }
+          }
+        `;
+        const response = await cachedHardcoverFetch(supabaseAdmin, 'https://api.hardcover.app/v1/graphql', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+          body: JSON.stringify({query, variables: {bookId: body.bookId}}),
+        }, 14 * 86400000, 14 * 86400000, 'hardcover_series', undefined,
+        payload => seriesResultLifetime(Boolean(payload?.data?.books?.length)));
+        const payload = await response.json();
+        if (!Array.isArray(payload?.data?.books)) throw new Error('Hardcover edition response was incomplete.');
+        const member = payload.data.books.find((row: {id: number}) => row.id === body.bookId);
+        trace('hardcover', {memberFound: Boolean(member), membershipConfirmed: Boolean(member?.book_series?.some(
+          (row: {series?: {id:number}}) => row.series?.id === body.seriesId,
+        )), editions: member?.editions?.length ?? 0});
+        const book = member ? await resolveSeriesEdition(member, body.seriesId, {
+          trace,
+          catalog: async isbns => {
+            const {data, error} = await supabaseAdmin.from('book_editions')
+              .select('provider_book_id,metadata').in('provider',['isbndb','google_books']).eq('detail_complete',true).in('isbn_13',isbns);
+            if (error) throw error;
+            return (data ?? []).flatMap(row => row.provider_book_id && row.metadata?.volumeInfo?.title
+              ? [{...row.metadata, id: row.provider_book_id}] : []);
+          },
+          byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
+          persistHardcoverEdition: book => saveHardcoverSeriesEdition(supabaseAdmin, book),
+          byTitle: async (query, titleOnly) => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false, titleOnly})).items,
+        }) : null;
+        trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
+        return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
+      } catch (error) {
+        trace('failed', {kind: error instanceof Error ? error.name : 'UnknownError'});
+        throw error;
+      }
+    }
+    const correction = findCorrectedSeries(requestedIsbns, requestedTitle, requestedAuthors);
+    if (correction) {
+      // Artwork is optional and still comes from the existing catalog policy.
+      const payload = await attachDiscoveryCatalogCovers(supabaseAdmin, correction).catch(() => correction);
+      return editionResponse({...payload,cacheTrace:providerTrace(supabaseAdmin)});
+    }
+    console.info('[series-list:v1]');
     let sourceExpiresAt = Infinity;
     const fetchHardcover = (url: string, init: RequestInit) => cachedHardcoverFetch(
       supabaseAdmin, url, init, 14 * 86400000, 90 * 86400000, 'hardcover_series',
-      row => { sourceExpiresAt = Math.min(sourceExpiresAt, Date.parse(row.expires_at)); }
+      row => {
+        if (row.response_json?.data?.series_by_pk) sourceExpiresAt = Date.parse(row.expires_at);
+      },
+      payload => {
+        const data = payload?.data;
+        if (data?.series_by_pk?.book_series?.length) return seriesResultLifetime(true);
+        if (data?.search?.results?.hits?.length) return seriesResultLifetime(true);
+        // A book record without a series link can gain one later.
+        const books = data?.books ?? data?.editions?.map((edition: any)=>edition.book) ?? [];
+        return seriesResultLifetime(Array.isArray(books) && books.some((book: any)=>book?.book_series?.length));
+      }
     );
     const HARDCOVER_SERIES_CACHE_PROVIDER =
 
@@ -275,21 +361,22 @@ Deno.serve(async (req) => {
 
 
 
-    // Series membership belongs to a verified work, not its printing's ISBN.
-    // Keep ISBN-only/authorless requests isolated rather than aliasing unknown works.
+    // Include the evidence used for lookup so an older edition's miss
+    // cannot block a sibling edition. Verified memberships are reused above this cache.
     const hardcoverSeriesCacheKey = [
-      'series:v5:shared-cover-policy',
+      'series:v6:verified-membership',
       normalizeSeriesCacheText(cleanCatalogBookTitle(requestedTitle)),
       requestedAuthors.map(author => normalizeSeriesCacheText(normalizeCatalogAuthor(author))).sort().join('|'),
-      requestedTitle && requestedAuthors.length ? '' : requestedIsbns.slice().sort().join(','),
+      requestedIsbns.slice().sort().join(','),
     ].join('::');
 
-    const knownMembership = await readSeriesMembership(supabaseAdmin,{title:requestedTitle,authors:requestedAuthors,coverBookId:requestedGoogleBookId});
+    const knownMembership = await readSeriesMembership(supabaseAdmin,{title:requestedTitle,authors:requestedAuthors,coverBookId:requestedGoogleBookId,isbns:requestedIsbns});
     if (knownMembership) noteProviderCache(supabaseAdmin,'hardcover_series','hit-membership',hardcoverSeriesCacheKey);
     const responsePayload = knownMembership ?? await cachedProviderValue({
       admin: supabaseAdmin, provider: HARDCOVER_SERIES_CACHE_PROVIDER,
       key: hardcoverSeriesCacheKey, freshMs: HARDCOVER_SERIES_CACHE_TTL_MS,
       staleMs: HARDCOVER_SERIES_STALE_TTL_MS, leaseSeconds: 600, sourceExpiresAt: () => sourceExpiresAt,
+      valueLifetime: (value: any) => seriesResultLifetime(Boolean(value?.series)),
       load: async () => {
     let quotaUserId:
 
@@ -692,37 +779,19 @@ Deno.serve(async (req) => {
 
 
 
-      function normalizeSearchText(
-        value: unknown
-      ) {
-        return String(
-          value ?? ""
-        )
-          .toLowerCase()
-          .normalize(
-            "NFKD"
-          )
-          .replace(
-            /[\u0300-\u036f]/g,
-            ""
-          )
-          .replace(
-            /[^a-z0-9]+/g,
-            " "
-          )
-          .trim();
-      }
-
-    const workTitleKey = (value: string) => catalogWorkTitleKey(value ?? '');
-    const workAuthorKey = (value: string) => normalizeSearchText(normalizeCatalogAuthor(value ?? ''));
-    const matchesRequestedBook = (book: any) => Boolean(book) &&
-      (!requestedTitle || workTitleKey(book.title) === workTitleKey(requestedTitle)) &&
-      (!requestedAuthors.length || requestedAuthors.some((wanted: string) =>
-        (book.contributions ?? []).some((item: any) => workAuthorKey(item.author?.name) === workAuthorKey(wanted))));
+    const requestedIdentity = {title:requestedTitle,authors:requestedAuthors};
+    const hardcoverQuery = async (query: string, variables: Record<string, unknown>) => {
+      const response = await fetchHardcover("https://api.hardcover.app/v1/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({query,variables}),
+      });
+      return (await response.json()).data;
+    };
 
     const findBookQuery = `
 
-      query FindBookByISBN($isbn: String!) {
+      query FindSeriesBooksByISBN($isbns: [String!]!) {
 
         editions(
 
@@ -730,15 +799,15 @@ Deno.serve(async (req) => {
 
             _or: [
 
-              { isbn_13: { _eq: $isbn } }
+              { isbn_13: { _in: $isbns } }
 
-              { isbn_10: { _eq: $isbn } }
+              { isbn_10: { _in: $isbns } }
 
             ]
 
           }
 
-          limit: 5
+          limit: 24
 
         ) {
 
@@ -850,281 +919,33 @@ Deno.serve(async (req) => {
 
 
 
-    let editionWithSeries: any =
-      null;
-
-    let currentBook: any =
-      null;
-
-    let matchedIsbn =
-      requestedIsbns[0] ?? "";
-
-    for (
-      const isbnCandidate of
-        requestedIsbns
-    ) {
-      const bookResponse =
-        await fetchHardcover("https://api.hardcover.app/v1/graphql",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization:
-                `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              query: findBookQuery,
-              variables: {
-                isbn:
-                  isbnCandidate,
-              },
-            }),
-          }
-        );
-
-      const bookJson =
-        await bookResponse.json();
-
-      if (
-        !bookResponse.ok ||
-        (
-          bookJson.errors &&
-          bookJson.errors.length > 0
-        )
-      ) {
-        continue;
-      }
-
-      const editions =
-        bookJson?.data?.editions ??
-        [];
-
-      const match =
-        editions.find(
-          (edition: any) =>
-            edition.book?.book_series
-              ?.length && matchesRequestedBook(edition.book) &&
-            (![edition.language?.code2, edition.language?.code3, edition.language?.language].some(Boolean) ||
-             [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage))
-        );
-
-      if (match) {
-        editionWithSeries =
-          match;
-
-        currentBook =
-          match.book;
-
-        matchedIsbn =
-          isbnCandidate;
-
-        break;
-      }
+    let currentBook: any = null;
+    let lookupError: unknown = null;
+    const isbns = requestedIsbns;
+    if (isbns.length) {
+      try {
+        const data = await hardcoverQuery(findBookQuery,{isbns});
+        if (!Array.isArray(data?.editions)) throw new Error('Hardcover ISBN response was incomplete.');
+        for (const isbn of isbns) {
+          const match = data.editions.find((edition: any) =>
+            (edition.isbn_10 === isbn || edition.isbn_13 === isbn) &&
+            (![edition.language?.code2,edition.language?.code3,edition.language?.language].some(Boolean) ||
+              [edition.language?.code2,edition.language?.code3,edition.language?.language].some(isEnglishBookLanguage)) &&
+            verifiedSeriesMembership(edition.book,requestedIdentity,true));
+          if (match) { currentBook = match.book; break; }
+        }
+      } catch (error) { lookupError = error; }
     }
-
-    // Some Google editions use an ISBN that Hardcover
-    // has not attached to the canonical book. When
-    // every ISBN misses, use Hardcover's own full-text
-    // Book search, then resolve the chosen result back
-    // to a full book record with series membership.
-    if (
-      !currentBook &&
-      requestedTitle
-    ) {
+    const matchedByIsbn = Boolean(currentBook);
+    if (!currentBook && requestedTitle && requestedAuthors.length) {
       const searchQuery = `
-        query HardcoverSearch(
-          $query: String!
-        ) {
-          search(
-            query: $query
-            query_type: "Book"
-            per_page: 50
-            page: 1
-            fields: "title,author_names,isbns,alternative_titles"
-            weights: "5,4,5,1"
-            typos: "2,2,0,2"
-            sort: "_text_match:desc,ratings_count:desc"
-          ) {
-            results
-          }
+        query HardcoverSearch($query: String!) {
+          search(query: $query, query_type: "Book", per_page: 50, page: 1,
+            fields: "title,author_names,isbns,alternative_titles", weights: "5,4,5,1",
+            typos: "2,2,0,2", sort: "_text_match:desc,ratings_count:desc") { results }
         }
       `;
-
-      const primaryAuthor =
-        requestedAuthors[0] ?? "";
-
-      const searchResponse =
-        await fetchHardcover("https://api.hardcover.app/v1/graphql",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization:
-                `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              query:
-                searchQuery,
-              variables: {
-                query:
-                  primaryAuthor
-                    ? `${requestedTitle} ${primaryAuthor}`
-                    : requestedTitle,
-              },
-            }),
-          }
-        );
-
-      const searchJson =
-        await searchResponse.json();
-
-      const searchResults =
-        searchJson?.data
-          ?.search?.results;
-
-      const rawHits =
-        searchResults &&
-        typeof searchResults ===
-          "object" &&
-        !Array.isArray(
-          searchResults
-        ) &&
-        Array.isArray(
-          searchResults.hits
-        )
-          ? searchResults.hits
-          : [];
-
-      const wantedTitle =
-        normalizeSearchText(
-          requestedTitle
-        );
-
-      const wantedAuthors =
-        requestedAuthors.map(
-          normalizeSearchText
-        );
-
-      const scoredHits =
-        rawHits
-          .map(
-            (
-              hit: any
-            ) =>
-              hit?.document ??
-              null
-          )
-          .filter((document: any) => document && matchesRequestedBook({
-            title: document.title, contributions: (document.author_names ?? []).map((name: string) => ({ author: { name } })),
-          }))
-          .map(
-            (
-              document: any
-            ) => {
-              let score =
-                0;
-
-              const title =
-                normalizeSearchText(
-                  document.title
-                );
-
-              if (
-                title ===
-                  wantedTitle
-              ) {
-                score +=
-                  250;
-              } else if (
-                title.includes(
-                  wantedTitle
-                ) ||
-                wantedTitle.includes(
-                  title
-                )
-              ) {
-                score +=
-                  120;
-              }
-
-              const actualAuthors: string[] =
-                Array.isArray(
-                  document.author_names
-                )
-                  ? document.author_names.map(
-                      normalizeSearchText
-                    )
-                  : [];
-
-              if (
-                wantedAuthors.some(
-                  (
-                    expected
-                  ) =>
-                    actualAuthors.some(
-                      (
-                        actual
-                      ) =>
-                        actual ===
-                          expected ||
-                        actual.includes(
-                          expected
-                        ) ||
-                        expected.includes(
-                          actual
-                        )
-                    )
-                )
-              ) {
-                score +=
-                  180;
-              }
-
-              return {
-                id:
-                  Number(
-                    document.id ??
-                    0
-                  ),
-                score,
-              };
-            }
-          )
-          .filter(
-            (
-              item: { id: number; score: number }
-            ) =>
-              item.id >
-                0 &&
-              item.score >
-                0
-          )
-          .sort(
-            (
-              a: { id: number; score: number },
-              b: { id: number; score: number }
-            ) =>
-              b.score -
-              a.score
-          );
-
-      // Duplicate Hardcover records can have identical titles but only one has
-      // series membership. Reuse the cached fetch for each bounded candidate.
-      for (const { id: bestId } of scoredHits.slice(0, 5)) {
-        const fullBookQuery = `
-          query HardcoverBookById(
-            $id: Int!
-          ) {
-            books(
-              where: {
-                id: {
-                  _eq: $id
-                }
-              }
-              limit: 1
-            ) {
+      const seriesLookupFields = `
               id
               title
               slug
@@ -1167,91 +988,42 @@ Deno.serve(async (req) => {
                   slug
                 }
               }
-            }
-          }
-        `;
-
-        const fullBookResponse =
-          await fetchHardcover("https://api.hardcover.app/v1/graphql",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-                Authorization:
-                  `Bearer ${token}`,
-              },
-              body:
-                JSON.stringify({
-                  query:
-                    fullBookQuery,
-                  variables: {
-                    id:
-                      bestId,
-                  },
-                }),
-            }
-          );
-
-        const fullBookJson =
-          await fullBookResponse
-            .json();
-
-        const resolved =
-          fullBookJson?.data
-            ?.books?.[0] ??
-          null;
-
-        if (
-          resolved
-            ?.book_series
-            ?.length && matchesRequestedBook(resolved)
-        ) {
-          currentBook =
-            resolved;
-
-          editionWithSeries = {
-            book:
-              resolved,
-            language:
-              resolved?.editions?.find((edition: any) =>
-                [edition.language?.code2, edition.language?.code3, edition.language?.language].some(isEnglishBookLanguage))?.language ??
-              null,
-          };
-          break;
-        }
-      }
+      `;
+      const readBooks = async (query: string, variables: Record<string,unknown>) => {
+        const data = await hardcoverQuery(query,variables);
+        if (!Array.isArray(data?.books)) throw new Error('Hardcover book response was incomplete.');
+        return data.books;
+      };
+      currentBook = await findSeriesBookByTitle(requestedIdentity, {
+        search: async query => {
+          const data = await hardcoverQuery(searchQuery,{query});
+          const hits = data?.search?.results?.hits;
+          if (!Array.isArray(hits)) throw new Error('Hardcover search response was incomplete.');
+          return hits.map((hit: any)=>hit?.document).filter(Boolean);
+        },
+        byIds: ids => readBooks(`query SeriesBooksById($ids: [Int!]!) {
+          books(where:{ id:{_in:$ids} },limit:8) { ${seriesLookupFields} }
+        }`,{ids}),
+        byExactTitle: titles => {
+          const variables:Record<string,unknown> = {};
+          const clauses = titles.map((title,index)=>{
+            variables[`title${index}`] = title.replace(/[\\%_]/g,'\\$&');
+            return `{ title:{_ilike:$title${index}} }`;
+          });
+          return readBooks(`query ExactSeriesTitle(${Object.keys(variables).map(name=>`$${name}:String!`).join(',')}) {
+            books(where:{ _or:[${clauses.join(',')}], book_series:{ series:{ id:{_gt:0} } } },limit:24) { ${seriesLookupFields} }
+          }`,variables);
+        },
+      });
     }
+    if (!currentBook && lookupError) throw lookupError;
 
     // Novori's English catalog must not inherit a mixed work's first edition language.
     const preferredLanguageKeys = expandLanguageKeys(['en', 'eng', 'english']);
 
-    const membership =
-
-      currentBook?.book_series?.[0];
-
-
-
-    const series =
-
-      membership?.series;
-
-
-
-    if (!series) {
-
-      const emptySeriesPayload = {
-
-        series: null,
-
-        books: [],
-
-      };
-
-
-
-      return emptySeriesPayload;
-    }
+    const membership = verifiedSeriesMembership(currentBook, requestedIdentity, matchedByIsbn);
+    const series = membership?.series;
+    if (!series) return {series:null,books:[]};
 
     // -----------------------------------
 
@@ -1402,83 +1174,11 @@ Deno.serve(async (req) => {
 
 
 
-    if (!seriesResponse.ok) {
-
-      return new Response(
-
-        JSON.stringify({
-
-          error:
-
-            "Hardcover series lookup failed",
-
-          details: seriesJson,
-
-        }),
-
-        {
-
-          status: seriesResponse.status,
-
-          headers: {
-
-            ...corsHeaders,
-
-            "Content-Type": "application/json",
-
-          },
-
-        }
-
-      );
-
+    const fullSeries = seriesJson?.data?.series_by_pk;
+    if (!seriesResponse.ok || seriesJson?.errors?.length ||
+        fullSeries?.id !== series.id || !Array.isArray(fullSeries.book_series)) {
+      throw new Error('Hardcover series response was incomplete.');
     }
-
-
-
-    if (
-
-      seriesJson.errors &&
-
-      seriesJson.errors.length > 0
-
-    ) {
-
-      return new Response(
-
-        JSON.stringify({
-
-          error:
-
-            "Hardcover series lookup returned GraphQL errors",
-
-          details: seriesJson.errors,
-
-        }),
-
-        {
-
-          status: 500,
-
-          headers: {
-
-            ...corsHeaders,
-
-            "Content-Type": "application/json",
-
-          },
-
-        }
-
-      );
-
-    }
-
-
-
-    const fullSeries =
-
-      seriesJson?.data?.series_by_pk;
     await cacheSeriesEditionPages(supabaseAdmin,(fullSeries?.book_series ?? []).map((row: any)=>row.book).filter(Boolean),sourceExpiresAt);
 
 
@@ -3008,8 +2708,14 @@ Deno.serve(async (req) => {
       },
     });
     const verifiedPayload = await attachDiscoveryCatalogCovers(supabaseAdmin, { ...responsePayload, books: (responsePayload.books ?? []).map((row: any) => ({...row, coverOrigin: 'series', formatPolicyVersion: 1})) });
-    await cacheSeriesPublications(supabaseAdmin, verifiedPayload);
-    if (!knownMembership) await cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey);
+    const indexWrites = Promise.allSettled([
+      cacheSeriesPublications(supabaseAdmin, verifiedPayload),
+      ...(knownMembership ? [] : [cacheSeriesMembership(supabaseAdmin, verifiedPayload, hardcoverSeriesCacheKey)]),
+    ]);
+    // These indexes benefit later reads; they aren't required in this response.
+    const runtime = (globalThis as {EdgeRuntime?: {waitUntil: (task: Promise<unknown>) => void}}).EdgeRuntime;
+    if (runtime) runtime.waitUntil(indexWrites);
+    else await indexWrites;
     return new Response(JSON.stringify({...verifiedPayload,cacheTrace:providerTrace(supabaseAdmin)}), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

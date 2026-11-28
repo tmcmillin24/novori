@@ -1,43 +1,35 @@
-import { moderationMediaUrl } from '../../lib/moderation-media-url';
-import { displayBookTitle } from '../../lib/book-title';
-import { getProfileBookWidth } from '../../lib/book-layout';
-import { useUiSheetMotion, UiSheetModal, UiSheetSurface, UiSheetBackdrop } from '../../components/UiSheet';
-import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
-import FeedPostCard from '../../components/FeedPostCard';
-import ClubEventPostAttachment from '../../components/ClubEventPostAttachment';
-import ClubDiscussionPostAttachment from '../../components/ClubDiscussionPostAttachment';
-import BookCoverImage from '../../components/BookCoverImage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image as ExpoImage } from 'expo-image';
-import ReadingRecapPostAttachment from '../../components/ReadingRecapPostAttachment';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import BookStackActionsSheet from '../../components/BookStackActionsSheet';
-import BookStackPostAttachment from '../../components/BookStackPostAttachment';
-import BookStackVisual from '../../components/BookStackVisual';
-import CanonicalBookRating from '../../components/CanonicalBookRating';
-import FeedPostImage from '../../components/FeedPostImage';
-import PostTypeIdentifier from '../../components/PostTypeIdentifier';
-import ProfileReadingModule from '../../components/ProfileReadingModule';
-import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
-import DeletePostConfirmSheet from '../../components/DeletePostConfirmSheet';
-import FullScreenImageViewer from '../../components/FullScreenImageViewer';
+import { useFocusEffect,useNavigation,useRouter } from 'expo-router';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { Alert,AppState,Pressable,ScrollView,StyleSheet,Text,useWindowDimensions,View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BookCoverImage from '../../components/BookCoverImage';
+import BookStackActionsSheet from '../../components/BookStackActionsSheet';
+import BookStackVisual from '../../components/BookStackVisual';
+import DeleteBookStackConfirmSheet from '../../components/DeleteBookStackConfirmSheet';
+import FeedPostCard from '../../components/FeedPostCard';
+import FullScreenImageViewer from '../../components/FullScreenImageViewer';
+import PostActions from '../../components/PostActions';
+import ProfileReadingModule from '../../components/ProfileReadingModule';
 import { TabScreen } from '../../components/tab-screen';
+import { usePostCommentsSheet } from '../../components/usePostCommentsSheet';
 import { NovoriColors } from '../../constants/novori-theme';
 import { useNovoriTheme } from '../../context/theme-context';
-import { BookStack, deleteBookStack, getMyBookStacks } from '../../lib/book-stacks';
+import { useFeedLanguagePreference } from '../../hooks/use-feed-language-preference';
+import { getProfileBookWidth } from '../../lib/book-layout';
+import { BookStack,deleteBookStack,getMyBookStacks } from '../../lib/book-stacks';
+import { displayBookTitle } from '../../lib/book-title';
 import { ClubWithMembership } from '../../lib/clubs';
-import { deletePost, FeedPost, getHomeFeed, getPostMutationVersion, PostVoteValue, togglePostVote } from '../../lib/feed';
-import { PROFILE_BOOK_STATUS_LABELS, sortProfileBooks } from '../../lib/profile-book-order';
-import { DEFAULT_PROFILE_PRIVACY, getProfilePrivacy, ProfilePrivacyPreferences } from '../../lib/profile-privacy';
-import { getReaderProfile, getReaderProfilePosts, getReaderPublicClubs } from '../../lib/social';
+import { FeedPost,getHomeFeed,getPostMutationVersion,PostVoteValue,togglePostVote } from '../../lib/feed';
+import { moderationMediaUrl } from '../../lib/moderation-media-url';
+import { PROFILE_BOOK_STATUS_LABELS,sortProfileBooks } from '../../lib/profile-book-order';
+import { DEFAULT_PROFILE_PRIVACY,getProfilePrivacy,ProfilePrivacyPreferences } from '../../lib/profile-privacy';
+import { shareBookStackLink,sharePostLink,shareProfileLink } from '../../lib/share-links';
+import { getReaderProfile,getReaderProfilePosts,getReaderPublicClubs } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
-import { getLibraryMutationVersion, getUserBooks, UserBook } from '../../lib/user-books';
-import { shareProfileLink, shareBookStackLink, sharePostLink } from '../../lib/share-links';
-import { getPostEditRoute } from '../../lib/post-edit-route';
+import { getLibraryMutationVersion,getUserBooks,UserBook } from '../../lib/user-books';
 function formatActivityTime(value: string) {
     const created = new Date(value);
     const difference = Date.now() -
@@ -148,11 +140,10 @@ export default function ProfileScreen() {
     const [followerCount, setFollowerCount,] = useState(0);
     const [followingCount, setFollowingCount,] = useState(0);
     const [posts, setPosts,] = useState<FeedPost[]>([]);
+    const { openCommentsSheet, sheet } = usePostCommentsSheet({setFeedPosts: setPosts});
     const [clubs, setClubs,] = useState<ClubWithMembership[]>([]);
     const [stacks, setStacks,] = useState<BookStack[]>([]);
-    const [deletePostTarget, setDeletePostTarget,] = useState<FeedPost | null>(null);
     const [activityPostOptionsTarget, setActivityPostOptionsTarget,] = useState<FeedPost | null>(null);
-    const [deletingPostId, setDeletingPostId,] = useState<string | null>(null);
     const [votingPostId, setVotingPostId,] = useState<string | null>(null);
     const [deleteStackTarget, setDeleteStackTarget,] = useState<BookStack | null>(null);
     const [stackActionsTarget, setStackActionsTarget,] = useState<BookStack | null>(null);
@@ -674,70 +665,24 @@ export default function ProfileScreen() {
             </Pressable>))}
       </View>);
     }
-    function editActivityPost(post: FeedPost) {
-        router.push(getPostEditRoute(post));
-    }
     function openActivityPostOptions(post: FeedPost) {
-        if (deletingPostId ||
-            activityPostOptionsTarget) {
+        if (activityPostOptionsTarget) {
             return;
         }
         setActivityPostOptionsTarget(post);
     }
-    function closeActivityPostOptions(afterClose?: () => void) {
-        uiActivityPostOptions.closeAfterActionWithCallback(afterClose);
-    }
-    function editSelectedActivityPost() {
-        if (!activityPostOptionsTarget) {
-            return;
-        }
-        const post = activityPostOptionsTarget;
-        closeActivityPostOptions(() => editActivityPost(post));
-    }
-    function deleteSelectedActivityPost() {
-        if (!activityPostOptionsTarget) {
-            return;
-        }
-        const post = activityPostOptionsTarget;
-        closeActivityPostOptions(() => setDeletePostTarget(post));
-    }
-    async function removeActivityPost(post: FeedPost) {
-        if (deletingPostId) {
-            return;
-        }
-        try {
-            setDeletingPostId(post.id);
-            await deletePost(post.id);
-            setPosts((current) => current.filter((item) => item.id !==
-                post.id));
-            const currentPostMutationVersion = getPostMutationVersion();
-            lastSeenPostMutationRef.current =
-                currentPostMutationVersion;
-            if (profileSessionCache) {
-                const nextSnapshot: ProfileCacheSnapshot = {
-                    ...profileSessionCache.snapshot,
-                    posts: profileSessionCache.snapshot.posts.filter((item) => item.id !==
-                        post.id),
-                    postMutationVersion: currentPostMutationVersion,
-                };
-                profileSessionCache = {
-                    ...profileSessionCache,
-                    snapshot: nextSnapshot,
-                    postMutationVersion: currentPostMutationVersion,
-                };
-                void writeProfileCache(profileSessionCache.userId, nextSnapshot);
-            }
-            setDeletePostTarget(null);
-        }
-        catch (error) {
-            console.error('Could not delete post:', error);
-            Alert.alert('Could not delete post', error instanceof Error
-                ? error.message
-                : 'Please try again.');
-            throw error;
-        }
-        finally {
-            setDeletingPostId(null);
+    function onActivityPostDeleted(post: FeedPost) {
+        setPosts(current => current.filter(item => item.id !== post.id));
+        const version = getPostMutationVersion();
+        lastSeenPostMutationRef.current = version;
+        if (profileSessionCache) {
+            const nextSnapshot: ProfileCacheSnapshot = {
+                ...profileSessionCache.snapshot,
+                posts: profileSessionCache.snapshot.posts.filter(item => item.id !== post.id),
+                postMutationVersion: version,
+            };
+            profileSessionCache = {...profileSessionCache, snapshot: nextSnapshot, postMutationVersion: version};
+            void writeProfileCache(profileSessionCache.userId, nextSnapshot);
         }
     }
     async function handleActivityPostVote(postId: string, voteValue: PostVoteValue) {
@@ -799,7 +744,7 @@ export default function ProfileScreen() {
         </View>);
         }
         return (<View style={styles.activityList}>
-        {posts.map(post => <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.id} votingPostId={votingPostId} deletingPostId={deletingPostId} onComments={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onVote={handleActivityPostVote} onMore={openActivityPostOptions} onShare={post => { void sharePostLink(post.id).catch(() => Alert.alert('Could not share post', 'Please try again.')); }}/>)}
+        {posts.map(post => <FeedPostCard {...feedLanguage} key={post.id} post={post} currentUserId={profile?.id} votingPostId={votingPostId} onOpen={post => router.push({ pathname: '/post/[id]', params: { id: post.id } })} onComments={openCommentsSheet} onVote={handleActivityPostVote} onMore={openActivityPostOptions} onShare={post => { void sharePostLink(post.id).catch(() => Alert.alert('Could not share post', 'Please try again.')); }}/>)}
       </View>);
     }
     function renderClubsTab() {
@@ -981,13 +926,6 @@ export default function ProfileScreen() {
         }
         return renderBooksTab();
     }
-    const uiActivityPostOptions = useUiSheetMotion({ visible: Boolean(activityPostOptionsTarget), busy: false, embedded: false, onDismiss: () => {
-            const finished = true;
-            if (!finished) {
-                return;
-            }
-            setActivityPostOptionsTarget(null);
-        } });
     if (!profileHydrated) {
         return (<TabScreen scroll>
         <View style={styles.profileCacheWarmup}/>
@@ -1184,103 +1122,9 @@ export default function ProfileScreen() {
 
       {renderTabContent()}
 
-      <UiSheetModal visible={Boolean(activityPostOptionsTarget)} transparent animationType="none" onRequestClose={() => closeActivityPostOptions()} motion={uiActivityPostOptions}>
-        <Pressable style={styles.activityPostOptionsBackdrop} onPress={() => closeActivityPostOptions()}>
-          <UiSheetBackdrop pointerEvents="none" style={[
-            styles.activityPostOptionsBackdropVisual,
-            {}
-        ]} motion={uiActivityPostOptions}/>
-
-          <UiSheetSurface style={[
-            styles.activityPostOptionsSheet,
-            {
-                paddingBottom: Math.max(18, insets.bottom +
-                    12)
-            }
-        ]} motion={uiActivityPostOptions}>
-            <Pressable onPress={(event) => event.stopPropagation()}>
-              <View style={styles.activityPostOptionsHandle}/>
-
-              <View style={styles.activityPostOptionsHeader}>
-                <View style={styles.activityPostOptionsHeaderIcon}>
-                  <Ionicons name="ellipsis-horizontal" size={19} color={colors.gold}/>
-                </View>
-
-                <View style={styles.activityPostOptionsHeaderCopy}>
-                  <Text style={styles.activityPostOptionsTitle}>
-                    Post options
-                  </Text>
-
-                  <Text style={styles.activityPostOptionsSubtitle}>
-                    Manage your post.
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.activityPostOptionsList}>
-                <Pressable onPress={editSelectedActivityPost} style={({ pressed }) => [
-            styles.activityPostOptionsRow,
-            pressed &&
-                styles.activityPostOptionsRowPressed
-        ]}>
-                  <View style={styles.activityPostOptionsRowIcon}>
-                    <Ionicons name="create-outline" size={20} color={colors.gold}/>
-                  </View>
-
-                  <View style={styles.activityPostOptionsRowCopy}>
-                    <Text style={styles.activityPostOptionsRowTitle}>
-                      Edit Post
-                    </Text>
-
-                    <Text style={styles.activityPostOptionsRowSubtitle}>
-                      Update what you shared.
-                    </Text>
-                  </View>
-
-                  <Ionicons name="chevron-forward" size={18} color={colors.mutedText}/>
-                </Pressable>
-
-                <View style={styles.activityPostOptionsDivider}/>
-
-                <Pressable onPress={deleteSelectedActivityPost} style={({ pressed }) => [
-            styles.activityPostOptionsRow,
-            pressed &&
-                styles.activityPostOptionsRowPressed
-        ]}>
-                  <View style={[
-            styles.activityPostOptionsRowIcon,
-            styles.activityPostOptionsDangerIcon
-        ]}>
-                    <Ionicons name="trash-outline" size={20} color={colors.danger}/>
-                  </View>
-
-                  <View style={styles.activityPostOptionsRowCopy}>
-                    <Text style={styles.activityPostOptionsDangerTitle}>
-                      Delete Post
-                    </Text>
-
-                    <Text style={styles.activityPostOptionsRowSubtitle}>
-                      Permanently remove this post.
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
-
-              <Text style={styles.activityPostOptionsHint}>
-                Tap outside to cancel
-              </Text>
-            </Pressable>
-          </UiSheetSurface>
-        </Pressable>
-      </UiSheetModal>
-
-      <DeletePostConfirmSheet visible={Boolean(deletePostTarget)} busy={Boolean(deletingPostId)} onConfirm={async () => {
-            if (!deletePostTarget) {
-                return;
-            }
-            await removeActivityPost(deletePostTarget);
-        }} onDismiss={() => setDeletePostTarget(null)}/>
-
+      <PostActions post={activityPostOptionsTarget} currentUserId={profile?.id}
+        onDismiss={() => setActivityPostOptionsTarget(null)}
+        onDeleted={onActivityPostDeleted}/>
       <BookStackActionsSheet visible={Boolean(stackActionsTarget)} stackName={stackActionsTarget?.name ??
             null} onView={() => {
             if (stackActionsTarget) {
@@ -1306,6 +1150,7 @@ export default function ProfileScreen() {
 
       <FullScreenImageViewer visible={profileImageOpen} uri={profile?.avatar_url ??
             null} onClose={() => setProfileImageOpen(false)} shape="circle"/>
+    {sheet}
     </TabScreen>);
 }
 function ProfileTabButton({ label, icon, active, onPress, }: {
@@ -1570,126 +1415,6 @@ function createStyles(colors: NovoriColors, windowWidth = 390) {
             color: colors.mutedText,
             fontFamily: 'Inter_500Medium',
             fontSize: 10,
-        },
-        activityPostOptionsBackdrop: {
-            flex: 1,
-            backgroundColor: 'transparent',
-            justifyContent: 'flex-end',
-        },
-        activityPostOptionsBackdropVisual: {
-            ...StyleSheet.absoluteFill,
-            backgroundColor: 'rgba(0,0,0,0.48)',
-        },
-        activityPostOptionsSheet: {
-            width: '100%',
-            alignSelf: 'center',
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingHorizontal: 16,
-            paddingTop: 10,
-            paddingBottom: 18,
-            overflow: 'hidden',
-        },
-        activityPostOptionsHandle: {
-            width: 42,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: colors.border,
-            alignSelf: 'center',
-            marginBottom: 16,
-        },
-        activityPostOptionsHeader: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 14,
-            paddingHorizontal: 2,
-        },
-        activityPostOptionsHeaderIcon: {
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 11,
-        },
-        activityPostOptionsHeaderCopy: {
-            flex: 1,
-        },
-        activityPostOptionsTitle: {
-            color: colors.text,
-            fontFamily: 'PlayfairDisplay_700Bold',
-            fontSize: 20,
-        },
-        activityPostOptionsSubtitle: {
-            color: colors.secondaryText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 12,
-            marginTop: 2,
-        },
-        activityPostOptionsList: {
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 16,
-            overflow: 'hidden',
-            backgroundColor: colors.background,
-        },
-        activityPostOptionsRow: {
-            minHeight: 66,
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 13,
-            paddingVertical: 10,
-            backgroundColor: colors.background,
-        },
-        activityPostOptionsRowPressed: {
-            backgroundColor: colors.elevated,
-        },
-        activityPostOptionsRowIcon: {
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            backgroundColor: colors.elevated,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 12,
-        },
-        activityPostOptionsDangerIcon: {
-            backgroundColor: 'rgba(220, 80, 80, 0.10)',
-        },
-        activityPostOptionsRowCopy: {
-            flex: 1,
-            paddingRight: 10,
-        },
-        activityPostOptionsRowTitle: {
-            color: colors.text,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 14,
-        },
-        activityPostOptionsDangerTitle: {
-            color: colors.danger,
-            fontFamily: 'Inter_600SemiBold',
-            fontSize: 14,
-        },
-        activityPostOptionsRowSubtitle: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 11,
-            lineHeight: 16,
-            marginTop: 2,
-        },
-        activityPostOptionsDivider: {
-            height: StyleSheet.hairlineWidth,
-            backgroundColor: colors.border,
-            marginLeft: 61,
-        },
-        activityPostOptionsHint: {
-            color: colors.mutedText,
-            fontFamily: 'Inter_400Regular',
-            fontSize: 10,
-            textAlign: 'center',
-            marginTop: 11,
         },
         activityFeedCard: {
             backgroundColor: colors.surface,
