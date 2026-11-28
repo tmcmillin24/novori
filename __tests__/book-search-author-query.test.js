@@ -322,3 +322,46 @@ test.each(['Onyx Stomr','Onyx Strm','Cort of Thorns and Roses','Court of Thorns 
  expect(rows[0]?.id).toBe('right');
  expect(api.searchCalls.length).toBeLessThanOrEqual(3);
 });
+
+test('author cards merge a verified series label into the plain-title work while Discover keeps both editions', async () => {
+ const author = 'Brandon Sanderson';
+ const plain = book('original', author, 'The Well of Ascension');
+ const alias = book('alias', author, 'The Well of Ascension Book Two of Mistborn');
+ const counts = {hardcoverBookId: 32, usersCount: 8400, rating: 4.42, ratingsCount: 3500, reviewsCount: 140};
+ const api = load([alias, plain], {}, {original:counts, alias:counts});
+
+ const rows = await api.searchAuthorBooks(author);
+ expect(rows).toHaveLength(1);
+ expect(rows[0]).toMatchObject({book:{id:'original',volumeInfo:{title:'The Well of Ascension'}},rating:4.42,ratingsCount:3500,reviewsCount:140});
+ expect(rows[0].book.novoriWork.googleBookIds.sort()).toEqual(['alias','original']);
+ expect(api.popularityCalls).toHaveLength(1);
+ expect(api.popularityCalls[0].books.map(row=>row.title)).toEqual(['The Well of Ascension','The Well of Ascension']);
+ expect((await api.searchNovoriBooks('The Well of Ascension')).map(book=>book.id)).toEqual(['original','alias']);
+ expect(api.popularityCalls[1].books.find(row=>row.googleBookId==='alias').title).toBe(alias.volumeInfo.title);
+});
+
+test('author cards use a clean verified title even when the catalog only returned the labeled edition', async () => {
+ const author = 'Brandon Sanderson';
+ const alias = book('alias', author, 'The Well of Ascension: Book Two of Mistborn');
+ const api = load([alias], {}, {alias:{hardcoverBookId:32,usersCount:8400,rating:4.42,ratingsCount:3500,reviewsCount:140}});
+ const [row] = await api.searchAuthorBooks(author);
+ expect(row).toMatchObject({book:{id:'alias',volumeInfo:{title:'The Well of Ascension'}},rating:4.42,ratingsCount:3500,reviewsCount:140});
+ expect(api.popularityCalls[0].books[0].title).toBe('The Well of Ascension');
+});
+
+test('author cards keep unverified titles, genuine subtitles and adaptations distinct', async () => {
+ const author = 'Jane Writer';
+ const unverified = book('unverified', author, 'Second Moon (Book Two of Silver Sky)');
+ const genuine = book('genuine', author, 'Stars: A History of Light');
+ const graphic = book('graphic', author, 'Starfall Graphic Novel: Book Two of Silver Sky');
+ const api = load([unverified,genuine,graphic], {}, {
+   genuine:{hardcoverBookId:12,usersCount:10,rating:4,reviewsCount:0},
+   graphic:{hardcoverBookId:13,usersCount:7,rating:3},
+ });
+ const rows = await api.searchAuthorBooks(author);
+ expect(rows.find(row=>row.book.id==='unverified')).toMatchObject({
+   book:{volumeInfo:{title:unverified.volumeInfo.title}},rating:null,reviewsCount:null,ratingsCount:null,
+ });
+ expect(rows.find(row=>row.book.id==='genuine')).toMatchObject({book:{volumeInfo:{title:genuine.volumeInfo.title}}, reviewsCount:0});
+ expect(rows.find(row=>row.book.id==='graphic')?.book.volumeInfo.title).toBe(graphic.volumeInfo.title);
+});

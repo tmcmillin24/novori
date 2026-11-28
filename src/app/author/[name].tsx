@@ -470,27 +470,12 @@ export default function AuthorScreen() {
               </>
             ) : null}
 
-            <Text
-              style={
-                styles.metricText
-              }
-            >
-              {formatCount(
-                item.ratingsCount
-              )}{' '}
-              ratings
-            </Text>
-
-            <Text
-              style={
-                styles.metricText
-              }
-            >
-              {formatCount(
-                item.reviewsCount
-              )}{' '}
-              reviews
-            </Text>
+            {item.ratingsCount !== null ? (
+              <Text style={styles.metricText}>{formatCount(item.ratingsCount)} ratings</Text>
+            ) : null}
+            {item.reviewsCount !== null ? (
+              <Text style={styles.metricText}>{formatCount(item.reviewsCount)} reviews</Text>
+            ) : null}
           </View>
 
           <Text

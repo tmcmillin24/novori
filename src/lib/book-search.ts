@@ -279,6 +279,7 @@ type HardcoverSearchPopularityResponse = {
       rating: number | null;
       ratingsCount?: number | null;
       reviewsCount?: number | null;
+      hardcoverBookId?: number;
     }
   >;
   error?: string;
@@ -1072,16 +1073,15 @@ const incompleteSearchResults = new WeakSet<object>();
 
 async function getHardcoverPopularity(
   books: GoogleBookSearchItem[],
-  allowTitleFallback = false
+  allowTitleFallback = false,
+  useAuthorWorkTitle = false,
 ) {
   const preparedBooks =
     books
       .map((book) => ({
         googleBookId:
           book.id,
-        title:
-          book.volumeInfo.title ??
-          '',
+        title: useAuthorWorkTitle ? authorCatalogTitle(book) : book.volumeInfo.title ?? '',
         authors:
           book.volumeInfo.authors ??
           [],
@@ -1500,6 +1500,49 @@ function isGraphicAdaptation(book: GoogleBookSearchItem) {
 // Product tier precedes popularity, so companion products cannot displace books.
 function searchProductTier(book: GoogleBookSearchItem) {
   return isLikelyCollectionTitle(book) ? 2 : Number(isLikelyDerivativeTitle(book));
+}
+
+// Author catalogs can verify that an explicit series-position label is an edition alias.
+function authorCatalogTitle(book: GoogleBookSearchItem) {
+  const title = book.volumeInfo.title ?? '';
+  if (searchProductTier(book) || isGraphicAdaptation(book)) return title;
+  return title.replace(
+    /(?:\s+|\s*[:–—-]\s*|\s*[(\[]\s*)book\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+of\s+[\p{L}\p{N}][^()[\]\r\n]*[)\]]?$/iu,
+    '',
+  ).trim() || title;
+}
+
+function mergeAuthorCatalogWorks(
+  books: GoogleBookSearchItem[],
+  popularity: NonNullable<HardcoverSearchPopularityResponse['popularity']>,
+) {
+  const works = new Map<string, {book: GoogleBookSearchItem; plainTitle: boolean}>();
+  for (const book of books) {
+    const work = book.novoriWork;
+    const hardcoverId = popularity[book.id]?.hardcoverBookId;
+    const title = authorCatalogTitle(book);
+    const plainTitle = title === book.volumeInfo.title;
+    if (!work || typeof hardcoverId !== 'number' || !Number.isSafeInteger(hardcoverId) || hardcoverId < 1 ||
+        searchProductTier(book) || isGraphicAdaptation(book)) {
+      works.set(book.id, {book, plainTitle});
+      continue;
+    }
+    const key = `hardcover:${hardcoverId}`;
+    const previous = works.get(key);
+    const display = plainTitle ? book : {...book, volumeInfo: {...book.volumeInfo, title: displayBookTitle(title)}};
+    if (!previous) {
+      works.set(key, {book: display, plainTitle});
+      continue;
+    }
+    const previousWork = previous.book.novoriWork!;
+    const better = plainTitle && !previous.plainTitle ? {book: display, plainTitle} : previous;
+    works.set(key, {...better, book: {...better.book, novoriWork: {
+      ...better.book.novoriWork!,
+      googleBookIds: [...new Set([...previousWork.googleBookIds, ...work.googleBookIds])],
+      isbns: [...new Set([...previousWork.isbns, ...work.isbns])],
+    }}});
+  }
+  return Array.from(works.values(), entry => entry.book);
 }
 
 function resultProductTier(book: GoogleBookSearchItem, collectionRequested: boolean) {
@@ -2512,7 +2555,8 @@ function collapseDuplicateEditions(
       usersCount: number;
       rating: number | null;
     }
-  > = {}
+  > = {},
+  preferPlainAuthorTitle = false,
 ) {
   const normalizedQuery =
     normalizeTitle(
@@ -2632,8 +2676,10 @@ function collapseDuplicateEditions(
               if (formatDifference !== 0) return formatDifference;
 
               // Prefer the plain-title record to normalized marketing/edition labels.
-              const titleLabelPenalty = (book: GoogleBookSearchItem) =>
-                book.novoriEdition?.originalTitle && cleanCatalogBookTitle(book.novoriEdition.originalTitle) !== book.novoriEdition.originalTitle ? 1 : 0;
+              const titleLabelPenalty = (book: GoogleBookSearchItem) => Number(
+                (preferPlainAuthorTitle && authorCatalogTitle(book) !== book.volumeInfo.title) ||
+                Boolean(book.novoriEdition?.originalTitle && cleanCatalogBookTitle(book.novoriEdition.originalTitle) !== book.novoriEdition.originalTitle)
+              );
               const titleLabelDifference = titleLabelPenalty(a) - titleLabelPenalty(b);
               if (titleLabelDifference !== 0) return titleLabelDifference;
 
@@ -3272,18 +3318,13 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
           {}
         );
 
-  const collapsed =
-    collapseDuplicateEditions(
-      sorted,
-      searchTerm,
-      {}
-    );
+  const collapsed = collapseDuplicateEditions(sorted, searchTerm, {}, mode === 'author');
 
   if (metadataOnly) return collapsed;
 
   // Reuse the existing cached, quota-controlled popularity endpoint. A single
   // result still needs rating metadata. Provider failures keep usable catalog results.
-  const ratingMetadata = getHardcoverPopularity(collapsed, true);
+  const ratingMetadata = getHardcoverPopularity(collapsed, true, mode === 'author');
 
   await Promise.all(
     collapsed.map(
@@ -3349,7 +3390,7 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
   }
   bookWorkDetails.remember(searchTerm, collapsed);
   const results = looksLikeAuthorSearch
-    ? sortAuthorSearchResults(collapsed, searchTerm, popularity)
+    ? sortAuthorSearchResults(mode === 'author' ? mergeAuthorCatalogWorks(collapsed, popularity) : collapsed, searchTerm, popularity)
     : sortTitleSearchResults(collapsed, searchTerm, popularity);
   timing('ratings-ready');
   if (failedPopularityReads.has(popularity)) incompleteSearchResults.add(results);
@@ -3379,13 +3420,13 @@ export async function searchNovoriBookByIsbn(value: string) {
 export type AuthorBookResult = {
   book: GoogleBookSearchItem;
   usersCount: number;
-  ratingsCount: number;
-  reviewsCount: number;
+  ratingsCount: number | null;
+  reviewsCount: number | null;
   rating: number | null;
 };
 
 export function compareAuthorBookPopularity(a: AuthorBookResult, b: AuthorBookResult) {
-  return b.usersCount - a.usersCount || b.reviewsCount - a.reviewsCount
+  return b.usersCount - a.usersCount || (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0)
     || a.book.id.localeCompare(b.book.id);
 }
 
@@ -3447,48 +3488,13 @@ export async function searchAuthorBooks(
       }
     );
 
-  const initialBooks:
-    AuthorBookResult[] =
-    filtered.map(
-      (
-        book
-      ) => {
-        const fastResolved = book.novoriWork ? {
-          usersCount:book.novoriWork.hardcoverUsersCount,
-          ratingsCount:book.novoriWork.hardcoverRatingsCount,
-          reviewsCount:book.novoriWork.hardcoverReviewsCount,
-          rating:book.novoriWork.hardcoverRating,
-        } : undefined;
-
-        return {
-          book,
-          usersCount:
-            fastResolved
-              ?.usersCount ??
-            0,
-          ratingsCount:
-            fastResolved
-              ?.ratingsCount ??
-            book.novoriWork
-              ?.hardcoverRatingsCount ??
-            book.volumeInfo
-              .ratingsCount ??
-            0,
-          reviewsCount:
-            fastResolved
-              ?.reviewsCount ??
-            0,
-          rating:
-            fastResolved
-              ?.rating ??
-            book.novoriWork
-              ?.hardcoverRating ??
-            book.volumeInfo
-              .averageRating ??
-            null,
-        };
-      }
-    );
+  const initialBooks: AuthorBookResult[] = filtered.map(book => ({
+    book,
+    usersCount: book.novoriWork?.hardcoverUsersCount ?? 0,
+    ratingsCount: book.novoriWork?.hardcoverRatingsCount ?? book.volumeInfo.ratingsCount ?? null,
+    reviewsCount: book.novoriWork?.hardcoverReviewsCount ?? null,
+    rating: book.novoriWork?.hardcoverRating ?? book.volumeInfo.averageRating ?? null,
+  }));
 
   options?.onProgress?.(
     initialBooks
