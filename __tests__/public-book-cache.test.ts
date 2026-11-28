@@ -134,3 +134,36 @@ test("persisted cache is bounded and exact editions use different keys", async (
     bookExtraKey("rating", "book"),
   );
 });
+
+test("a long-lived synopsis survives a restart and expires on its own schedule", async () => {
+  const disk = storage();
+  const day = 86400000;
+  const load = jest.fn(async () => ({ synopsis: "Publisher synopsis" }));
+  const synopsisOptions = {
+    freshMs: 14 * day,
+    retainMs: 90 * day,
+    valid: (value: unknown): value is { synopsis: string } =>
+      typeof (value as { synopsis?: string } | null)?.synopsis === "string",
+  };
+  const first = createPublicBookCache(disk, () => 100);
+  await first.read("series-synopsis", load, synopsisOptions);
+  await first.flush();
+  const restarted = createPublicBookCache(disk, () => 13 * day);
+  expect(await restarted.read("series-synopsis", load, synopsisOptions)).toEqual({
+    fromCache: true, value: { synopsis: "Publisher synopsis" },
+  });
+  expect(load).toHaveBeenCalledTimes(1);
+  const expired = createPublicBookCache(disk, () => 91 * day);
+  expect(await expired.peek("series-synopsis", synopsisOptions.valid)).toBeNull();
+});
+
+test("concurrent detail reads share a disk write", async () => {
+  const disk = storage();
+  const cache = createPublicBookCache(disk, () => 100);
+  await Promise.all(Array.from({ length: 12 }, (_, index) =>
+    cache.read(`rating:${index}`, async () => ({ rating: index }), options),
+  ));
+  await cache.flush();
+  expect(disk.setItem).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(disk.raw()!).entries).toHaveLength(12);
+});

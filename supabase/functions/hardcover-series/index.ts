@@ -256,56 +256,64 @@ Deno.serve(async (req) => {
       trace('start');
       try {
         if (!isbnDbEnabled()) return editionResponse({error: 'Edition lookup is unavailable.'}, 503);
-        if (isCorrectedSeriesId(body.seriesId)) {
-          const book = await resolveCorrectedSeriesEdition(body.seriesId, body.bookId,
-            isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn));
-          trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
-          return editionResponse({book,cacheTrace:providerTrace(supabaseAdmin)});
-        }
-        const query = `
-          query SeriesReadingEditions($bookId: Int!) {
-            books(where: {id: {_eq: $bookId}}, limit: 1) {
-              id title description compilation
-              contributions { author { name } }
-              book_series { series { id name } }
-              editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
-                title pages release_date isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
-                reading_format { format }
-                language { code2 code3 language }
-              }
+        const book = await cachedProviderValue<Awaited<ReturnType<typeof lookupIsbnDbEdition>>>({
+          admin: supabaseAdmin, provider: 'hardcover_series',
+          key: `resolved-edition:v1:${body.seriesId}:${body.bookId}`,
+          freshMs: 86400000, staleMs: 7 * 86400000, leaseSeconds: 180,
+          valueLifetime: value => value
+            ? { freshMs: 86400000, staleMs: 7 * 86400000 }
+            : { freshMs: 15 * 60000, staleMs: 15 * 60000 },
+          load: async () => {
+            if (isCorrectedSeriesId(body.seriesId)) {
+              return resolveCorrectedSeriesEdition(body.seriesId, body.bookId,
+                isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn));
             }
-          }
-        `;
-        const response = await cachedHardcoverFetch(supabaseAdmin, 'https://api.hardcover.app/v1/graphql', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
-          body: JSON.stringify({query, variables: {bookId: body.bookId}}),
-        }, 14 * 86400000, 14 * 86400000, 'hardcover_series', undefined,
-        payload => seriesResultLifetime(Boolean(payload?.data?.books?.length)));
-        const payload = await response.json();
-        if (!Array.isArray(payload?.data?.books)) throw new Error('Hardcover edition response was incomplete.');
-        const member = payload.data.books.find((row: {id: number}) => row.id === body.bookId);
-        trace('hardcover', {memberFound: Boolean(member), membershipConfirmed: Boolean(member?.book_series?.some(
-          (row: {series?: {id:number}}) => row.series?.id === body.seriesId,
-        )), editions: member?.editions?.length ?? 0});
-        const book = member ? await resolveSeriesEdition(member, body.seriesId, {
-          trace,
-          catalog: async isbns => {
-            const {data, error} = await supabaseAdmin.from('book_editions')
-              .select('provider_book_id,metadata').in('provider',['isbndb','google_books']).eq('detail_complete',true).in('isbn_13',isbns);
-            if (error) throw error;
-            return (data ?? []).flatMap(row => row.provider_book_id && row.metadata?.volumeInfo?.title
-              ? [{...row.metadata, id: row.provider_book_id}] : []);
+            const query = `
+              query SeriesReadingEditions($bookId: Int!) {
+                books(where: {id: {_eq: $bookId}}, limit: 1) {
+                  id title description compilation
+                  contributions { author { name } }
+                  book_series { series { id name } }
+                  editions(limit: 100, order_by: [{release_date: desc_nulls_last}, {id: asc}]) {
+                    title pages release_date isbn_13 isbn_10 compilation audio_seconds reading_format_id physical_format
+                    reading_format { format }
+                    language { code2 code3 language }
+                  }
+                }
+              }
+            `;
+            const response = await cachedHardcoverFetch(supabaseAdmin, 'https://api.hardcover.app/v1/graphql', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+              body: JSON.stringify({query, variables: {bookId: body.bookId}}),
+            }, 14 * 86400000, 14 * 86400000, 'hardcover_series', undefined,
+            payload => seriesResultLifetime(Boolean(payload?.data?.books?.length)));
+            const payload = await response.json();
+            if (!Array.isArray(payload?.data?.books)) throw new Error('Hardcover edition response was incomplete.');
+            const member = payload.data.books.find((row: {id: number}) => row.id === body.bookId);
+            trace('hardcover', {memberFound: Boolean(member), membershipConfirmed: Boolean(member?.book_series?.some(
+              (row: {series?: {id:number}}) => row.series?.id === body.seriesId,
+            )), editions: member?.editions?.length ?? 0});
+            const book = member ? await resolveSeriesEdition(member, body.seriesId, {
+              trace,
+              catalog: async isbns => {
+                const {data, error} = await supabaseAdmin.from('book_editions')
+                  .select('provider_book_id,metadata').in('provider',['isbndb','google_books']).eq('detail_complete',true).in('isbn_13',isbns);
+                if (error) throw error;
+                return (data ?? []).flatMap(row => row.provider_book_id && row.metadata?.volumeInfo?.title
+                  ? [{...row.metadata, id: row.provider_book_id}] : []);
+              },
+              byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
+              persistHardcoverEdition: book => saveHardcoverSeriesEdition(supabaseAdmin, book),
+              byTitle: async (query, titleOnly) => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false, titleOnly})).items,
+            }) : null;
+            return book && !book.volumeInfo.description?.trim() && typeof member?.description === 'string' && member.description.trim()
+              ? { ...book, volumeInfo: { ...book.volumeInfo, description: member.description } }
+              : book;
           },
-          byIsbn: isbn => lookupIsbnDbEdition(supabaseAdmin, reader.id, isbn),
-          persistHardcoverEdition: book => saveHardcoverSeriesEdition(supabaseAdmin, book),
-          byTitle: async (query, titleOnly) => (await isbnDbSearch(supabaseAdmin, reader.id, query, 0, {resolvePreferredCover:false, titleOnly})).items,
-        }) : null;
+        });
         trace('finish', {matched:Boolean(book), provider:book?.source?.provider, isbn:book?.source?.isbn13});
-        const describedBook = book && !book.volumeInfo.description?.trim() && typeof member?.description === 'string' && member.description.trim()
-          ? { ...book, volumeInfo: { ...book.volumeInfo, description: member.description } }
-          : book;
-        return editionResponse({book: describedBook, cacheTrace: providerTrace(supabaseAdmin)});
+        return editionResponse({book, cacheTrace: providerTrace(supabaseAdmin)});
       } catch (error) {
         trace('failed', {kind: error instanceof Error ? error.name : 'UnknownError'});
         throw error;

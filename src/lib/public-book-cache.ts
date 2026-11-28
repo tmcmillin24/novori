@@ -13,7 +13,8 @@ type Options<T> = {
 };
 const STORAGE_KEY = "novori:public-book-extras:v1",
   MAX_ENTRIES = 100,
-  MAX_CHARS = 512000;
+  MAX_CHARS = 512000,
+  MAX_RETENTION_MS = 90 * 86400000;
 const copy = <T>(value: T): T =>
   value === undefined ? value : JSON.parse(JSON.stringify(value));
 /** Public catalog metadata only. Never store library status, reviews or auth here. */
@@ -25,6 +26,8 @@ export function createPublicBookCache(
     pending = new Map<string, Promise<unknown>>();
   let hydration: Promise<void> | undefined,
     writes = Promise.resolve();
+  let diskDirty = false;
+  let writing = false;
   function hydrate() {
     return (hydration ??= (async () => {
       try {
@@ -46,7 +49,7 @@ export function createPublicBookCache(
             e.savedAt < 0 ||
             e.freshUntil < e.savedAt ||
             e.expiresAt < e.freshUntil ||
-            e.expiresAt - e.savedAt > 14 * 86400000 ||
+            e.expiresAt - e.savedAt > MAX_RETENTION_MS ||
             e.expiresAt <= now()
           )
             continue;
@@ -57,20 +60,35 @@ export function createPublicBookCache(
       }
     })());
   }
+  async function writeSnapshot() {
+    try {
+      const kept = [...entries]
+        .filter(([, e]) => e.expiresAt > now())
+        .slice(-MAX_ENTRIES);
+      let raw = JSON.stringify({ version: 1, entries: kept });
+      while (raw.length > MAX_CHARS && kept.length) {
+        kept.shift();
+        raw = JSON.stringify({ version: 1, entries: kept });
+      }
+      await storage.setItem(STORAGE_KEY, raw);
+    } catch {
+      /* Best-effort public cache. */
+    }
+  }
   function persist() {
-    writes = writes.then(async () => {
+    diskDirty = true;
+    if (writing) return;
+    writing = true;
+    // Parallel metadata loads share one snapshot. A write in progress is
+    // followed by the latest contents instead of one write for every result.
+    writes = Promise.resolve().then(async () => {
       try {
-        const kept = [...entries]
-          .filter(([, e]) => e.expiresAt > now())
-          .slice(-MAX_ENTRIES);
-        let raw = JSON.stringify({ version: 1, entries: kept });
-        while (raw.length > MAX_CHARS && kept.length) {
-          kept.shift();
-          raw = JSON.stringify({ version: 1, entries: kept });
+        while (diskDirty) {
+          diskDirty = false;
+          await writeSnapshot();
         }
-        await storage.setItem(STORAGE_KEY, raw);
-      } catch {
-        /* Best-effort public cache. */
+      } finally {
+        writing = false;
       }
     });
   }

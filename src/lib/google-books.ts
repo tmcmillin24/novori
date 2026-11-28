@@ -356,6 +356,8 @@ function catalogBooksFromPayload(
 }
 
 type SharedGoogleBooksDetailEnvelope = {
+  provider?: string;
+  cacheTrace?: { upstream?: Record<string, number> };
   ok?: boolean;
   status?: number;
   data?: unknown;
@@ -364,6 +366,7 @@ type SharedGoogleBooksDetailEnvelope = {
   cache?: {
     status?: 'hit' | 'miss' | 'stale';
     googleRequestMade?: boolean;
+    providerRequestMade?: boolean;
     expiresAt?: string;
     reason?: string;
   };
@@ -420,14 +423,10 @@ async function fetchSharedGoogleBooksDetail(
         console.log(
           '[Novori book detail cache]',
           {
-            cache:
-              response.cache
-                ?.status ??
-              'unknown',
-            googleRequestMade:
-              response.cache
-                ?.googleRequestMade ??
-              false,
+            cache: response.cache?.status ?? 'unknown',
+            provider: response.provider ?? 'google_books',
+            upstream: response.cacheTrace?.upstream ??
+              { [response.provider ?? 'google_books']: Number(response.cache?.providerRequestMade ?? response.cache?.googleRequestMade ?? false) },
             quota:
               response.quota ??
               null,
@@ -537,14 +536,10 @@ async function fetchSharedGoogleBooksSearch(
         console.log(
           '[Novori book search cache]',
           {
-            cache:
-              response.cache
-                ?.status ??
-              'unknown',
-            googleRequestMade:
-              response.cache
-                ?.googleRequestMade ??
-              false,
+            cache: response.cache?.status ?? 'unknown',
+            provider: response.provider ?? 'google_books',
+            upstream: response.cacheTrace?.upstream ??
+              { [response.provider ?? 'google_books']: Number(response.cache?.providerRequestMade ?? response.cache?.googleRequestMade ?? false) },
             quota:
               response.quota ??
               null,
