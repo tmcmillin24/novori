@@ -1,3 +1,4 @@
+import { useTabBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import {getCanonicalBookCover} from '../../lib/canonical-book-covers';
 import { hasLibraryMembership } from '../../lib/library-membership';
 import CartShortcut from '../../components/CartShortcut';
@@ -208,6 +209,9 @@ export default function LibraryScreen() {
     }
     const libraryListRef = useRef<FlatList<UserBook[]> | null>(null);
     const libraryScrollOffsetRef = useRef(0);
+    const navigationScroll = useTabBrowsingNavigationScroll('library', event => {
+        libraryScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+    });
     const restoreLibraryScrollRef = useRef(false);
     const hasLoadedLibraryRef = useRef(Boolean(librarySessionCache));
     const lastLibraryRefreshRef = useRef(librarySessionCache
@@ -843,10 +847,8 @@ export default function LibraryScreen() {
                 ? 'Try a different title or author.'
                 : 'Books you save will appear here.'}
               </Text>
-            </View>} contentContainerStyle={styles.listContent} onScroll={(event) => {
-            libraryScrollOffsetRef.current =
-                event.nativeEvent.contentOffset.y;
-        }} scrollEventThrottle={16} onContentSizeChange={() => {
+            </View>} contentContainerStyle={styles.listContent} {...navigationScroll} onContentSizeChange={(width, height) => {
+            navigationScroll.onContentSizeChange(width, height);
             if (restoreLibraryScrollRef.current) {
                 restoreLibraryScrollRef.current =
                     false;

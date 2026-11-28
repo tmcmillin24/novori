@@ -2,7 +2,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import NovoriBottomBar, { NOVORI_TAB_BAR_HEIGHT, novoriTabs as tabs } from './NovoriBottomBar';
 import { type Href, type NativeStackNavigationProp, useGlobalSearchParams, useNavigation, usePathname, useRouter, useSegments } from 'expo-router';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Keyboard, Platform, View } from 'react-native';
+import { AccessibilityInfo, Keyboard, Platform, type ScrollViewProps, View } from 'react-native';
 import { useTutorial } from '../context/tutorial-context';
 
 type Tab = (typeof tabs)[number]['segment'];
@@ -51,7 +51,15 @@ const ScrollVisibility = createContext<(path: string, hidden: boolean) => void>(
 
 export function useBrowsingNavigationScroll() {
   const path = usePathname();
-  const setHidden = useContext(ScrollVisibility);
+  const report = useContext(ScrollVisibility);
+  const setHidden = useCallback((hidden: boolean) => report(path, hidden), [path, report]);
+  return useNavigationScroll(setHidden);
+}
+
+function useNavigationScroll(
+  setHidden: (hidden: boolean) => void,
+  minimumScrollRange = 0,
+) {
   type ScrollEvent = { nativeEvent: {
     contentOffset: { y: number };
     contentSize: { height: number };
@@ -79,11 +87,104 @@ export function useBrowsingNavigationScroll() {
     const delta = next.y - last.y;
     if (delta === 0) return;
     let distance = Math.sign(delta) === Math.sign(last.distance) ? last.distance + delta : delta;
-    if (next.y <= 2 || distance <= -12) { setHidden(path, false); distance = 0; }
-    else if (next.y > 72 && distance >= 32) { setHidden(path, true); distance = 0; }
+    if (next.y <= 2 || distance <= -12) { setHidden(false); distance = 0; }
+    else if (next.end > minimumScrollRange && next.y > 72 && distance >= 32) {
+      setHidden(true);
+      distance = 0;
+    }
     position.current = { ...next, distance };
-  }, [path, setHidden]);
+  }, [minimumScrollRange, setHidden]);
   return { onScroll, onScrollBeginDrag, scrollEventThrottle: 16 };
+}
+
+const ReduceMotion = createContext(true);
+const TabScrollVisibility = createContext<(tab: Tab, hidden: boolean) => void>(() => {});
+const TabFooterState = createContext<{
+  enabled: boolean;
+  hiddenTab: Tab | null;
+  setHiddenTab: (update: (current: Tab | null) => Tab | null) => void;
+}>({ enabled: false, hiddenTab: null, setHiddenTab: () => {} });
+
+export function TabBrowsingNavigation({ children }: { children: ReactNode }) {
+  const tutorial = useTutorial();
+  const reduceMotion = useContext(ReduceMotion);
+  const enabled = !reduceMotion && !tutorial?.active;
+  const [hiddenTab, setHiddenTab] = useState<Tab | null>(null);
+  const report = useCallback((tab: Tab, hidden: boolean) => {
+    if (!enabled) return;
+    setHiddenTab(current => hidden ? tab : current === tab ? null : current);
+  }, [enabled]);
+
+  return <TabScrollVisibility.Provider value={report}>
+    <TabFooterState.Provider value={{ enabled, hiddenTab, setHiddenTab }}>
+      {children}
+    </TabFooterState.Provider>
+  </TabScrollVisibility.Provider>;
+}
+
+export function useTabBrowsingNavigationScroll(tab: Tab, onScroll?: ScrollViewProps['onScroll']) {
+  const navigation = useNavigation();
+  const report = useContext(TabScrollVisibility);
+  const setHidden = useCallback((hidden: boolean) => {
+    if (navigation.isFocused()) report(tab, hidden);
+  }, [navigation, report, tab]);
+
+  // Leave room to scroll back up after the footer collapses into the viewport.
+  const scroll = useNavigationScroll(setHidden, NOVORI_TAB_BAR_HEIGHT + 2);
+  const dimensions = useRef({ height: 0, viewport: 0 });
+  function revealIfContentFits() {
+    const { height, viewport } = dimensions.current;
+    if (viewport > 0 && height <= viewport + 2) setHidden(false);
+  }
+
+  return {
+    ...scroll,
+    onScroll(event: Parameters<NonNullable<ScrollViewProps['onScroll']>>[0]) {
+      onScroll?.(event);
+      scroll.onScroll(event);
+    },
+    onLayout: ((event) => {
+      dimensions.current.viewport = event.nativeEvent.layout.height;
+      if (dimensions.current.height > 0) revealIfContentFits();
+    }) satisfies NonNullable<ScrollViewProps['onLayout']>,
+    onContentSizeChange(_width: number, height: number) {
+      dimensions.current.height = height;
+      revealIfContentFits();
+    },
+  };
+}
+
+const raisedButtonSpace = 18;
+
+function useNavigationFooterMotion(hidden: boolean, enabled: boolean) {
+  const progress = useSharedValue(1);
+  useEffect(() => {
+    if (!enabled) { progress.value = 1; return; }
+    progress.value = withTiming(hidden ? 0 : 1, {
+      duration: hidden ? 210 : 240,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [enabled, hidden, progress]);
+  const slide = useAnimatedStyle(() => ({ height: raisedButtonSpace + NOVORI_TAB_BAR_HEIGHT * progress.value }));
+  return { progress, slide };
+}
+
+export function TabBrowsingFooter({ active, children }: { active?: string; children: ReactNode }) {
+  const { enabled, hiddenTab, setHiddenTab } = useContext(TabFooterState);
+  const hidden = enabled && hiddenTab !== null && hiddenTab === active;
+  const { slide } = useNavigationFooterMotion(hidden, enabled);
+
+  useEffect(() => {
+    setHiddenTab(current => current === active && enabled ? current : null);
+  }, [active, enabled, setHiddenTab]);
+
+  return <Animated.View style={[{ overflow: 'hidden', marginTop: -raisedButtonSpace }, slide]}
+    pointerEvents={hidden ? 'none' : 'auto'} accessibilityElementsHidden={hidden}
+    importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
+    <View style={{ position: 'absolute', top: raisedButtonSpace, left: 0, right: 0 }}>
+      {children}
+    </View>
+  </Animated.View>;
 }
 
 export default function BrowsingNavigation({ children }: { children: ReactNode }) {
@@ -133,13 +234,7 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
   const keepPostFooter = Platform.OS === 'ios' && postRoute;
   const showBar = detail && !tutorial?.active && (!keyboard || keepPostFooter);
   const hidden = !reduceMotion && visibility?.path === pathname && visibility.hidden;
-  const progress = useSharedValue(1);
-  useEffect(() => {
-    if (!showBar || reduceMotion) { progress.value = 1; return; }
-    progress.value = withTiming(hidden ? 0 : 1, { duration: hidden ? 210 : 240, easing: Easing.out(Easing.cubic) });
-  }, [hidden, progress, reduceMotion, showBar]);
-  const raisedButtonSpace = 18;
-  const slide = useAnimatedStyle(() => ({ height: raisedButtonSpace + NOVORI_TAB_BAR_HEIGHT * progress.value }));
+  const { progress, slide } = useNavigationFooterMotion(hidden, showBar && !reduceMotion);
 
   const postFooterSpace = useAnimatedStyle(() => ({ height: NOVORI_TAB_BAR_HEIGHT * progress.value }));
 
@@ -189,14 +284,16 @@ export default function BrowsingNavigation({ children }: { children: ReactNode }
     </BottomInsetCovered.Provider>;
   }
 
-  return <ScrollVisibility.Provider value={report}>
-    <PostFooterTransition.Provider value={reportPostTransition}>
+  return <ReduceMotion.Provider value={reduceMotion}>
+    <ScrollVisibility.Provider value={report}>
+      <PostFooterTransition.Provider value={reportPostTransition}>
       <ScreenBottomBar.Provider value={tutorial?.active ? null :
         <NovoriBottomBar active={active} onTab={switchTab}/>}>
         <BrowsingScreenFrame.Provider value={renderScreen}>
           <View style={{ flex: 1 }}>{children}</View>
         </BrowsingScreenFrame.Provider>
       </ScreenBottomBar.Provider>
-    </PostFooterTransition.Provider>
-  </ScrollVisibility.Provider>;
+      </PostFooterTransition.Provider>
+    </ScrollVisibility.Provider>
+  </ReduceMotion.Provider>;
 }

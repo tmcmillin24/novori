@@ -5,6 +5,7 @@ import {
     NativeSyntheticEvent,
     RefreshControl,
     ScrollView,
+    type ScrollViewProps,
     StyleProp,
     StyleSheet,
     View,
@@ -17,6 +18,7 @@ import { useNovoriTheme } from '../context/theme-context';
 
 type TabScreenProps = PropsWithChildren<{
   scroll?: boolean;
+  scrollProps?: Pick<ScrollViewProps, 'onScroll' | 'onScrollBeginDrag' | 'onLayout' | 'onContentSizeChange' | 'scrollEventThrottle'>;
   contentStyle?: StyleProp<ViewStyle>;
   scrollRef?: RefObject<ScrollView | null>;
   onScroll?: (
@@ -33,6 +35,7 @@ type TabScreenProps = PropsWithChildren<{
 export function TabScreen({
   children,
   scroll = false,
+  scrollProps,
   contentStyle,
   scrollRef,
   onScroll,
@@ -85,11 +88,8 @@ export function TabScreen({
           onScroll={
             onScroll
           }
-          scrollEventThrottle={
-            onScroll
-              ? 16
-              : undefined
-          }
+          scrollEventThrottle={onScroll ? 16 : undefined}
+          {...scrollProps}
         >
           <View style={[styles.content, contentStyle]}>
             {children}

@@ -1,3 +1,4 @@
+import { useTabBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useFocusEffect,useNavigation,useRouter } from 'expo-router';
@@ -43,6 +44,11 @@ export default function HomeScreen() {
     const homeScrollOffsetRef = useRef(0);
     const homeFocusedRef = useRef(false);
     const [showStickyHomeHeader, setShowStickyHomeHeader,] = useState(false);
+    const navigationScroll = useTabBrowsingNavigationScroll('index', event => {
+        const y = event.nativeEvent.contentOffset.y;
+        homeScrollOffsetRef.current = y;
+        if ((y > 76) !== showStickyHomeHeader) setShowStickyHomeHeader(y > 76);
+    });
     const { height: windowHeight, width: windowWidth, } = useWindowDimensions();
     const [activeSection, setActiveSection] = useState<HomeSection>('feed');
     const tutorial=useTutorial(),feedTarget=useTutorialTarget('home-feed',10),clubsTarget=useTutorialTarget('home-clubs',10);
@@ -734,18 +740,7 @@ export default function HomeScreen() {
       <SafeAreaView pointerEvents={commentsModalVisible ? "none" : "auto"} accessibilityElementsHidden={commentsModalVisible} importantForAccessibility={commentsModalVisible ? "no-hide-descendants" : "auto"} style={styles.safeArea} edges={[
             'top'
         ]}>
-      <ScrollView ref={homeScrollRef} scrollEnabled={!commentsModalVisible} scrollsToTop={!commentsModalVisible} style={styles.screen} contentContainerStyle={styles.scrollContent} onScroll={(event) => {
-            const y = event.nativeEvent
-                .contentOffset.y;
-            homeScrollOffsetRef.current =
-                y;
-            const shouldShow = y >
-                76;
-            if (shouldShow !==
-                showStickyHomeHeader) {
-                setShowStickyHomeHeader(shouldShow);
-            }
-        }} scrollEventThrottle={16} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.gold}/>} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={homeScrollRef} scrollEnabled={!commentsModalVisible} scrollsToTop={!commentsModalVisible} style={styles.screen} contentContainerStyle={styles.scrollContent} {...navigationScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.gold}/>} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.topRow}>
             <View style={styles.brandBlock}>

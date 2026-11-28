@@ -1,3 +1,4 @@
+import { useTabBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { currentFeedComposerPreviewKey } from '../../lib/club-composer-preview';
 import { Ionicons } from '@expo/vector-icons';
 import {useCallback,useEffect,useRef,useState} from 'react';
@@ -27,6 +28,14 @@ import {
 export default function PostScreen() {
   const tutorial=useTutorial(),postTarget=useTutorialTarget('create-post',22),readingTarget=useTutorialTarget('create-reading-update',18),askTarget=useTutorialTarget('create-ask-readers',18),stackTarget=useTutorialTarget('create-book-stack',18),scroll=useRef<ScrollView>(null);
   const insets=useSafeAreaInsets();
+  const navigationScroll = useTabBrowsingNavigationScroll('post', event => {
+    scrollOffset.current = event.nativeEvent.contentOffset.y;
+    if(tutorial?.active){
+      const anchor=tutorial.step.anchor;
+      const target=anchor==='create-post'?postTarget:anchor==='create-reading-update'?readingTarget:anchor==='create-ask-readers'?askTarget:anchor==='create-book-stack'?stackTarget:null;
+      target?.trackMotion();
+    }
+  });
   const {height:screenHeight,width:screenWidth}=useWindowDimensions(),scrollOffset=useRef(0);
   const [positions,setPositions]=useState<Record<string,number>>({}),[gridY,setGridY]=useState(0);
   const recordPosition=(id:string,y:number)=>setPositions(old=>old[id]===y?old:{...old,[id]:y});
@@ -90,15 +99,7 @@ export default function PostScreen() {
         ref={scroll}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
-        onScroll={event=>{
-          scrollOffset.current=event.nativeEvent.contentOffset.y;
-          if(tutorial?.active){
-            const anchor=tutorial.step.anchor;
-            const target=anchor==='create-post'?postTarget:anchor==='create-reading-update'?readingTarget:anchor==='create-ask-readers'?askTarget:anchor==='create-book-stack'?stackTarget:null;
-            target?.trackMotion();
-          }
-        }}
-        scrollEventThrottle={16}
+        {...navigationScroll}
         scrollEnabled={!tutorial?.active}
         bounces={!tutorial?.active}
         style={

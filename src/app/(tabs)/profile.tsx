@@ -1,3 +1,4 @@
+import { useTabBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image as ExpoImage } from 'expo-image';
@@ -122,6 +123,9 @@ export default function ProfileScreen() {
     const navigation = useNavigation();
     const profileScrollRef = useRef<ScrollView | null>(null);
     const profileScrollOffsetRef = useRef(0);
+    const navigationScroll = useTabBrowsingNavigationScroll('profile', event => {
+        profileScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+    });
     const profileFocusedRef = useRef(false);
     const hasLoadedProfileRef = useRef(false);
     const lastProfileRefreshRef = useRef(0);
@@ -931,11 +935,7 @@ export default function ProfileScreen() {
         <View style={styles.profileCacheWarmup}/>
       </TabScreen>);
     }
-    return (<TabScreen scroll scrollRef={profileScrollRef} onScroll={(event) => {
-            profileScrollOffsetRef.current =
-                event.nativeEvent
-                    .contentOffset.y;
-        }} refreshing={refreshing} onRefresh={refreshProfile} refreshTintColor={colors.gold}>
+    return (<TabScreen scroll scrollRef={profileScrollRef} scrollProps={navigationScroll} refreshing={refreshing} onRefresh={refreshProfile} refreshTintColor={colors.gold}>
       {profileRefreshWarning ? <View style={{paddingHorizontal:20,paddingVertical:10}}>
         <Text style={{color:colors.mutedText,fontFamily:'Inter_400Regular'}}>Some profile details couldn’t refresh. Your saved data is unchanged.</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Retry profile refresh" disabled={refreshing} onPress={refreshProfile}><Text style={{color:colors.gold,fontFamily:'Inter_600SemiBold',paddingVertical:8}}>Try again</Text></Pressable>

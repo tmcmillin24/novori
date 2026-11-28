@@ -1,3 +1,4 @@
+import { TabBrowsingFooter, TabBrowsingNavigation } from '../../components/BrowsingNavigation';
 import NovoriBottomBar from '../../components/NovoriBottomBar';
 import { useEffect } from 'react';
 import { syncFeedComposerPreview } from '../../lib/club-composer-preview';
@@ -32,8 +33,10 @@ export default function TabLayout() {
 
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
+    <TabBrowsingNavigation>
     <Tabs
-      tabBar={({ state, navigation }) => <NovoriBottomBar active={state.routes[state.index]?.name}
+      tabBar={({ state, navigation }) => <TabBrowsingFooter active={state.routes[state.index]?.name}>
+        <NovoriBottomBar active={state.routes[state.index]?.name}
         onTab={tab => {
           const route = state.routes.find(item => item.name === tab.segment);
           if (!route) return;
@@ -43,7 +46,8 @@ export default function TabLayout() {
         onLongPress={tab => {
           const route = state.routes.find(item => item.name === tab.segment);
           if (route) navigation.emit({ type: 'tabLongPress', target: route.key });
-        }}/>}
+        }}/>
+      </TabBrowsingFooter>}
       // Detach native views without unmounting tab state. Keep tutorial targets
       // attached while the walkthrough measures anchors across tabs.
       detachInactiveScreens={!tutorial?.active}
@@ -66,6 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen name="profile" options={{ title: 'Profile' }}/>
       <Tabs.Screen name="notifications" options={{ href: null }}/>
     </Tabs>
+    </TabBrowsingNavigation>
     </View>
   );
 }

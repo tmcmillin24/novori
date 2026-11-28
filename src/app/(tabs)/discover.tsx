@@ -1,3 +1,4 @@
+import { useTabBrowsingNavigationScroll } from '../../components/BrowsingNavigation';
 import { moderationMediaUrl } from '../../lib/moderation-media-url';
 import CartShortcut from '../../components/CartShortcut';
 import { useRecentBookSearches } from '../../lib/recent-book-searches';
@@ -1991,6 +1992,7 @@ export default function DiscoverScreen() {
 
   const discoverHomeScrollOffsetRef =
     useRef(0);
+  const navigationScroll = useTabBrowsingNavigationScroll('discover');
 
   const [
     discoverMode,
@@ -4185,6 +4187,7 @@ export default function DiscoverScreen() {
             }
           >
             <FlatList
+              {...navigationScroll}
               style={
                 styles.list
               }
@@ -4292,14 +4295,11 @@ export default function DiscoverScreen() {
             style={
               styles.discoverHome
             }
-            onScroll={(event) => {
-              discoverHomeScrollOffsetRef.current =
-                event.nativeEvent
-                  .contentOffset.y;
+            {...navigationScroll}
+            onScroll={event => {
+              discoverHomeScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+              navigationScroll.onScroll(event);
             }}
-            scrollEventThrottle={
-              16
-            }
             contentContainerStyle={
               styles.discoverHomeContent
             }
@@ -4934,6 +4934,7 @@ export default function DiscoverScreen() {
             }
           >
             <FlatList
+              {...navigationScroll}
               style={
                 styles.list
               }
