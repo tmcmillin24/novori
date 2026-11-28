@@ -1,3 +1,4 @@
+import { patchDiscoverLibrarySnapshot, saveDiscoverLibrarySnapshot } from './discover-library-snapshot';
 import { hasLibraryMembership } from './library-membership';
 import { publishUserBookChange } from './user-book-events';
 import { resolveCanonicalBookCover } from './canonical-book-covers';
@@ -154,6 +155,7 @@ export async function getUserBook(
 export async function getUserBooks(
   status?: UserBookStatus
 ): Promise<UserBook[]> {
+  const version = getLibraryMutationVersion();
   const userId =
     await getCurrentUserId();
 
@@ -194,6 +196,9 @@ export async function getUserBooks(
       []
     ) as UserBook[];
   const libraryBooks = books.filter(hasLibraryMembership);
+  if (!status && version === getLibraryMutationVersion()) {
+    void saveDiscoverLibrarySnapshot(userId, libraryBooks);
+  }
 
   const verifiedCovers =
     await getLockedVerifiedCoverUrls(
@@ -377,6 +382,7 @@ export async function saveUserBook(
     markLibraryChanged();
 
     publishUserBookChange(data as UserBook);
+    await patchDiscoverLibrarySnapshot(userId, data.google_book_id, data as UserBook);
     return data as UserBook;
   }
 
@@ -428,6 +434,7 @@ export async function saveUserBook(
   markLibraryChanged();
 
   publishUserBookChange(data as UserBook);
+  await patchDiscoverLibrarySnapshot(userId, data.google_book_id, data as UserBook);
   return data as UserBook;
 }
 
@@ -466,6 +473,7 @@ export async function updateUserBookOwned(
   markLibraryChanged();
 
   publishUserBookChange(data as UserBook);
+  await patchDiscoverLibrarySnapshot(userId, data.google_book_id, data as UserBook);
   return data as UserBook;
 }
 
@@ -511,6 +519,7 @@ export async function updateBookReadingDates({
   markLibraryChanged();
 
   publishUserBookChange(data as UserBook);
+  await patchDiscoverLibrarySnapshot(userId, data.google_book_id, data as UserBook);
   return data as UserBook;
 }
 
@@ -552,6 +561,7 @@ export async function updateBookReview({
   markLibraryChanged();
 
   publishUserBookChange(data as UserBook);
+  await patchDiscoverLibrarySnapshot(userId, data.google_book_id, data as UserBook);
   return data as UserBook;
 }
 
@@ -580,4 +590,5 @@ export async function removeUserBook(
   }
 
   markLibraryChanged();
+  await patchDiscoverLibrarySnapshot(userId, googleBookId);
 }

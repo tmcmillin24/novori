@@ -69,11 +69,8 @@ import {
   searchReaders,
 } from '../../lib/social';
 import { supabase } from '../../lib/supabase';
-import {
-  getLibraryMutationVersion,
-  getUserBooks,
-  UserBook,
-} from '../../lib/user-books';
+import { getLibraryMutationVersion } from '../../lib/user-books';
+import { readDiscoverLibrarySnapshot, saveDiscoverLibrarySnapshot, type DiscoverLibraryBook } from '../../lib/discover-library-snapshot';
 
 type GoogleBookItem = {
   id: string;
@@ -429,7 +426,7 @@ async function findGoogleBookForScannedIsbn(scannedIsbn: string) {
 
 function isDiscoverBookInLibrary(
   book: TrendingBook,
-  libraryBooks: UserBook[]
+  libraryBooks: DiscoverLibraryBook[]
 ) {
   const bookIsbns =
     new Set(
@@ -543,9 +540,10 @@ let discoverSessionCache = {
   recentReleasePool:
     [] as TrendingBook[],
   libraryBooks:
-    [] as UserBook[],
+    [] as DiscoverLibraryBook[],
   refreshedAt:
     0,
+  libraryUserId: null as string | null,
   libraryRefreshedAt:
     0,
   libraryMutationVersion:
@@ -2239,11 +2237,8 @@ export default function DiscoverScreen() {
     );
   const [recentReleasesError, setRecentReleasesError] =
     useState('');
-  const [libraryBooks, setLibraryBooks] =
-    useState<UserBook[]>(
-      discoverSessionCache
-        .libraryBooks
-    );
+  const [libraryBooks, setLibraryBooks] = useState<DiscoverLibraryBook[]>([]);
+  const [libraryReady, setLibraryReady] = useState(false);
   const [discoverRefreshing, setDiscoverRefreshing] =
     useState(false);
   const [activeTrendingGenreKey, setActiveTrendingGenreKey] =
@@ -2337,67 +2332,60 @@ export default function DiscoverScreen() {
         let active =
           true;
 
-        const currentMutationVersion =
-          getLibraryMutationVersion();
+        async function loadLibraryExclusions() {
+          try {
+            const { data, error } = await supabase.auth.getSession();
+            if (!active) return;
+            if (error) throw error;
+            const userId = data.session?.user.id;
+            if (!userId || discoverSessionCache.libraryUserId !== userId) {
+              setLibraryReady(false);
+              setLibraryBooks([]);
+              discoverSessionCache = {
+                ...discoverSessionCache, libraryUserId: userId ?? null, libraryBooks: [],
+                libraryRefreshedAt: 0, libraryMutationVersion: -1,
+              };
+            }
+            if (!userId) { setLibraryReady(true); return; }
 
-        const libraryCacheFresh =
-          discoverSessionCache
-            .libraryRefreshedAt >
-            0 &&
-          Date.now() -
-            discoverSessionCache
-              .libraryRefreshedAt <
-            DISCOVER_LIBRARY_STALE_MS;
-
-        const libraryChanged =
-          currentMutationVersion !==
-          discoverSessionCache
-            .libraryMutationVersion;
-
-        if (
-          !libraryCacheFresh ||
-          libraryChanged
-        ) {
-          void getUserBooks()
-            .then(
-              (
-                savedBooks
-              ) => {
-                if (
-                  !active
-                ) {
-                  return;
-                }
-
-                const refreshedAt =
-                  Date.now();
-
-                setLibraryBooks(
-                  savedBooks
-                );
-
-                discoverSessionCache = {
-                  ...discoverSessionCache,
-                  libraryBooks:
-                    savedBooks,
-                  libraryRefreshedAt:
-                    refreshedAt,
-                  libraryMutationVersion:
-                    currentMutationVersion,
-                };
-              }
-            )
-            .catch(
-              (
-                libraryError
-              ) => {
-                console.warn(
-                  'Could not refresh Discover library exclusions:',
-                  libraryError
-                );
-              }
-            );
+            const version = getLibraryMutationVersion();
+            const cacheFresh = Date.now() - discoverSessionCache.libraryRefreshedAt < DISCOVER_LIBRARY_STALE_MS &&
+              version === discoverSessionCache.libraryMutationVersion;
+            if (cacheFresh) {
+              setLibraryBooks(discoverSessionCache.libraryBooks);
+              setLibraryReady(true);
+              return;
+            }
+            const saved = await readDiscoverLibrarySnapshot(userId);
+            if (!active) return;
+            if (saved) {
+              discoverSessionCache = { ...discoverSessionCache, libraryBooks: saved };
+              setLibraryBooks(saved);
+              setLibraryReady(true);
+            }
+            const { data: rows, error: libraryError } = await supabase.from('user_books')
+              .select('google_book_id,title,authors,isbn,owned,status').eq('user_id', userId);
+            if (libraryError) throw libraryError;
+            if (!active) return;
+            if (version !== getLibraryMutationVersion()) {
+              void loadLibraryExclusions();
+              return;
+            }
+            const books = (rows ?? []).filter(book => book.owned || book.status) as DiscoverLibraryBook[];
+            discoverSessionCache = {
+              ...discoverSessionCache, libraryBooks: books,
+              libraryRefreshedAt: Date.now(), libraryMutationVersion: version,
+            };
+            setLibraryBooks(books);
+            setLibraryReady(true);
+            void saveDiscoverLibrarySnapshot(userId, books);
+          } catch (libraryError) {
+            if (!active) return;
+            console.warn('Could not refresh Discover library exclusions:', libraryError);
+            setLibraryReady(true);
+          }
         }
+        void loadLibraryExclusions();
 
         return () => {
           active =
@@ -2411,6 +2399,7 @@ export default function DiscoverScreen() {
   );
 
   useEffect(() => {
+    if (!libraryReady) return;
     const discoverCacheFresh =
       lastDiscoverRefreshRef
         .current >
@@ -2472,7 +2461,7 @@ export default function DiscoverScreen() {
       );
       appStateSubscription.remove();
     };
-  }, []);
+  }, [libraryReady]);
 
   useEffect(() => {
     // Keep the book carousel visually anchored while users
@@ -4372,7 +4361,7 @@ export default function DiscoverScreen() {
                   </Text>
                 </View>
 
-                {!trendingLoading &&
+                {libraryReady && !trendingLoading &&
                 trendingBooks.length > 0 ? (
                   <View
                     style={
@@ -4622,7 +4611,7 @@ export default function DiscoverScreen() {
                   event.stopPropagation()
                 }
               >
-                {!trendingLoading &&
+                {libraryReady && !trendingLoading &&
                 trendingBooks.length > 0 ? (
                   <ScrollView
                     ref={
@@ -4706,7 +4695,7 @@ export default function DiscoverScreen() {
               </View>
             </View>
 
-            {trendingLoading ? (
+            {(!libraryReady || trendingLoading) ? (
               <View
                 style={
                   styles.trendingLoading
@@ -4859,7 +4848,7 @@ export default function DiscoverScreen() {
                 </Text>
               </View>
 
-              {recentReleasesLoading ? (
+              {(!libraryReady || recentReleasesLoading) ? (
                 <View
                   style={
                     styles.newReleasesLoading
