@@ -271,6 +271,7 @@ async function attachCatalogSearchCovers(
 }
 
 type HardcoverSearchPopularityResponse = {
+  cacheTrace?: { upstream?: Record<string, number> };
   popularity?: Record<
     string,
     {
@@ -3061,7 +3062,15 @@ export function searchNovoriBooks(searchTerm: string, startIndex = 0, options: {
   return readCompletedSearch(completedSearchKey(term, startIndex, options.mode), publish => loadNovoriBooks(term, startIndex, options.mode, publish), rows => !incompleteSearchResults.has(rows), options.onProgress);
 }
 
-async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author', onProgress?: (books: GoogleBookSearchItem[]) => void) {
+// Internal book lookups can reuse a visible search without requesting ratings for its neighbors.
+export function searchNovoriBookWorkMetadata(title: string) {
+  const cached = peekNovoriBookSearch(title);
+  if (cached) return Promise.resolve(cached);
+  return readCompletedSearch(`metadata:${searchQueryKey(title)}`,
+    () => loadNovoriBooks(title, 0, undefined, undefined, true));
+}
+
+async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'author', onProgress?: (books: GoogleBookSearchItem[]) => void, metadataOnly = false) {
   const startedAt = Date.now();
   const timing = (stage: string) => { if (typeof __DEV__ !== 'undefined' && __DEV__) console.info('[Novori book search timing]', { stage, elapsedMs: Date.now() - startedAt, startIndex }); };
   const response =
@@ -3269,6 +3278,8 @@ async function loadNovoriBooks(searchTerm: string, startIndex = 0, mode?: 'autho
       searchTerm,
       {}
     );
+
+  if (metadataOnly) return collapsed;
 
   // Reuse the existing cached, quota-controlled popularity endpoint. A single
   // result still needs rating metadata. Provider failures keep usable catalog results.
@@ -3899,6 +3910,7 @@ export async function resolveHardcoverRating(input: {
   authors?: string[];
   isbns?: string[];
   allowGoogleLookup?: boolean;
+  throwOnError?: boolean;
 }): Promise<
   ResolvedHardcoverRating | null
 > {
@@ -4086,15 +4098,14 @@ export async function resolveHardcoverRating(input: {
       }
     );
 
-  if (
-    error
-  ) {
+  const response = data as HardcoverSearchPopularityResponse | null;
+  if (error || response?.error || !response?.popularity || typeof response.popularity !== 'object' || Array.isArray(response.popularity)) {
+    if (input.throwOnError) throw error ?? new Error('Hardcover rating lookup was incomplete.');
     return null;
   }
-
-  const response =
-    data as
-      HardcoverSearchPopularityResponse;
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.info('[Novori cache] rating upstream', response.cacheTrace?.upstream ?? {});
+  }
 
   const resolved =
     response?.popularity?.[

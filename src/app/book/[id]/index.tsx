@@ -75,6 +75,7 @@ import {
   type ResolvedHardcoverRating,
   searchNovoriBooks,
   peekNovoriBookSearch,
+  searchNovoriBookWorkMetadata,
 } from '../../../lib/book-search';
 import {
   CommunityBookReview,
@@ -170,13 +171,21 @@ type HardcoverSeriesResponse = {
   books: HardcoverSeriesBook[];
   error?: string;
   details?: unknown;
+  cacheTrace?: { upstream?: Record<string, number> };
 };
 
-const validSeriesExtras=(value:unknown):value is HardcoverSeriesResponse=>{
- const row=value as HardcoverSeriesResponse|null;
- return Boolean(row&&!row.error&&row.series&&Number.isFinite(row.series.id)&&typeof row.series.name==='string'&&Array.isArray(row.books)&&row.books.every(book=>book&&Number.isFinite(book.id)&&typeof book.title==='string'&&Array.isArray(book.authors)));
+const validSeriesExtras = (value: unknown): value is HardcoverSeriesResponse => {
+  const row = value as HardcoverSeriesResponse | null;
+  if (!row || row.error || !Array.isArray(row.books)) return false;
+  if (row.series === null) return row.books.length === 0;
+  return Boolean(row.series && Number.isFinite(row.series.id) && typeof row.series.name === 'string' &&
+    row.books.every(book => book && Number.isFinite(book.id) && typeof book.title === 'string' && Array.isArray(book.authors)));
 };
-const validRatingExtras=(value:unknown):value is ResolvedHardcoverRating=>{
+const confirmedEmptyLifetime = { freshMs: 15 * 60000, retainMs: 15 * 60000 };
+const foundExtraLifetime = { freshMs: 86400000, retainMs: 7 * 86400000 };
+
+const validRatingExtras=(value:unknown):value is ResolvedHardcoverRating|null=>{
+ if (value === null) return true;
  const row=value as ResolvedHardcoverRating|null;
  return Boolean(row&&typeof row.rating==='number'&&Number.isFinite(row.rating)&&row.rating>=0&&row.rating<=5&&typeof row.googleBookId==='string'&&(row.ratingsCount===null||(Number.isInteger(row.ratingsCount)&&row.ratingsCount!>=0)));
 };
@@ -1107,7 +1116,7 @@ function SeriesBookOpeningRoute({params}: {params: BookDetailParams}) {
         });
         if (error || !data || !('book' in data)) throw error ?? new Error('Edition lookup was incomplete');
         return data.book;
-      }, searchNovoriBooks)).then(({ value: book, fromCache }) => {
+      }, searchNovoriBookWorkMetadata)).then(({ value: book, fromCache }) => {
         localCacheLog('series-edition', fromCache ? 'HIT' : 'MISS');
         if (active) setResult({book,failed:false});
       }, () => {
@@ -1675,11 +1684,13 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
                     ) =>
                       identifier.identifier
                   ),
-                allowGoogleLookup:
-                  false,
+                allowGoogleLookup: false,
+                 throwOnError: true,
               });
 
-              },{freshMs:86400000,retainMs:7*86400000,valid:validRatingExtras,onRefresh:value=>{
+              },{...foundExtraLifetime,valid:validRatingExtras,
+                 valueLifetime: value => value ? foundExtraLifetime : confirmedEmptyLifetime,
+                 onRefresh:value=>{
                 if(active&&value){setHardcoverRating(value.rating);setHardcoverRatingsCount(value.ratingsCount);}
               }});
             const resolvedRating=cachedRating.value;
@@ -2195,17 +2206,19 @@ function BookDetailsScreen({ params, initialSeries, initialBook, seriesMemberId,
           body: {googleBookId: currentBook.id, isbn: exactIsbn ?? lookupIsbns[0] ?? null, isbns: lookupIsbns, title, authors},
           timeout: 15000,
         });
-        if (result.error || result.data?.error || !Array.isArray(result.data?.books)) throw new Error('Series lookup unavailable.');
-        return result.data as HardcoverSeriesResponse;
+        if (result.error || !validSeriesExtras(result.data)) throw new Error('Series lookup unavailable.');
+        if (__DEV__) console.info('[Novori cache] series upstream', result.data.cacheTrace?.upstream ?? {});
+        return result.data;
       };
       const cachedSeries=await publicBookCache.read<HardcoverSeriesResponse>(bookExtraKey('series',currentBook.id,exactIsbn),async()=>{
         const response = await lookup(isbns);
-        if (response.series || !enrichedBook || !isCurrent()) return response;
+        if (response.series || !enrichedBook) return response;
+        // Finish the shared lookup even if the screen that started it has closed.
         const enriched = await enrichedBook.catch(() => currentBook);
-        if (!isCurrent()) return response;
         const aliases = editionIsbns(enriched);
         return aliases.some(isbn => !isbns.includes(isbn)) ? lookup(aliases) : response;
-      },{freshMs:86400000,retainMs:7*86400000,valid:validSeriesExtras});
+      },{...foundExtraLifetime,valid:validSeriesExtras,
+        valueLifetime: value => value.series ? foundExtraLifetime : confirmedEmptyLifetime});
       if(!isCurrent())return null;
       const response=cachedSeries.value;
       if (!response.series && snapshot) return null;

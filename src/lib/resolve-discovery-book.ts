@@ -4,11 +4,11 @@ import { resolveCanonicalBookCover, getCanonicalBookCover, getCanonicalBookCover
 import type { DiscoveryBook } from './discovery-books';
 import { createDiscoveryBookResolver } from './discovery-books';
 import { resolveGoogleBooksIdentity } from './google-books';
-import { searchNovoriBooks } from './book-search';
+import { searchNovoriBookWorkMetadata } from './book-search';
 
 // Endpoint/field names are compatibility names. The server chooses ISBNdb or
 // cached legacy metadata; the client never calls a raw Google Books API here.
-const resolveIdentity = createDiscoveryBookResolver(resolveGoogleBooksIdentity, searchNovoriBooks);
+const resolveIdentity = createDiscoveryBookResolver(resolveGoogleBooksIdentity, searchNovoriBookWorkMetadata);
 export async function resolveDiscoveryBook(book: DiscoveryBook) {
  const id = await resolveIdentity(book);
  // Adopt only artwork already published by the server-authored feed; route URLs

@@ -9,6 +9,7 @@ type Options<T> = {
   freshMs: number;
   retainMs: number;
   valid: (value: unknown) => value is T;
+  valueLifetime?: (value: T) => { freshMs: number; retainMs: number };
   onRefresh?: (value: T) => void;
 };
 const STORAGE_KEY = "novori:public-book-extras:v1",
@@ -115,12 +116,13 @@ export function createPublicBookCache(
           .then((value) => {
             if (options.valid(value) && JSON.stringify(value).length < 100000) {
               const savedAt = now();
+              const lifetime = options.valueLifetime?.(value) ?? options;
               entries.delete(key);
               entries.set(key, {
                 value: copy(value),
                 savedAt,
-                freshUntil: savedAt + options.freshMs,
-                expiresAt: savedAt + options.retainMs,
+                freshUntil: savedAt + lifetime.freshMs,
+                expiresAt: savedAt + lifetime.retainMs,
               });
               while (entries.size > MAX_ENTRIES)
                 entries.delete(entries.keys().next().value!);

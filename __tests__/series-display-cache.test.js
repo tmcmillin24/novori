@@ -3,7 +3,7 @@ const source=fs.readFileSync(path.join(__dirname,'../src/app/book/[id]/index.tsx
 const code=source.slice(source.indexOf('  async function loadSeries('),source.indexOf('  async function saveReadingStatus('));
 test('cached series labels display before cover reads finish and cannot replay stale artwork/pages',async()=>{
  let finish;const cover=new Promise(resolve=>{finish=resolve;});
- const deps={getBookISBN:()=> '9780000000002',publicBookCache:{read:jest.fn(async()=>({fromCache:true,value:{series:{id:1,name:'Series'},books:[{id:2,title:'Book',authors:['Different Series Author'],coverBookId:'edition',coverUrl:'https://old/snapshot.jpg'}],pageCounts:{edition:{isbn:'9780000000002',pageCount:50}}}}))},bookExtraKey:()=> 'series:edition',validSeriesExtras:()=>true,
+ const deps={getBookISBN:()=> '9780000000002',publicBookCache:{read:jest.fn(async()=>({fromCache:true,value:{series:{id:1,name:'Series'},books:[{id:2,title:'Book',authors:['Different Series Author'],coverBookId:'edition',coverUrl:'https://old/snapshot.jpg'}],pageCounts:{edition:{isbn:'9780000000002',pageCount:50}}}}))},bookExtraKey:()=> 'series:edition',validSeriesExtras:()=>true,foundExtraLifetime:{},confirmedEmptyLifetime:{},
   normalizeCatalogAuthor:value=>value,setSeriesLoading:jest.fn(),setSeries:jest.fn(),setSeriesBooks:jest.fn(),rememberEditionPages:jest.fn(),rememberBookPublications:jest.fn(),publishCatalogCovers:jest.fn(),resolveCanonicalBookCover:jest.fn(()=>cover),setSeriesWorkCoverUrl:jest.fn(),setSelectedWorkCoverUrl:jest.fn(),supabase:{functions:{invoke:jest.fn()}},__DEV__:false};
  const exports={};vm.runInNewContext(ts.transpileModule(code+'\nexports.loadSeries=loadSeries;',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{...deps,exports});
  const pending=exports.loadSeries({id:'edition',volumeInfo:{title:'Book',authors:['Writer'],industryIdentifiers:[]}});
@@ -19,7 +19,7 @@ test('series lookup starts without aliases and retries only a real miss with new
  let complete;const work = new Promise(resolve=>{complete=resolve;});
  const results=[{series:null,books:[]},{series:{id:7,name:'Series'},books:[]}];
  const deps={getBookISBN:()=>null,publicBookCache:{read:async(_key,load)=>({value:await load(),fromCache:false})},
-  bookExtraKey:()=> 'series:edition',validSeriesExtras:()=>true,
+  bookExtraKey:()=> 'series:edition',validSeriesExtras:()=>true,foundExtraLifetime:{},confirmedEmptyLifetime:{},
   normalizeCatalogAuthor:value=>value,setSeriesLoading:jest.fn(),setSeries:jest.fn(),setSeriesBooks:jest.fn(),
   rememberEditionPages:jest.fn(),rememberBookPublications:jest.fn(),publishCatalogCovers:jest.fn(),
   resolveCanonicalBookCover:jest.fn(async()=>null),setSeriesWorkCoverUrl:jest.fn(),setSelectedWorkCoverUrl:jest.fn(),
@@ -68,7 +68,7 @@ test('the destination keeps its book visible during lookup and enables details o
  const supabase={functions:{invoke:jest.fn(()=>response)}};
  vm.runInNewContext(ts.transpileModule(routeCode+'\nexports.open=SeriesBookOpeningRoute;',
   {fileName:'route.tsx',compilerOptions:{jsx:ts.JsxEmit.React,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
-   exports,supabase,peekNovoriBookSearch:jest.fn(),searchNovoriBooks:jest.fn(),useRouter:()=>({}),useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),
+   exports,supabase,peekNovoriBookSearch:jest.fn(),searchNovoriBookWorkMetadata:jest.fn(),useRouter:()=>({}),useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),
    useState(initial){const key=cursor++; if(!(key in states)) states[key]=typeof initial==='function'?initial():initial;return [states[key],value=>{states[key]=value;}];},
    React:{createElement:(type,props)=>({type,props})},
    seriesOpeningSnapshots:new Map([[params.id,snapshot]]),openingAuthors:JSON.parse,

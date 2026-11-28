@@ -167,3 +167,22 @@ test("concurrent detail reads share a disk write", async () => {
   expect(disk.setItem).toHaveBeenCalledTimes(1);
   expect(JSON.parse(disk.raw()!).entries).toHaveLength(12);
 });
+
+test("a confirmed empty lookup survives a quick reopen and then expires", async () => {
+  const disk = storage();
+  const load = jest.fn(async () => null);
+  const empty = {
+    freshMs: 86400000, retainMs: 7 * 86400000,
+    valid: (value: unknown): value is null => value === null,
+    valueLifetime: () => ({ freshMs: 900000, retainMs: 900000 }),
+  };
+  const first = createPublicBookCache(disk, () => 100);
+  await first.read("rating:empty", load, empty);
+  await first.flush();
+  const reopened = createPublicBookCache(disk, () => 1000);
+  expect(await reopened.read("rating:empty", load, empty)).toEqual({ value: null, fromCache: true });
+  expect(load).toHaveBeenCalledTimes(1);
+  const expired = createPublicBookCache(disk, () => 901000);
+  expect((await expired.read("rating:empty", load, empty)).fromCache).toBe(false);
+  expect(load).toHaveBeenCalledTimes(2);
+});

@@ -101,8 +101,8 @@ export function createBookWorkDetails(search: (query: string) => Promise<GoogleB
 // Lazy import avoids a runtime initialization cycle: search uses the raw shared
 // reader for search payloads; only volume detail payloads enter this resolver.
 export const bookWorkDetails = createBookWorkDetails(async query => {
-  const { searchNovoriBooks } = await import('./book-search');
-  const cached=await publicBookCache.read(`work-representative:v3:${query.trim().toLowerCase()}`,()=>searchNovoriBooks(query),{freshMs:86400000,retainMs:7*86400000,valid:(value):value is GoogleBookSearchItem[]=>Array.isArray(value)&&value.length>0&&value.every(book=>book&&typeof book.id==='string'&&book.volumeInfo&&typeof book.volumeInfo.title==='string')});
+  const { searchNovoriBookWorkMetadata } = await import('./book-search');
+  const cached=await publicBookCache.read(`work-representative:v3:${query.trim().toLowerCase()}`,()=>searchNovoriBookWorkMetadata(query),{freshMs:86400000,retainMs:7*86400000,valid:(value):value is GoogleBookSearchItem[]=>Array.isArray(value)&&value.length>0&&value.every(book=>book&&typeof book.id==='string'&&book.volumeInfo&&typeof book.volumeInfo.title==='string')});
   return cached.value;
 });
 
